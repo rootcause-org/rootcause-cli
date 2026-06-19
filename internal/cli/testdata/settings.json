@@ -1,0 +1,6 @@
+{
+  "max_run_usd": { "value": 5, "effective": 5, "default": 1.0 },
+  "default_tier": { "value": "pro", "effective": "pro", "default": "standard" },
+  "image_model": { "value": "", "effective": "vendor/img", "default": "vendor/img" },
+  "kb_enrich_model": { "value": "", "effective": "vendor/kb", "default": "vendor/kb" }
+}
