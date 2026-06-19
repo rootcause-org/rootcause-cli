@@ -86,7 +86,7 @@ type RunDetail struct {
 	BashTotal      int64          `json:"bash_total,omitempty"`
 	CostUSD        float64        `json:"cost_usd,omitempty"`
 	AnswerMarkdown string         `json:"answer_markdown,omitempty"`
-	TraceURL       string         `json:"trace_url,omitempty"`
+	RunURL         string         `json:"run_url,omitempty"`
 	Attachments    []any          `json:"attachments"`
 	Error          string         `json:"error,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`

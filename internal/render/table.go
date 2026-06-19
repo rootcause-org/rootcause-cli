@@ -85,10 +85,11 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 }
 
 // Run renders one run's high-level view — the promised set: status, category, draft?/note?, cost,
-// duration (plus kind/created/finished and a trace link). category/has_draft/has_note are top-level
-// server fields now; cost prefers the run_health cost_usd and falls back to metadata.total_cost_usd;
-// duration prefers duration_ms and falls back to finished−created. Optional rows (category, cost,
-// turns, bash, trace) print only when present so a running/incomplete run stays clean.
+// duration (plus kind/created/finished and a link to the run page). category/has_draft/has_note are
+// top-level server fields now; cost prefers the run_health cost_usd and falls back to
+// metadata.total_cost_usd; duration prefers duration_ms and falls back to finished−created. Optional
+// rows (category, cost, turns, bash, run URL) print only when present so a running/incomplete run
+// stays clean.
 func Run(w io.Writer, r *client.RunDetail) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
@@ -119,8 +120,8 @@ func Run(w io.Writer, r *client.RunDetail) {
 		fmt.Fprintf(tw, "Bash:\t%d\n", r.BashTotal)
 	}
 	fmt.Fprintf(tw, "Attachments:\t%d\n", len(r.Attachments))
-	if r.TraceURL != "" {
-		fmt.Fprintf(tw, "Trace:\t%s\n", r.TraceURL)
+	if r.RunURL != "" {
+		fmt.Fprintf(tw, "View run:\t%s\n", r.RunURL)
 	}
 	tw.Flush()
 
