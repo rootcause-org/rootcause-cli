@@ -51,21 +51,29 @@ release:
     owner: rootcause-org
     name: rootcause-cli
 
-# --- Homebrew (opt-in) -------------------------------------------------------
-# Uncomment to publish a `brew install rootcause-org/tap/rc` formula on every release. Two one-time
-# steps first (see README → Install):
-#   1. create an empty public repo `rootcause-org/homebrew-tap`
-#   2. add a repo secret HOMEBREW_TAP_GITHUB_TOKEN (a token with contents:write on homebrew-tap) — the
-#      default GITHUB_TOKEN can't push to a *second* repo. Wire it in release.yml (commented there too).
-# brews:
-#   - name: rc
-#     repository:
-#       owner: rootcause-org
-#       name: homebrew-tap
-#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-#     homepage: "https://github.com/rootcause-org/rootcause-cli"
-#     description: "Thin scriptable client over rootcause's /api/v1 — consume your project's own run data"
-#     install: |
-#       bin.install "rc"
-#     test: |
-#       system "#{bin}/rc", "--version"
+# --- Homebrew ----------------------------------------------------------------
+# Publishes a `brew install rootcause-org/tap/rc` formula on every release by committing
+# Formula/rc.rb to rootcause-org/homebrew-tap. Two one-time prerequisites (both done):
+#   1. public repo rootcause-org/homebrew-tap exists
+#   2. repo secret HOMEBREW_TAP_GITHUB_TOKEN holds a token with contents:write on homebrew-tap —
+#      the default GITHUB_TOKEN is scoped to *this* repo only and can't push to a second one.
+#      Wired into release.yml's env block.
+#
+# NOTE: `brews` (a formula) is deprecated in GoReleaser in favor of `homebrew_casks`. We deliberately
+# keep the formula: casks are macOS-only, but a formula installs our static binary on Linuxbrew too —
+# and the README promises macOS *and* Linux. `goreleaser check` flags this as deprecated, but
+# `goreleaser release` (what CI runs) only warns and still publishes. Do NOT migrate to a cask without
+# accepting the loss of Linux `brew install`.
+brews:
+  - name: rc
+    repository:
+      owner: rootcause-org
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/rootcause-org/rootcause-cli"
+    description: "Thin scriptable client over rootcause's /api/v1 — consume your project's own run data"
+    install: |
+      bin.install "rc"
+    test: |
+      system "#{bin}/rc", "--version"

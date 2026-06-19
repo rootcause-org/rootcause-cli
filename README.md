@@ -22,7 +22,7 @@ $ rc config set max_run_usd=5 default_tier=pro
 
 You do **not** need Go installed — grab a prebuilt binary.
 
-**Homebrew (macOS / Linux)** — once the tap is published:
+**Homebrew (macOS / Linux):**
 
 ```bash
 brew install rootcause-org/tap/rc
@@ -110,10 +110,10 @@ The script gates on `go build/vet/test`, refuses a dirty/behind checkout, tags +
 binaries, then warms the proxy. See [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md)
 for the full runbook and manual fallback.
 
-**To enable Homebrew** (`brew install rootcause-org/tap/rc`), one-time: create a public
-`rootcause-org/homebrew-tap` repo, add a `HOMEBREW_TAP_GITHUB_TOKEN` secret (a token with
-`contents:write` on that tap repo — the default `GITHUB_TOKEN` can't push to a second repo), then
-uncomment the `brews:` block in [`.goreleaser.yaml`](.goreleaser.yaml) and the env line in the release
-workflow.
+**Homebrew** is wired up: each release, GoReleaser commits an updated `Formula/rc.rb` to the public
+[`rootcause-org/homebrew-tap`](https://github.com/rootcause-org/homebrew-tap) repo (the `brews:` block
+in [`.goreleaser.yaml`](.goreleaser.yaml)). It authenticates with the `HOMEBREW_TAP_GITHUB_TOKEN`
+repo secret — a token with `contents:write` on the tap repo, since the default `GITHUB_TOKEN` is
+scoped to this repo only and can't push to a second one.
 
 See [`SKILL.md`](SKILL.md) for the architecture and how to add a command.
