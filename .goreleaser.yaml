@@ -1,0 +1,71 @@
+# GoReleaser builds the cross-platform binaries so nobody needs Go to USE `rc` — tag `vX.Y.Z`, push,
+# and the release workflow (.github/workflows/release.yml) cross-compiles and attaches archives +
+# checksums to the GitHub Release. `go install` stays the path for people who already have Go.
+#   docs: https://goreleaser.com
+version: 2
+
+project_name: rootcause-cli
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: rc
+    main: ./cmd/rc
+    binary: rc
+    env:
+      - CGO_ENABLED=0 # static binaries — no libc dependency, run anywhere
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: rc
+    # e.g. rc_0.1.0_darwin_arm64.tar.gz
+    name_template: "rc_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: rootcause-org
+    name: rootcause-cli
+
+# --- Homebrew (opt-in) -------------------------------------------------------
+# Uncomment to publish a `brew install rootcause-org/tap/rc` formula on every release. Two one-time
+# steps first (see README → Install):
+#   1. create an empty public repo `rootcause-org/homebrew-tap`
+#   2. add a repo secret HOMEBREW_TAP_GITHUB_TOKEN (a token with contents:write on homebrew-tap) — the
+#      default GITHUB_TOKEN can't push to a *second* repo. Wire it in release.yml (commented there too).
+# brews:
+#   - name: rc
+#     repository:
+#       owner: rootcause-org
+#       name: homebrew-tap
+#       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+#     homepage: "https://github.com/rootcause-org/rootcause-cli"
+#     description: "Thin scriptable client over rootcause's /api/v1 — consume your project's own run data"
+#     install: |
+#       bin.install "rc"
+#     test: |
+#       system "#{bin}/rc", "--version"

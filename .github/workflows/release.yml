@@ -1,0 +1,30 @@
+# Cut a release: `git tag v0.1.0 && git push origin v0.1.0`. GoReleaser cross-compiles and attaches
+# the binaries + checksums to the GitHub Release for that tag — no Go needed to install `rc`.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # upload release assets
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # GoReleaser needs full history + tags for the changelog
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Enable when the Homebrew tap is set up (see .goreleaser.yaml):
+          # HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
