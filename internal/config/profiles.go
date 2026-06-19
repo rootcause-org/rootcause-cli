@@ -1,12 +1,14 @@
 // Package config resolves the two things every authenticated command needs: a base URL and an API
 // key. The INTENT is a single, documented precedence so behavior is predictable across shells and
-// machines:
+// machines — and it follows the common convention (env wins, for one-off invocations):
 //
-//	config.toml (selected profile)  >  environment variable  >  built-in default
+//	environment variable  >  config.toml (selected profile)  >  built-in default
 //
-// i.e. a value set in the chosen profile OVERRIDES the env var; the env var overrides the built-in
-// default. base_url has a built-in default (localhost:8080); api_key does not — an unresolved key is
-// a hard, clearly-worded error at the command layer (commands that need auth), not a silent empty.
+// i.e. an env var OVERRIDES the chosen profile's value; the profile overrides the built-in default.
+// Practical consequence: an exported ROOTCAUSE_API_KEY / ROOTCAUSE_BASE_URL shadows a profile's key /
+// url — to actually use a profile's values, unset the matching env var. base_url has a built-in
+// default (localhost:8080); api_key does not — an unresolved key is a hard, clearly-worded error at
+// the command layer (commands that need auth), not a silent empty.
 package config
 
 import (
@@ -25,10 +27,13 @@ const (
 	envBaseURL = "ROOTCAUSE_BASE_URL"
 )
 
-// Resolved is the effective config for one invocation.
+// Resolved is the effective config for one invocation. BaseURLFromDefault is true when neither env nor
+// config set a base URL and we fell back to DefaultBaseURL — the command layer warns on this when a
+// key IS set, since a key + the localhost default is almost always an unset-base-URL mistake.
 type Resolved struct {
-	APIKey  string
-	BaseURL string
+	APIKey             string
+	BaseURL            string
+	BaseURLFromDefault bool
 }
 
 // profile is one [default] / [profiles.<name>] block in config.toml.
@@ -44,35 +49,38 @@ type file struct {
 }
 
 // Load resolves config for the given profile name ("default" selects the [default] block). Precedence
-// per field (see package doc): config profile value > env var > built-in default. A missing config
+// per field (see package doc): env var > config profile value > built-in default. A missing config
 // file is fine (env-only usage); a malformed one is an error so the user isn't silently mis-scoped. A
 // named profile that doesn't exist is an error (a typo'd --profile must not silently fall through to
 // env and hit the wrong server).
 func Load(profileName string) (Resolved, error) {
-	// Start from env (which itself overrides the built-in default).
-	res := Resolved{
-		APIKey:  os.Getenv(envAPIKey),
-		BaseURL: firstNonEmpty(os.Getenv(envBaseURL), DefaultBaseURL),
-	}
-
 	prof, ok, err := loadProfile(profileName)
 	if err != nil {
 		return Resolved{}, err
 	}
-	if !ok {
-		// No config file at all: env/default already in res. (A *named* profile miss is reported as an
-		// error inside loadProfile; ok=false only happens when the file is absent.)
-		return res, nil
+	// ok=false means no config file at all (env-only mode); prof is the zero profile, so the file layer
+	// simply contributes nothing below.
+	_ = ok
+
+	// Layer low → high: built-in default, then config profile, then env. The env var wins so a one-off
+	// `ROOTCAUSE_BASE_URL=… rc …` overrides whatever the profile has.
+	apiKey := prof.APIKey // config layer
+	if v := os.Getenv(envAPIKey); v != "" {
+		apiKey = v // env overrides config
 	}
 
-	// Config profile values override env when present.
-	if prof.APIKey != "" {
-		res.APIKey = prof.APIKey
-	}
+	baseURL := DefaultBaseURL
+	baseURLFromDefault := true
 	if prof.BaseURL != "" {
-		res.BaseURL = prof.BaseURL
+		baseURL = prof.BaseURL
+		baseURLFromDefault = false
 	}
-	return res, nil
+	if v := os.Getenv(envBaseURL); v != "" {
+		baseURL = v
+		baseURLFromDefault = false
+	}
+
+	return Resolved{APIKey: apiKey, BaseURL: baseURL, BaseURLFromDefault: baseURLFromDefault}, nil
 }
 
 // loadProfile reads config.toml and returns the requested profile. ok=false means the file doesn't
@@ -111,13 +119,4 @@ func configPath() (string, error) {
 		return "", fmt.Errorf("locate home dir: %w", err)
 	}
 	return filepath.Join(home, ".config", "rootcause", "config.toml"), nil
-}
-
-func firstNonEmpty(vals ...string) string {
-	for _, v := range vals {
-		if v != "" {
-			return v
-		}
-	}
-	return ""
 }

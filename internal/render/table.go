@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -83,15 +84,28 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 	}
 }
 
-// Run renders one run's high-level view. answer/error/metadata appear only when present.
+// Run renders one run's high-level view. Outcome/Duration/Cost are shown only when derivable: the
+// server doesn't return them as top-level fields, so Duration is computed from created/finished and
+// Outcome/Cost are pulled from the freeform metadata map when present. answer/error appear only when
+// present. (category and draft?/note? are NOT surfaced here — the server returns neither on
+// GET /runs/{id}; they live on the runs list / per-event trace respectively.)
 func Run(w io.Writer, r *client.RunDetail) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
 	fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
 	fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
+	if oc := metaString(r.Metadata, "outcome"); oc != "" {
+		fmt.Fprintf(tw, "Outcome:\t%s\n", oc)
+	}
 	fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
 		fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
+	}
+	if d := runDuration(r.CreatedAt, r.FinishedAt); d != "" {
+		fmt.Fprintf(tw, "Duration:\t%s\n", d)
+	}
+	if cost, ok := metaFloat(r.Metadata, "total_cost_usd"); ok {
+		fmt.Fprintf(tw, "Cost:\t$%.4f\n", cost)
 	}
 	fmt.Fprintf(tw, "Attachments:\t%d\n", len(r.Attachments))
 	tw.Flush()
@@ -112,9 +126,11 @@ func Events(w io.Writer, resp *client.EventsResponse) {
 		fmt.Fprintln(w, "No events.")
 		return
 	}
-	for _, e := range resp.Events {
+	// Renumber 1..N in the human view: the server's raw seq can be a negative sentinel block
+	// (#-1000000, #-999999, …) that is meaningless to a reader. The raw seq is preserved in JSON/NDJSON.
+	for i, e := range resp.Events {
 		fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
-			e.Seq, e.Tool, e.Status, e.ExitCode, duration(e.DurationMs), e.At)
+			i+1, e.Tool, e.Status, e.ExitCode, duration(e.DurationMs), e.At)
 		if e.Command != "" {
 			fmt.Fprintf(w, "    $ %s\n", e.Command)
 		}
@@ -165,6 +181,48 @@ func duration(ms int64) string {
 	mins := int(secs) / 60
 	rem := int(secs) % 60
 	return fmt.Sprintf("%dm%ds", mins, rem)
+}
+
+// runDuration computes a human duration from the run's created/finished timestamps (RFC3339). Blank
+// when either is missing/unparseable or the span is non-positive — the server doesn't send a
+// duration_ms on the run detail, so this is the only way to show it.
+func runDuration(created, finished string) string {
+	if created == "" || finished == "" {
+		return ""
+	}
+	start, err1 := time.Parse(time.RFC3339, created)
+	end, err2 := time.Parse(time.RFC3339, finished)
+	if err1 != nil || err2 != nil {
+		return ""
+	}
+	ms := end.Sub(start).Milliseconds()
+	if ms <= 0 {
+		return ""
+	}
+	return duration(ms)
+}
+
+// metaString reads a string value from the freeform run metadata map; "" if absent or not a string.
+func metaString(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	if s, ok := m[key].(string); ok {
+		return s
+	}
+	return ""
+}
+
+// metaFloat reads a numeric value from the freeform run metadata map. JSON numbers decode to float64;
+// ok is false when the key is absent or not a number.
+func metaFloat(m map[string]any, key string) (float64, bool) {
+	if m == nil {
+		return 0, false
+	}
+	if f, ok := m[key].(float64); ok {
+		return f, true
+	}
+	return 0, false
 }
 
 func num(f float64) string { return fmt.Sprintf("%g", f) }

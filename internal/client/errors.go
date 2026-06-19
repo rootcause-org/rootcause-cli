@@ -22,13 +22,18 @@ type errorEnvelope struct {
 }
 
 // APIError carries the server's verbatim error so the command layer can print code/message to stderr
-// and exit 1. A zero Code means we got a non-2xx with no decodable envelope (network-ish / proxy),
-// which the caller still treats as a failure but renders generically with Status.
+// and exit 1. A zero Code means we got a non-2xx with no decodable envelope (a plain-text 404/405 from
+// a proxy or an older server that lacks the endpoint); the caller still treats it as a failure but
+// renders it generically — Method/Path/BaseURL give the user enough to see WHAT was hit WHERE, which a
+// bare "HTTP 405" doesn't.
 type APIError struct {
 	Status  int          // HTTP status, for the no-envelope fallback
 	Code    string       // server error code, verbatim (e.g. INVALID_SETTINGS)
 	Message string       // server message, verbatim
 	Fields  []FieldError // populated for INVALID_SETTINGS
+	Method  string       // request method, for the no-envelope fallback (e.g. GET)
+	Path    string       // request path, for the no-envelope fallback (e.g. /api/v1/runs)
+	BaseURL string       // base URL the request went to, so the user can spot a wrong/default host
 }
 
 func (e *APIError) Error() string {

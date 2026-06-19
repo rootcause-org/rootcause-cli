@@ -161,6 +161,56 @@ func TestNoAPIKey(t *testing.T) {
 	}
 }
 
+// TestNonEnvelopeHTTPError asserts a plain-text non-2xx (here a 405 from an older server) is rendered
+// with method + path + status text + base URL and the 405 hint — not a bare "HTTP 405".
+func TestNonEnvelopeHTTPError(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, errb := newTestEnv(t, srv, "table")
+	err := run(t, e, "run", "405")
+	if err == nil {
+		t.Fatal("expected error from 405, got nil")
+	}
+	printError(errb, err)
+	got := errb.String()
+	for _, want := range []string{
+		"GET /api/v1/runs/405 → HTTP 405 Method Not Allowed",
+		"the runs list endpoint isn't deployed",
+		"base URL: " + srv.URL,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}
+
+// TestEventsRenumbered asserts the table view renumbers events 1..N (hiding the server's negative
+// sentinel seqs), while NDJSON (-o json) preserves the raw seq.
+func TestEventsRenumbered(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "sentinel", "--events"); err != nil {
+		t.Fatalf("run --events: %v", err)
+	}
+	table := out.String()
+	if !strings.Contains(table, "#1  bash") || !strings.Contains(table, "#2  bash") {
+		t.Errorf("expected renumbered #1/#2, got:\n%s", table)
+	}
+	if strings.Contains(table, "#-") {
+		t.Errorf("table leaked a negative sentinel seq:\n%s", table)
+	}
+
+	eJSON, outJSON, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eJSON, "run", "sentinel", "--events"); err != nil {
+		t.Fatalf("run --events -o json: %v", err)
+	}
+	if !strings.Contains(outJSON.String(), `"seq":-1000000`) {
+		t.Errorf("NDJSON must keep the raw seq, got:\n%s", outJSON.String())
+	}
+}
+
 // TestErrorIsTyped confirms the client returns a typed *APIError carrying code+message+fields, the
 // load-bearing contract for verbatim surfacing.
 func TestErrorIsTyped(t *testing.T) {

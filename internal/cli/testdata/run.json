@@ -6,5 +6,5 @@
   "finished_at": "2026-06-19T09:01:30Z",
   "answer_markdown": "The root cause is a missing index on orders.customer_id.",
   "attachments": [],
-  "metadata": { "tokens": 4210 }
+  "metadata": { "tokens": 4210, "outcome": "ok", "total_cost_usd": 0.1234 }
 }

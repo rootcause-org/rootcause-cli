@@ -69,8 +69,11 @@ api_key  = "rcl_…"
 base_url = "https://staging.your-rootcause-host"
 ```
 
-Precedence: a value in the selected profile **overrides** the matching env var, which overrides the
-built-in default. Keys live in env/config **by name** — never commit them.
+Precedence (env wins, the common convention for one-off invocations): an **environment variable**
+overrides the matching **config-profile** value, which overrides the **built-in default**. Practical
+consequence: an exported `ROOTCAUSE_API_KEY` / `ROOTCAUSE_BASE_URL` shadows a profile's `api_key` /
+`base_url` — to use a profile's values, unset the matching env var. Keys live in env/config **by
+name** — never commit them.
 
 ## Commands
 

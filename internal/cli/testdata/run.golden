@@ -1,8 +1,11 @@
 Run:          11111111-1111-1111-1111-111111111111
 Kind:         prompt
 Status:       done
+Outcome:      ok
 Created:      2026-06-19T09:00:00Z
 Finished:     2026-06-19T09:01:30Z
+Duration:     1m30s
+Cost:         $0.1234
 Attachments:  0
 
 Answer:

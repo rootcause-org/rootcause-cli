@@ -23,6 +23,15 @@ type Client struct {
 	http    *http.Client
 }
 
+// pathOnly strips the query string from a request path for error display (the query is noise when the
+// point is which endpoint was missing).
+func pathOnly(path string) string {
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		return path[:i]
+	}
+	return path
+}
+
 // New builds a Client. baseURL is trimmed of a trailing slash so path joins stay clean.
 func New(baseURL, apiKey string) *Client {
 	return &Client{
@@ -141,7 +150,9 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("request %s %s: %w", method, path, err)
+		// Connection-level failure (DNS, refused, TLS, timeout): include the base URL so a request that
+		// silently went to the localhost default instead of the intended host is obvious.
+		return fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -151,14 +162,19 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Try the standard envelope; if it doesn't decode, fall back to a status-only APIError so the
-		// caller still fails cleanly without a panic.
+		// Try the standard envelope; if it doesn't decode, fall back to an APIError that still carries the
+		// method/path/base URL so a non-JSON 404/405 (proxy, or an older server missing the endpoint) is
+		// diagnosable rather than a bare "HTTP 405".
 		apiErr := &APIError{Status: resp.StatusCode}
 		var env errorEnvelope
 		if json.Unmarshal(data, &env) == nil && env.Error.Code != "" {
 			apiErr.Code = env.Error.Code
 			apiErr.Message = env.Error.Message
 			apiErr.Fields = env.Error.Fields
+		} else {
+			apiErr.Method = method
+			apiErr.Path = pathOnly(path)
+			apiErr.BaseURL = c.baseURL
 		}
 		return apiErr
 	}

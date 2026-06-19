@@ -36,12 +36,28 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"unknown run"}}`))
 			return
 		}
+		// id "405" simulates an older server whose endpoint returns a plain-text (non-JSON) 405 — the
+		// no-envelope error path the friendly diagnostics are for.
+		if r.PathValue("id") == "405" {
+			w.Header().Set("Allow", "POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_, _ = w.Write([]byte("Method Not Allowed\n"))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "run.json"))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/events", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		// id "sentinel" returns the negative-sentinel seq block the real server emits, to exercise the
+		// table renumbering (and confirm NDJSON keeps the raw seq).
+		if r.PathValue("id") == "sentinel" {
+			_, _ = w.Write([]byte(`{"run_id":"sentinel","events":[` +
+				`{"seq":-1000000,"tool":"bash","status":"error","exit_code":64,"duration_ms":0,"at":"2026-06-19T08:10:06Z"},` +
+				`{"seq":-999999,"tool":"bash","status":"ok","exit_code":0,"duration_ms":97,"at":"2026-06-19T08:10:10Z"}]}`))
+			return
+		}
 		_, _ = w.Write(fixture(t, "events.json"))
 	})
 	mux.HandleFunc("GET /api/v1/settings", func(w http.ResponseWriter, r *http.Request) {
