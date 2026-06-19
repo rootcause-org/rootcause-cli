@@ -92,12 +92,23 @@ surfaced verbatim (`CODE: message`) with a non-zero exit.
 
 ## Releasing
 
-Tag and push — the [release workflow](.github/workflows/release.yml) builds every OS/arch via
-[GoReleaser](https://goreleaser.com) and attaches the archives + checksums to the GitHub Release:
+Use the script — it does the whole cycle reliably and verifies each part:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+scripts/release.sh patch     # 0.1.0 -> 0.1.1  (also: minor | major | vX.Y.Z | --dry-run)
 ```
+
+A release is **three things that must land together**, which is why a bare `git tag` isn't enough:
+
+1. the **git tag** `vX.Y.Z` on `main`;
+2. the **GitHub Release** + prebuilt binaries — the [release workflow](.github/workflows/release.yml)
+   builds every OS/arch via [GoReleaser](https://goreleaser.com) and attaches archives + checksums;
+3. the **Go module proxy** ingesting the tag, so consumers' `go get …@latest` resolves the new version
+   instead of a stale pseudo-version (the step that's easy to forget by hand).
+
+The script gates on `go build/vet/test`, refuses a dirty/behind checkout, tags + pushes, waits for the
+binaries, then warms the proxy. See [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md)
+for the full runbook and manual fallback.
 
 **To enable Homebrew** (`brew install rootcause-org/tap/rc`), one-time: create a public
 `rootcause-org/homebrew-tap` repo, add a `HOMEBREW_TAP_GITHUB_TOKEN` secret (a token with
