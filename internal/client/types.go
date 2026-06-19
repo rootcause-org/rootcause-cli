@@ -68,15 +68,25 @@ type RunsResponse struct {
 	NextBefore string       `json:"next_before,omitempty"`
 }
 
-// RunDetail is GET /api/v1/runs/{id}. Optional fields are omitempty server-side; Attachments is always
-// present (always [] in v0).
+// RunDetail is GET /api/v1/runs/{id} — it MUST mirror the server's statusResponse (internal/api/prompt.go)
+// field-for-field: same json tags, same omitempty. Optional fields are omitempty server-side; Attachments
+// is always present (always [] in v0). category/has_draft/has_note come from the shared row-builder;
+// duration_ms/cost_usd/turns/bash_total are the run_health triage scalars (cost is the run's TOTAL spend).
 type RunDetail struct {
 	RunID          string         `json:"run_id"`
 	Status         string         `json:"status"`
 	Kind           string         `json:"kind"`
+	Category       string         `json:"category"`
 	CreatedAt      string         `json:"created_at"`
 	FinishedAt     string         `json:"finished_at,omitempty"`
+	DurationMs     int64          `json:"duration_ms,omitempty"`
+	HasDraft       bool           `json:"has_draft"`
+	HasNote        bool           `json:"has_note"`
+	Turns          int64          `json:"turns,omitempty"`
+	BashTotal      int64          `json:"bash_total,omitempty"`
+	CostUSD        float64        `json:"cost_usd,omitempty"`
 	AnswerMarkdown string         `json:"answer_markdown,omitempty"`
+	TraceURL       string         `json:"trace_url,omitempty"`
 	Attachments    []any          `json:"attachments"`
 	Error          string         `json:"error,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`

@@ -84,30 +84,44 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 	}
 }
 
-// Run renders one run's high-level view. Outcome/Duration/Cost are shown only when derivable: the
-// server doesn't return them as top-level fields, so Duration is computed from created/finished and
-// Outcome/Cost are pulled from the freeform metadata map when present. answer/error appear only when
-// present. (category and draft?/note? are NOT surfaced here — the server returns neither on
-// GET /runs/{id}; they live on the runs list / per-event trace respectively.)
+// Run renders one run's high-level view — the promised set: status, category, draft?/note?, cost,
+// duration (plus kind/created/finished and a trace link). category/has_draft/has_note are top-level
+// server fields now; cost prefers the run_health cost_usd and falls back to metadata.total_cost_usd;
+// duration prefers duration_ms and falls back to finished−created. Optional rows (category, cost,
+// turns, bash, trace) print only when present so a running/incomplete run stays clean.
 func Run(w io.Writer, r *client.RunDetail) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
 	fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
 	fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
+	if r.Category != "" {
+		fmt.Fprintf(tw, "Category:\t%s\n", r.Category)
+	}
 	if oc := metaString(r.Metadata, "outcome"); oc != "" {
 		fmt.Fprintf(tw, "Outcome:\t%s\n", oc)
 	}
+	fmt.Fprintf(tw, "Draft?:\t%s\n", yesNo(r.HasDraft))
+	fmt.Fprintf(tw, "Note?:\t%s\n", yesNo(r.HasNote))
 	fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
 		fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
 	}
-	if d := runDuration(r.CreatedAt, r.FinishedAt); d != "" {
+	if d := runDetailDuration(r); d != "" {
 		fmt.Fprintf(tw, "Duration:\t%s\n", d)
 	}
-	if cost, ok := metaFloat(r.Metadata, "total_cost_usd"); ok {
-		fmt.Fprintf(tw, "Cost:\t$%.4f\n", cost)
+	if cost := runCost(r); cost > 0 {
+		fmt.Fprintf(tw, "Cost:\t$%.2f\n", cost)
+	}
+	if r.Turns > 0 {
+		fmt.Fprintf(tw, "Turns:\t%d\n", r.Turns)
+	}
+	if r.BashTotal > 0 {
+		fmt.Fprintf(tw, "Bash:\t%d\n", r.BashTotal)
 	}
 	fmt.Fprintf(tw, "Attachments:\t%d\n", len(r.Attachments))
+	if r.TraceURL != "" {
+		fmt.Fprintf(tw, "Trace:\t%s\n", r.TraceURL)
+	}
 	tw.Flush()
 
 	if r.Error != "" {
@@ -116,6 +130,34 @@ func Run(w io.Writer, r *client.RunDetail) {
 	if r.AnswerMarkdown != "" {
 		fmt.Fprintf(w, "\nAnswer:\n%s\n", r.AnswerMarkdown)
 	}
+}
+
+// runDetailDuration prefers the server's duration_ms, falling back to finished−created (a run_health
+// miss leaves duration_ms zero). Blank when neither yields a positive span.
+func runDetailDuration(r *client.RunDetail) string {
+	if r.DurationMs > 0 {
+		return duration(r.DurationMs)
+	}
+	return runDuration(r.CreatedAt, r.FinishedAt)
+}
+
+// runCost prefers the run_health cost_usd (the run's TOTAL spend), falling back to
+// metadata.total_cost_usd when the view row is missing. 0 ⇒ caller omits the row (no $0.00 line).
+func runCost(r *client.RunDetail) float64 {
+	if r.CostUSD > 0 {
+		return r.CostUSD
+	}
+	if c, ok := metaFloat(r.Metadata, "total_cost_usd"); ok {
+		return c
+	}
+	return 0
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
 }
 
 // Events renders the per-event trace as a readable per-iteration block: a header line per event plus
