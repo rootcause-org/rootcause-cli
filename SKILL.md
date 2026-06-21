@@ -1,11 +1,11 @@
 ---
 name: rootcause-cli
-description: The `rc` CLI — a thin, scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause-light's public JSON /api/v1, authed with the project's Prompt API bearer key. Use when working in this repo: adding/changing a command, the HTTP client, the config/profile resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. No business logic lives here — every command is one API call rendered for humans or piped as JSON.
+description: The `rc` CLI — a thin, scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with the project's Prompt API bearer key. Use when working in this repo: adding/changing a command, the HTTP client, the config/profile resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. No business logic lives here — every command is one API call rendered for humans or piped as JSON.
 ---
 
 # rootcause-cli (`rc`) — a project's window into its own rootcause data
 
-`rc` is a **pure client**: every capability is a JSON endpoint that rootcause-light serves first, and
+`rc` is a **pure client**: every capability is a JSON endpoint that rootcause serves first, and
 `rc` just *renders* it. It holds **no business logic, no DB access, no new auth** — it speaks the public
 `/api/v1` with the project's existing **Prompt API bearer key** (the key resolves the project
 server-side, so there is no `--project` flag). The bet: a dev pulls this in to slice their data the way
@@ -19,7 +19,7 @@ Each rung is one endpoint; one command per rung. The CLI mirrors the API ladder 
 
 | Command | Endpoint | What |
 |---|---|---|
-| `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause-light/.agents/skills/features/runs-index-api.md)) |
+| `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist |
@@ -72,7 +72,7 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   TTY detection.
 - **Adding a command for a new endpoint:** add the wire struct to `internal/client/types.go` (match the
   server JSON exactly), a client method, a render function (+ golden fixture/test), and a thin cobra
-  command. Keep it 1:1 with the endpoint — anything that needs logic belongs in rootcause-light first.
+  command. Keep it 1:1 with the endpoint — anything that needs logic belongs in rootcause first.
 
 ## Scope guards (push back if asked)
 

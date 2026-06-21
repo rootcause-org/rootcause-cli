@@ -1,4 +1,4 @@
-// Command rc is the rootcause CLI: a thin, scriptable client over the rootcause-light JSON API. It
+// Command rc is the rootcause CLI: a thin, scriptable client over the rootcause JSON API. It
 // holds no business logic — every subcommand is one HTTP call rendered for humans (TTY) or piped as
 // JSON. main is intentionally trivial: all wiring lives in internal/cli.
 package main

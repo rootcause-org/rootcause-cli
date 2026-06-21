@@ -1,4 +1,4 @@
-// Package client is the one thin HTTP wrapper over the rootcause-light JSON API: it sets the bearer
+// Package client is the one thin HTTP wrapper over the rootcause JSON API: it sets the bearer
 // key + base URL, speaks JSON, and on any non-2xx decodes the error envelope into a typed APIError
 // (code+message+fields carried through verbatim). It holds NO business logic — every method is one
 // request mapping straight onto one endpoint, returning the wire struct for the render layer to show.
@@ -92,6 +92,34 @@ func (c *Client) Events(ctx context.Context, id string) (*EventsResponse, error)
 		return nil, err
 	}
 	return &out, nil
+}
+
+// Full fetches GET /api/v1/runs/{id}/full — the whole bundle (run header + per-event trace with the
+// ai_usage join). Used by the table view of `rc run <id> --full`; the JSON path goes through Raw to
+// keep the renderer's JSONL seam byte-faithful.
+func (c *Client) Full(ctx context.Context, id string) (*FullResponse, error) {
+	var out FullResponse
+	if err := c.do(ctx, http.MethodGet, "/api/v1/runs/"+url.PathEscape(id)+"/full", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Submit posts POST /api/v1/runs to trigger a run. It returns BOTH the typed 202 body (for the
+// poll/render logic) AND the verbatim bytes, so a caller that must echo the response to a jq pipeline
+// (`rc ask --no-wait -o json`) never drops a server field — same "render, don't reshape" invariant as
+// the GET passthroughs. The project is resolved from the bearer key; brain_ref (when set) names a
+// non-main ref for a test run.
+func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/v1/runs", req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out SubmitResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, fmt.Errorf("decode submit response: %w", err)
+	}
+	return &out, raw, nil
 }
 
 // GetSettings fetches GET /api/v1/settings.
