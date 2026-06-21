@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -47,6 +48,53 @@ func TestRunEventsTable(t *testing.T) {
 		t.Fatalf("run --events: %v", err)
 	}
 	assertGolden(t, "events.golden", out.String())
+}
+
+func TestRunFullTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--full"); err != nil {
+		t.Fatalf("run --full: %v", err)
+	}
+	assertGolden(t, "full.golden", out.String())
+}
+
+// TestRunFullJSONL locks the cross-repo seam: `rc run <id> --full -o json` must emit a `type:run`
+// header line followed by one `type:event` line per event (JSONL), each carrying its fields verbatim.
+func TestRunFullJSONL(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--full"); err != nil {
+		t.Fatalf("run --full -o json: %v", err)
+	}
+	assertGolden(t, "full.jsonl.golden", out.String())
+
+	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
+	if len(lines) != 4 { // 1 run header + 3 events
+		t.Fatalf("expected 4 JSONL lines, got %d:\n%s", len(lines), out.String())
+	}
+	var head map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &head); err != nil {
+		t.Fatalf("header line not JSON: %v", err)
+	}
+	if head["type"] != "run" {
+		t.Errorf("first line type = %v, want run", head["type"])
+	}
+	// Run-header fields must ride through verbatim (full draft body, not a boolean).
+	if head["draft"] != "You have 2 open invoices totalling $480." {
+		t.Errorf("draft body not carried through: %v", head["draft"])
+	}
+	for i, ln := range lines[1:] {
+		var ev map[string]any
+		if err := json.Unmarshal([]byte(ln), &ev); err != nil {
+			t.Fatalf("event line %d not JSON: %v", i, err)
+		}
+		if ev["type"] != "event" {
+			t.Errorf("event line %d type = %v, want event", i, ev["type"])
+		}
+	}
 }
 
 func TestConfigGetTable(t *testing.T) {

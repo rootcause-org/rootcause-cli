@@ -1,0 +1,41 @@
+Run:        11111111-1111-1111-1111-111111111111
+Status:     done
+Kind:       prompt
+Trigger:    test
+Brain ref:  dev/refund-rework
+Model:      claude-opus-4-8
+Created:    2026-06-19T09:00:00Z
+Finished:   2026-06-19T09:01:30Z
+Cost:       $1.08
+Tokens:     4210
+Question:   Do I still have open invoices?
+Trace:      https://trace.example/abc123
+
+Egress (2):
+  HOST            COUNT  BLOCKED
+  api.stripe.com  3      no
+  evil.example    1      yes
+
+Timeline (3):
+
+#1  grounding (warm start)  ok  exit=0  40ms  2026-06-19T09:00:05Z
+    reasoning: Pull the customer's recent invoices.
+
+#2  bash  ok  exit=0  120ms  2026-06-19T09:00:10Z
+    claude-opus-4-8  $0.4200  1800 tok
+    $ psql -c 'select count(*) from invoices where paid is false'
+    stdout: 2
+
+#3  reply  ok  exit=0  30ms  2026-06-19T09:01:25Z
+    claude-opus-4-8  $0.6600  2410 tok
+    args: { "channel": "email" }
+    draft=true note=true
+
+System prompt:
+You are rootcause. Answer from grounded data only.
+
+Draft:
+You have 2 open invoices totalling $480.
+
+Note (anomaly):
+customer_id had no index; query was slow

@@ -36,6 +36,12 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"unknown run"}}`))
 			return
 		}
+		// id "running" never reaches a terminal status — drives the `rc ask` timeout path.
+		if r.PathValue("id") == "running" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"run_id":"running","status":"running","kind":"prompt","created_at":"2026-06-19T09:00:00Z","has_draft":false,"has_note":false,"attachments":[]}`))
+			return
+		}
 		// id "405" simulates an older server whose endpoint returns a plain-text (non-JSON) 405 — the
 		// no-envelope error path the friendly diagnostics are for.
 		if r.PathValue("id") == "405" {
@@ -59,6 +65,30 @@ func stubServer(t *testing.T) *httptest.Server {
 			return
 		}
 		_, _ = w.Write(fixture(t, "events.json"))
+	})
+	mux.HandleFunc("GET /api/v1/runs/{id}/full", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "full.json"))
+	})
+	mux.HandleFunc("POST /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		// A rejected ref drives the BAD_BRAIN_REF path; seeing it in the body also proves --brain-ref
+		// is forwarded verbatim.
+		if strings.Contains(body, `"brain_ref":"bad/ref"`) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"code":"BAD_BRAIN_REF","message":"brain ref rejected"}}`))
+			return
+		}
+		// A prompt asking to hang resolves to the never-terminal "running" run (timeout test).
+		runID := "11111111-1111-1111-1111-111111111111"
+		if strings.Contains(body, "hang-please") {
+			runID = "running"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"` + runID + `","status":"running","status_url":"/api/v1/runs/` + runID + `","poll_after_ms":1}`))
 	})
 	mux.HandleFunc("GET /api/v1/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

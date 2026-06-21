@@ -189,6 +189,115 @@ func Events(w io.Writer, resp *client.EventsResponse) {
 	}
 }
 
+// Full renders the decomposed bundle (GET /runs/{id}/full) for a human: a run-header block then the
+// per-event timeline. It's the table-mode counterpart to the JSONL seam — the same data, laid out to
+// skim. Optional rows print only when present so a lean run stays clean. Full bodies (draft, notes,
+// system prompt) are shown after the table since they can be long.
+func Full(w io.Writer, f *client.FullResponse) {
+	r := &f.Run
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
+	fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
+	fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
+	if r.Trigger != "" {
+		fmt.Fprintf(tw, "Trigger:\t%s\n", r.Trigger)
+	}
+	if r.BrainRef != "" {
+		fmt.Fprintf(tw, "Brain ref:\t%s\n", r.BrainRef)
+	}
+	if r.Model != "" {
+		fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
+	}
+	fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
+	if r.FinishedAt != "" {
+		fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
+	}
+	if r.RunCostUSD > 0 {
+		fmt.Fprintf(tw, "Cost:\t$%.2f\n", r.RunCostUSD)
+	}
+	if r.RunTotalTokens > 0 {
+		fmt.Fprintf(tw, "Tokens:\t%d\n", r.RunTotalTokens)
+	}
+	if r.Question != "" {
+		fmt.Fprintf(tw, "Question:\t%s\n", r.Question)
+	}
+	if tu := metaString(r.Metadata, "trace_url"); tu != "" {
+		fmt.Fprintf(tw, "Trace:\t%s\n", tu)
+	}
+	tw.Flush()
+
+	if len(r.Egress) > 0 {
+		fmt.Fprintf(w, "\nEgress (%d):\n", len(r.Egress))
+		etw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(etw, "  HOST\tCOUNT\tBLOCKED")
+		for _, h := range r.Egress {
+			fmt.Fprintf(etw, "  %s\t%d\t%s\n", h.Host, h.Count, yesNo(h.Blocked))
+		}
+		etw.Flush()
+	}
+
+	fmt.Fprintf(w, "\nTimeline (%d):\n", len(f.Events))
+	for i, e := range f.Events {
+		fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
+			i+1, eventTool(e.Tool, e.Label), e.Status, e.ExitCode, duration(e.DurationMs), e.At)
+		if meta := eventCostLine(&e); meta != "" {
+			fmt.Fprintf(w, "    %s\n", meta)
+		}
+		if e.Command != "" {
+			fmt.Fprintf(w, "    $ %s\n", e.Command)
+		}
+		if len(e.Args) > 0 {
+			fmt.Fprintf(w, "    args: %s\n", indentBlock(string(e.Args)))
+		}
+		if e.Reasoning != "" {
+			fmt.Fprintf(w, "    reasoning: %s\n", indentBlock(e.Reasoning))
+		}
+		if e.HasDraft || e.HasNote {
+			fmt.Fprintf(w, "    draft=%t note=%t\n", e.HasDraft, e.HasNote)
+		}
+		if e.Stdout != "" {
+			fmt.Fprintf(w, "    stdout: %s\n", indentBlock(e.Stdout))
+		}
+		if e.Stderr != "" {
+			fmt.Fprintf(w, "    stderr: %s\n", indentBlock(e.Stderr))
+		}
+	}
+
+	if r.SystemPrompt != "" {
+		fmt.Fprintf(w, "\nSystem prompt:\n%s\n", r.SystemPrompt)
+	}
+	if r.Draft != "" {
+		fmt.Fprintf(w, "\nDraft:\n%s\n", r.Draft)
+	}
+	for _, n := range r.Notes {
+		fmt.Fprintf(w, "\nNote (%s):\n%s\n", n.Key, n.Body)
+	}
+}
+
+// eventTool joins a tool with its optional human label ("bash" vs "bash (read schema)").
+func eventTool(tool, label string) string {
+	if label != "" {
+		return tool + " (" + label + ")"
+	}
+	return tool
+}
+
+// eventCostLine summarizes the ai_usage join for one event: model, cost, tokens — only the parts that
+// are present. Blank when the event had no LLM usage (a plain tool call).
+func eventCostLine(e *client.EventItem) string {
+	var parts []string
+	if e.Model != "" {
+		parts = append(parts, e.Model)
+	}
+	if e.CostUSD > 0 {
+		parts = append(parts, fmt.Sprintf("$%.4f", e.CostUSD))
+	}
+	if e.TotalTokens > 0 {
+		parts = append(parts, fmt.Sprintf("%d tok", e.TotalTokens))
+	}
+	return strings.Join(parts, "  ")
+}
+
 // Settings renders the effective settings table: value (what's set, blank if unset), effective, and
 // default per key. kb_enrich_model is shown only when the server included it.
 func Settings(w io.Writer, s *client.Settings) {

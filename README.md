@@ -13,8 +13,10 @@ Sources:
   SOURCE      TOTAL  ERRORS
   Prompt API  12     0
 
+$ rc ask "Do I still have open invoices?"   # trigger a run, wait, print the answer
 $ rc runs --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run <id> --events        # full per-iteration trace (NDJSON when piped)
+$ rc run <id> --full          # the whole bundle (header + trace; JSONL when piped)
 $ rc config set max_run_usd=5 default_tier=pro
 ```
 
@@ -80,12 +82,18 @@ name** — never commit them.
 | Command | Does |
 |---|---|
 | `rc status` | recent runs + health summary (the no-filter index view) |
+| `rc ask "<q>" [--brain-ref <ref>] [--tenant <slug>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
+| `rc run <id> --full` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line) |
 | `rc config get` | effective settings + box defaults |
 | `rc config set k=v [k=v…]` | change settings (validated server-side) |
 | `rc --version` · `rc help` | |
+
+`rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
+dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin
+dev/<branch>`); the server runs the real loop against it and flags any actions/PRs as test.
 
 Output auto-detects: **TTY → table, piped → JSON**. Force with `-o json` / `-o table`. API errors are
 surfaced verbatim (`CODE: message`) with a non-zero exit.

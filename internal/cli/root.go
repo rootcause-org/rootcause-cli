@@ -59,6 +59,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newStatusCmd(e),
 		newRunsCmd(e),
 		newRunCmd(e),
+		newAskCmd(e),
 		newConfigCmd(e),
 	)
 	return root
@@ -118,6 +119,10 @@ func printError(w io.Writer, err error) {
 		// INVALID_SETTINGS carries per-field detail; print one line per field as specified.
 		for _, f := range apiErr.Fields {
 			fmt.Fprintf(w, "  %s: %s\n", f.Key, f.Message)
+		}
+		// A rejected --brain-ref usually means the ref isn't on the project's brain origin yet.
+		if apiErr.Code == "BAD_BRAIN_REF" {
+			fmt.Fprintln(w, "  push the ref to your project's brain first: git push origin <ref>")
 		}
 		return
 	}
