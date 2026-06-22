@@ -114,7 +114,7 @@ needs AWS/SSM access). Run it **from inside the brain clone** (it reads/writes `
 rc env keys                 # what keys exist (names only — safe to paste/log)
 rc env pull                 # write ./.env at 0600 — then `brain-dev --live` can run grounding locally
 rc env diff                 # has my local ./.env drifted from production? (names-only; exit≠0 on drift)
-rc env pull --tenant <slug> # a tenant-enabled project: the project ∪ tenant env a run actually sees
+rc env pull --tenant <slug> # a tenant-enabled project: the project ∪ tenant env (tenant authoritative)
 ```
 
 > **Secret hygiene:** no `rc env` subcommand ever prints a secret **value** — `pull` writes values only
