@@ -1,0 +1,544 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rootcause/brains/dentai/tenant.schema.json",
+  "title": "DentAI tenant data record",
+  "description": "The per-tenant (per dental practice) data record that specializes the project-brain playbooks. One field per sheet-backed OnboardingSettings column in the DentAI backend. Filled by the rootcause settings editing surface (CLI / web form) and the one-shot onboarding-sheet import; rootcause is the source of truth. The four branch SELECTORS (see `required`) MUST be present as non-null strings — the projection compiler defaults an ABSENT or null selector to the literal 'unset' (routes to the 'ask the practice' variant), so a sparse write that omits them stays safe. All OTHER fields are optional: OMIT a field that isn't set (do NOT send null) so the projection.yaml default fills it; send an explicit null to UNCONFIGURE a previously-set field. Enums store English keys; operators see the Dutch labels in `x-enum-labels`. The `x-*` keys are form/CLI render metadata (ignored by JSON-Schema validators): `x-groups` orders the sections, and per property `x-group`/`x-order`/`x-label-*`/`x-help-*`/`x-example`/`x-required-selector`/`x-enum-labels` drive the editing UI.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["newpatient_method", "existingpatient_method", "reschedule_method", "booking_hygienist_dentist_interaction"],
+  "x-groups": [
+    { "key": "header", "label_nl": "Praktijknaam", "label_en": "Practice name", "order": 1 },
+    { "key": "general", "label_nl": "Algemeen", "label_en": "General", "order": 2 },
+    { "key": "contact", "label_nl": "Contactgegevens", "label_en": "Contact details", "order": 3 },
+    { "key": "newpatient", "label_nl": "Nieuwe patiënten", "label_en": "New patients", "order": 4 },
+    { "key": "existingpatient", "label_nl": "Bestaande patiënten", "label_en": "Existing patients", "order": 5 },
+    { "key": "reschedule", "label_nl": "Afspraak verplaatsen", "label_en": "Rescheduling", "order": 6 },
+    { "key": "booking", "label_nl": "Boekingsregels", "label_en": "Booking rules", "order": 7 },
+    { "key": "latecancel", "label_nl": "Laattijdig annuleren", "label_en": "Late cancellation", "order": 8 },
+    { "key": "behavior", "label_nl": "Gedrag van de assistent", "label_en": "Assistant behaviour", "order": 9 },
+    { "key": "comm", "label_nl": "Communicatie", "label_en": "Communication", "order": 10 },
+    { "key": "faq", "label_nl": "Veelgestelde vragen", "label_en": "FAQ", "order": 11 },
+    { "key": "blacklist", "label_nl": "Blacklist afzenders", "label_en": "Sender blacklist", "order": 12 }
+  ],
+  "properties": {
+    "header_short_name": {
+      "type": ["string", "null"],
+      "description": "Short practice name, used in playbook headings (e.g. policy 'praktijk {{ header_short_name }}').",
+      "x-group": "header",
+      "x-order": 1,
+      "x-label-nl": "Korte praktijknaam",
+      "x-label-en": "Short practice name",
+      "x-help-nl": "Korte naam zoals die in zinnen past, bv. 'praktijk De Kies'. Geen volledige juridische naam.",
+      "x-help-en": "Short name that fits in a sentence, e.g. 'praktijk De Kies'. Not the full legal name.",
+      "x-example": "De Kies"
+    },
+
+    "general_mailsystem": {
+      "type": ["string", "null"],
+      "enum": ["gmail", "desktop_outlook_old", "desktop_outlook_new", "online_outlook", "other", null],
+      "description": "The practice's mail system. Operational/onboarding metadata; not branched on by playbooks.",
+      "x-group": "general",
+      "x-order": 1,
+      "x-label-nl": "Mailsysteem",
+      "x-label-en": "Mail system",
+      "x-help-nl": "Welk mailprogramma de praktijk gebruikt. Enkel onboarding-info, beïnvloedt de antwoorden niet.",
+      "x-help-en": "Which mail client the practice uses. Onboarding info only; does not affect replies.",
+      "x-enum-labels": {
+        "gmail": { "nl": "Gmail", "en": "Gmail" },
+        "desktop_outlook_old": { "nl": "Outlook desktop (oude versie)", "en": "Outlook desktop (old)" },
+        "desktop_outlook_new": { "nl": "Outlook desktop (nieuwe versie)", "en": "Outlook desktop (new)" },
+        "online_outlook": { "nl": "Outlook online (webmail)", "en": "Outlook online (webmail)" },
+        "other": { "nl": "Andere", "en": "Other" }
+      }
+    },
+    "general_treatments": {
+      "type": ["array", "null"],
+      "items": { "type": "string", "enum": ["dentist", "orthodontics", "periodontics"] },
+      "description": "Multi-select. Treatment verticals offered. Mirrored by the computed `vertical` value.",
+      "x-group": "general",
+      "x-order": 2,
+      "x-label-nl": "Behandelingen",
+      "x-label-en": "Treatments offered",
+      "x-help-nl": "Welke disciplines de praktijk aanbiedt. Meerdere mogelijk.",
+      "x-help-en": "Which disciplines the practice offers. Multiple allowed.",
+      "x-example": ["dentist"],
+      "x-enum-labels": {
+        "dentist": { "nl": "Algemene tandheelkunde", "en": "General dentistry" },
+        "orthodontics": { "nl": "Orthodontie", "en": "Orthodontics" },
+        "periodontics": { "nl": "Parodontologie", "en": "Periodontics" }
+      }
+    },
+    "general_hygienist_tasks": {
+      "type": ["array", "null"],
+      "items": { "type": "string", "enum": ["cleaning", "oral_exam", "scanning", "orthodontics", "no_hygienist"] },
+      "description": "Multi-select. What the practice's hygienist(s) handle (or 'no_hygienist').",
+      "x-group": "general",
+      "x-order": 3,
+      "x-label-nl": "Taken mondhygiënist",
+      "x-label-en": "Hygienist tasks",
+      "x-help-nl": "Wat de mondhygiënist(en) doen. Kies 'Geen mondhygiënist' als de praktijk er geen heeft. Meerdere mogelijk.",
+      "x-help-en": "What the hygienist(s) handle. Pick 'No hygienist' if the practice has none. Multiple allowed.",
+      "x-example": ["cleaning", "oral_exam"],
+      "x-enum-labels": {
+        "cleaning": { "nl": "Reiniging / mondhygiëne", "en": "Cleaning / hygiene" },
+        "oral_exam": { "nl": "Mondonderzoek", "en": "Oral exam" },
+        "scanning": { "nl": "Scannen", "en": "Scanning" },
+        "orthodontics": { "nl": "Orthodontie", "en": "Orthodontics" },
+        "no_hygienist": { "nl": "Geen mondhygiënist", "en": "No hygienist" }
+      }
+    },
+
+    "contact_website": {
+      "type": ["string", "null"],
+      "description": "Practice website URL. Used in the email signature.",
+      "x-group": "contact",
+      "x-order": 1,
+      "x-label-nl": "Website",
+      "x-label-en": "Website",
+      "x-help-nl": "Volledige URL, gebruikt in de handtekening. Bv. 'https://www.dekies.be'.",
+      "x-help-en": "Full URL, used in the signature. E.g. 'https://www.dekies.be'.",
+      "x-example": "https://www.dekies.be"
+    },
+    "contact_official_name": {
+      "type": ["string", "null"],
+      "description": "Official practice name. Used in the email signature.",
+      "x-group": "contact",
+      "x-order": 2,
+      "x-label-nl": "Officiële praktijknaam",
+      "x-label-en": "Official practice name",
+      "x-help-nl": "Volledige naam zoals in de handtekening, bv. 'Tandartspraktijk De Kies'.",
+      "x-help-en": "Full name as in the signature, e.g. 'Tandartspraktijk De Kies'.",
+      "x-example": "Tandartspraktijk De Kies"
+    },
+    "contact_address": {
+      "type": ["string", "null"],
+      "description": "Street address. Used in FAQ (address) when faq_address is empty.",
+      "x-group": "contact",
+      "x-order": 3,
+      "x-label-nl": "Straat en nummer",
+      "x-label-en": "Street address",
+      "x-help-nl": "Straat + huisnummer. Wordt in de FAQ gecombineerd met de gemeente als 'Adres FAQ' leeg is.",
+      "x-help-en": "Street + number. Combined with the municipality in the FAQ when 'FAQ address' is empty.",
+      "x-example": "Hasseltsesteenweg 12"
+    },
+    "contact_municipality": {
+      "type": ["string", "null"],
+      "description": "Municipality/city. Combined with contact_address in FAQ fallback.",
+      "x-group": "contact",
+      "x-order": 4,
+      "x-label-nl": "Postcode en gemeente",
+      "x-label-en": "Municipality",
+      "x-help-nl": "Postcode + gemeente, bv. '3570 Alken'.",
+      "x-help-en": "Postal code + town, e.g. '3570 Alken'.",
+      "x-example": "3570 Alken"
+    },
+    "contact_email": {
+      "type": ["string", "null"],
+      "description": "Practice contact email.",
+      "x-group": "contact",
+      "x-order": 5,
+      "x-label-nl": "Contact-e-mail",
+      "x-label-en": "Contact email",
+      "x-help-nl": "Het e-mailadres waarop patiënten de praktijk bereiken.",
+      "x-help-en": "The email address patients use to reach the practice.",
+      "x-example": "info@dekies.be"
+    },
+    "contact_phone": {
+      "type": ["string", "null"],
+      "description": "Practice phone number. Used in the signature and in 'please call' booking branches.",
+      "x-group": "contact",
+      "x-order": 6,
+      "x-label-nl": "Telefoonnummer",
+      "x-label-en": "Phone number",
+      "x-help-nl": "Telefoonnummer in de handtekening en in 'bel ons even'-antwoorden.",
+      "x-help-en": "Phone number for the signature and 'please call us' replies.",
+      "x-example": "011 12 34 56"
+    },
+
+    "newpatient_method": {
+      "type": "string",
+      "enum": ["patient_stop", "waitlist", "online_agenda_clickdoc", "online_agenda_introlution", "book_via_email_1_option_booked", "book_via_email_5_options", "book_via_phone", "unset"],
+      "description": "DRIVES branch-collapse in playbooks/nieuwe_patient.md: how a brand-new patient is onboarded. `unset` = not yet configured: the projection compiler needs the selector PRESENT as a string, so an unconfigured practice carries 'unset' (routes to the 'vraag de praktijk' variant). `null` = field omitted upstream.",
+      "x-group": "newpatient",
+      "x-order": 1,
+      "x-label-nl": "Aanpak nieuwe patiënt",
+      "x-label-en": "New-patient method",
+      "x-help-nl": "Hoe een gloednieuwe patiënt wordt onthaald. Bepaalt welk scenario de assistent volgt — kies bewust.",
+      "x-help-en": "How a brand-new patient is onboarded. Drives which scenario the assistant follows — choose deliberately.",
+      "x-required-selector": true,
+      "x-enum-labels": {
+        "patient_stop": { "nl": "Neemt geen nieuwe patiënten aan", "en": "Not taking new patients", "help": "Patiëntenstop: nieuwe patiënten worden vriendelijk geweigerd." },
+        "waitlist": { "nl": "Wachtlijst", "en": "Waitlist", "help": "Nieuwe patiënt komt op een wachtlijst (zie wachtlijst-link)." },
+        "online_agenda_clickdoc": { "nl": "Online agenda (ClickDoc)", "en": "Online agenda (ClickDoc)", "help": "Verwijs naar de online ClickDoc-agenda (zie agenda-link)." },
+        "online_agenda_introlution": { "nl": "Online agenda (Introlution)", "en": "Online agenda (Introlution)", "help": "Verwijs naar de online Introlution-agenda (zie agenda-link)." },
+        "book_via_email_1_option_booked": { "nl": "Per e-mail boeken — 1 voorstel, meteen geboekt", "en": "Book by email — 1 option, booked", "help": "Stel één concreet moment voor en boek het meteen." },
+        "book_via_email_5_options": { "nl": "Per e-mail boeken — meerdere opties voorstellen", "en": "Book by email — several options", "help": "Stel meerdere momenten voor en laat de patiënt kiezen." },
+        "book_via_phone": { "nl": "Telefonisch boeken", "en": "Book by phone", "help": "Vraag de patiënt om te bellen om in te plannen." },
+        "unset": { "nl": "Nog niet ingesteld (vraag de praktijk)", "en": "Not yet configured (ask the practice)", "help": "Niet geconfigureerd: de assistent vraagt de praktijk om verduidelijking." }
+      }
+    },
+    "newpatient_waitlist_link": {
+      "type": ["string", "null"],
+      "description": "Waitlist URL, used when newpatient_method == waitlist.",
+      "x-group": "newpatient",
+      "x-order": 2,
+      "x-label-nl": "Wachtlijst-link",
+      "x-label-en": "Waitlist link",
+      "x-help-nl": "URL van het wachtlijstformulier. Enkel relevant bij methode 'Wachtlijst'.",
+      "x-help-en": "URL of the waitlist form. Only relevant when the method is 'Waitlist'.",
+      "x-example": "https://www.dekies.be/wachtlijst"
+    },
+    "newpatient_agenda_link": {
+      "type": ["string", "null"],
+      "description": "Online booking link for new patients (online_agenda_* methods). Also FAQ 'online agenda'.",
+      "x-group": "newpatient",
+      "x-order": 3,
+      "x-label-nl": "Agenda-link nieuwe patiënt",
+      "x-label-en": "New-patient agenda link",
+      "x-help-nl": "Online boekingslink voor nieuwe patiënten. Enkel relevant bij een 'Online agenda'-methode.",
+      "x-help-en": "Online booking link for new patients. Only relevant for an 'Online agenda' method.",
+      "x-example": "https://afspraken.clickdoc.be/dekies"
+    },
+    "newpatient_excluded_practitioners": {
+      "type": ["string", "null"],
+      "description": "Free text (comma-separated names): practitioner(s) who do NOT take new patients. Interpolated in playbooks/nieuwe_patient.md so the model never books/proposes a new patient with them. Empty/null => no exclusion. De-hardcodes the former built-in 'Lies Van Genechten' exclusion.",
+      "x-group": "newpatient",
+      "x-order": 4,
+      "x-label-nl": "Behandelaars zonder nieuwe patiënten",
+      "x-label-en": "Practitioners excluded for new patients",
+      "x-help-nl": "Vrije tekst, namen gescheiden door komma's. Bij deze behandelaars worden geen nieuwe patiënten geboekt. Leeg = geen uitzondering.",
+      "x-help-en": "Free text, comma-separated names. No new patients are booked with these practitioners. Empty = no exclusion.",
+      "x-example": "Lies Van Genechten, Jan Peeters"
+    },
+
+    "existingpatient_method": {
+      "type": "string",
+      "enum": ["book_via_link", "book_via_email_1_option_booked", "book_via_email_5_options", "book_via_phone", "unset"],
+      "description": "DRIVES branch-collapse in playbooks/afspraak_maken_bestaande_patient.md: how a known patient books an additional appointment. `unset` = not yet configured (routes to the 'vraag de praktijk' variant).",
+      "x-group": "existingpatient",
+      "x-order": 1,
+      "x-label-nl": "Aanpak bestaande patiënt",
+      "x-label-en": "Existing-patient method",
+      "x-help-nl": "Hoe een gekende patiënt een nieuwe afspraak maakt. Bepaalt welk scenario de assistent volgt — kies bewust.",
+      "x-help-en": "How a known patient books an additional appointment. Drives the scenario the assistant follows — choose deliberately.",
+      "x-required-selector": true,
+      "x-enum-labels": {
+        "book_via_link": { "nl": "Via online boekingslink", "en": "Via online booking link", "help": "Verwijs naar de online agenda-link voor bestaande patiënten." },
+        "book_via_email_1_option_booked": { "nl": "Per e-mail boeken — 1 voorstel, meteen geboekt", "en": "Book by email — 1 option, booked", "help": "Stel één concreet moment voor en boek het meteen." },
+        "book_via_email_5_options": { "nl": "Per e-mail boeken — meerdere opties voorstellen", "en": "Book by email — several options", "help": "Stel meerdere momenten voor en laat de patiënt kiezen." },
+        "book_via_phone": { "nl": "Telefonisch boeken", "en": "Book by phone", "help": "Vraag de patiënt om te bellen om in te plannen." },
+        "unset": { "nl": "Nog niet ingesteld (vraag de praktijk)", "en": "Not yet configured (ask the practice)", "help": "Niet geconfigureerd: de assistent vraagt de praktijk om verduidelijking." }
+      }
+    },
+    "existingpatient_agenda_link": {
+      "type": ["string", "null"],
+      "description": "Online booking link for existing patients (used when existingpatient_method == book_via_link).",
+      "x-group": "existingpatient",
+      "x-order": 2,
+      "x-label-nl": "Agenda-link bestaande patiënt",
+      "x-label-en": "Existing-patient agenda link",
+      "x-help-nl": "Online boekingslink voor bestaande patiënten. Enkel relevant bij methode 'Via online boekingslink'.",
+      "x-help-en": "Online booking link for existing patients. Only relevant when the method is 'Via online booking link'.",
+      "x-example": "https://afspraken.clickdoc.be/dekies"
+    },
+
+    "reschedule_method": {
+      "type": "string",
+      "enum": ["propose_one_book", "propose_options_confirm", "unset"],
+      "description": "DRIVES branch-collapse in playbooks/afspraak_verplaatsen.md AND the projection `sections:` helper routing (propose_one_book -> keeps agenda_efficientie_1_moment, propose_options_confirm -> keeps agenda_efficientie_5_opties; `unset` -> drops both). `unset` = not yet configured (routes to the 'vraag de praktijk' variant).",
+      "x-group": "reschedule",
+      "x-order": 1,
+      "x-label-nl": "Aanpak afspraak verplaatsen",
+      "x-label-en": "Reschedule method",
+      "x-help-nl": "Hoe de assistent een afspraak verplaatst. Bepaalt ook welke agenda-efficiëntie-helper de assistent ziet — kies bewust.",
+      "x-help-en": "How the assistant reschedules. Also picks which agenda-efficiency helper the assistant sees — choose deliberately.",
+      "x-required-selector": true,
+      "x-enum-labels": {
+        "propose_one_book": { "nl": "Eén nieuw moment voorstellen en meteen boeken", "en": "Propose one slot and book it", "help": "Stel één vervangmoment voor en boek het direct." },
+        "propose_options_confirm": { "nl": "Meerdere opties voorstellen en laten bevestigen", "en": "Propose options and confirm", "help": "Stel meerdere momenten voor en laat de patiënt bevestigen." },
+        "unset": { "nl": "Nog niet ingesteld (vraag de praktijk)", "en": "Not yet configured (ask the practice)", "help": "Niet geconfigureerd: de assistent vraagt de praktijk om verduidelijking." }
+      }
+    },
+
+    "booking_max_ahead": {
+      "type": ["string", "null"],
+      "description": "How far ahead appointments may be booked (free text, e.g. '6 maanden').",
+      "x-group": "booking",
+      "x-order": 1,
+      "x-label-nl": "Maximaal vooruit boeken",
+      "x-label-en": "Max booking horizon",
+      "x-help-nl": "Vrije tekst, bv. '6 maanden'. Hoe ver vooruit een afspraak geboekt mag worden.",
+      "x-help-en": "Free text, e.g. '6 maanden'. How far ahead an appointment may be booked.",
+      "x-example": "6 maanden"
+    },
+    "booking_min_leadtime": {
+      "type": ["string", "null"],
+      "description": "Minimum lead time before an appointment can be booked (free text).",
+      "x-group": "booking",
+      "x-order": 2,
+      "x-label-nl": "Minimale termijn vooraf",
+      "x-label-en": "Minimum lead time",
+      "x-help-nl": "Vrije tekst, bv. '24 uur'. Minimale tijd tussen boeking en afspraak.",
+      "x-help-en": "Free text, e.g. '24 uur'. Minimum time between booking and appointment.",
+      "x-example": "24 uur"
+    },
+    "booking_fixed_practitioner": {
+      "type": ["string", "null"],
+      "enum": ["always_same", "preferred_same", "no_fixed", null],
+      "description": "Whether a patient always stays with the same practitioner, prefers to, or has no fixed practitioner.",
+      "x-group": "booking",
+      "x-order": 3,
+      "x-label-nl": "Vaste behandelaar",
+      "x-label-en": "Fixed practitioner",
+      "x-help-nl": "Of een patiënt steeds bij dezelfde behandelaar blijft.",
+      "x-help-en": "Whether a patient always stays with the same practitioner.",
+      "x-enum-labels": {
+        "always_same": { "nl": "Altijd dezelfde behandelaar", "en": "Always the same practitioner" },
+        "preferred_same": { "nl": "Bij voorkeur dezelfde behandelaar", "en": "Preferably the same practitioner" },
+        "no_fixed": { "nl": "Geen vaste behandelaar", "en": "No fixed practitioner" }
+      }
+    },
+    "booking_hygienist_dentist_interaction": {
+      "type": "string",
+      "description": "For preventive appointments / new patients: hygienist vs dentist preference. Free text, COMPARED as literal strings in playbooks/behandelaars_en_afspraaktypes.md: 'Mondhygienist' / 'Tandarts' branch; anything else (incl. 'unset') routes to the geen_voorkeur default. REQUIRED + non-null (a projection branch selector must be present as a string); use 'unset' when not configured.",
+      "x-group": "booking",
+      "x-order": 4,
+      "x-label-nl": "Voorkeur mondhygiënist of tandarts",
+      "x-label-en": "Hygienist vs dentist preference",
+      "x-help-nl": "Voor preventieve afspraken / nieuwe patiënten: bij wie komen ze eerst terecht? Kies een waarde; 'Geen voorkeur' laat de assistent zelf inschatten.",
+      "x-help-en": "For preventive appointments / new patients: who do they see first? Pick a value; 'No preference' lets the assistant decide.",
+      "x-required-selector": true,
+      "x-enum-labels": {
+        "Mondhygienist": { "nl": "Eerst bij de mondhygiënist", "en": "Hygienist first", "help": "Preventieve afspraken gaan eerst naar de mondhygiënist." },
+        "Tandarts": { "nl": "Eerst bij de tandarts", "en": "Dentist first", "help": "Preventieve afspraken gaan eerst naar de tandarts." },
+        "geen_voorkeur": { "nl": "Geen voorkeur", "en": "No preference", "help": "De assistent kiest zelf de gepaste behandelaar." },
+        "unset": { "nl": "Nog niet ingesteld (vraag de praktijk)", "en": "Not yet configured (ask the practice)", "help": "Niet geconfigureerd: valt terug op 'Geen voorkeur'." }
+      }
+    },
+
+    "latecancel_min_hours": {
+      "type": ["string", "null"],
+      "description": "Late-cancel threshold: a cancel/reschedule less than this far ahead counts as late (free text, e.g. '48 uur'). Used across annulatie_beleid, afspraak_verplaatsen, afspraak_verwijderen, faq.",
+      "x-group": "latecancel",
+      "x-order": 1,
+      "x-label-nl": "Drempel laattijdig annuleren",
+      "x-label-en": "Late-cancel threshold",
+      "x-help-nl": "Vrije tekst, bv. '48 uur'. Annuleren binnen deze termijn telt als laattijdig.",
+      "x-help-en": "Free text, e.g. '48 uur'. Cancelling within this window counts as late.",
+      "x-example": "48 uur"
+    },
+    "latecancel_free_count": {
+      "type": ["integer", "null"],
+      "description": "How many late cancels are free before a fee applies (policy is 'first free, fee from the second').",
+      "x-group": "latecancel",
+      "x-order": 2,
+      "x-label-nl": "Aantal gratis laattijdige annulaties",
+      "x-label-en": "Free late-cancels",
+      "x-help-nl": "Geheel getal. Hoeveel laattijdige annulaties gratis zijn voor er kosten worden aangerekend. Bv. 1 = eerste gratis, kost vanaf de tweede.",
+      "x-help-en": "Integer. How many late cancels are free before a fee applies. E.g. 1 = first free, fee from the second.",
+      "x-example": 1
+    },
+    "latecancel_amount": {
+      "type": ["string", "null"],
+      "description": "Late-cancel fee amount (free text incl. currency, e.g. '25 euro').",
+      "x-group": "latecancel",
+      "x-order": 3,
+      "x-label-nl": "Bedrag laattijdig annuleren",
+      "x-label-en": "Late-cancel fee",
+      "x-help-nl": "Vrije tekst inclusief munt, bv. '25 euro'.",
+      "x-help-en": "Free text incl. currency, e.g. '25 euro'.",
+      "x-example": "25 euro"
+    },
+    "latecancel_iban": {
+      "type": ["string", "null"],
+      "description": "IBAN for the late-cancel fee transfer.",
+      "x-group": "latecancel",
+      "x-order": 4,
+      "x-label-nl": "IBAN",
+      "x-label-en": "IBAN",
+      "x-help-nl": "IBAN-rekeningnummer voor de overschrijving van de annulatiekost.",
+      "x-help-en": "IBAN account number for the late-cancel fee transfer.",
+      "x-example": "BE68 5390 0754 7034"
+    },
+    "latecancel_beneficiary": {
+      "type": ["string", "null"],
+      "description": "Beneficiary name for the late-cancel fee transfer.",
+      "x-group": "latecancel",
+      "x-order": 5,
+      "x-label-nl": "Begunstigde",
+      "x-label-en": "Beneficiary",
+      "x-help-nl": "Naam van de begunstigde voor de overschrijving.",
+      "x-help-en": "Beneficiary name for the transfer.",
+      "x-example": "Tandartspraktijk De Kies"
+    },
+    "latecancel_reference": {
+      "type": ["string", "null"],
+      "description": "Payment reference template for the late-cancel fee.",
+      "x-group": "latecancel",
+      "x-order": 6,
+      "x-label-nl": "Mededeling overschrijving",
+      "x-label-en": "Payment reference",
+      "x-help-nl": "Vrije tekst voor de gestructureerde of vrije mededeling bij de overschrijving.",
+      "x-help-en": "Free text for the payment reference on the transfer.",
+      "x-example": "Annulatie + naam patiënt"
+    },
+
+    "behavior_unanswerable": {
+      "type": ["string", "null"],
+      "enum": ["draft_with_placeholders", "ask_to_call", null],
+      "description": "What to do when a question can't be answered: draft with placeholders, or ask the patient to call.",
+      "x-group": "behavior",
+      "x-order": 1,
+      "x-label-nl": "Bij een onbeantwoordbare vraag",
+      "x-label-en": "When a question can't be answered",
+      "x-help-nl": "Wat de assistent doet als hij een vraag niet kan beantwoorden.",
+      "x-help-en": "What the assistant does when it cannot answer a question.",
+      "x-enum-labels": {
+        "draft_with_placeholders": { "nl": "Concept opstellen met invulvelden", "en": "Draft with placeholders", "help": "Stel een concept op en laat invulvelden over voor de praktijk." },
+        "ask_to_call": { "nl": "Patiënt vragen om te bellen", "en": "Ask the patient to call", "help": "Verwijs de patiënt door naar de telefoon." }
+      }
+    },
+    "behavior_assistant_name": {
+      "type": ["string", "null"],
+      "description": "The name the assistant signs as (the practice's front-desk persona). Interpolated everywhere as {{ behavior_assistant_name }}.",
+      "x-group": "behavior",
+      "x-order": 2,
+      "x-label-nl": "Naam van de assistent",
+      "x-label-en": "Assistant name",
+      "x-help-nl": "De naam waarmee de assistent ondertekent (de baliepersona van de praktijk). Bv. 'Sofie' of 'het praktijkteam'.",
+      "x-help-en": "The name the assistant signs as (the practice's front-desk persona). E.g. 'Sofie' or 'het praktijkteam'.",
+      "x-example": "Sofie"
+    },
+
+    "comm_addressing": {
+      "type": ["string", "null"],
+      "description": "How to address patients (free text, e.g. formal vs first-name preference).",
+      "x-group": "comm",
+      "x-order": 1,
+      "x-label-nl": "Aanspreking patiënten",
+      "x-label-en": "How to address patients",
+      "x-help-nl": "Vrije tekst, bv. 'tutoyeren' of 'altijd met u en de achternaam'.",
+      "x-help-en": "Free text, e.g. 'first-name basis' or 'always formal with surname'.",
+      "x-example": "Patiënten met de voornaam tutoyeren"
+    },
+    "comm_base_language": {
+      "type": ["string", "null"],
+      "enum": ["nl", "fr", "en", "de", "other", null],
+      "description": "Practice base language.",
+      "x-group": "comm",
+      "x-order": 2,
+      "x-label-nl": "Hoofdtaal",
+      "x-label-en": "Base language",
+      "x-help-nl": "De standaardtaal van de praktijk.",
+      "x-help-en": "The practice's default language.",
+      "x-enum-labels": {
+        "nl": { "nl": "Nederlands", "en": "Dutch" },
+        "fr": { "nl": "Frans", "en": "French" },
+        "en": { "nl": "Engels", "en": "English" },
+        "de": { "nl": "Duits", "en": "German" },
+        "other": { "nl": "Andere", "en": "Other" }
+      }
+    },
+    "comm_other_languages": {
+      "type": ["string", "null"],
+      "description": "Additional languages the practice serves (free text).",
+      "x-group": "comm",
+      "x-order": 3,
+      "x-label-nl": "Bijkomende talen",
+      "x-label-en": "Other languages",
+      "x-help-nl": "Vrije tekst: welke andere talen de praktijk bedient, bv. 'Frans en Engels'.",
+      "x-help-en": "Free text: other languages the practice serves, e.g. 'French and English'.",
+      "x-example": "Frans, Engels"
+    },
+    "comm_signature": {
+      "type": ["string", "null"],
+      "description": "Optional override for the email signature block.",
+      "x-group": "comm",
+      "x-order": 4,
+      "x-label-nl": "Handtekening (override)",
+      "x-label-en": "Signature override",
+      "x-help-nl": "Optioneel: een volledig eigen handtekeningblok. Leeg laten = automatisch opgebouwd uit de contactgegevens.",
+      "x-help-en": "Optional: a fully custom signature block. Leave empty to auto-build from the contact details.",
+      "x-example": "Met vriendelijke groet,\nHet team van De Kies"
+    },
+
+    "faq_wheelchair": {
+      "type": ["string", "null"],
+      "description": "FAQ: wheelchair access note (appended to the address line).",
+      "x-group": "faq",
+      "x-order": 1,
+      "x-label-nl": "FAQ: rolstoeltoegankelijkheid",
+      "x-label-en": "FAQ: wheelchair access",
+      "x-help-nl": "Vrije tekst: nota over rolstoeltoegang, toegevoegd aan de adresregel.",
+      "x-help-en": "Free text: wheelchair access note, appended to the address line.",
+      "x-example": "De praktijk is rolstoeltoegankelijk via de zij-ingang."
+    },
+    "faq_emergency": {
+      "type": ["string", "null"],
+      "description": "FAQ: emergency / after-hours handling.",
+      "x-group": "faq",
+      "x-order": 2,
+      "x-label-nl": "FAQ: spoedgevallen",
+      "x-label-en": "FAQ: emergencies",
+      "x-help-nl": "Vrije tekst: hoe de praktijk spoed / buiten de uren behandelt.",
+      "x-help-en": "Free text: how the practice handles emergencies / after-hours.",
+      "x-example": "Bij spoed buiten de uren: bel het algemene wachtnummer 1733."
+    },
+    "faq_address": {
+      "type": ["string", "null"],
+      "description": "FAQ: address text. Falls back to contact_address + contact_municipality when empty.",
+      "x-group": "faq",
+      "x-order": 3,
+      "x-label-nl": "FAQ: adres",
+      "x-label-en": "FAQ: address",
+      "x-help-nl": "Vrije tekst voor het adres in de FAQ. Leeg laten = automatisch 'straat + gemeente' uit de contactgegevens.",
+      "x-help-en": "Free text address for the FAQ. Leave empty to auto-build 'street + municipality' from contact details.",
+      "x-example": "Hasseltsesteenweg 12, 3570 Alken"
+    },
+    "faq_accessibility": {
+      "type": ["string", "null"],
+      "description": "FAQ: parking / accessibility info.",
+      "x-group": "faq",
+      "x-order": 4,
+      "x-label-nl": "FAQ: parkeren en bereikbaarheid",
+      "x-label-en": "FAQ: parking & accessibility",
+      "x-help-nl": "Vrije tekst: parkeer- en bereikbaarheidsinfo.",
+      "x-help-en": "Free text: parking and accessibility info.",
+      "x-example": "Gratis parking voor de deur; bushalte op 100 m."
+    },
+    "faq_convention": {
+      "type": ["string", "null"],
+      "description": "FAQ: whether the practice is 'geconventioneerd' (insurance-conventioned) and details.",
+      "x-group": "faq",
+      "x-order": 5,
+      "x-label-nl": "FAQ: conventie",
+      "x-label-en": "FAQ: convention status",
+      "x-help-nl": "Vrije tekst: of de praktijk geconventioneerd is en eventuele details.",
+      "x-help-en": "Free text: whether the practice is conventioned (geconventioneerd) and any details.",
+      "x-example": "Onze tandartsen zijn gedeeltelijk geconventioneerd."
+    },
+
+    "blacklist_enabled": {
+      "type": ["boolean", "null"],
+      "description": "Whether the sender blacklist is active for this practice.",
+      "x-group": "blacklist",
+      "x-order": 1,
+      "x-label-nl": "Blacklist actief",
+      "x-label-en": "Blacklist enabled",
+      "x-help-nl": "Of de afzender-blacklist actief is voor deze praktijk.",
+      "x-help-en": "Whether the sender blacklist is active for this practice.",
+      "x-example": false
+    },
+    "blacklist_criterion": {
+      "type": ["string", "null"],
+      "description": "Criterion describing which senders to blacklist (free text).",
+      "x-group": "blacklist",
+      "x-order": 2,
+      "x-label-nl": "Blacklist-criterium",
+      "x-label-en": "Blacklist criterion",
+      "x-help-nl": "Vrije tekst: welke afzenders genegeerd moeten worden.",
+      "x-help-en": "Free text: which senders should be ignored.",
+      "x-example": "Nieuwsbrieven en automatische no-reply-adressen"
+    }
+  }
+}

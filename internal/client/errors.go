@@ -4,7 +4,10 @@
 // carrier so the command layer can format INVALID_SETTINGS field lines without re-parsing.
 package client
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // FieldError is one entry in an INVALID_SETTINGS envelope: which key failed and why.
 type FieldError struct {
@@ -19,6 +22,16 @@ type errorEnvelope struct {
 		Message string       `json:"message"`
 		Fields  []FieldError `json:"fields"`
 	} `json:"error"`
+}
+
+// validationFailedEnvelope is the SECOND non-2xx shape, used by the tenant-settings editing surface:
+// {"error":"validation_failed","field_errors":{"<key>":"<msg>"}}. It differs from errorEnvelope (error
+// is a STRING, not an object; per-field errors are a map, not an array), so the client tries it after
+// the standard envelope fails to yield a code. Mapped onto the same APIError (Code/Fields) so the
+// command layer renders it through the one verbatim-surfacing path.
+type validationFailedEnvelope struct {
+	Error       string            `json:"error"`
+	FieldErrors map[string]string `json:"field_errors"`
 }
 
 // APIError carries the server's verbatim error so the command layer can print code/message to stderr
@@ -41,4 +54,22 @@ func (e *APIError) Error() string {
 		return fmt.Sprintf("HTTP %d", e.Status)
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// sortedFieldErrors flattens the tenant-settings field_errors map into the []FieldError the command
+// layer prints, sorted by key so the output is deterministic (map iteration order is not).
+func sortedFieldErrors(m map[string]string) []FieldError {
+	if len(m) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]FieldError, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, FieldError{Key: k, Message: m[k]})
+	}
+	return out
 }

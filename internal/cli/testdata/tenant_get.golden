@@ -1,0 +1,22 @@
+tenant: de-kies  version: sha256:abc123  applied: 2026-06-20T09:30:00Z
+
+Praktijknaam:
+  header_short_name (Korte praktijknaam) = De Kies
+
+Algemeen:
+  general_treatments (Behandelingen) = ["dentist", "orthodontics"]
+
+Contactgegevens:
+  contact_phone (Telefoonnummer) = 011 12 34 56
+
+Nieuwe patiënten:
+  newpatient_method (Aanpak nieuwe patiënt) = waitlist
+
+Afspraak verplaatsen:
+  reschedule_method (Aanpak afspraak verplaatsen) = propose_one_book
+
+Laattijdig annuleren:
+  latecancel_free_count (Aantal gratis laattijdige annulaties) = 1
+
+Blacklist afzenders:
+  blacklist_enabled (Blacklist actief) = false

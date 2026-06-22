@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -117,6 +118,44 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "settings.json"))
+	})
+
+	// Tenant settings editing surface (Wave 3). The schema is served verbatim from the embedded copy;
+	// GET returns a canned record; PATCH echoes the merge AND drives the validation_failed path.
+	mux.HandleFunc("GET /api/v1/tenants/settings/schema", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_schema.json"))
+	})
+	mux.HandleFunc("GET /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		// An unknown tenant is a uniform 404 (existence not leaked), like the real server.
+		if r.PathValue("slug") == "ghost" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"NOT_FOUND","message":"tenant not found"}}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_settings.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		// A bad enum value drives the 400 validation_failed / field_errors path (server is final word).
+		if strings.Contains(body, `"reschedule_method":"nope"`) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"validation_failed","field_errors":{"reschedule_method":"must be one of propose_one_book, propose_options_confirm, unset"}}`))
+			return
+		}
+		// Echo the sent settings back as the merged record (the test asserts the exact body the CLI
+		// sent: sparse keys, source:"cli", explicit null for unset). We re-emit the request's settings so
+		// the golden/JSON assertions can see what was merged.
+		var req struct {
+			Settings json.RawMessage `json:"settings"`
+		}
+		_ = json.Unmarshal([]byte(body), &req)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"tenant_id":"de-kies","version":"sha256:patched","applied_at":"2026-06-22T10:00:00Z","settings":%s}`, req.Settings)
 	})
 
 	return httptest.NewServer(mux)

@@ -62,6 +62,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newAskCmd(e),
 		newConfigCmd(e),
 		newEnvCmd(e),
+		newTenantCmd(e),
 	)
 	return root
 }

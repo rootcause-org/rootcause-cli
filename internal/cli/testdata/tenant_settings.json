@@ -1,0 +1,14 @@
+{
+  "tenant_id": "de-kies",
+  "version": "sha256:abc123",
+  "applied_at": "2026-06-20T09:30:00Z",
+  "settings": {
+    "header_short_name": "De Kies",
+    "contact_phone": "011 12 34 56",
+    "newpatient_method": "waitlist",
+    "reschedule_method": "propose_one_book",
+    "latecancel_free_count": 1,
+    "blacklist_enabled": false,
+    "general_treatments": ["dentist", "orthodontics"]
+  }
+}

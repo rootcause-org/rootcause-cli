@@ -157,6 +157,39 @@ func (c *Client) PatchSettings(ctx context.Context, patch map[string]any) (*Sett
 	return &out, nil
 }
 
+// GetTenantSettings fetches GET /api/v1/tenants/{slug}/settings — one practice's current onboarding
+// record (settings + version + applied_at). slug is path-escaped; the project is the bearer key's.
+func (c *Client) GetTenantSettings(ctx context.Context, slug string) (*TenantSettings, error) {
+	var out TenantSettings
+	if err := c.do(ctx, http.MethodGet, "/api/v1/tenants/"+url.PathEscape(slug)+"/settings", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PatchTenantSettings sends a sparse PATCH /api/v1/tenants/{slug}/settings (only the keys in
+// req.Settings; an explicit nil value → JSON null = unconfigure) and returns the merged record. The
+// server owns the schema/merge/validation; a bad merged value comes back as a 400 validation_failed
+// the command layer surfaces verbatim.
+func (c *Client) PatchTenantSettings(ctx context.Context, slug string, req TenantSettingsPatchRequest) (*TenantSettings, error) {
+	var out TenantSettings
+	if err := c.do(ctx, http.MethodPatch, "/api/v1/tenants/"+url.PathEscape(slug)+"/settings", req, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetTenantSettingsSchema fetches GET /api/v1/tenants/settings/schema — the enriched JSON Schema
+// (x-* render metadata included). Returned as raw bytes: `rc tenant settings schema` dumps it verbatim,
+// and `set` parses it for client-side type/enum coercion. Not project-specific, but bearer-gated.
+func (c *Client) GetTenantSettingsSchema(ctx context.Context) (json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, "/api/v1/tenants/settings/schema", nil, &raw); err != nil {
+		return nil, err
+	}
+	return raw, nil
+}
+
 // RawRuns / RawRun / RawEvents / RawSettings return the response BODY bytes for JSON passthrough, so
 // `-o json` emits exactly what the server sent (the CLI renders; it never reshapes for jq). The
 // pretty-print happens in the render layer; here we just carry bytes.
@@ -210,11 +243,20 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		// diagnosable rather than a bare "HTTP 405".
 		apiErr := &APIError{Status: resp.StatusCode}
 		var env errorEnvelope
-		if json.Unmarshal(data, &env) == nil && env.Error.Code != "" {
+		var vfe validationFailedEnvelope
+		switch {
+		case json.Unmarshal(data, &env) == nil && env.Error.Code != "":
 			apiErr.Code = env.Error.Code
 			apiErr.Message = env.Error.Message
 			apiErr.Fields = env.Error.Fields
-		} else {
+		case json.Unmarshal(data, &vfe) == nil && vfe.Error != "":
+			// The tenant-settings shape: error is a string code, per-field errors are a map. Map it onto
+			// the same APIError so the command layer's one verbatim path renders it (sorted for a stable
+			// order, since map iteration isn't).
+			apiErr.Code = vfe.Error
+			apiErr.Message = "settings rejected"
+			apiErr.Fields = sortedFieldErrors(vfe.FieldErrors)
+		default:
 			apiErr.Method = method
 			apiErr.Path = pathOnly(path)
 			apiErr.BaseURL = c.baseURL
