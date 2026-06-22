@@ -43,7 +43,7 @@ func newAskCmd(e *env) *cobra.Command {
 			sub, raw, err := c.Submit(e.ctx(), client.SubmitRequest{
 				Prompt:    args[0],
 				SessionID: f.session,
-				Tenant:    f.tenant,
+				Tenant:    e.tenantOr(f.tenant),
 				BrainRef:  f.brainRef,
 			})
 			if err != nil {

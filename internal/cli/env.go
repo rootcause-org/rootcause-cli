@@ -48,7 +48,7 @@ func newEnvKeysCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), tenant)
+			resp, err := c.Env(e.ctx(), e.tenantOr(tenant))
 			if err != nil {
 				return err
 			}
@@ -78,7 +78,7 @@ func newEnvPullCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), tenant)
+			resp, err := c.Env(e.ctx(), e.tenantOr(tenant))
 			if err != nil {
 				return err
 			}
@@ -112,7 +112,7 @@ func newEnvDiffCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), tenant)
+			resp, err := c.Env(e.ctx(), e.tenantOr(tenant))
 			if err != nil {
 				return err
 			}

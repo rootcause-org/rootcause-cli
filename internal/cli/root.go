@@ -28,12 +28,17 @@ type env struct {
 
 	out io.Writer
 	err io.Writer
+	in  io.Reader // stdin source for interactive prompts (rc login); nil → os.Stdin
+
+	// resolvedTenant is the brain marker's tenant (if any), captured by the last newClient call so a
+	// command can default an empty --tenant to the checkout's tenant. Empty for non-tenant brains.
+	resolvedTenant string
 }
 
 // Execute is the binary entrypoint. It returns the process exit code so main stays trivial; any
 // command error (including a typed APIError) is printed to stderr here, once.
 func Execute(version string) int {
-	e := &env{out: os.Stdout, err: os.Stderr}
+	e := &env{out: os.Stdout, err: os.Stderr, in: os.Stdin}
 	root := newRootCmd(e, version)
 	if err := root.Execute(); err != nil {
 		printError(e.err, err)
@@ -52,7 +57,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		SilenceUsage:  true, // a runtime error isn't a usage error; don't dump help on it
 		SilenceErrors: true, // Execute prints the error itself, verbatim
 	}
-	root.PersistentFlags().StringVar(&e.profile, "profile", "default", "config profile to use")
+	root.PersistentFlags().StringVar(&e.profile, "profile", "", "config profile to use (default: auto — bind to the brain in the current directory, else [default])")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
 
 	root.AddCommand(
@@ -63,6 +68,8 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newConfigCmd(e),
 		newEnvCmd(e),
 		newTenantCmd(e),
+		newLoginCmd(e),
+		newWhoamiCmd(e),
 	)
 	return root
 }
@@ -87,12 +94,20 @@ func (e *env) newClient() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	e.resolvedTenant = res.Tenant // so commands can default --tenant to the brain's tenant
 	if e.baseURLOvr != "" {
 		res.BaseURL = e.baseURLOvr
 		res.BaseURLFromDefault = false
 	}
 	if res.APIKey == "" {
-		return nil, fmt.Errorf("no API key: set ROOTCAUSE_API_KEY or add it to ~/.config/rootcause/config.toml")
+		// Inside a brain with no key, name the project and the one-command fix — never silently fall back
+		// to a different project's key. Outside a brain, the generic hint.
+		if res.Brain != nil {
+			return nil, fmt.Errorf("this brain is project %q but no API key is configured for it\n"+
+				"  fix: run `rc login` from here (writes %s), or set ROOTCAUSE_API_KEY, or add [profiles.%s] to %s",
+				res.Brain.Project, config.SecretFileName, res.Brain.Project, config.ConfigPath())
+		}
+		return nil, fmt.Errorf("no API key: set ROOTCAUSE_API_KEY or add it to %s", config.ConfigPath())
 	}
 	// A resolved key but an unset base URL almost always means the user forgot ROOTCAUSE_BASE_URL and is
 	// about to hit localhost — warn (to stderr, so it never pollutes piped output) rather than fail.
@@ -100,6 +115,15 @@ func (e *env) newClient() (*client.Client, error) {
 		fmt.Fprintf(e.err, "warning: no base URL set; defaulting to %s — set ROOTCAUSE_BASE_URL or base_url in your config profile\n", res.BaseURL)
 	}
 	return client.New(res.BaseURL, res.APIKey), nil
+}
+
+// tenantOr returns the explicit --tenant flag when set, else the brain marker's tenant (captured by
+// newClient). Call after newClient so resolvedTenant is populated.
+func (e *env) tenantOr(flag string) string {
+	if flag != "" {
+		return flag
+	}
+	return e.resolvedTenant
 }
 
 // ctx is the per-command context. A single place to add a timeout/signal later without touching each
