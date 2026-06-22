@@ -56,6 +56,22 @@ go install github.com/rootcause-org/rootcause-cli/cmd/rc@latest
 `rc` needs the project's **Prompt API bearer key** (the key resolves the project server-side — there's
 no `--project` flag) and the API base URL.
 
+**Recommended — let the brain checkout select the project.** A brain repo (`rootcause-brain-<project>`)
+commits a `.rootcause.toml` binding it to one project, so `rc` run anywhere inside it auto-targets that
+project — no `--profile`, no env export:
+
+```bash
+cd rootcause-brain-acme   # contains a committed .rootcause.toml: project = "acme", base_url = "…"
+rc login                  # paste the key once → gitignored .rootcause.secret.toml (0600)
+rc whoami                 # project: acme · key source: brain-secret · server says: acme ✓
+rc ask "…"                # just works
+```
+
+Inside a brain with no key, `rc` fails **loudly** naming the project — it never silently falls back to
+a different project's `[default]` key. See `.rootcause.toml` below.
+
+**Or set it globally** (env / config profiles — also the override when inside a brain):
+
 ```bash
 export ROOTCAUSE_API_KEY=rcl_…
 export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: http://localhost:8080
@@ -73,18 +89,30 @@ api_key  = "rcl_…"
 base_url = "https://staging.your-rootcause-host"
 ```
 
-Precedence (env wins, the common convention for one-off invocations): an **environment variable**
-overrides the matching **config-profile** value, which overrides the **built-in default**. Practical
-consequence: an exported `ROOTCAUSE_API_KEY` / `ROOTCAUSE_BASE_URL` shadows a profile's `api_key` /
-`base_url` — to use a profile's values, unset the matching env var. Keys live in env/config **by
-name** — never commit them.
+**`.rootcause.toml`** (committed, per brain) names the project and endpoint — `project` + `base_url`,
+no secret. **`.rootcause.secret.toml`** (gitignored, written by `rc login`) holds the `api_key`. Keep
+the secret file out of git; `.rootcause.toml` is safe to commit and is what ships the binding with a
+clone.
+
+Precedence per field (an env var always wins as a one-off override):
+
+```
+explicit --profile <name>        → that profile only (no brain binding)
+otherwise, inside a brain:         env > .rootcause.secret.toml > [profiles.<project>] > LOUD ERROR
+otherwise, outside any brain:      env > [default] > built-in default
+```
+
+A typo'd `--profile` errors rather than silently falling through to env. Keys live in env / the secret
+file / config **by name** — never commit them.
 
 ## Commands
 
 | Command | Does |
 |---|---|
+| `rc login [--api-key <k>] [--no-verify]` | store this brain's key in a gitignored `.rootcause.secret.toml` (verifies it matches `.rootcause.toml`) |
+| `rc whoami [--no-verify]` | which project `rc` targets from here: brain binding, base URL, key source (+ server confirm) |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--brain-ref <ref>] [--tenant <slug>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id) |
+| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--tenant <slug>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). `--session` threads the run onto a multi-turn session (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
@@ -99,6 +127,23 @@ name** — never commit them.
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
 dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin
 dev/<branch>`); the server runs the real loop against it and flags any actions/PRs as test.
+
+#### `--session` — multi-turn threading
+
+`--session <id>` threads a run onto a session so follow-up turns build on the earlier ones. The id is
+**client-chosen** (any stable string — `session_id` is the join key, not `run_id`); reuse the same id
+across turns and the server warm-starts each follow-up off the prior turns on that session:
+
+```bash
+rc ask --session homer-42 "Hello, my name is Homer. When can I have a dental appointment?"
+rc ask --session homer-42 "Okay, let's go for Thursday."   # same session → warm-started
+```
+
+The server keys continuity on `(project, session_id, kind=prompt)` and injects a digest of **what the
+earlier turns ran and how each ended** (the command trail) — *not* the prior conversation or answer
+text. So a follow-up knows which queries already dead-ended, but does **not** yet replay the prior
+turn's answer; phrase follow-ups to stand on their own rather than referring back anaphorically ("the
+second option"). `--no-wait` prints just the `run_id`; the `session_id` is the one you passed in.
 
 Output auto-detects: **TTY → table, piped → JSON**. Force with `-o json` / `-o table`. API errors are
 surfaced verbatim (`CODE: message`) with a non-zero exit.

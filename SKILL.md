@@ -19,6 +19,7 @@ Each rung is one endpoint; one command per rung. The CLI mirrors the API ladder 
 
 | Command | Endpoint | What |
 |---|---|---|
+| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; see below) |
 | `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
@@ -27,6 +28,16 @@ Each rung is one endpoint; one command per rung. The CLI mirrors the API ladder 
 
 `rc status` and `rc runs` are the **same endpoint** — status is the no-filter view (leads with the
 health summary), `runs` leads with the filterable table (`--limit`/`--kind`/`--category`/`--before`).
+
+`rc ask` ([ask.go](internal/cli/ask.go)) is the one **trigger**: it `POST`s the prompt to `/api/v1/runs`,
+then by default polls `/runs/{id}` to a terminal status and renders the answer like `rc run <id>`
+(`--no-wait` prints the `run_id` and returns; JSON echoes the verbatim 202 body so `jq -r .run_id`
+works). It stays thin — submit + poll + render; all run logic is server-side. `--session <id>` carries a
+**client-chosen** `session_id` (the multi-turn join key — *not* `run_id`); the server keys continuity on
+`(project, session_id, kind=prompt)` and warm-starts each follow-up off the prior turns' command trail
+(see [multi_turn_warm_start.md](../rootcause/.agents/skills/features/multi_turn_warm_start.md) — the
+prior *answer* is not yet replayed for prompt/mcp). `--brain-ref dev/<branch>` runs against a non-main
+brain ref (a test run); `--tenant <slug>` binds a tenant.
 
 `rc env` is the one place the CLI deliberately **does not** pass the server body through: `GET
 /api/v1/env` returns live secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and
@@ -44,7 +55,7 @@ internal/cli/             cobra commands; one file per command (root/status/runs
 internal/client/          the ONE http wrapper (client.go) + the wire contract (types.go) + APIError
                           (errors.go). One method per endpoint; types.go field names MUST match the
                           server verbatim — the CLI never reshapes data.
-internal/config/          env + ~/.config/rootcause/config.toml profile resolution.
+internal/config/          resolution: brain marker (.rootcause.toml) + secret + env + config.toml.
 internal/render/          render.go (TTY-detect + JSON passthrough) + table.go (one renderer per view).
 ```
 
@@ -55,11 +66,21 @@ pretty-print of the server body** (re-indent only), so jq sees the true response
 invent or drop a field. `rc run --events -o json` emits **NDJSON** (one event per line), not an array.
 
 ### Config & auth precedence
-In `internal/config`: a non-empty value in the selected profile of `config.toml` **overrides** the env
-var (`ROOTCAUSE_API_KEY` / `ROOTCAUSE_BASE_URL`), which overrides the built-in default (`base_url` →
-`http://localhost:8080`; `api_key` has no default → hard error). `--profile <name>` selects `[default]`
-or `[profiles.<name>]`; a typo'd named profile errors (never silently falls through to the wrong
-server). Honors `XDG_CONFIG_HOME`. Keys live in env/config **by name, never committed**.
+In `internal/config` (`profiles.go`), resolution is **brain-aware**: `Load("")` walks up from cwd for a
+committed `.rootcause.toml` marker (`project` + `base_url`) and binds to that project. Per field, an env
+var (`ROOTCAUSE_API_KEY` / `ROOTCAUSE_BASE_URL`) always wins; then:
+
+- **explicit `--profile <name>`** → that profile only, no brain binding (the override escape hatch);
+- **inside a brain** → env > `.rootcause.secret.toml` (`api_key`, gitignored, written by `rc login`) >
+  `[profiles.<project>]` > **a hard error naming the project** — it must NOT silently fall back to
+  `[default]` (the footgun: running `rc` in one brain quietly hitting another project);
+- **outside any brain** → env > `[default]` > built-in default (`base_url` → `http://localhost:8080`;
+  `api_key` has no default → hard error).
+
+`Resolved` carries `Project`/`Brain`/`KeySource` so `root.go` can craft the loud error and `rc whoami`
+can explain the binding. A typo'd named profile errors (never silently the wrong server). Honors
+`XDG_CONFIG_HOME`. The committed marker is non-secret; keys live in env / `.rootcause.secret.toml` /
+config **by name, never committed**. `rc login`/`rc whoami` live in `auth.go`.
 
 ### Errors
 Any non-2xx → the client decodes `{"error":{code,message,fields?}}` into a typed `APIError` and the CLI
@@ -84,7 +105,8 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
 ## Scope guards (push back if asked)
 
 No MCP in v1 (a future layer over the same endpoints — keep commands mappable 1:1). No business logic /
-no DB access. No **server** write surface beyond `config set` (the settings whitelist IS the boundary —
-the CLI never triggers runs/actions/mail). `rc env pull` writes a LOCAL `./.env` only — still a GET
-against the API, so the no-server-write rule holds. No new auth mechanism. No interactive TUI/dashboard — scriptable,
+no DB access. The only **server** write surfaces are `config set` (the settings whitelist IS the
+boundary) and `rc ask` (triggers a run via `POST /api/v1/runs` — the CLI still holds no run logic; the
+server owns the loop, and `ask` never sends actions/mail itself). `rc env pull` writes a LOCAL `./.env`
+only — still a GET against the API. No new auth mechanism. No interactive TUI/dashboard — scriptable,
 pipe-first, headless.
