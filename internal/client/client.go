@@ -122,6 +122,21 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse
 	return &out, raw, nil
 }
 
+// Env fetches GET /api/v1/env — the project's PRODUCTION grounding secrets (decrypted), project ∪
+// tenant when tenant is set. The response carries live secret VALUES, so callers must render NAMES
+// only (or write the values straight to ./.env); never print a value to stdout/logs.
+func (c *Client) Env(ctx context.Context, tenant string) (*EnvResponse, error) {
+	path := "/api/v1/env"
+	if tenant != "" {
+		path += "?tenant=" + url.QueryEscape(tenant)
+	}
+	var out EnvResponse
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSettings fetches GET /api/v1/settings.
 func (c *Client) GetSettings(ctx context.Context) (*Settings, error) {
 	var out Settings

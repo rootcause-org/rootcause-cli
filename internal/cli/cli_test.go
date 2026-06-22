@@ -90,6 +90,17 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{"run_id":"` + runID + `","status":"running","status_url":"/api/v1/runs/` + runID + `","poll_after_ms":1}`))
 	})
+	mux.HandleFunc("GET /api/v1/env", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		// A tenant query returns a tenant-merged shape (an extra key + a differing FEATURE_FLAG), so the
+		// --tenant plumbing and the scope label are exercised.
+		if r.URL.Query().Get("tenant") == "acme" {
+			_, _ = w.Write([]byte(`{"project":"momentum-tools","tenant":"acme","keys":{"FEATURE_FLAG":"tenant","REGION":"eu","ACME_DSN":"postgres://acme@h/db"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"project":"momentum-tools","keys":{"FEATURE_FLAG":"project","REGION":"eu","STRIPE_KEY":"sk_live_SECRET"}}`))
+	})
 	mux.HandleFunc("GET /api/v1/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

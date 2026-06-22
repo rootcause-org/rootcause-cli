@@ -23,15 +23,22 @@ Each rung is one endpoint; one command per rung. The CLI mirrors the API ladder 
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist |
+| `rc env keys` / `pull` / `diff` | `GET /api/v1/env` | sync the project's PRODUCTION grounding `.env` to a local 0600 `./.env` — the self-serve, key-authed twin of operator `scripts/rc_env.py --pull/--keys/--verify` |
 
 `rc status` and `rc runs` are the **same endpoint** — status is the no-filter view (leads with the
 health summary), `runs` leads with the filterable table (`--limit`/`--kind`/`--category`/`--before`).
+
+`rc env` is the one place the CLI deliberately **does not** pass the server body through: `GET
+/api/v1/env` returns live secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and
+`pull` writes the values solely to the 0600 `./.env` (never stdout). It also writes a local file — the
+only filesystem write in the CLI — but performs **no server write** (it's a GET), so the read-only-API
+scope guard holds.
 
 ## Architecture — four thin layers, no logic
 
 ```
 cmd/rc/main.go            → cli.Execute(version)
-internal/cli/             cobra commands; one file per command (root/status/runs/run/config).
+internal/cli/             cobra commands; one file per command (root/status/runs/run/config/env).
                           A command = parse flags → one client call → render. errors.go surfaces
                           the API's {code,message,fields} VERBATIM to stderr, exit 1.
 internal/client/          the ONE http wrapper (client.go) + the wire contract (types.go) + APIError
@@ -77,6 +84,7 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
 ## Scope guards (push back if asked)
 
 No MCP in v1 (a future layer over the same endpoints — keep commands mappable 1:1). No business logic /
-no DB access. No write surface beyond `config set` (the settings whitelist IS the boundary — the CLI
-never triggers runs/actions/mail). No new auth mechanism. No interactive TUI/dashboard — scriptable,
+no DB access. No **server** write surface beyond `config set` (the settings whitelist IS the boundary —
+the CLI never triggers runs/actions/mail). `rc env pull` writes a LOCAL `./.env` only — still a GET
+against the API, so the no-server-write rule holds. No new auth mechanism. No interactive TUI/dashboard — scriptable,
 pipe-first, headless.

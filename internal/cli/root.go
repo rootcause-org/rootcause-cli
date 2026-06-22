@@ -61,6 +61,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newRunCmd(e),
 		newAskCmd(e),
 		newConfigCmd(e),
+		newEnvCmd(e),
 	)
 	return root
 }

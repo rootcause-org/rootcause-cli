@@ -209,6 +209,15 @@ type FullResponse struct {
 	Events []EventItem `json:"events"`
 }
 
+// EnvResponse is GET /api/v1/env — the resolved grounding env. Keys holds live secret VALUES (the
+// whole point: `rc env pull` writes them to ./.env). The CLI NEVER prints a value: it renders key
+// NAMES only and writes values solely to the 0600 file.
+type EnvResponse struct {
+	Project string            `json:"project"`
+	Tenant  string            `json:"tenant,omitempty"`
+	Keys    map[string]string `json:"keys"`
+}
+
 // NumberSetting / StringSetting are one settings field: value (what's set, "" / 0 if unset), effective
 // (value-or-default), default. max_run_usd is numeric; the rest are strings.
 type NumberSetting struct {

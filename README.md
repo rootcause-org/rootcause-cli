@@ -18,6 +18,8 @@ $ rc runs --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run <id> --events        # full per-iteration trace (NDJSON when piped)
 $ rc run <id> --full          # the whole bundle (header + trace; JSONL when piped)
 $ rc config set max_run_usd=5 default_tier=pro
+$ rc env keys                  # key NAMES of the production grounding env (no values)
+$ rc env pull                  # sync that env to a local 0600 ./.env (for brain-dev --live)
 ```
 
 ## Install
@@ -89,6 +91,9 @@ name** — never commit them.
 | `rc run <id> --full` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line) |
 | `rc config get` | effective settings + box defaults |
 | `rc config set k=v [k=v…]` | change settings (validated server-side) |
+| `rc env keys [--tenant <slug>]` | key NAMES of the project's production grounding env (log-safe, no values) |
+| `rc env pull [--tenant <slug>]` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
+| `rc env diff [--tenant <slug>]` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
 | `rc --version` · `rc help` | |
 
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
@@ -97,6 +102,25 @@ dev/<branch>`); the server runs the real loop against it and flags any actions/P
 
 Output auto-detects: **TTY → table, piped → JSON**. Force with `-o json` / `-o table`. API errors are
 surfaced verbatim (`CODE: message`) with a non-zero exit.
+
+### `rc env` — self-serve grounding-env sync
+
+A project's grounding scripts read their credentials (PG DSN, Stripe key, …) from a gitignored `.env`
+in the brain clone. `rc env` lets a **developer** sync that **production** env to their laptop over the
+same Prompt API key — the self-serve equivalent of the operator-only `scripts/rc_env.py --pull` (which
+needs AWS/SSM access). Run it **from inside the brain clone** (it reads/writes `./.env`):
+
+```bash
+rc env keys                 # what keys exist (names only — safe to paste/log)
+rc env pull                 # write ./.env at 0600 — then `brain-dev --live` can run grounding locally
+rc env diff                 # has my local ./.env drifted from production? (names-only; exit≠0 on drift)
+rc env pull --tenant <slug> # a tenant-enabled project: the project ∪ tenant env a run actually sees
+```
+
+> **Secret hygiene:** no `rc env` subcommand ever prints a secret **value** — `pull` writes values only
+> to the 0600 file and reports names + count; `keys`/`diff` are names-only in both table and JSON modes.
+> The pulled `.env` holds **real production secrets** on your laptop — treat it like a password file
+> (it's gitignored in every brain repo). A tenant-enabled project (e.g. dentai) requires `--tenant`.
 
 ## Releasing
 
