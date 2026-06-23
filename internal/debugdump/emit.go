@@ -359,8 +359,11 @@ func benignGrepMiss(e decEvent) bool {
 		grepRx.MatchString(cdPrefix.ReplaceAllString(e.command, ""))
 }
 
-// pathRx matches /brain, /mirrors, /kb paths in commands — the bridge to "what did the run read".
-var pathRx = regexp.MustCompile(`(/(?:brain|mirrors|kb)/[A-Za-z0-9._/@%+-]*[A-Za-z0-9_])`)
+// pathRx matches /brain, /mirrors, /kb paths in commands — the bridge to "what did the run read". The
+// leading (^|[^\w-]) group emulates the reference renderer's negative lookbehind (RE2 has none): a path
+// must not be glued onto a preceding word/hyphen char, so `foo/brain/x.py` isn't mis-read as a path.
+// Group 1 is the boundary (discarded); group 2 is the path.
+var pathRx = regexp.MustCompile(`(^|[^\w-])(/(?:brain|mirrors|kb)/[A-Za-z0-9._/@%+-]*[A-Za-z0-9_])`)
 
 // filesRead returns the sorted FILE paths (those with an extension) the run's bash commands touched.
 func filesRead(events []decEvent) []string {
@@ -369,10 +372,11 @@ func filesRead(events []decEvent) []string {
 		if e.src.Tool != "bash" {
 			continue
 		}
-		for _, m := range pathRx.FindAllString(e.command, -1) {
-			last := m[strings.LastIndex(m, "/")+1:]
+		for _, m := range pathRx.FindAllStringSubmatch(e.command, -1) {
+			p := m[2] // the path (group 1 is the leading boundary char)
+			last := p[strings.LastIndex(p, "/")+1:]
 			if strings.Contains(last, ".") { // a dot in the basename ⇒ a file, not a dir
-				set[m] = struct{}{}
+				set[p] = struct{}{}
 			}
 		}
 	}
