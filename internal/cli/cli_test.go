@@ -51,6 +51,13 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte("Method Not Allowed\n"))
 			return
 		}
+		// id "declined" carries the run-debug bundle (decline_reason + guardrail/forced/fallback flags +
+		// recoverable retries) — exercises the index "why" line and the -o json passthrough of the new fields.
+		if r.PathValue("id") == "declined" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(fixture(t, "run_declined.json"))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "run.json"))
 	})
@@ -65,11 +72,23 @@ func stubServer(t *testing.T) *httptest.Server {
 				`{"seq":-999999,"tool":"bash","status":"ok","exit_code":0,"duration_ms":97,"at":"2026-06-19T08:10:10Z"}]}`))
 			return
 		}
+		// id "declined" ends on a reply event that carries decline_reason (no draft/note) — exercises the
+		// trace's terminal-decline rendering.
+		if r.PathValue("id") == "declined" {
+			_, _ = w.Write(fixture(t, "events_declined.json"))
+			return
+		}
 		_, _ = w.Write(fixture(t, "events.json"))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/full", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		// id "declined" carries the run.debug bundle, exercising the full header's debug rows + the
+		// untruncated decline_reason block.
+		if r.PathValue("id") == "declined" {
+			_, _ = w.Write(fixture(t, "full_declined.json"))
+			return
+		}
 		_, _ = w.Write(fixture(t, "full.json"))
 	})
 	mux.HandleFunc("POST /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {

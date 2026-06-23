@@ -101,6 +101,9 @@ func Run(w io.Writer, r *client.RunDetail) {
 	if oc := metaString(r.Metadata, "outcome"); oc != "" {
 		fmt.Fprintf(tw, "Outcome:\t%s\n", oc)
 	}
+	if why := runWhy(r.Debug); why != "" {
+		fmt.Fprintf(tw, "Why:\t%s\n", why)
+	}
 	fmt.Fprintf(tw, "Draft?:\t%s\n", yesNo(r.HasDraft))
 	fmt.Fprintf(tw, "Note?:\t%s\n", yesNo(r.HasNote))
 	fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
@@ -161,6 +164,41 @@ func yesNo(b bool) string {
 	return "no"
 }
 
+// runWhy is the index-level one-liner explaining a surprising outcome: a truncated decline_reason, the
+// forced-submission cause, the model the run fell back FROM, and any tripped guardrail — joined into a
+// single terse line. Blank when there's nothing notable (the caller then omits the row). The untruncated
+// detail lives in `rc run <id> --full`.
+func runWhy(d *client.RunDebug) string {
+	if d == nil {
+		return ""
+	}
+	var parts []string
+	if d.DeclineReason != "" {
+		parts = append(parts, "declined — "+truncate(d.DeclineReason, 80))
+	}
+	if d.Guardrail != "" {
+		parts = append(parts, "guardrail ("+d.Guardrail+")")
+	}
+	if d.Forced != "" {
+		parts = append(parts, "forced ("+d.Forced+")")
+	}
+	if d.FallbackFrom != "" {
+		parts = append(parts, "model fell back from "+d.FallbackFrom)
+	}
+	return strings.Join(parts, "; ")
+}
+
+// truncate clamps s to at most max runes, appending an ellipsis when it had to cut — keeping the index
+// "why" line skimmable. Newlines are collapsed first so the one-liner stays on one line.
+func truncate(s string, max int) string {
+	s = strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\r", "")
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return strings.TrimRight(string(r[:max]), " ") + "…"
+}
+
 // Events renders the per-event trace as a readable per-iteration block: a header line per event plus
 // command / stdout / stderr / reply markers when present.
 func Events(w io.Writer, resp *client.EventsResponse) {
@@ -180,6 +218,11 @@ func Events(w io.Writer, resp *client.EventsResponse) {
 		if e.HasDraft || e.HasNote {
 			fmt.Fprintf(w, "    draft=%t note=%t\n", e.HasDraft, e.HasNote)
 		}
+		// Terminal reply that DECLINED: the reasoned "why nothing" (no draft/note placed). This is the
+		// one-read answer to "the run declined — why?" the lean trace previously couldn't show.
+		if e.DeclineReason != "" {
+			fmt.Fprintf(w, "    declined: %s\n", indentBlock(e.DeclineReason))
+		}
 		if e.Stdout != "" {
 			fmt.Fprintf(w, "    stdout: %s\n", indentBlock(e.Stdout))
 		}
@@ -198,6 +241,23 @@ func Full(w io.Writer, f *client.FullResponse) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
 	fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
+	// Debug flags sit right under Status — they explain HOW the run reached that status. The full
+	// decline_reason (which can be a paragraph) is rendered as a block below; here we show only the
+	// terse flags. Each row prints only when the signal is present, so a clean run stays clean.
+	if d := r.Debug; d != nil {
+		if d.Guardrail != "" {
+			fmt.Fprintf(tw, "Guardrail:\t%s\n", d.Guardrail)
+		}
+		if d.Forced != "" {
+			fmt.Fprintf(tw, "Forced:\t%s\n", d.Forced)
+		}
+		if d.FallbackFrom != "" {
+			fmt.Fprintf(tw, "Fallback from:\t%s\n", d.FallbackFrom)
+		}
+		if d.RecoverableRetries > 0 {
+			fmt.Fprintf(tw, "Recoverable retries:\t%d\n", d.RecoverableRetries)
+		}
+	}
 	fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
 	if r.Trigger != "" {
 		fmt.Fprintf(tw, "Trigger:\t%s\n", r.Trigger)
@@ -225,6 +285,12 @@ func Full(w io.Writer, f *client.FullResponse) {
 		fmt.Fprintf(tw, "Trace:\t%s\n", tu)
 	}
 	tw.Flush()
+
+	// The full decline_reason verbatim (untruncated, may span lines) — the headline "why nothing" for a
+	// declined run. Rendered as a block since the index view only shows a truncated one-liner.
+	if r.Debug != nil && r.Debug.DeclineReason != "" {
+		fmt.Fprintf(w, "\nDecline reason:\n%s\n", r.Debug.DeclineReason)
+	}
 
 	if len(r.Egress) > 0 {
 		fmt.Fprintf(w, "\nEgress (%d):\n", len(r.Egress))

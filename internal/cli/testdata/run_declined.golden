@@ -1,0 +1,16 @@
+Run:          c5f80889-901a-4563-94c6-a421db7d24c6
+Kind:         prompt
+Status:       done
+Category:     declined
+Outcome:      declined
+Why:          declined — Thread already resolved — the sender acknowledged closure, so there is no open q…; guardrail (max_iterations); forced (budget); model fell back from claude-opus-4-8
+Draft?:       no
+Note?:        no
+Created:      2026-06-19T09:00:00Z
+Finished:     2026-06-19T09:00:42Z
+Duration:     42.0s
+Cost:         $0.21
+Turns:        5
+Bash:         3
+Attachments:  0
+View run:     https://rootcause.probackup.io/runs/c5f80889-901a-4563-94c6-a421db7d24c6?t=zzz

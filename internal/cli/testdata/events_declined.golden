@@ -1,0 +1,7 @@
+Run: c5f80889-901a-4563-94c6-a421db7d24c6
+
+#1  bash  ok  exit=0  110ms  2026-06-19T09:00:10Z
+    $ psql -c 'select status from threads where id = 42'
+
+#2  reply  ok  exit=0  25ms  2026-06-19T09:00:40Z
+    declined: Thread already resolved — the sender acknowledged closure, so there is no open question to answer.

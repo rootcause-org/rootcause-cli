@@ -123,8 +123,11 @@ type Event struct {
 	Command    string `json:"command,omitempty"`
 	HasDraft   bool   `json:"has_draft,omitempty"`
 	HasNote    bool   `json:"has_note,omitempty"`
-	Stdout     string `json:"stdout,omitempty"`
-	Stderr     string `json:"stderr,omitempty"`
+	// DeclineReason is reply-only: the reasoned "why nothing" on a terminal reply event that DECLINED
+	// (neither a draft nor a note was placed). omitempty, so a normal reply event carries it as "".
+	DeclineReason string `json:"decline_reason,omitempty"`
+	Stdout        string `json:"stdout,omitempty"`
+	Stderr        string `json:"stderr,omitempty"`
 }
 
 // EventsResponse is GET /api/v1/runs/{id}/events.
@@ -194,6 +197,7 @@ type RunHeader struct {
 	RunTotalTokens  int64          `json:"run_total_tokens,omitempty"`
 	Draft           string         `json:"draft,omitempty"`
 	Notes           []Note         `json:"notes,omitempty"`
+	Debug           *RunDebug      `json:"debug,omitempty"`
 	Metadata        map[string]any `json:"metadata,omitempty"`
 	Egress          []EgressItem   `json:"egress,omitempty"`
 }

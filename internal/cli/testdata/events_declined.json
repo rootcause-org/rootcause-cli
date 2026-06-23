@@ -1,0 +1,23 @@
+{
+  "run_id": "c5f80889-901a-4563-94c6-a421db7d24c6",
+  "events": [
+    {
+      "seq": 1,
+      "tool": "bash",
+      "status": "ok",
+      "exit_code": 0,
+      "duration_ms": 110,
+      "at": "2026-06-19T09:00:10Z",
+      "command": "psql -c 'select status from threads where id = 42'"
+    },
+    {
+      "seq": 2,
+      "tool": "reply",
+      "status": "ok",
+      "exit_code": 0,
+      "duration_ms": 25,
+      "at": "2026-06-19T09:00:40Z",
+      "decline_reason": "Thread already resolved — the sender acknowledged closure, so there is no open question to answer."
+    }
+  ]
+}

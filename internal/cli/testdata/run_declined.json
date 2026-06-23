@@ -1,0 +1,24 @@
+{
+  "run_id": "c5f80889-901a-4563-94c6-a421db7d24c6",
+  "status": "done",
+  "kind": "prompt",
+  "category": "declined",
+  "created_at": "2026-06-19T09:00:00Z",
+  "finished_at": "2026-06-19T09:00:42Z",
+  "duration_ms": 42000,
+  "has_draft": false,
+  "has_note": false,
+  "turns": 5,
+  "bash_total": 3,
+  "cost_usd": 0.21,
+  "run_url": "https://rootcause.probackup.io/runs/c5f80889-901a-4563-94c6-a421db7d24c6?t=zzz",
+  "attachments": [],
+  "debug": {
+    "decline_reason": "Thread already resolved — the sender acknowledged closure, so there is no open question to answer.",
+    "guardrail": "max_iterations",
+    "forced": "budget",
+    "fallback_from": "claude-opus-4-8",
+    "recoverable_retries": 2
+  },
+  "metadata": { "outcome": "declined", "total_cost_usd": 0.21 }
+}

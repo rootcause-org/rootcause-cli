@@ -62,6 +62,54 @@ func TestRunFullTable(t *testing.T) {
 	assertGolden(t, "full.golden", out.String())
 }
 
+// TestRunDeclinedTable pins the index "why" one-liner for a run that declined (the motivating case:
+// the CLI previously showed `declined` with no WHY). It must surface the truncated decline_reason plus
+// the guardrail/forced/fallback flags on a single Why: row.
+func TestRunDeclinedTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "declined"); err != nil {
+		t.Fatalf("run declined: %v", err)
+	}
+	assertGolden(t, "run_declined.golden", out.String())
+}
+
+// TestRunDeclinedEventsTable pins the trace's terminal-decline rendering: the reply event shows the
+// decline_reason instead of a draft/note line.
+func TestRunDeclinedEventsTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "declined", "--events"); err != nil {
+		t.Fatalf("run declined --events: %v", err)
+	}
+	assertGolden(t, "events_declined.golden", out.String())
+}
+
+// TestRunDeclinedFullTable pins the full header's debug rows + the untruncated decline_reason block.
+func TestRunDeclinedFullTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "declined", "--full"); err != nil {
+		t.Fatalf("run declined --full: %v", err)
+	}
+	assertGolden(t, "full_declined.golden", out.String())
+}
+
+// TestRunDeclinedJSONPassthrough confirms the new debug fields ride through -o json verbatim (the CLI
+// reshapes nothing): the raw server body round-trips unchanged.
+func TestRunDeclinedJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "declined"); err != nil {
+		t.Fatalf("run declined -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "run_declined.json"), out.Bytes())
+}
+
 // TestRunFullJSONL locks the cross-repo seam: `rc run <id> --full -o json` must emit a `type:run`
 // header line followed by one `type:event` line per event (JSONL), each carrying its fields verbatim.
 func TestRunFullJSONL(t *testing.T) {
