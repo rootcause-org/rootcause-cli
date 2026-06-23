@@ -25,7 +25,7 @@ import (
 // `rc upgrade` is self-update: the binary replaces itself with the latest GitHub release for the
 // running OS/arch, so non-Homebrew installs (Linux/WSL/Windows, the install.sh / install.ps1 path) get
 // the same one-command update as `brew upgrade rc` — no need to re-paste the install URL. When rc was
-// installed via Homebrew it refuses and points at `brew upgrade rc`, so it never fights brew's
+// installed via Homebrew it refuses and points at `brew update && brew upgrade rc`, so it never fights brew's
 // bookkeeping (a self-overwrite would leave the cask's manifest pointing at a binary it no longer owns).
 const (
 	ghRepo      = "rootcause-org/rootcause-cli"
@@ -75,8 +75,12 @@ func runUpgrade(e *env, current string, checkOnly bool) error {
 		exe = resolved
 	}
 	if isHomebrewManaged(exe) {
+		// `brew update` FIRST, always: we already know (from the GitHub releases API) that a newer
+		// version exists, so the only reason a bare `brew upgrade rc` would say "already latest" is a
+		// stale local tap clone — Homebrew's auto-update refreshes the core JSON API but can skip a
+		// git tap. Pairing the two means a stale tap can never mask a release we just detected.
 		fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n"+
-			"  this rc was installed with Homebrew — upgrade with: brew upgrade rc\n", normVersion(current), normVersion(latest))
+			"  this rc was installed with Homebrew — upgrade with: brew update && brew upgrade rc\n", normVersion(current), normVersion(latest))
 		return nil
 	}
 
