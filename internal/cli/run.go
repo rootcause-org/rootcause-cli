@@ -97,7 +97,9 @@ func newRunCmd(e *env) *cobra.Command {
 }
 
 // defaultDebugDir is where `rc run <id> --debug` writes its two files unless --out-dir overrides it.
-const defaultDebugDir = "rc-debug"
+// All rc local artifacts live under the wholesale-gitignored `.rootcause/` dir (one ignore rule covers
+// every subfolder); brains seed `/.rootcause/` so these dumps (real run data, PII) never get committed.
+const defaultDebugDir = ".rootcause/debug"
 
 // runDebug pulls the run's /full bundle (cross-project for an all-projects admin token) and writes the
 // raw jq-able JSONL event log + a thin markdown index, printing both paths. It does NOT render the run

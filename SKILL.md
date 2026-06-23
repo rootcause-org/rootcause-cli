@@ -110,7 +110,7 @@ and `rc whoami` explains the binding (locally — there is no server identity en
 
 ### The `--debug` decomposer (`internal/debugdump`)
 `rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/full` (cross-project for an
-all-projects admin token) and writes two files to `--out-dir` (default `rc-debug/`) — a **jq-able JSONL**
+all-projects admin token) and writes two files to `--out-dir` (default `.rootcause/debug/`) — a **jq-able JSONL**
 event log and a **thin markdown index** — then prints both paths. It does NOT summarize the run into
 stdout: the calling agent reads the index, then drills into the JSONL with its own bash/jq. The JSONL
 contract is kept compatible with the Python/shared-runtime renderer: line 1 is a `{"type":"run"…}`
