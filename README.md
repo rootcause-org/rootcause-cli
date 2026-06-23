@@ -1,9 +1,9 @@
 # rootcause-cli (`rc`)
 
 A thin, scriptable client that lets a project **consume its own rootcause data** and **change its own
-config** — over rootcause's public JSON `/api/v1`, authed with the project's existing **Prompt API
-bearer key**. No business logic of its own: every command is one API call, rendered as a table on a
-terminal or **JSON when piped** so `| jq` always works.
+config** — over rootcause's public JSON `/api/v1`, authed with an **OAuth access token** (you sign in
+once with `rc login`; the CLI refreshes the token for you). No business logic of its own: every command
+is one API call, rendered as a table on a terminal or **JSON when piped** so `| jq` always works.
 
 ```console
 $ rc status
@@ -76,77 +76,84 @@ brew upgrade rc       # macOS (Homebrew) — rc upgrade detects this and points 
 checksum first). On a Homebrew install it defers to `brew upgrade rc` so it doesn't fight brew. (`go
 install …@latest` re-installs the latest for Go users.)
 
-## Configure
+## Sign in
 
-`rc` needs the project's **Prompt API bearer key** (the key resolves the project server-side — there's
-no `--project` flag) and the API base URL.
-
-**Recommended — let the brain checkout select the project.** A brain repo (`rootcause-brain-<project>`)
-commits a `.rootcause.toml` binding it to one project, so `rc` run anywhere inside it auto-targets that
-project — no `--profile`, no env export:
+`rc` authenticates with **OAuth**. Sign in once with `rc login`; it stores an access + refresh token in
+`~/.config/rootcause/tokens.json` (0600) and refreshes the short-lived access token transparently on
+every later command. The token's **project scope is chosen on the browser consent screen** (a single
+project, or — for a global admin — all projects); there is no key to paste and no `--project` is needed
+to *prove* scope, it's baked into the token.
 
 ```bash
-cd rootcause-brain-acme   # contains a committed .rootcause.toml: project = "acme", base_url = "…"
-rc login                  # paste the key once → gitignored .rootcause.secret.toml (0600)
-rc whoami                 # project: acme · key source: brain-secret · server says: acme ✓
+rc login            # opens your browser (PKCE loopback), catches the redirect, stores the token
+rc login --device   # headless/SSH: prints a short code you approve in a browser on any device
+rc logout           # revoke the token server-side and clear it locally
+```
+
+**Let the brain checkout select the profile.** A brain repo (`rootcause-brain-<project>`) commits a
+`.rootcause.toml` binding it to one project + base URL, so `rc` run anywhere inside it targets that
+project's token automatically:
+
+```bash
+cd rootcause-brain-acme   # committed .rootcause.toml: project = "acme", base_url = "…"
+rc login                  # stores a token under the "acme" profile
+rc whoami                 # profile: acme · project: acme · auth: logged in
 rc ask "…"                # just works
 ```
 
-Inside a brain with no key, `rc` fails **loudly** naming the project — it never silently falls back to
-a different project's `[default]` key. See `.rootcause.toml` below.
+Inside a brain with no token, `rc` fails **loudly** naming the project and telling you to `rc login` —
+it never silently uses a different project's token.
 
-**Or set it globally** (env / config profiles — also the override when inside a brain):
+**Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
+built-in default (`http://localhost:8080`). A stored token also remembers the issuer it was minted
+against, so commands hit the same server you logged in to.
 
 ```bash
-export ROOTCAUSE_API_KEY=rcl_…
 export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: http://localhost:8080
 ```
 
-Or use `~/.config/rootcause/config.toml` with named profiles (`--profile <name>`):
+Optional `~/.config/rootcause/config.toml` holds **base-URL-only** profiles (no secrets — tokens live
+in the token store):
 
 ```toml
 [default]
-api_key  = "rcl_…"
 base_url = "https://your-rootcause-host"
 
 [profiles.staging]
-api_key  = "rcl_…"
 base_url = "https://staging.your-rootcause-host"
 ```
 
-**`.rootcause.toml`** (committed, per brain) names the project and endpoint — `project` + `base_url`,
-no secret. **`.rootcause.secret.toml`** (gitignored, written by `rc login`) holds the `api_key`. Keep
-the secret file out of git; `.rootcause.toml` is safe to commit and is what ships the binding with a
-clone.
+**Profiles** are the token-store keys. The profile is resolved as: explicit `--profile <name>` >
+explicit `--project <name>` > the brain marker's project > `"default"`. `--profile`/`--project` pick
+*which stored token* a command uses; `--tenant <slug>` scopes a request within the token's project where
+the endpoint accepts it.
 
-Precedence per field (an env var always wins as a one-off override):
-
-```
-explicit --profile <name>        → that profile only (no brain binding)
-otherwise, inside a brain:         env > .rootcause.secret.toml > [profiles.<project>] > LOUD ERROR
-otherwise, outside any brain:      env > [default] > built-in default
-```
-
-A typo'd `--profile` errors rather than silently falling through to env. Keys live in env / the secret
-file / config **by name** — never commit them.
+**`.rootcause.toml`** (committed, per brain) names the project + endpoint — no secret, safe to commit,
+ships the binding with a clone. There is no longer any `.rootcause.secret.toml` — credentials live only
+in the OAuth token store.
 
 ## Commands
 
+Global flags: `--profile <name>` / `--project <name>` pick the stored token; `--tenant <slug>` scopes a
+request to a tenant; `-o json|table` forces output.
+
 | Command | Does |
 |---|---|
-| `rc login [--api-key <k>] [--no-verify]` | store this brain's key in a gitignored `.rootcause.secret.toml` (verifies it matches `.rootcause.toml`) |
-| `rc whoami [--no-verify]` | which project `rc` targets from here: brain binding, base URL, key source (+ server confirm) |
+| `rc login [--device]` | OAuth sign-in: PKCE loopback (browser) by default, `--device` for headless/SSH. Stores the token under the resolved profile |
+| `rc logout` | revoke the profile's token server-side and clear it from the local store |
+| `rc whoami` | the resolved profile/project/tenant + sign-in status (local only — no server call) |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--tenant <slug>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). `--session` threads the run onto a multi-turn session (see below) |
+| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). `--session` threads the run onto a multi-turn session (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
 | `rc run <id> --full` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line) |
+| `rc run <id> --debug [--out-dir <dir>]` | decompose the run into a jq-able JSONL event log + a thin markdown index on disk; prints both paths (the cross-project debug path for an all-projects admin token) |
 | `rc config get` | effective settings + box defaults |
 | `rc config set k=v [k=v…]` | change settings (validated server-side) |
-| `rc env keys [--tenant <slug>]` | key NAMES of the project's production grounding env (log-safe, no values) |
-| `rc env pull [--tenant <slug>]` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
-| `rc env diff [--tenant <slug>]` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
+| `rc env keys` | key NAMES of the project's production grounding env (log-safe, no values) |
+| `rc env pull` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
+| `rc env diff` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
 | `rc upgrade [--check]` | self-update to the latest release (Linux/WSL/Windows); on a Homebrew install, defers to `brew upgrade rc` |
 | `rc --version` · `rc help` | |
 
@@ -178,7 +185,7 @@ surfaced verbatim (`CODE: message`) with a non-zero exit.
 
 A project's grounding scripts read their credentials (PG DSN, Stripe key, …) from a gitignored `.env`
 in the brain clone. `rc env` lets a **developer** sync that **production** env to their laptop over the
-same Prompt API key — the self-serve equivalent of the operator-only `scripts/rc_env.py --pull` (which
+same OAuth token — the self-serve equivalent of the operator-only `scripts/rc_env.py --pull` (which
 needs AWS/SSM access). Run it **from inside the brain clone** (it reads/writes `./.env`):
 
 ```bash

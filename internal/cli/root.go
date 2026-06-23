@@ -17,22 +17,31 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/config"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
+	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
 // env carries the shared, testable state through commands: the global flag values plus the writers.
-// Tests inject baseURL/output and capture out/err here instead of relying on TTY detection or env.
+// Tests inject baseURL/output/token and capture out/err here instead of relying on TTY detection or a
+// real token store.
 type env struct {
-	profile    string
+	profile    string // --profile: an explicit token-store profile (AWS-style override)
+	project    string // --project: select a project's token (and scope) without a brain
+	tenant     string // --tenant: scope a request to a tenant by slug (where the endpoint accepts it)
 	output     string // "", "json", or "table" (from -o/--output)
 	baseURLOvr string // test-only override of the resolved base URL; empty in normal use
+	tokenOvr   string // test-only static bearer; bypasses the token store + refresh
 
 	out io.Writer
 	err io.Writer
-	in  io.Reader // stdin source for interactive prompts (rc login); nil → os.Stdin
+	in  io.Reader // stdin source for interactive prompts; nil → os.Stdin
 
-	// resolvedTenant is the brain marker's tenant (if any), captured by the last newClient call so a
-	// command can default an empty --tenant to the checkout's tenant. Empty for non-tenant brains.
-	resolvedTenant string
+	// openBrowser is the PKCE-login browser launcher; nil → oauth.OpenBrowser. Tests inject a stub that
+	// drives the loopback callback so the flow runs without a real browser.
+	openBrowser func(string) error
+
+	// resolved is the config resolved by the last newClient call, so a command can read the brain's
+	// tenant (to default --tenant) and the resolved profile without re-loading.
+	resolved config.Resolved
 }
 
 // Execute is the binary entrypoint. It returns the process exit code so main stays trivial; any
@@ -57,7 +66,9 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		SilenceUsage:  true, // a runtime error isn't a usage error; don't dump help on it
 		SilenceErrors: true, // Execute prints the error itself, verbatim
 	}
-	root.PersistentFlags().StringVar(&e.profile, "profile", "", "config profile to use (default: auto — bind to the brain in the current directory, else [default])")
+	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
+	root.PersistentFlags().StringVar(&e.project, "project", "", "target a project's token + scope (overrides the brain binding)")
+	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "scope the request to a tenant by slug")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
 
 	root.AddCommand(
@@ -69,11 +80,15 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newEnvCmd(e),
 		newTenantCmd(e),
 		newLoginCmd(e),
+		newLogoutCmd(e),
 		newWhoamiCmd(e),
 		newUpgradeCmd(e, version),
 	)
 	return root
 }
+
+// jsonOut reports whether output should be JSON for the current mode + destination.
+func (e *env) jsonOut() bool { return render.IsJSON(e.mode(), e.out) }
 
 // mode maps the -o/--output flag to a render.Mode (empty → auto-detect from the destination).
 func (e *env) mode() render.Mode {
@@ -87,45 +102,75 @@ func (e *env) mode() render.Mode {
 	}
 }
 
-// newClient resolves config for the selected profile and builds an authenticated client. It errors
-// clearly when no API key resolves — every command that calls this needs auth. The base URL can be
-// overridden in tests to point at a stub server.
+// newClient resolves config for the selected profile/project and builds an OAuth-authenticated client.
+// The bearer comes from the token store (refreshed transparently); it errors clearly with a "run `rc
+// login`" prompt when there's no stored token. The base URL and token can be overridden in tests.
 func (e *env) newClient() (*client.Client, error) {
-	res, err := config.Load(e.profile)
+	res, err := config.Load(e.profile, e.project)
 	if err != nil {
 		return nil, err
 	}
-	e.resolvedTenant = res.Tenant // so commands can default --tenant to the brain's tenant
+	e.resolved = res // so commands can default --tenant to the brain's tenant
+
+	baseURL := res.BaseURL
 	if e.baseURLOvr != "" {
-		res.BaseURL = e.baseURLOvr
+		baseURL = e.baseURLOvr
 		res.BaseURLFromDefault = false
 	}
-	if res.APIKey == "" {
-		// Inside a brain with no key, name the project and the one-command fix — never silently fall back
-		// to a different project's key. Outside a brain, the generic hint.
-		if res.Brain != nil {
-			return nil, fmt.Errorf("this brain is project %q but no API key is configured for it\n"+
-				"  fix: run `rc login` from here (writes %s), or set ROOTCAUSE_API_KEY, or add [profiles.%s] to %s",
-				res.Brain.Project, config.SecretFileName, res.Brain.Project, config.ConfigPath())
-		}
-		return nil, fmt.Errorf("no API key: set ROOTCAUSE_API_KEY or add it to %s", config.ConfigPath())
+
+	// Test seam: a fixed bearer bypasses the token store + refresh entirely.
+	if e.tokenOvr != "" {
+		return client.New(baseURL, client.StaticToken(e.tokenOvr)), nil
 	}
-	// A resolved key but an unset base URL almost always means the user forgot ROOTCAUSE_BASE_URL and is
-	// about to hit localhost — warn (to stderr, so it never pollutes piped output) rather than fail.
+
+	tok, ok, err := token.Load(res.Profile)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, notLoggedIn(res)
+	}
+	// A token is pinned to the issuer it was minted against — prefer that base URL so a command hits the
+	// same server even if the ambient base URL drifted (unless a test override is in play).
+	if e.baseURLOvr == "" && tok.BaseURL != "" {
+		baseURL = tok.BaseURL
+		res.BaseURLFromDefault = false
+	}
 	if res.BaseURLFromDefault {
-		fmt.Fprintf(e.err, "warning: no base URL set; defaulting to %s — set ROOTCAUSE_BASE_URL or base_url in your config profile\n", res.BaseURL)
+		// Logged in but no base URL set anywhere → about to hit localhost. Warn to stderr (never stdout, so
+		// piped output stays clean) rather than fail.
+		fmt.Fprintf(e.err, "warning: no base URL set; defaulting to %s — set ROOTCAUSE_BASE_URL or base_url in your config profile\n", baseURL)
 	}
-	return client.New(res.BaseURL, res.APIKey), nil
+	return client.New(baseURL, newLiveSource(res.Profile, baseURL)), nil
+}
+
+// notLoggedIn is the clear "no token for this profile" error, naming the project (and the one-command
+// fix) when inside a brain so the user is never silently mis-scoped.
+func notLoggedIn(res config.Resolved) error {
+	if res.Brain != nil {
+		return fmt.Errorf("this brain is project %q but you're not logged in for it\n"+
+			"  fix: run `rc login` from here (use --device on a headless box)", res.Brain.Project)
+	}
+	return fmt.Errorf("not logged in (profile %q) — run `rc login`", res.Profile)
 }
 
 // tenantOr returns the explicit --tenant flag when set, else the brain marker's tenant (captured by
-// newClient). Call after newClient so resolvedTenant is populated.
+// newClient). Call after newClient so e.resolved is populated.
 func (e *env) tenantOr(flag string) string {
 	if flag != "" {
 		return flag
 	}
-	return e.resolvedTenant
+	return e.resolved.Tenant
 }
+
+// scopeTenant is the resolved tenant for a request: the persistent --tenant, else the brain's tenant.
+func (e *env) scopeTenant() string {
+	return e.tenantOr(e.tenant)
+}
+
+// tenantSlug is the explicitly-addressed tenant for `rc tenant settings` — the persistent --tenant only
+// (no brain fallback: editing a tenant's record is an explicit act, never inferred from the checkout).
+func (e *env) tenantSlug() string { return e.tenant }
 
 // ctx is the per-command context. A single place to add a timeout/signal later without touching each
 // command.

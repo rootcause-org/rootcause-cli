@@ -15,11 +15,13 @@ import (
 	"strings"
 )
 
-// Client is a bearer-authenticated handle to one project's API (the key resolves the project
-// server-side, so there is no project parameter anywhere).
+// Client is an OAuth-bearer handle to the API. The access token resolves the caller's project +
+// principal server-side (a pinned token scopes to one project; an all-projects admin token reads
+// cross-project), so there is no project parameter anywhere. The token comes from a TokenSource that
+// refreshes it transparently — the client retries a 401 once after a forced refresh.
 type Client struct {
 	baseURL string
-	apiKey  string
+	tokens  TokenSource
 	http    *http.Client
 }
 
@@ -32,11 +34,12 @@ func pathOnly(path string) string {
 	return path
 }
 
-// New builds a Client. baseURL is trimmed of a trailing slash so path joins stay clean.
-func New(baseURL, apiKey string) *Client {
+// New builds a Client. baseURL is trimmed of a trailing slash so path joins stay clean. tokens supplies
+// (and refreshes) the bearer access token.
+func New(baseURL string, tokens TokenSource) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
-		apiKey:  apiKey,
+		tokens:  tokens,
 		http:    &http.Client{},
 	}
 }
@@ -201,40 +204,69 @@ func (c *Client) Raw(ctx context.Context, method, path string, body map[string]a
 	return raw, nil
 }
 
-// do issues one request: bearer auth, JSON body in/out, and on non-2xx decodes the error envelope
-// into a typed APIError (code/message/fields verbatim). out may be a *json.RawMessage to capture the
-// body unparsed for passthrough.
+// attempt builds and sends one request with the given bearer token, draining and returning the response
+// body bytes (the body is closed before return so the caller can retry without leaking a connection).
+func (c *Client) attempt(ctx context.Context, method, path string, reqBody []byte, token string) (*http.Response, []byte, error) {
+	var r io.Reader
+	if reqBody != nil {
+		r = bytes.NewReader(reqBody)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, r)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/json")
+	if reqBody != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		// Connection-level failure (DNS, refused, TLS, timeout): include the base URL so a request that
+		// silently went to the localhost default instead of the intended host is obvious.
+		return nil, nil, fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("read response: %w", err)
+	}
+	return resp, data, nil
+}
+
+// do issues one request: OAuth bearer auth, JSON body in/out, and on non-2xx decodes the error
+// envelope into a typed APIError (code/message/fields verbatim). out may be a *json.RawMessage to
+// capture the body unparsed for passthrough. On a 401 (an access token that expired/was revoked
+// mid-flight) it forces a token refresh and retries ONCE — the body is buffered up front so the retry
+// can resend it.
 func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
-	var reqBody io.Reader
+	var reqBody []byte
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
 			return fmt.Errorf("marshal request body: %w", err)
 		}
-		reqBody = bytes.NewReader(b)
+		reqBody = b
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reqBody)
+	token, err := c.tokens.Token(ctx)
 	if err != nil {
-		return fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("Accept", "application/json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		return err
 	}
 
-	resp, err := c.http.Do(req)
+	resp, data, err := c.attempt(ctx, method, path, reqBody, token)
 	if err != nil {
-		// Connection-level failure (DNS, refused, TLS, timeout): include the base URL so a request that
-		// silently went to the localhost default instead of the intended host is obvious.
-		return fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
+		return err
 	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("read response: %w", err)
+	// One transparent retry on a 401: the access token expired between pre-flight refresh and the
+	// request (or was revoked). Force a refresh and resend; a still-401 surfaces verbatim below.
+	if resp.StatusCode == http.StatusUnauthorized {
+		if newToken, rerr := c.tokens.Refresh(ctx); rerr == nil && newToken != "" && newToken != token {
+			resp, data, err = c.attempt(ctx, method, path, reqBody, newToken)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

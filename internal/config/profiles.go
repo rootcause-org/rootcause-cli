@@ -1,24 +1,25 @@
-// Package config resolves the two things every authenticated command needs: a base URL and an API
-// key. The INTENT is a single, documented precedence so behavior is predictable — and crucially, so
-// that running `rc` inside a brain checkout targets THAT brain's project, not whatever a global
-// [default] happens to point at.
+// Package config resolves the two things every command needs before it can authenticate: a base URL
+// and a PROFILE NAME (the key the OAuth token store is keyed by). The INTENT is a single, documented
+// precedence so behavior is predictable — and crucially, so that running `rc` inside a brain checkout
+// targets THAT brain's project, not whatever a global [default] happens to point at.
 //
-// A brain repo carries a committed, non-secret marker (.rootcause.toml: project + base_url) that binds
-// the directory to one project. When `rc` runs anywhere inside such a repo (no explicit --profile), it
-// resolves the key for THAT project and — if it can't — fails LOUDLY naming the project, rather than
-// silently falling through to [default] (the footgun this design removes). The key itself stays out of
-// version control: it comes from the env, a gitignored .rootcause.secret.toml at the brain root, or a
-// named profile in ~/.config/rootcause/config.toml.
+// Auth itself moved to OAuth: tokens live in ~/.config/rootcause/tokens.json (see internal/token),
+// keyed by profile. This package no longer holds any secret — it only decides WHICH profile's token to
+// use and WHICH base URL to hit. A brain repo carries a committed, non-secret marker (.rootcause.toml:
+// project + tenant + base_url) that binds the directory to one project; inside such a repo the profile
+// IS the project name, so `rc login` there mints a token under the project's name and every later `rc`
+// auto-targets it.
 //
-// Precedence:
+// Precedence for the profile name (the token-store key):
 //
-//	explicit --profile <name>           → that profile only (an AWS-style override; no brain binding)
-//	otherwise, inside a brain (cwd):      env > .rootcause.secret.toml > [profiles.<project>] > LOUD ERROR
-//	otherwise, outside any brain:         env > [default] > built-in default
+//	explicit --profile <name>   → that profile (an AWS-style override; no brain binding)
+//	explicit --project <name>   → that project's profile (no brain binding)
+//	otherwise, inside a brain:    the brain marker's project
+//	otherwise:                    "default"
 //
-// For each FIELD an env var still wins (a one-off `ROOTCAUSE_API_KEY=… rc …` overrides everything),
-// matching the long-standing convention. base_url has a built-in default (localhost:8080); api_key
-// does not — an unresolved key is a hard, clearly-worded error at the command layer.
+// Precedence for the base URL (per field, env always wins):
+//
+//	ROOTCAUSE_BASE_URL > .rootcause.toml base_url > [profiles.<name>] base_url > built-in default
 package config
 
 import (
@@ -34,35 +35,32 @@ const (
 	DefaultBaseURL = "http://localhost:8080"
 
 	// MarkerFileName is the committed, non-secret per-brain marker binding the checkout to a project.
+	// It is KEPT under OAuth — it carries no secret, only the project/tenant binding + base URL.
 	MarkerFileName = ".rootcause.toml"
-	// SecretFileName is the gitignored per-brain file holding this project's api_key (written by `rc
-	// login`). It MUST be in the brain's .gitignore — it carries a production bearer key.
-	SecretFileName = ".rootcause.secret.toml"
 
-	envAPIKey  = "ROOTCAUSE_API_KEY"
+	// DefaultProfile is the profile name used outside any brain (and when no --profile/--project is given).
+	DefaultProfile = "default"
+
 	envBaseURL = "ROOTCAUSE_BASE_URL"
 )
 
-// Resolved is the effective config for one invocation. BaseURLFromDefault is true when nothing set a
-// base URL and we fell back to DefaultBaseURL — the command layer warns on this when a key IS set,
-// since a key + the localhost default is almost always an unset-base-URL mistake. Brain is non-nil
-// when a .rootcause.toml was discovered (drives the loud "no key for this brain" error). KeySource is
-// a log-safe label of where the key came from ("env" | "brain-secret" | "profile:<name>" | "").
+// Resolved is the effective config for one invocation. Profile is the token-store key the command's
+// client authenticates with. BaseURLFromDefault is true when nothing set a base URL and we fell back to
+// DefaultBaseURL. Brain is non-nil when a .rootcause.toml was discovered; Project/Tenant come from it
+// (or from an explicit --project). BaseURL is always non-empty.
 type Resolved struct {
-	APIKey             string
+	Profile            string
 	BaseURL            string
 	BaseURLFromDefault bool
 	Project            string
 	Tenant             string
-	KeySource          string
 	Brain              *Brain
 }
 
 // Brain is the committed .rootcause.toml marker: the project this checkout belongs to plus its API
-// endpoint. Dir is the directory the marker was found in (where the secret file is read/written).
-// Tenant is set only for a TENANT brain (a delta repo over a tenant-enabled project, e.g. a clinic
-// under the DentAI project) — it becomes the default --tenant for env/ask so the checkout resolves the
-// project ∪ tenant scope without repeating the flag.
+// endpoint. Dir is the directory the marker was found in. Tenant is set only for a TENANT brain (a
+// delta repo over a tenant-enabled project) — it becomes the default --tenant for env/ask so the
+// checkout resolves the project ∪ tenant scope without repeating the flag.
 type Brain struct {
 	Project string `toml:"project"`
 	Tenant  string `toml:"tenant"`
@@ -70,10 +68,9 @@ type Brain struct {
 	Dir     string `toml:"-"`
 }
 
-// profile is one [default] / [profiles.<name>] block in config.toml, and also the shape of a
-// .rootcause.secret.toml (which carries just api_key, optionally base_url).
+// profile is one [default] / [profiles.<name>] block in config.toml. Under OAuth it carries only a
+// base_url override (the api_key field is gone — tokens live in the token store).
 type profile struct {
-	APIKey  string `toml:"api_key"`
 	BaseURL string `toml:"base_url"`
 }
 
@@ -83,32 +80,43 @@ type file struct {
 	Profiles map[string]profile `toml:"profiles"`
 }
 
-// Load resolves config for one invocation. profileName comes from --profile; an empty string means
-// "auto" (bind to the brain in cwd, else [default]). A non-empty name is an explicit override that
-// bypasses brain discovery entirely.
-func Load(profileName string) (Resolved, error) {
+// Load resolves config for one invocation. profileName comes from --profile, projectName from
+// --project; both empty means "auto" (bind to the brain in cwd, else [default]).
+func Load(profileName, projectName string) (Resolved, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		// A missing cwd only disables brain auto-discovery; resolution can still proceed via env/profile.
-		cwd = ""
+		cwd = "" // a missing cwd only disables brain auto-discovery
 	}
-	return load(profileName, cwd)
+	return load(profileName, projectName, cwd)
 }
 
 // load is Load with cwd injected, so the resolution matrix is unit-testable without chdir.
-func load(profileName, cwd string) (Resolved, error) {
+func load(profileName, projectName, cwd string) (Resolved, error) {
 	f, err := loadFile()
 	if err != nil {
 		return Resolved{}, err
 	}
 
-	// Explicit --profile <name>: pure override, no brain binding (the documented escape hatch).
+	// Explicit --profile <name>: a pure override, no brain binding (the documented escape hatch). A
+	// named profile that doesn't exist is fine here — it just means "no base_url override stored for it";
+	// the token store is the source of auth, not config.toml.
 	if profileName != "" {
-		prof, perr := f.selectProfile(profileName)
-		if perr != nil {
-			return Resolved{}, perr
+		prof := f.Profiles[profileName]
+		if profileName == DefaultProfile {
+			prof = f.Default
 		}
-		return resolveFromProfile(prof, profileName), nil
+		res := Resolved{Profile: profileName}
+		res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(prof.BaseURL)
+		return res, nil
+	}
+
+	// Explicit --project <name>: select that project's profile (and surface it as the Project), without a
+	// brain binding. base_url comes from a matching [profiles.<name>] if present, else env/default.
+	if projectName != "" {
+		prof := f.Profiles[projectName]
+		res := Resolved{Profile: projectName, Project: projectName}
+		res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(prof.BaseURL)
+		return res, nil
 	}
 
 	// Auto mode: are we inside a brain?
@@ -117,43 +125,22 @@ func load(profileName, cwd string) (Resolved, error) {
 		return Resolved{}, err
 	}
 	if brain == nil {
-		// Outside any brain: the [default] profile applies (legacy behavior).
-		return resolveFromProfile(f.Default, "default"), nil
+		// Outside any brain: the [default] profile.
+		res := Resolved{Profile: DefaultProfile}
+		res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(f.Default.BaseURL)
+		return res, nil
 	}
 
-	// Inside a brain: env > .rootcause.secret.toml > [profiles.<project>]. A missing key is NOT a silent
-	// fallthrough — APIKey stays empty and Brain is set, so newClient emits the loud, project-named error.
-	secret, serr := loadSecret(brain.Dir)
-	if serr != nil {
-		return Resolved{}, serr
+	// Inside a brain: the profile IS the project name. base_url: env > marker > matching profile > default.
+	prof := f.Profiles[brain.Project]
+	res := Resolved{
+		Profile: brain.Project,
+		Project: brain.Project,
+		Tenant:  brain.Tenant,
+		Brain:   brain,
 	}
-	prof := f.Profiles[brain.Project] // zero value if there's no such profile
-
-	res := Resolved{Project: brain.Project, Tenant: brain.Tenant, Brain: brain}
-	switch {
-	case os.Getenv(envAPIKey) != "":
-		res.APIKey, res.KeySource = os.Getenv(envAPIKey), "env"
-	case secret.APIKey != "":
-		res.APIKey, res.KeySource = secret.APIKey, "brain-secret"
-	case prof.APIKey != "":
-		res.APIKey, res.KeySource = prof.APIKey, "profile:"+brain.Project
-	}
-	res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(secret.BaseURL, brain.BaseURL, prof.BaseURL)
+	res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(brain.BaseURL, prof.BaseURL)
 	return res, nil
-}
-
-// resolveFromProfile resolves a single profile (the explicit-override and outside-a-brain paths): env
-// key wins over the profile's key; env base wins over the profile's base over the built-in default.
-func resolveFromProfile(prof profile, name string) Resolved {
-	var res Resolved
-	switch {
-	case os.Getenv(envAPIKey) != "":
-		res.APIKey, res.KeySource = os.Getenv(envAPIKey), "env"
-	case prof.APIKey != "":
-		res.APIKey, res.KeySource = prof.APIKey, "profile:"+name
-	}
-	res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(prof.BaseURL)
-	return res
 }
 
 // resolveBaseURL picks the first non-empty URL: env override, then the given candidates in order, then
@@ -198,22 +185,9 @@ func DiscoverBrain(start string) (*Brain, error) {
 	}
 }
 
-// loadSecret reads the gitignored .rootcause.secret.toml at the brain root, if present. A missing file
-// is fine (the key may come from env or a profile); only a malformed one is an error.
-func loadSecret(dir string) (profile, error) {
-	path := filepath.Join(dir, SecretFileName)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return profile{}, nil
-	}
-	var s profile
-	if _, err := toml.DecodeFile(path, &s); err != nil {
-		return profile{}, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return s, nil
-}
-
-// loadFile reads ~/.config/rootcause/config.toml. A missing file is fine (env / brain-secret usage); a
-// malformed one is an error so the user isn't silently mis-scoped.
+// loadFile reads ~/.config/rootcause/config.toml. A missing file is fine (the common case under OAuth —
+// base URLs usually come from the brain marker or env); a malformed one is an error so the user isn't
+// silently mis-scoped.
 func loadFile() (file, error) {
 	path, err := configPath()
 	if err != nil {
@@ -229,49 +203,30 @@ func loadFile() (file, error) {
 	return f, nil
 }
 
-// selectProfile returns the named profile. "" / "default" select [default]; a named profile that
-// doesn't exist is an error (a typo'd --profile must not silently fall through to env and hit the wrong
-// server).
-func (f file) selectProfile(name string) (profile, error) {
-	if name == "" || name == "default" {
-		return f.Default, nil
-	}
-	prof, ok := f.Profiles[name]
-	if !ok {
-		path, _ := configPath()
-		return profile{}, fmt.Errorf("profile %q not found in %s", name, path)
-	}
-	return prof, nil
-}
-
-// WriteSecret writes (or replaces) the brain's .rootcause.secret.toml with api_key at mode 0600. The
-// key holds a production bearer token, so the file must never be group/world-readable.
-func WriteSecret(path, apiKey string) error {
-	body := fmt.Sprintf("api_key = %q\n", apiKey)
-	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
-	}
-	// Re-assert 0600 even if the file pre-existed with looser perms.
-	if err := os.Chmod(path, 0o600); err != nil {
-		return fmt.Errorf("chmod %s: %w", path, err)
-	}
-	return nil
-}
-
 // ConfigPath is the resolved ~/.config/rootcause/config.toml path (exported for diagnostics/messages).
 func ConfigPath() string {
 	p, _ := configPath()
 	return p
 }
 
-// configPath is ~/.config/rootcause/config.toml (XDG-style; honors XDG_CONFIG_HOME).
-func configPath() (string, error) {
+// ConfigDir is the resolved ~/.config/rootcause directory (XDG-style; honors XDG_CONFIG_HOME). The
+// token store lives here too, so it's exported for internal/token to share the one resolution.
+func ConfigDir() (string, error) {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "rootcause", "config.toml"), nil
+		return filepath.Join(xdg, "rootcause"), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("locate home dir: %w", err)
 	}
-	return filepath.Join(home, ".config", "rootcause", "config.toml"), nil
+	return filepath.Join(home, ".config", "rootcause"), nil
+}
+
+// configPath is ~/.config/rootcause/config.toml.
+func configPath() (string, error) {
+	dir, err := ConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "config.toml"), nil
 }

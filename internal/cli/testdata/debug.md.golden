@@ -1,0 +1,60 @@
+# Run 11111111 — coca-cola · done · prompt
+
+- **Run ID:** `11111111-1111-1111-1111-111111111111`
+- **Test run** · brain_ref `dev/refund-rework` · trigger `test` — side-effect-free
+- **Run page (human view):** https://trace.example/abc123
+- **Thread / Session:** `thr_abc` / `sess_xyz`
+- **Created / Finished:** 2026-06-19T09:00:00Z / 2026-06-19T09:01:30Z
+- **Model:** `claude-opus-4-8` · **Cost:** $1.0800 · **Tokens:** 4210
+- **Steps:** 2 main + 1 grounding · **Egress:** 2 (1 blocked)
+- **Events (full, queryable):** `11111111-coca-cola.jsonl` — one JSON object per event; jq it (see Drill down).
+
+## Question
+
+```
+Do I still have open invoices?
+```
+
+## Outcome
+
+**Draft** (1 lines):
+
+```
+You have 2 open invoices totalling $480.
+```
+
+**Note `anomaly`:**
+
+```
+customer_id had no index;
+```
+
+
+## Timeline — main-loop steps (search/read steps omitted — see Files the run read)
+
+| # | label | code | exit | dur | output | reasoning gist |
+|---|---|---|---|---|---|---|
+| 1 | db query | `psql -c 'select count(*) from invoices where paid is false'` | 0 | 120ms | `2` |  |
+| 2 | reply | `channel=email` | 0 | 30ms |  |  |
+
+## Flags
+
+- egress BLOCKED: `evil.example` (1×)
+
+## Egress (by host)
+
+- `api.stripe.com` — 3× allow
+- `evil.example` — 1× block
+
+## Drill down — `11111111-coca-cola.jsonl`
+
+One JSON object per line: line 1 is the run header, the rest are events keyed by `disp` (the `#` column above). Pull the FULL command/output/reasoning with jq:
+
+```sh
+jq -r 'select(.disp=="23").command' 11111111-coca-cola.jsonl   # full code of step 23
+jq -r 'select(.disp=="23").stdout'  11111111-coca-cola.jsonl   # its output / traceback
+jq -r 'select(.disp=="23").stdout | .[0:2000]' 11111111-coca-cola.jsonl   # windowed when flagged large
+jq -r 'select(.exit_code != null and .exit_code != 0).disp' 11111111-coca-cola.jsonl   # failed steps
+jq -r 'select(.command // "" | contains("invoice")).disp' 11111111-coca-cola.jsonl   # steps touching X
+jq -r 'select(.reasoning) | .disp + " " + .reasoning' 11111111-coca-cola.jsonl   # reasoning per step
+```

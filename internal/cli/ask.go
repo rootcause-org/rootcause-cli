@@ -12,10 +12,10 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// askFlags holds `rc ask`'s flags, bound per-command so each invocation is isolated.
+// askFlags holds `rc ask`'s flags, bound per-command so each invocation is isolated. The tenant comes
+// from the persistent --tenant (or the brain marker), not a local flag.
 type askFlags struct {
 	brainRef string
-	tenant   string
 	session  string
 	noWait   bool
 	timeout  time.Duration
@@ -43,7 +43,7 @@ func newAskCmd(e *env) *cobra.Command {
 			sub, raw, err := c.Submit(e.ctx(), client.SubmitRequest{
 				Prompt:    args[0],
 				SessionID: f.session,
-				Tenant:    e.tenantOr(f.tenant),
+				Tenant:    e.scopeTenant(),
 				BrainRef:  f.brainRef,
 			})
 			if err != nil {
@@ -81,7 +81,6 @@ func newAskCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&f.brainRef, "brain-ref", "", "run against a non-main brain ref (e.g. dev/refund-rework) — a test run")
-	cmd.Flags().StringVar(&f.tenant, "tenant", "", "bind the run to a tenant by slug")
 	cmd.Flags().StringVar(&f.session, "session", "", "session id to thread the run onto")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")

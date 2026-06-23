@@ -155,7 +155,7 @@ func TestTenantSettingsSetBadInt(t *testing.T) {
 func TestTenantSettingsSetServer400(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
-	c := client.New(srv.URL, "test-key")
+	c := client.New(srv.URL, client.StaticToken("test-key"))
 	_, err := c.PatchTenantSettings(context.Background(), "de-kies", client.TenantSettingsPatchRequest{
 		Settings: map[string]any{"reschedule_method": "nope"},
 		Source:   "cli",
@@ -206,10 +206,10 @@ func TestTenantSettingsSchemaDump(t *testing.T) {
 // by the body-assertion tests that need their own recording server rather than the shared stub.
 func newTestEnvAt(t *testing.T, baseURL, output string) *env {
 	t.Helper()
-	t.Setenv("ROOTCAUSE_API_KEY", "test-key")
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("ROOTCAUSE_BASE_URL", "")
 	var out, errb bytes.Buffer
-	return &env{profile: "default", output: output, baseURLOvr: baseURL, out: &out, err: &errb}
+	return &env{profile: "default", output: output, baseURLOvr: baseURL, tokenOvr: "test-key", out: &out, err: &errb}
 }
 
 // bodyCaptureServer records the PATCH body into *dst and echoes the sent settings back; it also serves

@@ -162,16 +162,18 @@ func stubServer(t *testing.T) *httptest.Server {
 }
 
 // newTestEnv builds an env wired to the stub server with a fixed output mode, capturing stdout/stderr.
-// It sets a dummy API key via env so newClient resolves auth without a config file.
+// It sets a static bearer (tokenOvr) so newClient resolves auth without the OAuth token store, and
+// isolates XDG_CONFIG_HOME so a real ~/.config/rootcause is never read or written.
 func newTestEnv(t *testing.T, srv *httptest.Server, output string) (*env, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
-	t.Setenv("ROOTCAUSE_API_KEY", "test-key")
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate from any real ~/.config
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the token store + config
+	t.Setenv("ROOTCAUSE_BASE_URL", "")       // a stray env must not override the test base URL
 	var out, errb bytes.Buffer
 	e := &env{
 		profile:    "default",
 		output:     output,
 		baseURLOvr: srv.URL,
+		tokenOvr:   "test-key",
 		out:        &out,
 		err:        &errb,
 	}

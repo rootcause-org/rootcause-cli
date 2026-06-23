@@ -70,6 +70,22 @@ type RunsResponse struct {
 	NextBefore string       `json:"next_before,omitempty"`
 }
 
+// RunDebug groups the run's debug/triage signals — the "why" a project-dev needs when a run did
+// something surprising: why it declined (decline_reason), whether a loop guardrail tripped (guardrail
+// sub-cause), whether the final answer was a FORCED submission under budget pressure (forced cause,
+// e.g. "budget"/"timeout"), whether the model fell back to a cheaper cascade rung (fallback_from = the
+// model it fell back FROM), and how many recoverable (transient) errors were retried in-loop. Surfaced
+// under a single optional "debug" object on GET /api/v1/runs/{id} and /full's run (progressive
+// disclosure) — the whole object is omitempty so a clean run carries nothing and the typed pointer
+// stays nil. Field names match the server verbatim.
+type RunDebug struct {
+	DeclineReason      string `json:"decline_reason,omitempty"`
+	Guardrail          string `json:"guardrail,omitempty"`
+	Forced             string `json:"forced,omitempty"`
+	FallbackFrom       string `json:"fallback_from,omitempty"`
+	RecoverableRetries int    `json:"recoverable_retries,omitempty"`
+}
+
 // RunDetail is GET /api/v1/runs/{id} — it MUST mirror the server's statusResponse (internal/api/prompt.go)
 // field-for-field: same json tags, same omitempty. Optional fields are omitempty server-side; Attachments
 // is always present (always [] in v0). category/has_draft/has_note come from the shared row-builder;
@@ -91,6 +107,7 @@ type RunDetail struct {
 	RunURL         string         `json:"run_url,omitempty"`
 	Attachments    []any          `json:"attachments"`
 	Error          string         `json:"error,omitempty"`
+	Debug          *RunDebug      `json:"debug,omitempty"`
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
@@ -157,10 +174,12 @@ type EgressItem struct {
 type RunHeader struct {
 	RunID           string         `json:"run_id"`
 	Project         string         `json:"project,omitempty"`
+	Tenant          string         `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
 	Status          string         `json:"status"`
 	Kind            string         `json:"kind"`
 	Trigger         string         `json:"trigger,omitempty"`
 	BrainRef        string         `json:"brain_ref,omitempty"`
+	Error           string         `json:"error,omitempty"`
 	ThreadID        string         `json:"thread_id,omitempty"`
 	SessionID       string         `json:"session_id,omitempty"`
 	Topic           string         `json:"topic,omitempty"`

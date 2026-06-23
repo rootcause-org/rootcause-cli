@@ -1,3 +1,6 @@
 # Local build artifacts
 /rc
 /dist/
+
+# `rc run <id> --debug` default output dir
+/rc-debug/

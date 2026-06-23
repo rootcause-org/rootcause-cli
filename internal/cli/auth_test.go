@@ -1,115 +1,218 @@
 package cli
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
-	"github.com/rootcause-org/rootcause-cli/internal/config"
+	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
-// writeMarker drops a committed .rootcause.toml naming the given project into dir.
-func writeMarker(t *testing.T, dir, project string) {
-	t.Helper()
-	body := "project = \"" + project + "\"\n"
-	if err := os.WriteFile(filepath.Join(dir, config.MarkerFileName), []byte(body), 0o600); err != nil {
-		t.Fatal(err)
-	}
+// oauthStub is a minimal OAuth server: a device flow that approves after the first poll, a refresh that
+// rotates, and a revoke. It lets the login/refresh/logout paths run headlessly (no browser).
+type oauthStub struct {
+	srv       *httptest.Server
+	polls     atomic.Int32
+	revoked   atomic.Int32
+	refreshes atomic.Int32
 }
 
-// TestLoginWritesSecret covers `rc login --api-key`: it verifies against the stub /env (whose project
-// is "momentum-tools", matching the marker) and writes a 0600 .rootcause.secret.toml.
-func TestLoginWritesSecret(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
+func newOAuthStub(t *testing.T) *oauthStub {
+	t.Helper()
+	s := &oauthStub{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /oauth/device_authorization", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"device_code":"rcod_dev","user_code":"WDJB-MJHT",` +
+			`"verification_uri":"https://rc.example/oauth/device",` +
+			`"verification_uri_complete":"https://rc.example/oauth/device?user_code=WDJB-MJHT",` +
+			`"expires_in":300,"interval":1}`))
+	})
+	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		w.Header().Set("Content-Type", "application/json")
+		switch r.PostFormValue("grant_type") {
+		case "urn:ietf:params:oauth:grant-type:device_code":
+			// First poll: still pending; second: approved (exercises the poll loop).
+			if s.polls.Add(1) < 2 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"authorization_pending"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"access_token":"rcoa_first","refresh_token":"rcor_first","token_type":"Bearer","expires_in":3600}`))
+		case "refresh_token":
+			s.refreshes.Add(1)
+			if r.PostFormValue("refresh_token") == "rcor_dead" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"expired"}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"access_token":"rcoa_refreshed","refresh_token":"rcor_rotated","token_type":"Bearer","expires_in":3600}`))
+		default:
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"unsupported_grant_type"}`))
+		}
+	})
+	mux.HandleFunc("POST /oauth/revoke", func(w http.ResponseWriter, _ *http.Request) {
+		s.revoked.Add(1)
+		w.WriteHeader(http.StatusOK)
+	})
+	s.srv = httptest.NewServer(mux)
+	t.Cleanup(s.srv.Close)
+	return s
+}
 
-	dir := t.TempDir()
-	t.Chdir(dir)
-	writeMarker(t, dir, "momentum-tools")
+// isolatedConfig points XDG at a temp dir so the token store is per-test.
+func isolatedConfig(t *testing.T) {
+	t.Helper()
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("ROOTCAUSE_BASE_URL", "")
+}
 
-	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "login", "--api-key", "test-key"); err != nil {
-		t.Fatalf("login: %v (stderr=%s)", err, errb.String())
+// TestLoginDeviceStoresToken: `rc login --device` runs the device flow and persists the token under the
+// resolved profile at 0600.
+func TestLoginDeviceStoresToken(t *testing.T) {
+	isolatedConfig(t)
+	stub := newOAuthStub(t)
+
+	var out, errb bytes.Buffer
+	e := &env{profile: "default", baseURLOvr: stub.srv.URL, out: &out, err: &errb}
+	if err := run(t, e, "login", "--device"); err != nil {
+		t.Fatalf("login --device: %v (stderr=%s)", err, errb.String())
 	}
-	if !strings.Contains(out.String(), "logged in to momentum-tools") {
-		t.Errorf("stdout = %q, want login confirmation", out.String())
+	if stub.polls.Load() < 2 {
+		t.Errorf("expected the poll loop to run at least twice, got %d", stub.polls.Load())
 	}
 
-	path := filepath.Join(dir, config.SecretFileName)
-	info, err := os.Stat(path)
+	tok, ok, err := token.Load("default")
+	if err != nil || !ok {
+		t.Fatalf("token not stored: ok=%v err=%v", ok, err)
+	}
+	if tok.AccessToken != "rcoa_first" || tok.RefreshToken != "rcor_first" {
+		t.Errorf("stored token wrong: %+v", tok)
+	}
+	if tok.BaseURL != stub.srv.URL {
+		t.Errorf("token base URL = %q, want %q", tok.BaseURL, stub.srv.URL)
+	}
+	if tok.ExpiresAt.Before(time.Now()) {
+		t.Errorf("expiry not set into the future: %v", tok.ExpiresAt)
+	}
+	// 0600 on disk.
+	p, _ := token.Path()
+	info, err := os.Stat(p)
 	if err != nil {
-		t.Fatalf("stat secret: %v", err)
+		t.Fatalf("stat token store: %v", err)
 	}
 	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Errorf("secret file mode = %o, want 600", perm)
-	}
-	body, _ := os.ReadFile(path)
-	if !strings.Contains(string(body), `api_key = "test-key"`) {
-		t.Errorf("secret body = %q, want api_key line", body)
+		t.Errorf("token store mode = %o, want 600", perm)
 	}
 }
 
-// TestLoginRejectsProjectMismatch covers the safety check: a key that resolves (server-side) to a
-// different project than the marker is refused, not stored.
-func TestLoginRejectsProjectMismatch(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
+// TestLogoutRevokesAndClears: `rc logout` revokes server-side and clears the local store.
+func TestLogoutRevokesAndClears(t *testing.T) {
+	isolatedConfig(t)
+	stub := newOAuthStub(t)
+	seedToken(t, "default", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: stub.srv.URL,
+	})
 
+	var out, errb bytes.Buffer
+	e := &env{profile: "default", baseURLOvr: stub.srv.URL, out: &out, err: &errb}
+	if err := run(t, e, "logout"); err != nil {
+		t.Fatalf("logout: %v", err)
+	}
+	if stub.revoked.Load() == 0 {
+		t.Error("expected logout to revoke server-side")
+	}
+	if _, ok, _ := token.Load("default"); ok {
+		t.Error("token must be cleared after logout")
+	}
+}
+
+// TestWhoamiLocal: `rc whoami` reports the brain project + logged-in status from local state, no server.
+func TestWhoamiLocal(t *testing.T) {
+	isolatedConfig(t)
 	dir := t.TempDir()
 	t.Chdir(dir)
-	writeMarker(t, dir, "some-other-project") // stub /env says "momentum-tools" → mismatch
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "login", "--api-key", "test-key")
-	if err == nil {
-		t.Fatal("expected login to refuse a project mismatch")
-	}
-	if !strings.Contains(err.Error(), "different project") && !strings.Contains(err.Error(), "wrong key") {
-		t.Errorf("error = %v, want a mismatch refusal", err)
-	}
-	if _, statErr := os.Stat(filepath.Join(dir, config.SecretFileName)); statErr == nil {
-		t.Error("secret file must not be written on mismatch")
-	}
-}
-
-// TestLoginOutsideBrain errors clearly when there's no marker to bind to.
-func TestLoginOutsideBrain(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	t.Chdir(t.TempDir()) // no .rootcause.toml here
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "login", "--api-key", "test-key", "--no-verify")
-	if err == nil || !strings.Contains(err.Error(), config.MarkerFileName) {
-		t.Fatalf("expected a no-marker error mentioning %s, got %v", config.MarkerFileName, err)
-	}
-}
-
-// TestWhoamiBrainBinding shows the resolved project + key source, and confirms against the server.
-func TestWhoamiBrainBinding(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-
-	dir := t.TempDir()
-	t.Chdir(dir)
-	writeMarker(t, dir, "momentum-tools")
-	// The stub's requireAuth demands Bearer "test-key", so the brain secret must carry that value.
-	if err := os.WriteFile(filepath.Join(dir, config.SecretFileName), []byte("api_key = \"test-key\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"momentum-tools\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	seedToken(t, "momentum-tools", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+	})
 
-	e, out, _ := newTestEnv(t, srv, "table")
-	t.Setenv("ROOTCAUSE_API_KEY", "") // resolve through the brain secret, not the env newTestEnv set
+	var out, errb bytes.Buffer
+	e := &env{output: "table", out: &out, err: &errb}
 	if err := run(t, e, "whoami"); err != nil {
 		t.Fatalf("whoami: %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"momentum-tools", "brain-secret", "server says: momentum-tools"} {
+	for _, want := range []string{"momentum-tools", "https://rc.example", "logged in"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("whoami missing %q\n--- got ---\n%s", want, got)
 		}
+	}
+}
+
+// TestRefreshOn401: an expired stored access token is refreshed transparently before the request, and
+// the rotated pair is persisted.
+func TestRefreshOn401(t *testing.T) {
+	isolatedConfig(t)
+	stub := newOAuthStub(t)
+
+	// A stored token already past expiry → Token() refreshes pre-emptively.
+	seedToken(t, "default", token.Token{
+		AccessToken: "rcoa_stale", RefreshToken: "rcor_live",
+		ExpiresAt: time.Now().Add(-time.Hour), BaseURL: stub.srv.URL,
+	})
+
+	src := newLiveSource("default", stub.srv.URL)
+	got, err := src.Token(t.Context())
+	if err != nil {
+		t.Fatalf("Token: %v", err)
+	}
+	if got != "rcoa_refreshed" {
+		t.Errorf("token = %q, want the refreshed access token", got)
+	}
+	if stub.refreshes.Load() != 1 {
+		t.Errorf("expected exactly one refresh, got %d", stub.refreshes.Load())
+	}
+	// The rotated refresh token is persisted for next time.
+	stored, _, _ := token.Load("default")
+	if stored.RefreshToken != "rcor_rotated" || stored.AccessToken != "rcoa_refreshed" {
+		t.Errorf("rotated pair not persisted: %+v", stored)
+	}
+}
+
+// TestRefreshDeadTokenPromptsReauth: a dead refresh token surfaces a "run `rc login`" error.
+func TestRefreshDeadTokenPromptsReauth(t *testing.T) {
+	isolatedConfig(t)
+	stub := newOAuthStub(t)
+	seedToken(t, "default", token.Token{
+		AccessToken: "rcoa_stale", RefreshToken: "rcor_dead",
+		ExpiresAt: time.Now().Add(-time.Hour), BaseURL: stub.srv.URL,
+	})
+
+	src := newLiveSource("default", stub.srv.URL)
+	_, err := src.Token(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "rc login") {
+		t.Fatalf("expected a re-login prompt, got %v", err)
+	}
+}
+
+// seedToken writes a token into the (isolated) store for a profile.
+func seedToken(t *testing.T, profile string, tok token.Token) {
+	t.Helper()
+	if err := token.Save(profile, tok); err != nil {
+		t.Fatalf("seed token: %v", err)
 	}
 }

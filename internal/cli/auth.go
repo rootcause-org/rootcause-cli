@@ -1,107 +1,40 @@
 package cli
 
 import (
-	"bufio"
+	"context"
 	"fmt"
-	"io"
-	"os"
-	"path/filepath"
-	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/config"
-	"github.com/rootcause-org/rootcause-cli/internal/render"
+	"github.com/rootcause-org/rootcause-cli/internal/oauth"
+	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
-// newLoginCmd builds `rc login` — the one-command way to give a brain checkout its API key. It writes
-// the key to a gitignored .rootcause.secret.toml at the brain root, so that every subsequent `rc`
-// inside this repo auto-targets the right project with no flag, no export. By default it verifies the
-// key against the server and refuses to store it if the key resolves to a DIFFERENT project than the
-// committed .rootcause.toml marker says — catching the "pasted the wrong project's key" mistake before
-// it can mis-scope a run.
+// loginTimeout bounds the wait for a human to complete the browser/device sign-in before the CLI gives
+// up (a generous window — the device flow's own expiry usually fires first).
+const loginTimeout = 10 * time.Minute
+
+// newLoginCmd builds `rc login` — the OAuth sign-in. By default it runs the PKCE loopback flow (opens a
+// browser, catches the redirect on a localhost port); --device runs the RFC 8628 device flow for an
+// SSH/headless box (print a code, approve it in a browser anywhere). The resulting access + refresh
+// tokens are stored under the resolved profile in the 0600 token store; every later `rc` refreshes the
+// access token transparently. The project the token is scoped to is chosen on the consent screen in the
+// browser (a project, or — for a global admin — all projects), not on the CLI.
 func newLoginCmd(e *env) *cobra.Command {
-	var apiKey string
-	var noVerify bool
+	var device bool
 	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Store this brain's API key in a gitignored " + config.SecretFileName,
-		Long: "Store the project's Prompt-API key for the brain checkout you're standing in, so `rc`\n" +
-			"auto-targets this project from here on. The key is written to a gitignored\n" +
-			config.SecretFileName + " (0600) at the brain root — never committed.\n\n" +
-			"Run from inside a brain repo (one with a committed " + config.MarkerFileName + "). Pass the key\n" +
-			"with --api-key, or omit it to paste on stdin.",
+		Short: "Sign in with OAuth (PKCE loopback by default, --device for headless)",
+		Long: "Sign in to rootcause. By default this opens your browser and catches the redirect on a\n" +
+			"localhost port (PKCE). On a headless/SSH box, use --device to get a short code you approve in\n" +
+			"a browser on any device.\n\n" +
+			"Tokens are stored per profile in " + tokenStorePath() + " (0600). Pick the project (or\n" +
+			"all-projects, if you're an admin) on the browser consent screen.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return err
-			}
-			brain, err := config.DiscoverBrain(cwd)
-			if err != nil {
-				return err
-			}
-			if brain == nil {
-				return fmt.Errorf("no %s found here — run `rc login` from inside a brain checkout "+
-					"(a repo with a committed %s naming its project)", config.MarkerFileName, config.MarkerFileName)
-			}
-
-			key := strings.TrimSpace(apiKey)
-			if key == "" {
-				fmt.Fprintf(e.err, "API key for %s: ", brain.Project)
-				line, rerr := readLine(e.in)
-				if rerr != nil {
-					return fmt.Errorf("read key from stdin: %w", rerr)
-				}
-				key = strings.TrimSpace(line)
-			}
-			if key == "" {
-				return fmt.Errorf("no API key provided (pass --api-key or pipe the key on stdin)")
-			}
-
-			if !noVerify {
-				base, berr := loginBaseURL(e)
-				if berr != nil {
-					return berr
-				}
-				resp, verr := client.New(base, key).Env(e.ctx(), brain.Tenant)
-				if verr != nil {
-					return fmt.Errorf("could not verify the key against %s: %w\n"+
-						"  (use --no-verify to store it without checking)", base, verr)
-				}
-				if resp.Project != "" && resp.Project != brain.Project {
-					return fmt.Errorf("that key resolves to project %q, but this brain's %s says %q — "+
-						"wrong key? (refusing to store)", resp.Project, config.MarkerFileName, brain.Project)
-				}
-			}
-
-			path := filepath.Join(brain.Dir, config.SecretFileName)
-			if err := config.WriteSecret(path, key); err != nil {
-				return err
-			}
-			fmt.Fprintf(e.out, "logged in to %s — wrote %s (0600)\n", brain.Project, config.SecretFileName)
-			fmt.Fprintf(e.err, "make sure %s is gitignored — it holds a production key\n", config.SecretFileName)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&apiKey, "api-key", "", "the API key to store (omit to read from stdin)")
-	cmd.Flags().BoolVar(&noVerify, "no-verify", false, "store without the server round-trip that confirms the key matches this brain's project")
-	return cmd
-}
-
-// newWhoamiCmd builds `rc whoami` — answer "which project will rc hit from here, and why?" without
-// running anything. It prints the resolved project (from the brain marker), the base URL, and a
-// log-safe label of where the key came from. By default it also confirms against the server (the key
-// resolves the project server-side), so a stale or wrong binding shows up immediately.
-func newWhoamiCmd(e *env) *cobra.Command {
-	var noVerify bool
-	cmd := &cobra.Command{
-		Use:   "whoami",
-		Short: "Show which project rc targets from here (brain binding, base URL, key source)",
-		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile)
+			res, err := config.Load(e.profile, e.project)
 			if err != nil {
 				return err
 			}
@@ -110,79 +43,196 @@ func newWhoamiCmd(e *env) *cobra.Command {
 				base = e.baseURLOvr
 			}
 
-			// Best-effort server confirmation: only when a key resolved and the user didn't opt out.
-			// Pass the brain's tenant so a tenant-enabled project confirms instead of TENANT_REQUIRED.
-			serverProject, serverErr := "", error(nil)
-			if !noVerify && res.APIKey != "" {
-				if resp, verr := client.New(base, res.APIKey).Env(e.ctx(), res.Tenant); verr != nil {
-					serverErr = verr
-				} else {
-					serverProject = resp.Project
+			oc := oauth.NewClient(base)
+			ctx, cancel := context.WithTimeout(e.ctx(), loginTimeout)
+			defer cancel()
+
+			var toks oauth.Tokens
+			if device {
+				toks, err = oc.LoginDevice(ctx, e.err)
+			} else {
+				toks, err = oc.LoginPKCE(ctx, e.browserOpener(), e.err)
+			}
+			if err != nil {
+				return fmt.Errorf("login failed: %w", err)
+			}
+
+			t := token.Token{
+				AccessToken:  toks.AccessToken,
+				RefreshToken: toks.RefreshToken,
+				ExpiresAt:    time.Now().Add(time.Duration(toks.ExpiresIn) * time.Second),
+				BaseURL:      base,
+			}
+			if err := token.Save(res.Profile, t); err != nil {
+				return err
+			}
+
+			target := res.Profile
+			if res.Brain != nil {
+				target = res.Brain.Project + " (brain " + res.Brain.Dir + ")"
+			}
+			fmt.Fprintf(e.out, "logged in — token stored for profile %q\n", res.Profile)
+			fmt.Fprintf(e.err, "target: %s · %s\n", target, base)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&device, "device", false, "use the device-authorization flow (headless/SSH — no local browser)")
+	return cmd
+}
+
+// newLogoutCmd builds `rc logout` — revoke the profile's tokens server-side (best-effort) and clear them
+// from the local store. After this the profile is signed out; `rc login` signs back in.
+func newLogoutCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "logout",
+		Short: "Revoke and clear this profile's stored tokens",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			res, err := config.Load(e.profile, e.project)
+			if err != nil {
+				return err
+			}
+			t, ok, err := token.Load(res.Profile)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				fmt.Fprintf(e.out, "already logged out (profile %q)\n", res.Profile)
+				return nil
+			}
+			// Best-effort revocation: a network failure here must not block clearing the local store (the
+			// user asked to log out). Revoke both tokens; the refresh is the one that matters.
+			base := t.BaseURL
+			if base == "" {
+				base = res.BaseURL
+			}
+			if e.baseURLOvr != "" {
+				base = e.baseURLOvr
+			}
+			oc := oauth.NewClient(base)
+			ctx, cancel := context.WithTimeout(e.ctx(), 15*time.Second)
+			defer cancel()
+			if t.RefreshToken != "" {
+				if rerr := oc.Revoke(ctx, t.RefreshToken); rerr != nil {
+					fmt.Fprintf(e.err, "warning: could not revoke refresh token server-side: %v\n", rerr)
+				}
+			}
+			if t.AccessToken != "" {
+				_ = oc.Revoke(ctx, t.AccessToken)
+			}
+			if err := token.Delete(res.Profile); err != nil {
+				return err
+			}
+			fmt.Fprintf(e.out, "logged out (profile %q)\n", res.Profile)
+			return nil
+		},
+	}
+	return cmd
+}
+
+// newWhoamiCmd builds `rc whoami` — answer "which profile/project will rc hit from here, and am I
+// signed in?" entirely from LOCAL state (the brain marker, the persistent flags, and the token store).
+// It does not call the server: there is no identity endpoint, so memberships/identity aren't shown —
+// the token's project binding lives server-side and is enforced on each request.
+func newWhoamiCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "whoami",
+		Short: "Show the resolved profile/project/tenant + sign-in status (local; no server call)",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			res, err := config.Load(e.profile, e.project)
+			if err != nil {
+				return err
+			}
+			base := res.BaseURL
+			if e.baseURLOvr != "" {
+				base = e.baseURLOvr
+			}
+
+			t, loggedIn, err := token.Load(res.Profile)
+			if err != nil {
+				return err
+			}
+			if loggedIn && t.BaseURL != "" && e.baseURLOvr == "" {
+				base = t.BaseURL
+			}
+
+			status, expiry := "not logged in — run `rc login`", ""
+			if loggedIn {
+				status = "logged in"
+				if !t.ExpiresAt.IsZero() {
+					if t.Expired(time.Now(), 0) {
+						expiry = "access token expired (auto-refreshes on next use)"
+					} else {
+						expiry = "access token valid until " + t.ExpiresAt.Format(time.RFC3339)
+					}
 				}
 			}
 
-			if render.IsJSON(e.mode(), e.out) {
+			tenant := e.scopeTenantFromResolved(res)
+			if e.jsonOut() {
 				return writeJSON(e, map[string]any{
-					"project":        emptyDash(res.Project),
-					"tenant":         res.Tenant,
-					"base_url":       base,
-					"key_source":     res.KeySource,
-					"brain_dir":      brainDir(res),
-					"server_project": serverProject,
+					"profile":    res.Profile,
+					"project":    emptyDash(res.Project),
+					"tenant":     tenant,
+					"base_url":   base,
+					"brain_dir":  brainDir(res),
+					"logged_in":  loggedIn,
+					"expires_at": tokenExpiry(t, loggedIn),
 				})
 			}
 
-			fmt.Fprintf(e.out, "project:     %s\n", emptyDash(res.Project))
-			if res.Tenant != "" {
-				fmt.Fprintf(e.out, "tenant:      %s\n", res.Tenant)
+			fmt.Fprintf(e.out, "profile:   %s\n", res.Profile)
+			fmt.Fprintf(e.out, "project:   %s\n", emptyDash(res.Project))
+			if tenant != "" {
+				fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
 			}
-			fmt.Fprintf(e.out, "base URL:    %s\n", base)
-			fmt.Fprintf(e.out, "key source:  %s\n", emptyOr(res.KeySource, "(none — no key resolved)"))
+			fmt.Fprintf(e.out, "base URL:  %s\n", base)
 			if res.Brain != nil {
-				fmt.Fprintf(e.out, "brain:       %s\n", res.Brain.Dir)
+				fmt.Fprintf(e.out, "brain:     %s\n", res.Brain.Dir)
 			}
-			switch {
-			case serverErr != nil:
-				fmt.Fprintf(e.err, "warning: could not confirm with the server: %v\n", serverErr)
-			case serverProject != "":
-				mark := "✓"
-				if res.Project != "" && serverProject != res.Project {
-					mark = "✗ MISMATCH — the key belongs to a different project"
-				}
-				fmt.Fprintf(e.out, "server says: %s %s\n", serverProject, mark)
+			fmt.Fprintf(e.out, "auth:      %s\n", status)
+			if expiry != "" {
+				fmt.Fprintf(e.out, "           %s\n", expiry)
 			}
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&noVerify, "no-verify", false, "skip the server round-trip that confirms the resolved key's project")
 	return cmd
 }
 
-// loginBaseURL resolves the endpoint `rc login` verifies against, reusing the SAME precedence as every
-// other command (config.Load: env > .rootcause.secret.toml > marker > profile > default) so the two
-// can never drift. baseURLOvr is the test seam. config.Load's BaseURL is always non-empty.
-func loginBaseURL(e *env) (string, error) {
-	if e.baseURLOvr != "" {
-		return e.baseURLOvr, nil
+// browserOpener is the function LoginPKCE uses to launch the browser — the real opener in normal use,
+// or a test-injected stub.
+func (e *env) browserOpener() func(string) error {
+	if e.openBrowser != nil {
+		return e.openBrowser
 	}
-	res, err := config.Load(e.profile)
-	if err != nil {
-		return "", err
-	}
-	return res.BaseURL, nil
+	return oauth.OpenBrowser
 }
 
-// readLine reads a single line from r (stdin), trimming the trailing newline. A nil reader falls back
-// to os.Stdin so the command works outside tests.
-func readLine(r io.Reader) (string, error) {
-	if r == nil {
-		r = os.Stdin
+// scopeTenantFromResolved is scopeTenant computed against an already-loaded Resolved (whoami loads its
+// own, rather than via newClient).
+func (e *env) scopeTenantFromResolved(res config.Resolved) string {
+	if e.tenant != "" {
+		return e.tenant
 	}
-	line, err := bufio.NewReader(r).ReadString('\n')
-	if err != nil && line == "" {
-		return "", err
+	return res.Tenant
+}
+
+// tokenExpiry renders the stored expiry for the JSON view ("" when logged out / unknown).
+func tokenExpiry(t token.Token, loggedIn bool) string {
+	if !loggedIn || t.ExpiresAt.IsZero() {
+		return ""
 	}
-	return line, nil
+	return t.ExpiresAt.Format(time.RFC3339)
+}
+
+// tokenStorePath is the token store path for help text (degrades to a generic label if unresolved).
+func tokenStorePath() string {
+	if p, err := token.Path(); err == nil {
+		return p
+	}
+	return "~/.config/rootcause/tokens.json"
 }
 
 func brainDir(res config.Resolved) string {

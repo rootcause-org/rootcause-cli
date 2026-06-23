@@ -39,12 +39,12 @@ func newTenantSettingsCmd(e *env) *cobra.Command {
 }
 
 func newTenantSettingsGetCmd(e *env) *cobra.Command {
-	var tenant string
 	cmd := &cobra.Command{
 		Use:   "get --tenant <slug>",
 		Short: "Show a tenant's current settings (grouped table, or -o json for the raw record)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			tenant := e.tenantSlug()
 			if tenant == "" {
 				return errMissingTenant
 			}
@@ -68,18 +68,17 @@ func newTenantSettingsGetCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tenant, "tenant", "", "tenant slug (required)")
 	return cmd
 }
 
 func newTenantSettingsSetCmd(e *env) *cobra.Command {
-	var tenant string
 	var unset []string
 	cmd := &cobra.Command{
 		Use:   "set --tenant <slug> key=val [key=val …]",
 		Short: "Edit settings (sparse; key= or --unset key unconfigures via null; server validates)",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
+			tenant := e.tenantSlug()
 			if tenant == "" {
 				return errMissingTenant
 			}
@@ -115,7 +114,6 @@ func newTenantSettingsSetCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tenant, "tenant", "", "tenant slug (required)")
 	cmd.Flags().StringArrayVar(&unset, "unset", nil, "unconfigure a key (sends explicit null); repeatable")
 	return cmd
 }

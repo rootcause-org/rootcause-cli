@@ -5,8 +5,8 @@ the two docs below and in the code.
 
 ## What this is (one line)
 `rc` is a **thin, pure Go client**: every command is one call to rootcause's public `/api/v1`, authed
-with the project's **Prompt API bearer key**, rendered as a table on a TTY or **JSON when piped**. No
-business logic, no DB, no new auth — if a command needs logic, it belongs in rootcause first.
+with an **OAuth access token** (`rc login`; refreshed transparently), rendered as a table on a TTY or
+**JSON when piped**. No business logic, no DB — if a command needs logic, it belongs in rootcause first.
 
 ## Where to read
 - **[README.md](README.md)** — user-facing: install, configure (brain binding + profiles), every command, releasing.
@@ -16,9 +16,12 @@ business logic, no DB, no new auth — if a command needs logic, it belongs in r
 
 ## Code map (detail in SKILL.md)
 - `cmd/rc/main.go` — entrypoint → `cli.Execute(version)`.
-- `internal/cli/` — one cobra file per command (`status`/`runs`/`run`/`ask`/`config`/`env`/`tenant`/`auth`); `errors.go` surfaces API errors verbatim.
-- `internal/client/` — the one HTTP wrapper (`client.go`) + wire contract (`types.go`, field names match the server exactly) + `APIError`.
-- `internal/config/` — brain-aware resolution (`.rootcause.toml` marker + secret + env + `config.toml`).
+- `internal/cli/` — one cobra file per command (`status`/`runs`/`run`/`ask`/`config`/`env`/`tenant`/`auth`); `tokensource.go` is the live token source; `errors.go` surfaces API errors verbatim.
+- `internal/client/` — the one HTTP wrapper (`client.go`, refresh-on-401) + `TokenSource` (`auth.go`) + wire contract (`types.go`, field names match the server exactly) + `APIError`.
+- `internal/oauth/` — OAuth protocol client: PKCE loopback + device grant + refresh/revoke (first-party client `rcocl_cli`).
+- `internal/token/` — token store `~/.config/rootcause/tokens.json` (0600), per-profile.
+- `internal/config/` — brain-aware resolution (`.rootcause.toml` marker + env + `config.toml`) → profile + base URL.
+- `internal/debugdump/` — the `rc run <id> --debug` decomposer (JSONL + thin markdown index).
 - `internal/render/` — TTY-detect + JSON passthrough (`render.go`) + per-view table renderers (`table.go`).
 
 ## Working on it
@@ -28,6 +31,7 @@ business logic, no DB, no new auth — if a command needs logic, it belongs in r
 - **Adding a command for a new endpoint:** wire struct in `internal/client/types.go` (match server JSON) → client method → render fn (+ golden) → thin cobra command. Keep it 1:1 with the endpoint.
 
 ## Scope guards (push back if asked to cross them)
-No MCP in v1, no business logic / DB access, no new auth, no interactive TUI. The only **server** writes
-are `config set` (the settings whitelist is the boundary) and `rc ask` (`POST /api/v1/runs`); `rc env
-pull` writes a local `./.env` only and never prints secret values.
+No MCP in v1, no business logic / DB access, no interactive TUI. Auth is **OAuth only** against the
+server's existing `/oauth/*` (the CLI invents no auth of its own). The only **server** writes are `config
+set` (the settings whitelist is the boundary) and `rc ask` (`POST /api/v1/runs`); `rc env pull` writes a
+local `./.env` only and never prints secret values.

@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/debugdump"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -18,20 +21,28 @@ import (
 func newRunCmd(e *env) *cobra.Command {
 	var events bool
 	var full bool
+	var debug bool
+	var outDir string
 	cmd := &cobra.Command{
 		Use:   "run <id>",
-		Short: "Show one run (add --events for the trace, --full for the whole bundle)",
+		Short: "Show one run (--events for the trace, --full for the bundle, --debug to decompose it offline)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			id := args[0]
-			if events && full {
-				return fmt.Errorf("--events and --full are mutually exclusive")
+			if more := boolsSet(events, full, debug); more > 1 {
+				return fmt.Errorf("--events, --full and --debug are mutually exclusive")
 			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
 			jsonMode := render.IsJSON(e.mode(), e.out)
+
+			// --debug: decompose the /full bundle into a jq-able JSONL + a thin markdown index on disk, then
+			// print the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
+			if debug {
+				return runDebug(e, c, id, outDir)
+			}
 
 			if full {
 				// JSON mode is the renderer's input contract: emit the bundle as JSONL from the raw bytes so
@@ -80,7 +91,60 @@ func newRunCmd(e *env) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&events, "events", false, "show the full per-event trace")
 	cmd.Flags().BoolVar(&full, "full", false, "show the whole bundle (header + trace; JSONL in -o json)")
+	cmd.Flags().BoolVar(&debug, "debug", false, "decompose the run into a jq-able JSONL + thin markdown index on disk")
+	cmd.Flags().StringVar(&outDir, "out-dir", defaultDebugDir, "directory for --debug output files")
 	return cmd
+}
+
+// defaultDebugDir is where `rc run <id> --debug` writes its two files unless --out-dir overrides it.
+const defaultDebugDir = "rc-debug"
+
+// runDebug pulls the run's /full bundle (cross-project for an all-projects admin token) and writes the
+// raw jq-able JSONL event log + a thin markdown index, printing both paths. It does NOT render the run
+// into stdout — the whole point is to hand the agent primitives (the two files) it drills into itself.
+func runDebug(e *env, c *client.Client, id, outDir string) error {
+	full, err := c.Full(e.ctx(), id)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return fmt.Errorf("create out dir %s: %w", outDir, err)
+	}
+	jsonlPath := filepath.Join(outDir, debugdump.JSONLName(full))
+	indexPath := filepath.Join(outDir, debugdump.IndexName(full))
+
+	jf, err := os.Create(jsonlPath)
+	if err != nil {
+		return fmt.Errorf("create %s: %w", jsonlPath, err)
+	}
+	if err := debugdump.EmitJSONL(jf, full); err != nil {
+		_ = jf.Close()
+		return fmt.Errorf("write %s: %w", jsonlPath, err)
+	}
+	if err := jf.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", jsonlPath, err)
+	}
+	if err := os.WriteFile(indexPath, []byte(debugdump.RenderIndex(full)), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", indexPath, err)
+	}
+
+	// Two paths + a one-line summary on stdout so the calling agent can relay them without re-fetching.
+	fmt.Fprintln(e.out, indexPath)
+	fmt.Fprintln(e.out, jsonlPath)
+	fmt.Fprintf(e.err, "run %s · status=%s · %d events · read the index, then jq the jsonl\n",
+		full.Run.RunID, full.Run.Status, len(full.Events))
+	return nil
+}
+
+// boolsSet counts how many of the given flags are true (for mutual-exclusion checks).
+func boolsSet(flags ...bool) int {
+	n := 0
+	for _, f := range flags {
+		if f {
+			n++
+		}
+	}
+	return n
 }
 
 // emitNDJSON writes one compact JSON object per event line. We re-marshal the typed events (rather

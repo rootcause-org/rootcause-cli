@@ -38,7 +38,6 @@ func newEnvCmd(e *env) *cobra.Command {
 }
 
 func newEnvKeysCmd(e *env) *cobra.Command {
-	var tenant string
 	cmd := &cobra.Command{
 		Use:   "keys",
 		Short: "List the key NAMES of the server's grounding env (log-safe, no values)",
@@ -48,7 +47,7 @@ func newEnvKeysCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), e.tenantOr(tenant))
+			resp, err := c.Env(e.ctx(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -63,12 +62,10 @@ func newEnvKeysCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tenant, "tenant", "", "resolve the project ∪ tenant env (tenant slug)")
 	return cmd
 }
 
 func newEnvPullCmd(e *env) *cobra.Command {
-	var tenant string
 	cmd := &cobra.Command{
 		Use:   "pull",
 		Short: "Fetch the production grounding env and write ./.env (0600); prints NAMES + count, never values",
@@ -78,7 +75,7 @@ func newEnvPullCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), e.tenantOr(tenant))
+			resp, err := c.Env(e.ctx(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -97,12 +94,10 @@ func newEnvPullCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tenant, "tenant", "", "resolve the project ∪ tenant env (tenant slug)")
 	return cmd
 }
 
 func newEnvDiffCmd(e *env) *cobra.Command {
-	var tenant string
 	cmd := &cobra.Command{
 		Use:   "diff",
 		Short: "Compare local ./.env to the server (NAMES-only drift); nonzero exit on drift",
@@ -112,7 +107,7 @@ func newEnvDiffCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), e.tenantOr(tenant))
+			resp, err := c.Env(e.ctx(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -141,7 +136,6 @@ func newEnvDiffCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tenant, "tenant", "", "resolve the project ∪ tenant env (tenant slug)")
 	return cmd
 }
 

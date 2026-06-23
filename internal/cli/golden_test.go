@@ -2,6 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -93,6 +95,64 @@ func TestRunFullJSONL(t *testing.T) {
 		}
 		if ev["type"] != "event" {
 			t.Errorf("event line %d type = %v, want event", i, ev["type"])
+		}
+	}
+}
+
+// TestRunDebug locks the --debug decomposer's two output files against goldens: a thin markdown index
+// and the jq-able JSONL (type:run header + type:event lines keyed by disp). The printed PATHS are
+// non-deterministic (a temp out-dir), so we golden the FILE CONTENTS, not stdout.
+func TestRunDebug(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--debug", "--out-dir", outDir); err != nil {
+		t.Fatalf("run --debug: %v", err)
+	}
+	// stdout carries the two written paths (index first, then jsonl).
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 printed paths, got %d: %q", len(lines), out.String())
+	}
+
+	base := "11111111-coca-cola"
+	idx, err := os.ReadFile(filepath.Join(outDir, base+".md"))
+	if err != nil {
+		t.Fatalf("read index: %v", err)
+	}
+	assertGolden(t, "debug.md.golden", string(idx))
+
+	jsonl, err := os.ReadFile(filepath.Join(outDir, base+".jsonl"))
+	if err != nil {
+		t.Fatalf("read jsonl: %v", err)
+	}
+	assertGolden(t, "debug.jsonl.golden", string(jsonl))
+
+	// Contract checks on the JSONL: a type:run header then type:event lines keyed by disp.
+	jl := strings.Split(strings.TrimRight(string(jsonl), "\n"), "\n")
+	if len(jl) != 4 { // 1 header + 3 events
+		t.Fatalf("expected 4 JSONL lines, got %d", len(jl))
+	}
+	var head map[string]any
+	if err := json.Unmarshal([]byte(jl[0]), &head); err != nil || head["type"] != "run" {
+		t.Fatalf("first line not a run header: %v (%v)", head["type"], err)
+	}
+	disps := map[string]bool{}
+	for _, ln := range jl[1:] {
+		var ev map[string]any
+		if err := json.Unmarshal([]byte(ln), &ev); err != nil {
+			t.Fatalf("event line not JSON: %v", err)
+		}
+		if ev["type"] != "event" {
+			t.Errorf("line type = %v, want event", ev["type"])
+		}
+		disps[ev["disp"].(string)] = true
+	}
+	// Grounding pre-step → P1; the two main steps → 1, 2.
+	for _, d := range []string{"P1", "1", "2"} {
+		if !disps[d] {
+			t.Errorf("missing disp %q in JSONL", d)
 		}
 	}
 }
@@ -196,16 +256,16 @@ func TestAPIErrorPath(t *testing.T) {
 	}
 }
 
-// TestNoAPIKey asserts a clear error when no key resolves (env unset, no config).
-func TestNoAPIKey(t *testing.T) {
+// TestNotLoggedIn asserts a clear "run `rc login`" error when no token resolves (no token store).
+func TestNotLoggedIn(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
+	// Drop the static-token seam so newClient consults the (empty, isolated) token store.
 	e2 := &env{profile: "default", output: "table", baseURLOvr: srv.URL, out: e.out, err: e.err}
-	t.Setenv("ROOTCAUSE_API_KEY", "")
 	err := run(t, e2, "status")
-	if err == nil || !strings.Contains(err.Error(), "no API key") {
-		t.Fatalf("expected no-API-key error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "not logged in") {
+		t.Fatalf("expected a not-logged-in error, got %v", err)
 	}
 }
 
