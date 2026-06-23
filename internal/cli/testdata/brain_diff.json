@@ -1,0 +1,18 @@
+{
+  "run_id": "11111111-1111-1111-1111-111111111111",
+  "found": true,
+  "sha": "9f1c0a3b2d4e5f60718293a4b5c6d7e8f9001122",
+  "message": "run 11111111: journal (thread: \"onboarding question\")",
+  "author": "rootcause-bot",
+  "committed_at": "2026-06-19T08:12:30Z",
+  "files": [
+    {
+      "path": "journal/2026-06-19-11111111.md",
+      "status": "A",
+      "additions": 14,
+      "deletions": 0
+    }
+  ],
+  "diff": "diff --git a/journal/2026-06-19-11111111.md b/journal/2026-06-19-11111111.md\nnew file mode 100644\nindex 0000000..abc1234\n--- /dev/null\n+++ b/journal/2026-06-19-11111111.md\n@@ -0,0 +1,2 @@\n+## run 11111111\n+learned that onboarding emails route via the welcome flow\n",
+  "diff_truncated": false
+}

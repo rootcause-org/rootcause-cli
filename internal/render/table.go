@@ -136,6 +136,74 @@ func Run(w io.Writer, r *client.RunDetail) {
 	}
 }
 
+// BrainDiff renders the ONE journal commit a run wrote to its brain: a header (short sha, author,
+// time), the touched files with +adds/-dels, then the unified diff. found:false → a single "no brain
+// changes from this run" line (the explicit empty case — a declined / swallowed run).
+func BrainDiff(w io.Writer, d *client.BrainDiff) {
+	if !d.Found {
+		fmt.Fprintf(w, "Run: %s\n", d.RunID)
+		fmt.Fprintln(w, "No brain changes from this run.")
+		return
+	}
+
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintf(tw, "Run:\t%s\n", d.RunID)
+	fmt.Fprintf(tw, "Commit:\t%s\n", shortSHA(d.SHA))
+	if d.Author != "" {
+		fmt.Fprintf(tw, "Author:\t%s\n", d.Author)
+	}
+	if d.CommittedAt != "" {
+		fmt.Fprintf(tw, "Committed:\t%s\n", d.CommittedAt)
+	}
+	if subj := firstLine(d.Message); subj != "" {
+		fmt.Fprintf(tw, "Message:\t%s\n", subj)
+	}
+	tw.Flush()
+
+	if len(d.Files) > 0 {
+		fmt.Fprintf(w, "\nFiles (%d):\n", len(d.Files))
+		ftw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(ftw, "  FILE\tCHURN")
+		for _, f := range d.Files {
+			fmt.Fprintf(ftw, "  %s\t%s\n", f.Path, churn(f.Additions, f.Deletions))
+		}
+		ftw.Flush()
+	}
+
+	if strings.TrimSpace(d.Diff) != "" {
+		fmt.Fprintf(w, "\nDiff:\n%s\n", strings.TrimRight(d.Diff, "\n"))
+		if d.DiffTruncated {
+			fmt.Fprintln(w, "… (diff truncated)")
+		}
+	}
+}
+
+// shortSHA clips a full commit sha to its 12-char prefix for the header line; a shorter/empty sha is
+// returned as-is.
+func shortSHA(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
+}
+
+// firstLine returns the commit subject — the message's first line.
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
+}
+
+// churn renders one file's line churn as "+A/-D"; a binary file (additions -1, the server's numstat
+// "-") reads "binary".
+func churn(adds, dels int) string {
+	if adds < 0 || dels < 0 {
+		return "binary"
+	}
+	return fmt.Sprintf("+%d/-%d", adds, dels)
+}
+
 // runDetailDuration prefers the server's duration_ms, falling back to finished−created (a run_health
 // miss leaves duration_ms zero). Blank when neither yields a positive span.
 func runDetailDuration(r *client.RunDetail) string {

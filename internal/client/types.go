@@ -232,6 +232,30 @@ type FullResponse struct {
 	Events []EventItem `json:"events"`
 }
 
+// BrainDiffFile is one path the run's journal commit touched, with its line churn. Additions is -1 for
+// a binary file (the server's numstat "-" → -1, distinct from a real 0).
+type BrainDiffFile struct {
+	Path      string `json:"path"`
+	Status    string `json:"status"` // git name-status letter: A/M/D/R… ("" when unknown)
+	Additions int    `json:"additions"`
+	Deletions int    `json:"deletions"`
+}
+
+// BrainDiff is GET /api/v1/runs/{id}/brain-diff — the ONE journal commit a run wrote to its brain.
+// Found=false means the run wrote no journal commit (declined / swallowed); every other field is then
+// empty. Mirrors the server's brainDiffResponse field-for-field.
+type BrainDiff struct {
+	RunID         string          `json:"run_id"`
+	Found         bool            `json:"found"`
+	SHA           string          `json:"sha,omitempty"`
+	Message       string          `json:"message,omitempty"`
+	Author        string          `json:"author,omitempty"`
+	CommittedAt   string          `json:"committed_at,omitempty"`
+	Files         []BrainDiffFile `json:"files,omitempty"`
+	Diff          string          `json:"diff,omitempty"`
+	DiffTruncated bool            `json:"diff_truncated,omitempty"`
+}
+
 // EnvResponse is GET /api/v1/env — the resolved grounding env. Keys holds live secret VALUES (the
 // whole point: `rc env pull` writes them to ./.env). The CLI NEVER prints a value: it renders key
 // NAMES only and writes values solely to the 0600 file.

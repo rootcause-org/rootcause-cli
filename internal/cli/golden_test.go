@@ -110,6 +110,52 @@ func TestRunDeclinedJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "run_declined.json"), out.Bytes())
 }
 
+// TestRunBrainDiffTable pins the brain-diff renderer: the commit header (short sha, author, time,
+// subject), the touched files with churn, and the unified diff.
+func TestRunBrainDiffTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--brain-diff"); err != nil {
+		t.Fatalf("run --brain-diff: %v", err)
+	}
+	assertGolden(t, "brain_diff.golden", out.String())
+}
+
+// TestRunBrainDiffNotFoundTable pins the explicit-empty case: a run that wrote no journal commit shows
+// the "No brain changes from this run." line, not an error.
+func TestRunBrainDiffNotFoundTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "no-brain", "--brain-diff"); err != nil {
+		t.Fatalf("run --brain-diff (not found): %v", err)
+	}
+	assertGolden(t, "brain_diff_none.golden", out.String())
+}
+
+// TestRunBrainDiffJSONPassthrough confirms -o json rides the server body through verbatim (the CLI
+// reshapes nothing).
+func TestRunBrainDiffJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--brain-diff"); err != nil {
+		t.Fatalf("run --brain-diff -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "brain_diff.json"), out.Bytes())
+}
+
+// TestRunBrainDiffMutualExclusion: --brain-diff can't combine with --events/--full/--debug.
+func TestRunBrainDiffMutualExclusion(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--brain-diff", "--full"); err == nil {
+		t.Fatal("expected an error combining --brain-diff with --full")
+	}
+}
+
 // TestRunFullJSONL locks the cross-repo seam: `rc run <id> --full -o json` must emit a `type:run`
 // header line followed by one `type:event` line per event (JSONL), each carrying its fields verbatim.
 func TestRunFullJSONL(t *testing.T) {

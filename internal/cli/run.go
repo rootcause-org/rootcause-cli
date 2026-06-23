@@ -22,15 +22,16 @@ func newRunCmd(e *env) *cobra.Command {
 	var events bool
 	var full bool
 	var debug bool
+	var brainDiff bool
 	var outDir string
 	cmd := &cobra.Command{
 		Use:   "run <id>",
-		Short: "Show one run (--events for the trace, --full for the bundle, --debug to decompose it offline)",
+		Short: "Show one run (--events for the trace, --full for the bundle, --brain-diff for the brain commit, --debug to decompose it offline)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			id := args[0]
-			if more := boolsSet(events, full, debug); more > 1 {
-				return fmt.Errorf("--events, --full and --debug are mutually exclusive")
+			if more := boolsSet(events, full, debug, brainDiff); more > 1 {
+				return fmt.Errorf("--events, --full, --brain-diff and --debug are mutually exclusive")
 			}
 			c, err := e.newClient()
 			if err != nil {
@@ -74,6 +75,24 @@ func newRunCmd(e *env) *cobra.Command {
 				return nil
 			}
 
+			if brainDiff {
+				// JSON mode is a byte-faithful passthrough (render, don't reshape); table mode decodes the
+				// typed BrainDiff and renders the commit + files + diff.
+				if jsonMode {
+					raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(id)+"/brain-diff", nil)
+					if err != nil {
+						return err
+					}
+					return render.JSON(e.out, raw)
+				}
+				resp, err := c.BrainDiff(e.ctx(), id)
+				if err != nil {
+					return err
+				}
+				render.BrainDiff(e.out, resp)
+				return nil
+			}
+
 			if jsonMode {
 				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(id), nil)
 				if err != nil {
@@ -92,6 +111,7 @@ func newRunCmd(e *env) *cobra.Command {
 	cmd.Flags().BoolVar(&events, "events", false, "show the full per-event trace")
 	cmd.Flags().BoolVar(&full, "full", false, "show the whole bundle (header + trace; JSONL in -o json)")
 	cmd.Flags().BoolVar(&debug, "debug", false, "decompose the run into a jq-able JSONL + thin markdown index on disk")
+	cmd.Flags().BoolVar(&brainDiff, "brain-diff", false, "show the journal commit this run wrote to the brain")
 	cmd.Flags().StringVar(&outDir, "out-dir", defaultDebugDir, "directory for --debug output files")
 	return cmd
 }

@@ -108,6 +108,17 @@ func (c *Client) Full(ctx context.Context, id string) (*FullResponse, error) {
 	return &out, nil
 }
 
+// BrainDiff fetches GET /api/v1/runs/{id}/brain-diff — the ONE journal commit the run wrote to its
+// brain. Used by the table view of `rc run <id> --brain-diff`; the JSON path goes through Raw to keep
+// the passthrough byte-faithful (render, don't reshape).
+func (c *Client) BrainDiff(ctx context.Context, id string) (*BrainDiff, error) {
+	var out BrainDiff
+	if err := c.do(ctx, http.MethodGet, "/api/v1/runs/"+url.PathEscape(id)+"/brain-diff", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Submit posts POST /api/v1/runs to trigger a run. It returns BOTH the typed 202 body (for the
 // poll/render logic) AND the verbatim bytes, so a caller that must echo the response to a jq pipeline
 // (`rc ask --no-wait -o json`) never drops a server field — same "render, don't reshape" invariant as

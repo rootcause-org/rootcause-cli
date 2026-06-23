@@ -91,6 +91,16 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write(fixture(t, "full.json"))
 	})
+	mux.HandleFunc("GET /api/v1/runs/{id}/brain-diff", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		// id "no-brain" wrote no journal commit — the explicit empty (found:false) result.
+		if r.PathValue("id") == "no-brain" {
+			_, _ = w.Write([]byte(`{"run_id":"no-brain","found":false}`))
+			return
+		}
+		_, _ = w.Write(fixture(t, "brain_diff.json"))
+	})
 	mux.HandleFunc("POST /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
