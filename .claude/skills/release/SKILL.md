@@ -50,10 +50,14 @@ and can lag a few minutes after the explicit `@vX.Y.Z` already works. That lag i
 - **Lint is advisory, not a gate.** The render layer intentionally ignores write-to-buffer errors, so
   `golangci-lint` reports pre-existing `errcheck` findings. The script prints them but never blocks on
   them. Don't "fix" those as part of a release.
-- **Homebrew tap is not wired up yet.** `brew install rootcause-org/tap/rc` won't work until the
-  one-time setup in [`README.md`](../../../README.md#releasing) is done (create `rootcause-org/homebrew-tap`,
-  add the `HOMEBREW_TAP_GITHUB_TOKEN` secret, uncomment the `brews:` block in `.goreleaser.yaml`).
-  Prebuilt-binary download and `go install` work without it.
+- **Homebrew is wired up — as a macOS *cask*.** Each release GoReleaser pushes `Casks/rc.rb` to
+  `rootcause-org/homebrew-tap` (auth: `HOMEBREW_TAP_GITHUB_TOKEN` secret), so `brew install
+  rootcause-org/tap/rc` just works on macOS. It's a cask, **not** a formula, on purpose: a source
+  formula installs through a Homebrew sandbox + Ruby PTY that fails on some macOS setups (`can't get
+  Master/Slave device`); a cask links the prebuilt binary instead. Don't re-add a `brews:` formula —
+  a formula named `rc` would shadow the cask on bare `brew install` and reintroduce the bug. Linux/WSL
+  and Windows use [`scripts/install.sh`](../../../scripts/install.sh) /
+  [`scripts/install.ps1`](../../../scripts/install.ps1); `go install` works everywhere.
 - **Manual fallback** (if `scripts/release.sh` is unavailable) — do all three steps, especially #3:
   ```bash
   git tag -a vX.Y.Z -m "rootcause-cli vX.Y.Z" && git push origin vX.Y.Z
