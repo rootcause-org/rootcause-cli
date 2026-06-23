@@ -1,0 +1,32 @@
+{
+  "id": "11111111-2222-3333-4444-555555555555",
+  "resolved_by": "session",
+  "runs": [
+    {
+      "run_id": "cccccccc-3333-3333-3333-333333333333",
+      "kind": "email",
+      "source": "ReplyPen",
+      "status": "done",
+      "outcome": "declined",
+      "category": "ok",
+      "created_at": "2026-06-22T11:00:00Z",
+      "finished_at": "2026-06-22T11:00:45Z",
+      "duration_ms": 45000,
+      "has_draft": false,
+      "has_note": true,
+      "topic": "thanks message",
+      "declined_reason": "The sender only said thank you; there is nothing to action, so no draft is warranted.",
+      "health": {
+        "turns": 2,
+        "grounding_turns": 1,
+        "bash_total": 3,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false
+      }
+    }
+  ],
+  "replypen": null
+}

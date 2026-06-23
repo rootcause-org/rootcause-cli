@@ -281,6 +281,18 @@ type BrainDiff struct {
 	DiffTruncated bool            `json:"diff_truncated,omitempty"`
 }
 
+// ThreadTrace is GET /api/v1/threads/{id}/trace — every run for one thread (or session) id, newest-first,
+// each a full RunSummary (status + safe health), so `rc thread` can answer "why did this thread get no
+// draft". ResolvedBy is "thread" | "session" | "none". ReplyPen is the reserved extension point for the
+// SECOND half of the trace (ReplyPen's own signed thread-trace, stitched server-side); always null today.
+// Mirrors the server's threadTraceResponse field-for-field.
+type ThreadTrace struct {
+	ID         string          `json:"id"`
+	ResolvedBy string          `json:"resolved_by"`
+	Runs       []RunSummary    `json:"runs"`
+	ReplyPen   json.RawMessage `json:"replypen"` // reserved; null until the ReplyPen-side stitch lands
+}
+
 // --- observability feeds (rc fleet / patterns / health) ---
 
 // RunEvent is one raw run_events row from GET /api/v1/runs/events — the bulk feed `rc patterns`

@@ -130,6 +130,21 @@ func (c *Client) AllRuns(ctx context.Context, p RunsParams) (runs []RunSummary, 
 	return runs, true, nil
 }
 
+// ThreadTracePath builds the request URL for GET /api/v1/threads/{id}/trace — the same URL the typed
+// fetch hits, so `-o json` passthrough and the table view can never diverge on what was requested.
+func ThreadTracePath(id string) string { return "/api/v1/threads/" + url.PathEscape(id) + "/trace" }
+
+// ThreadTrace fetches GET /api/v1/threads/{id}/trace — every run for one thread (or session) id. Used by
+// the table view of `rc thread`; the JSON path goes through Raw (ThreadTracePath) to keep the passthrough
+// byte-faithful (render, don't reshape).
+func (c *Client) ThreadTrace(ctx context.Context, id string) (*ThreadTrace, error) {
+	var out ThreadTrace
+	if err := c.do(ctx, http.MethodGet, ThreadTracePath(id), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Health fetches GET /api/v1/health?hours= — the raw health inputs the CLI rolls up.
 func (c *Client) Health(ctx context.Context, hours int) (*HealthResponse, error) {
 	var out HealthResponse

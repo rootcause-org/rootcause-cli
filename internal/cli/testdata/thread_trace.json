@@ -1,0 +1,55 @@
+{
+  "id": "thread-abc123",
+  "resolved_by": "thread",
+  "runs": [
+    {
+      "run_id": "aaaaaaaa-1111-1111-1111-111111111111",
+      "kind": "email",
+      "source": "ReplyPen",
+      "status": "error",
+      "outcome": "error",
+      "category": "egress_blocked",
+      "created_at": "2026-06-22T10:05:00Z",
+      "finished_at": "2026-06-22T10:05:08Z",
+      "duration_ms": 8000,
+      "has_draft": false,
+      "has_note": false,
+      "topic": "refund not received",
+      "health": {
+        "turns": 4,
+        "grounding_turns": 1,
+        "bash_total": 6,
+        "bash_err_count": 1,
+        "big_stdout_count": 0,
+        "blocked_egress": 1,
+        "grounding_discarded": false,
+        "no_journal": true
+      }
+    },
+    {
+      "run_id": "bbbbbbbb-2222-2222-2222-222222222222",
+      "kind": "email",
+      "source": "ReplyPen",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T09:30:00Z",
+      "finished_at": "2026-06-22T09:31:12Z",
+      "duration_ms": 72000,
+      "has_draft": true,
+      "has_note": false,
+      "topic": "refund not received",
+      "health": {
+        "turns": 5,
+        "grounding_turns": 2,
+        "bash_total": 9,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false
+      }
+    }
+  ],
+  "replypen": null
+}

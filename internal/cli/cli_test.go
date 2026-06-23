@@ -140,6 +140,18 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write(fixture(t, "brain_diff.json"))
 	})
+	mux.HandleFunc("GET /api/v1/threads/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.PathValue("id") {
+		case "session-fallback": // resolved via the session_id fallback path
+			_, _ = w.Write(fixture(t, "thread_trace_session.json"))
+		case "unknown": // an id matching nothing → clean empty (resolved_by:"none")
+			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","runs":[],"replypen":null}`))
+		default:
+			_, _ = w.Write(fixture(t, "thread_trace.json"))
+		}
+	})
 	mux.HandleFunc("POST /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

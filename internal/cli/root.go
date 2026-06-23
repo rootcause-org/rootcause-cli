@@ -75,6 +75,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newStatusCmd(e),
 		newRunsCmd(e),
 		newRunCmd(e),
+		newThreadCmd(e),
 		newFleetCmd(e),
 		newPatternsCmd(e),
 		newHealthCmd(e),
