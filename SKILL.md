@@ -102,6 +102,17 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   server JSON exactly), a client method, a render function (+ golden fixture/test), and a thin cobra
   command. Keep it 1:1 with the endpoint — anything that needs logic belongs in rootcause first.
 
+## The one non-API command: `rc upgrade`
+
+[`internal/cli/upgrade.go`](internal/cli/upgrade.go) is the deliberate exception to "every command is
+one API call": it talks to the **GitHub releases** API (not the rootcause API, no bearer key), then
+self-replaces its own binary with the latest archive for the running OS/arch (sha256-verified against
+the release's `checksums.txt`, atomic same-dir rename). It's CLI plumbing, not business logic. On a
+Homebrew install (`isHomebrewManaged` — path under `/Caskroom/` or `/Cellar/`) it refuses and defers to
+`brew upgrade rc`, so it never desyncs the cask manifest. The pure helpers (version compare, asset name,
+checksum parse, brew-path detection) are unit-tested in `upgrade_test.go`; the network/replace path is
+verified by hand against a real release. Keep this the *only* command that reaches outside `/api/v1`.
+
 ## Scope guards (push back if asked)
 
 No MCP in v1 (a future layer over the same endpoints — keep commands mappable 1:1). No business logic /

@@ -70,6 +70,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newTenantCmd(e),
 		newLoginCmd(e),
 		newWhoamiCmd(e),
+		newUpgradeCmd(e, version),
 	)
 	return root
 }

@@ -64,6 +64,18 @@ go install github.com/rootcause-org/rootcause-cli/cmd/rc@latest
 (`darwin`/`linux`/`windows` × `amd64`/`arm64`), extract `rc`, and put it on your PATH. On macOS, an
 unsigned binary may be quarantined: `xattr -d com.apple.quarantine $(which rc)`.
 
+### Upgrading
+
+```bash
+rc upgrade            # self-update to the latest release (Linux / WSL / Windows)
+rc upgrade --check    # just say whether a newer version exists
+brew upgrade rc       # macOS (Homebrew) — rc upgrade detects this and points you here
+```
+
+`rc upgrade` replaces its own binary with the latest release for your OS/arch (verifying the published
+checksum first). On a Homebrew install it defers to `brew upgrade rc` so it doesn't fight brew. (`go
+install …@latest` re-installs the latest for Go users.)
+
 ## Configure
 
 `rc` needs the project's **Prompt API bearer key** (the key resolves the project server-side — there's
@@ -135,6 +147,7 @@ file / config **by name** — never commit them.
 | `rc env keys [--tenant <slug>]` | key NAMES of the project's production grounding env (log-safe, no values) |
 | `rc env pull [--tenant <slug>]` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
 | `rc env diff [--tenant <slug>]` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
+| `rc upgrade [--check]` | self-update to the latest release (Linux/WSL/Windows); on a Homebrew install, defers to `brew upgrade rc` |
 | `rc --version` · `rc help` | |
 
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
