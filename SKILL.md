@@ -1,14 +1,17 @@
 ---
 name: rootcause-cli
-description: The `rc` CLI — a thin, scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with an OAuth access token (sign in via `rc login`; the CLI refreshes it). Use when working in this repo: adding/changing a command, the HTTP client, OAuth/token-store/config resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. No business logic lives here — every command is one API call rendered for humans or piped as JSON.
+description: The `rc` CLI — a scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with an OAuth access token (sign in via `rc login`; the CLI refreshes it). Use when working in this repo: adding/changing a command, the HTTP client, OAuth/token-store/config resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. Fat client, thin server: endpoints return raw token-scoped data, the CLI may digest/cluster/render it locally, and `-o json` always exposes the raw rows.
 ---
 
 # rootcause-cli (`rc`) — a project's window into its own rootcause data
 
-`rc` is a **pure client**: every capability is a JSON endpoint that rootcause serves first, and
-`rc` just *renders* it. It holds **no business logic, no DB access** — it speaks the public `/api/v1`
-with an **OAuth access token** minted by `rc login` (the token resolves the caller's project + principal
-server-side: a pinned token scopes to one project, an all-projects admin token reads cross-project).
+`rc` is a **fat client over a thin server**: rootcause endpoints stay simple and return **raw,
+token-scoped data**; `rc` may compute views on top of it locally (digests, clustering, health roll-ups,
+diagnosis) — and every such command still exposes the raw rows via `-o json`, so a consumer can ignore
+our rendering and slice the data themselves. It holds **no DB access** — data comes only through the
+public `/api/v1`, with an **OAuth access token** minted by `rc login` (the token resolves the caller's
+project + principal server-side: a pinned token scopes to one project, an all-projects admin token reads
+cross-project).
 `--profile`/`--project` pick *which stored token* to use; the scope itself is baked into the token at
 consent time. The bet: a dev pulls this in to slice their data the way
 they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an action/skill, runs
@@ -17,7 +20,9 @@ they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an ac
 
 ## The ladder (progressive disclosure — index → one run → detail)
 
-Each rung is one endpoint; one command per rung. The CLI mirrors the API ladder exactly.
+The base rungs are one endpoint each (index → one run → detail). Higher-level commands (digests,
+patterns, health, thread trace) may fan out over several raw endpoints and compute the view locally —
+but they keep the raw rows reachable via `-o json`.
 
 | Command | Endpoint | What |
 |---|---|---|
@@ -141,8 +146,10 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   directly. Regenerate goldens with `go test ./internal/cli -update`; fixtures use **canned** timestamps,
   never `time.Now`.
 - **Adding a command for a new endpoint:** add the wire struct to `internal/client/types.go` (match the
-  server JSON exactly), a client method, a render function (+ golden fixture/test), and a thin cobra
-  command. Keep it 1:1 with the endpoint — anything that needs logic belongs in rootcause first.
+  server JSON exactly), a client method, a render function (+ golden fixture/test), and a cobra command.
+  Simple rungs stay 1:1 with one endpoint; a higher-level command may call several raw endpoints and
+  compute its view locally — keep the endpoints themselves thin, and always expose the raw rows via
+  `-o json`. DB access stays out of the CLI; data comes only through `/api/v1`.
 
 ## The one non-API command: `rc upgrade`
 
@@ -157,8 +164,9 @@ verified by hand against a real release. Keep this the *only* command that reach
 
 ## Scope guards (push back if asked)
 
-No MCP in v1 (a future layer over the same endpoints — keep commands mappable 1:1). No business logic /
-no DB access. The only **server** write surfaces are `config set` (the settings whitelist IS the
+No MCP in v1 (a future layer over the same endpoints). Client-side analysis/rendering is fine, but **no
+direct DB access** — data comes only through `/api/v1`, and the endpoints behind it stay thin (raw rows,
+not server-computed views), with `-o json` always exposing those rows. The only **server** write surfaces are `config set` (the settings whitelist IS the
 boundary) and `rc ask` (triggers a run via `POST /api/v1/runs` — the CLI still holds no run logic; the
 server owns the loop, and `ask` never sends actions/mail itself). `rc env pull` writes a LOCAL `./.env`
 only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`

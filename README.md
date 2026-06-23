@@ -1,9 +1,10 @@
 # rootcause-cli (`rc`)
 
-A thin, scriptable client that lets a project **consume its own rootcause data** and **change its own
+A scriptable client that lets a project **consume its own rootcause data** and **change its own
 config** — over rootcause's public JSON `/api/v1`, authed with an **OAuth access token** (you sign in
-once with `rc login`; the CLI refreshes the token for you). No business logic of its own: every command
-is one API call, rendered as a table on a terminal or **JSON when piped** so `| jq` always works.
+once with `rc login`; the CLI refreshes the token for you). **Fat client, thin server:** endpoints
+return raw, token-scoped data; the CLI may digest/cluster/render it for you, and every such command also
+emits the raw rows as **JSON when piped** so `| jq` always works and you can slice it your own way.
 
 ```console
 $ rc status
