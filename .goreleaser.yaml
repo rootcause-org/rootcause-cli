@@ -51,29 +51,41 @@ release:
     owner: rootcause-org
     name: rootcause-cli
 
-# --- Homebrew ----------------------------------------------------------------
-# Publishes a `brew install rootcause-org/tap/rc` formula on every release by committing
-# Formula/rc.rb to rootcause-org/homebrew-tap. Two one-time prerequisites (both done):
+# --- Homebrew (macOS) --------------------------------------------------------
+# Publishes a `brew install rootcause-org/tap/rc` CASK on every release by committing
+# Casks/rc.rb to rootcause-org/homebrew-tap. Two one-time prerequisites (both done):
 #   1. public repo rootcause-org/homebrew-tap exists
 #   2. repo secret HOMEBREW_TAP_GITHUB_TOKEN holds a token with contents:write on homebrew-tap —
 #      the default GITHUB_TOKEN is scoped to *this* repo only and can't push to a second one.
 #      Wired into release.yml's env block.
 #
-# NOTE: `brews` (a formula) is deprecated in GoReleaser in favor of `homebrew_casks`. We deliberately
-# keep the formula: casks are macOS-only, but a formula installs our static binary on Linuxbrew too —
-# and the README promises macOS *and* Linux. `goreleaser check` flags this as deprecated, but
-# `goreleaser release` (what CI runs) only warns and still publishes. Do NOT migrate to a cask without
-# accepting the loss of Linux `brew install`.
-brews:
+# WHY A CASK, NOT A FORMULA: Homebrew installs a non-bottled FORMULA through a sandbox + a Ruby PTY to
+# stream build output. On some macOS setups that PTY can't be allocated and the install dies with
+# "can't get Master/Slave device" (Ruby PTY.open failure — Ruby bug 15607). A CASK installs a prebuilt
+# artifact by *linking the binary* (no sandbox, no PTY), so it sidesteps the failure entirely.
+#
+# WHY MACOS-ONLY: casks are macOS-only AND a cask + a formula can't share the name `rc` — when both
+# exist, bare `brew install …/rc` always resolves to the formula (the broken path). So the formula is
+# gone; Linux/WSL and Windows install via scripts/install.sh and scripts/install.ps1 (see README),
+# which need no Homebrew at all. Go users still have `go install …/cmd/rc@latest`.
+homebrew_casks:
   - name: rc
     repository:
       owner: rootcause-org
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/rootcause-org/rootcause-cli"
     description: "Thin scriptable client over rootcause's /api/v1 — consume your project's own run data"
-    install: |
-      bin.install "rc"
-    test: |
-      system "#{bin}/rc", "--version"
+    # NOTE: the old Formula/rc.rb is NOT removed by GoReleaser — it was deleted from the tap by hand and
+    # a tap_migrations.json ({"rc":"rc"}) added there so `brew upgrade` migrates formula→cask cleanly.
+    # If the formula ever reappears in the tap, bare `brew install …/rc` resolves to it (the broken PTY
+    # path) instead of this cask. (homebrew_casks.conflicts is a no-op upstream and was removed.)
+    # The binary is unsigned, so Homebrew's download tags it with com.apple.quarantine and Gatekeeper
+    # would block the first run. Strip the xattr on install so `rc` just works.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/rc"]
+          end

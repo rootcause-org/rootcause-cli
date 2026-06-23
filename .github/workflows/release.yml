@@ -26,5 +26,5 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Lets GoReleaser push the Homebrew formula to rootcause-org/homebrew-tap (see .goreleaser.yaml):
+          # Lets GoReleaser push the Homebrew cask to rootcause-org/homebrew-tap (see .goreleaser.yaml):
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}

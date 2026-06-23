@@ -24,32 +24,45 @@ $ rc env pull                  # sync that env to a local 0600 ./.env (for brain
 
 ## Install
 
-You do **not** need Go installed — grab a prebuilt binary.
+You do **not** need Go installed — grab a prebuilt binary with the one-liner for your platform.
 
-**Homebrew (macOS / Linux):**
-
-```bash
-brew install rootcause-org/tap/rc
-```
-
-**Prebuilt binary** — from the [latest release](https://github.com/rootcause-org/rootcause-cli/releases/latest)
-pick your OS/arch (`darwin`/`linux`/`windows` × `amd64`/`arm64`), then:
+**macOS — Homebrew:**
 
 ```bash
-# macOS example (arm64). Adjust the version/arch to the asset you downloaded.
-curl -sSL https://github.com/rootcause-org/rootcause-cli/releases/latest/download/rc_<ver>_darwin_arm64.tar.gz \
-  | tar -xz && sudo mv rc /usr/local/bin/
-rc --version
+brew install rootcause-org/tap/rc      # then: brew upgrade rc
 ```
 
-> macOS Gatekeeper may quarantine an unsigned binary — `xattr -d com.apple.quarantine $(which rc)` if it
-> refuses to run.
+> This is a **cask** (a prebuilt binary), not a source formula — it sidesteps the Homebrew sandbox/PTY
+> install that fails on some macOS setups with `can't get Master/Slave device`. Quarantine is stripped
+> automatically, so `rc` runs without a Gatekeeper prompt.
 
-**From source (Go devs)**:
+**Linux / WSL — install script** (no Homebrew or Go required):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.sh | sh
+```
+
+Detects your arch, installs `rc` to `/usr/local/bin` (or `~/.local/bin`), and is idempotent — re-run to
+upgrade. Knobs: `RC_VERSION=v0.5.1` to pin, `RC_INSTALL_DIR=…` to choose where. Works on macOS too.
+
+**Windows (native PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.ps1 | iex
+```
+
+Installs `rc.exe` under `%LOCALAPPDATA%\Programs\rc` and adds it to your user PATH. (On **WSL**, use the
+Linux one-liner above — WSL is Linux.)
+
+**From source (Go devs, any OS):**
 
 ```bash
 go install github.com/rootcause-org/rootcause-cli/cmd/rc@latest
 ```
+
+**Manual** — grab a tarball/zip from the [latest release](https://github.com/rootcause-org/rootcause-cli/releases/latest)
+(`darwin`/`linux`/`windows` × `amd64`/`arm64`), extract `rc`, and put it on your PATH. On macOS, an
+unsigned binary may be quarantined: `xattr -d com.apple.quarantine $(which rc)`.
 
 ## Configure
 
@@ -187,10 +200,18 @@ The script gates on `go build/vet/test`, refuses a dirty/behind checkout, tags +
 binaries, then warms the proxy. See [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md)
 for the full runbook and manual fallback.
 
-**Homebrew** is wired up: each release, GoReleaser commits an updated `Formula/rc.rb` to the public
-[`rootcause-org/homebrew-tap`](https://github.com/rootcause-org/homebrew-tap) repo (the `brews:` block
-in [`.goreleaser.yaml`](.goreleaser.yaml)). It authenticates with the `HOMEBREW_TAP_GITHUB_TOKEN`
-repo secret — a token with `contents:write` on the tap repo, since the default `GITHUB_TOKEN` is
-scoped to this repo only and can't push to a second one.
+**Homebrew** is wired up: each release, GoReleaser commits an updated `Casks/rc.rb` **cask** to the
+public [`rootcause-org/homebrew-tap`](https://github.com/rootcause-org/homebrew-tap) repo (the
+`homebrew_casks:` block in [`.goreleaser.yaml`](.goreleaser.yaml)). It authenticates with the
+`HOMEBREW_TAP_GITHUB_TOKEN` repo secret — a token with `contents:write` on the tap repo, since the
+default `GITHUB_TOKEN` is scoped to this repo only and can't push to a second one.
+
+It's a **cask** (prebuilt binary), not a source **formula**, on purpose: a non-bottled formula installs
+through a Homebrew sandbox + Ruby PTY that fails on some macOS setups (`can't get Master/Slave device`);
+a cask just links the binary. A cask is macOS-only and can't share the name `rc` with a formula (bare
+`brew install …/rc` would pick the formula — the broken path), so the old `Formula/rc.rb` was deleted
+from the tap and a `tap_migrations.json` (`{"rc":"rc"}`) added there so existing installs migrate
+formula→cask on `brew upgrade`. Linux/WSL/Windows install via [`scripts/install.sh`](scripts/install.sh)
+and [`scripts/install.ps1`](scripts/install.ps1), which need no Homebrew.
 
 See [`SKILL.md`](SKILL.md) for the architecture and how to add a command.
