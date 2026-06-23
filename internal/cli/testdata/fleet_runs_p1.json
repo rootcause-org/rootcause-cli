@@ -1,0 +1,68 @@
+{
+  "runs": [
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000001",
+      "kind": "analysis",
+      "source": "Prompt API",
+      "status": "error",
+      "outcome": "error",
+      "category": "egress_blocked",
+      "created_at": "2026-06-22T09:00:00Z",
+      "finished_at": "2026-06-22T09:03:20Z",
+      "duration_ms": 200000,
+      "has_draft": false,
+      "has_note": true,
+      "topic": "vendor sync failing",
+      "health": {
+        "turns": 14,
+        "grounding_turns": 2,
+        "bash_total": 9,
+        "bash_err_count": 3,
+        "big_stdout_count": 1,
+        "blocked_egress": 2,
+        "grounding_discarded": true,
+        "no_journal": true,
+        "cost_usd": 0.92,
+        "total_tokens": 180000,
+        "peak_context_tokens": 64000,
+        "model": "anthropic/claude-opus-4"
+      }
+    },
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000002",
+      "kind": "analysis",
+      "source": "Prompt API",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T08:00:00Z",
+      "finished_at": "2026-06-22T08:00:40Z",
+      "duration_ms": 40000,
+      "has_draft": true,
+      "has_note": false,
+      "topic": "ok run",
+      "health": {
+        "turns": 5,
+        "grounding_turns": 1,
+        "bash_total": 3,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false,
+        "cost_usd": 0.05,
+        "total_tokens": 20000,
+        "peak_context_tokens": 12000,
+        "model": "anthropic/claude-sonnet-4"
+      }
+    }
+  ],
+  "summary": {
+    "healthy": false,
+    "counts_by_source": { "Prompt API": { "total": 4, "errors": 1 } },
+    "last_success": null,
+    "last_error": null,
+    "attention": []
+  },
+  "next_before": "aaaaaaaa-0000-0000-0000-000000000002"
+}

@@ -1,0 +1,31 @@
+{
+  "events": [
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000001",
+      "run_kind": "analysis",
+      "run_created_at": "2026-06-22T09:00:00Z",
+      "seq": 3,
+      "tool": "bash",
+      "args": { "command": "cd /mirrors/app && rg \"orders_2024\" -l" },
+      "stderr": "rg: /mirrors/app: No such file or directory",
+      "exit_code": 2,
+      "status": "error",
+      "duration_ms": 12,
+      "at": "2026-06-22T09:01:00Z"
+    },
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000002",
+      "run_kind": "analysis",
+      "run_created_at": "2026-06-22T08:00:00Z",
+      "seq": 5,
+      "tool": "bash",
+      "args": { "command": "cd /mirrors/app && rg \"orders_2025\" -l" },
+      "stderr": "rg: /mirrors/app: No such file or directory",
+      "exit_code": 2,
+      "status": "error",
+      "duration_ms": 9,
+      "at": "2026-06-22T08:01:00Z"
+    }
+  ],
+  "next_before": "aaaaaaaa-0000-0000-0000-000000000002"
+}

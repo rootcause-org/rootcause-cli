@@ -1,0 +1,13 @@
+{
+  "window_hours": 999,
+  "mirrors": [
+    {
+      "repo": "acme/app",
+      "state": "ok",
+      "consecutive_failures": 0,
+      "last_ok_at": "2026-06-22T09:30:00Z",
+      "hours_since_ok": 0.5
+    }
+  ],
+  "dead_lettered": []
+}

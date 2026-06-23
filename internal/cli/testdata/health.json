@@ -1,0 +1,28 @@
+{
+  "window_hours": 24,
+  "mirrors": [
+    {
+      "repo": "acme/app",
+      "state": "ok",
+      "consecutive_failures": 0,
+      "last_ok_at": "2026-06-22T09:30:00Z",
+      "hours_since_ok": 0.5
+    },
+    {
+      "repo": "acme/private",
+      "state": "access_lost",
+      "consecutive_failures": 9,
+      "last_ok_at": "2026-06-16T09:00:00Z",
+      "last_error": "401 Unauthorized cloning git@github.com:acme/private",
+      "hours_since_ok": 144.5
+    }
+  ],
+  "dead_lettered": [
+    {
+      "run_id": "bbbbbbbb-0000-0000-0000-000000000001",
+      "kind": "email",
+      "error": "DEAD_LETTERED: ReplyPen rejected the callback past retry cutoff",
+      "finished_at": "2026-06-22T03:00:00Z"
+    }
+  ]
+}

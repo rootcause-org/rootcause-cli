@@ -7,18 +7,43 @@ package client
 import "encoding/json"
 
 // RunSummary is one row of GET /api/v1/runs. FinishedAt/DurationMs are absent on an unfinished run.
+// Topic/DeclinedReason and the Health block are operator-tier extras the server attaches for a
+// developer/admin bearer — `rc fleet` reads them for the digest's flags + cost. They're absent (zero/nil)
+// for a baseline bearer, so the digest degrades to the safe columns rather than erroring.
 type RunSummary struct {
-	RunID      string `json:"run_id"`
-	Kind       string `json:"kind"`
-	Source     string `json:"source"`
-	Status     string `json:"status"`
-	Outcome    string `json:"outcome"`
-	Category   string `json:"category"`
-	CreatedAt  string `json:"created_at"`
-	FinishedAt string `json:"finished_at,omitempty"`
-	DurationMs int64  `json:"duration_ms,omitempty"`
-	HasDraft   bool   `json:"has_draft"`
-	HasNote    bool   `json:"has_note"`
+	RunID          string     `json:"run_id"`
+	Kind           string     `json:"kind"`
+	Source         string     `json:"source"`
+	Status         string     `json:"status"`
+	Outcome        string     `json:"outcome"`
+	Category       string     `json:"category"`
+	CreatedAt      string     `json:"created_at"`
+	FinishedAt     string     `json:"finished_at,omitempty"`
+	DurationMs     int64      `json:"duration_ms,omitempty"`
+	HasDraft       bool       `json:"has_draft"`
+	HasNote        bool       `json:"has_note"`
+	DeclinedReason string     `json:"declined_reason,omitempty"`
+	Topic          string     `json:"topic,omitempty"`
+	Health         *RunHealth `json:"health,omitempty"`
+}
+
+// RunHealth is the per-run triage block on a run index row (run_health view). The COUNT/flag fields are
+// safe for any bearer; the spend fields (CostUSD/TotalTokens/PeakContextTokens) + Model are operator-tier
+// pointers — nil for a baseline bearer, so the digest's cost/$!/CTX columns simply blank out. Mirrors the
+// server's runIndexHealth field-for-field.
+type RunHealth struct {
+	Turns              int64    `json:"turns"`
+	GroundingTurns     int64    `json:"grounding_turns"`
+	BashTotal          int64    `json:"bash_total"`
+	BashErrCount       int64    `json:"bash_err_count"`
+	BigStdoutCount     int64    `json:"big_stdout_count"`
+	BlockedEgress      int64    `json:"blocked_egress"`
+	GroundingDiscarded bool     `json:"grounding_discarded"`
+	NoJournal          bool     `json:"no_journal"`
+	CostUSD            *float64 `json:"cost_usd,omitempty"`
+	TotalTokens        *int64   `json:"total_tokens,omitempty"`
+	PeakContextTokens  *int64   `json:"peak_context_tokens,omitempty"`
+	Model              string   `json:"model,omitempty"`
 }
 
 // SourceCount is the per-source tally inside the health summary.
@@ -254,6 +279,82 @@ type BrainDiff struct {
 	Files         []BrainDiffFile `json:"files,omitempty"`
 	Diff          string          `json:"diff,omitempty"`
 	DiffTruncated bool            `json:"diff_truncated,omitempty"`
+}
+
+// --- observability feeds (rc fleet / patterns / health) ---
+
+// RunEvent is one raw run_events row from GET /api/v1/runs/events — the bulk feed `rc patterns`
+// clusters locally (bash-failure themes, recurring error signatures). Args is raw JSON (the bash
+// command lives at args.command). RunKind/RunCreatedAt are the parent run's, carried for the keyset
+// page + per-kind grouping. Field names match the server verbatim.
+type RunEvent struct {
+	RunID        string          `json:"run_id"`
+	RunKind      string          `json:"run_kind"`
+	RunCreatedAt string          `json:"run_created_at"`
+	Seq          int32           `json:"seq"`
+	Tool         string          `json:"tool"`
+	Args         json.RawMessage `json:"args,omitempty"`
+	Stdout       string          `json:"stdout,omitempty"`
+	Stderr       string          `json:"stderr,omitempty"`
+	ExitCode     int32           `json:"exit_code"`
+	Status       string          `json:"status"`
+	DurationMs   int64           `json:"duration_ms"`
+	At           string          `json:"at"`
+	Reasoning    string          `json:"reasoning,omitempty"`
+}
+
+// RunEventsResponse is one page of GET /api/v1/runs/events. NextBefore is the cursor to the next
+// (older) page; empty on the last page.
+type RunEventsResponse struct {
+	Events     []RunEvent `json:"events"`
+	NextBefore string     `json:"next_before,omitempty"`
+}
+
+// EgressRow is one raw egress_log row from GET /api/v1/runs/egress — the bulk feed `rc patterns`
+// clusters into blocked-host signatures. Decision is "block" for a blocked attempt.
+type EgressRow struct {
+	RunID        string `json:"run_id"`
+	RunKind      string `json:"run_kind"`
+	RunCreatedAt string `json:"run_created_at"`
+	Host         string `json:"host"`
+	Port         int32  `json:"port"`
+	Scheme       string `json:"scheme"`
+	URL          string `json:"url"`
+	BytesOut     int64  `json:"bytes_out"`
+	Decision     string `json:"decision"`
+	At           string `json:"at"`
+}
+
+// EgressResponse is one page of GET /api/v1/runs/egress.
+type EgressResponse struct {
+	Egress     []EgressRow `json:"egress"`
+	NextBefore string      `json:"next_before,omitempty"`
+}
+
+// HealthMirror is one raw mirror_health row from GET /api/v1/health — the input `rc health` applies its
+// staleness/state rule to. HoursSinceOK is nil when the mirror never succeeded (the CLI renders "never").
+type HealthMirror struct {
+	Repo                string   `json:"repo"`
+	State               string   `json:"state"`
+	ConsecutiveFailures int32    `json:"consecutive_failures"`
+	LastOkAt            string   `json:"last_ok_at,omitempty"`
+	LastError           string   `json:"last_error,omitempty"`
+	HoursSinceOK        *float64 `json:"hours_since_ok"`
+}
+
+// HealthDeadLetter is one terminally dead-lettered run from GET /api/v1/health.
+type HealthDeadLetter struct {
+	RunID      string `json:"run_id"`
+	Kind       string `json:"kind"`
+	Error      string `json:"error"`
+	FinishedAt string `json:"finished_at,omitempty"`
+}
+
+// HealthResponse is GET /api/v1/health — the RAW health inputs; the CLI decides healthy/unhealthy.
+type HealthResponse struct {
+	WindowHours  int                `json:"window_hours"`
+	Mirrors      []HealthMirror     `json:"mirrors"`
+	DeadLettered []HealthDeadLetter `json:"dead_lettered"`
 }
 
 // EnvResponse is GET /api/v1/env — the resolved grounding env. Keys holds live secret VALUES (the

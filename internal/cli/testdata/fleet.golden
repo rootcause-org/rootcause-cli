@@ -1,0 +1,29 @@
+Fleet digest — last 7 days · fleet · 4 runs
+
+Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=failing bash · BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn
+
+RUN8      KIND      STATUS  DURATION  COST     CTX  FLAGS
+aaaaaaaa  analysis  error   3m20s     $0.9200  64k  GD J0 ERR×3 BIG×1 $! EGR×2 CTX·64k
+aaaaaaaa  analysis  done    40.0s     $0.0500  12k  
+aaaaaaaa  analysis  done    30.0s     $0.0400  9k   
+aaaaaaaa  analysis  done    25.0s     $0.0300  8k   
+
+Aggregate:
+  runs: 4 — done 3 · error 1
+  grounding discarded: 1/4 (25%)
+  journal coverage (analyses): 3/4 (75%)
+  cost: total $1.0400 · median $0.0450
+  peak context: median 10k · max 64k · ≥50k: 1/4 (context-rot risk)
+  blocked-egress: 1 run(s) with blocked attempts
+
+Worst offenders (full ids — `rc run <id> --debug`):
+  Top cost:
+    aaaaaaaa-0000-0000-0000-000000000001 $0.9200 (analysis, error)
+    aaaaaaaa-0000-0000-0000-000000000002 $0.0500 (analysis, done)
+    aaaaaaaa-0000-0000-0000-000000000003 $0.0400 (analysis, done)
+  Top bash failures:
+    aaaaaaaa-0000-0000-0000-000000000001 ERR×3 (analysis, error)
+  Top context (rot risk):
+    aaaaaaaa-0000-0000-0000-000000000001 ctx 64k (analysis, error)
+  Blocked egress:
+    aaaaaaaa-0000-0000-0000-000000000001 EGR×2 (analysis, error)

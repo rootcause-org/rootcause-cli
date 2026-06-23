@@ -28,8 +28,47 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		// `rc fleet` pages this: with a cursor set, return the operator-tier (health-bearing) page that
+		// ENDS the window (no next_before) so the paging loop terminates. Without a cursor it's the
+		// existing single-page fixture (status/runs view).
+		if r.URL.Query().Get("before") != "" {
+			_, _ = w.Write(fixture(t, "fleet_runs_p2.json"))
+			return
+		}
+		if r.URL.Query().Get("kind") == "fleet" { // `rc fleet` test path: drive the operator-tier digest fixtures
+			_, _ = w.Write(fixture(t, "fleet_runs_p1.json"))
+			return
+		}
 		_, _ = w.Write(fixture(t, "runs.json"))
 	})
+
+	// Observability feeds (rc fleet / patterns / health). The events feed is paged: page 1 carries a
+	// next_before, page 2 (before set) is the last page — exercising the CLI's paging loop + accumulation.
+	mux.HandleFunc("GET /api/v1/runs/events", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("before") == "" {
+			_, _ = w.Write(fixture(t, "events_feed_p1.json"))
+			return
+		}
+		_, _ = w.Write(fixture(t, "events_feed_p2.json"))
+	})
+	mux.HandleFunc("GET /api/v1/runs/egress", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "egress_feed.json"))
+	})
+	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		// hours=999 simulates a clean (healthy) fleet; the default returns the unhealthy fixture.
+		if r.URL.Query().Get("hours") == "999" {
+			_, _ = w.Write(fixture(t, "health_clean.json"))
+			return
+		}
+		_, _ = w.Write(fixture(t, "health.json"))
+	})
+
 	mux.HandleFunc("GET /api/v1/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		if r.PathValue("id") == "bad" {

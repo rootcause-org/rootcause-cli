@@ -1,0 +1,9 @@
+Mirrors — 1/2 healthy
+  ! acme/private: state=access_lost fails=9 last_ok=144.5h ago — 401 Unauthorized cloning git@github.com:acme/private
+
+Dead-lettered runs (last 24h) — 1 total
+  ! email bbbbbbbb — DEAD_LETTERED: ReplyPen rejected the callback past retry cutoff
+
+note: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.
+
+UNHEALTHY

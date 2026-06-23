@@ -1,0 +1,67 @@
+{
+  "runs": [
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000003",
+      "kind": "analysis",
+      "source": "Prompt API",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T07:00:00Z",
+      "finished_at": "2026-06-22T07:00:30Z",
+      "duration_ms": 30000,
+      "has_draft": true,
+      "has_note": false,
+      "topic": "cheap run a",
+      "health": {
+        "turns": 4,
+        "grounding_turns": 1,
+        "bash_total": 2,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false,
+        "cost_usd": 0.04,
+        "total_tokens": 15000,
+        "peak_context_tokens": 9000,
+        "model": "anthropic/claude-sonnet-4"
+      }
+    },
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000004",
+      "kind": "analysis",
+      "source": "Prompt API",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T06:00:00Z",
+      "finished_at": "2026-06-22T06:00:25Z",
+      "duration_ms": 25000,
+      "has_draft": true,
+      "has_note": false,
+      "topic": "cheap run b",
+      "health": {
+        "turns": 3,
+        "grounding_turns": 1,
+        "bash_total": 2,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false,
+        "cost_usd": 0.03,
+        "total_tokens": 12000,
+        "peak_context_tokens": 8000,
+        "model": "anthropic/claude-sonnet-4"
+      }
+    }
+  ],
+  "summary": {
+    "healthy": true,
+    "counts_by_source": { "Prompt API": { "total": 4, "errors": 0 } },
+    "last_success": null,
+    "last_error": null,
+    "attention": []
+  }
+}

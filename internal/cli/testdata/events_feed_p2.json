@@ -1,0 +1,30 @@
+{
+  "events": [
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000003",
+      "run_kind": "analysis",
+      "run_created_at": "2026-06-22T07:00:00Z",
+      "seq": 2,
+      "tool": "bash",
+      "args": { "command": "psql -c 'SELECT * FROM orders'" },
+      "stderr": "psql: error: connection to server failed",
+      "exit_code": 1,
+      "status": "error",
+      "duration_ms": 30,
+      "at": "2026-06-22T07:01:00Z"
+    },
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000003",
+      "run_kind": "analysis",
+      "run_created_at": "2026-06-22T07:00:00Z",
+      "seq": 4,
+      "tool": "bash",
+      "args": { "command": "ls /brain" },
+      "stderr": "",
+      "exit_code": 0,
+      "status": "ok",
+      "duration_ms": 5,
+      "at": "2026-06-22T07:02:00Z"
+    }
+  ]
+}

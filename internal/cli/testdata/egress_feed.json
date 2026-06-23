@@ -1,0 +1,28 @@
+{
+  "egress": [
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000001",
+      "run_kind": "analysis",
+      "run_created_at": "2026-06-22T09:00:00Z",
+      "host": "api.blocked-vendor.test",
+      "port": 443,
+      "scheme": "https",
+      "url": "https://api.blocked-vendor.test/v1/sync",
+      "bytes_out": 120,
+      "decision": "block",
+      "at": "2026-06-22T09:01:30Z"
+    },
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000002",
+      "run_kind": "analysis",
+      "run_created_at": "2026-06-22T08:00:00Z",
+      "host": "api.blocked-vendor.test",
+      "port": 443,
+      "scheme": "https",
+      "url": "https://api.blocked-vendor.test/v1/sync",
+      "bytes_out": 80,
+      "decision": "block",
+      "at": "2026-06-22T08:01:30Z"
+    }
+  ]
+}

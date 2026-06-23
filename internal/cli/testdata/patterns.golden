@@ -1,0 +1,27 @@
+# Run patterns — last 14 days
+
+3 failing bash events · 2 blocked egress rows · 4 events scanned
+Rank by: cross-run reach · frequency. Every pattern ends in a suggested-fix stub.
+
+## Bash failure clusters
+
+### B1. bash: search files · exit 2 — 2× across 2 run(s)
+- sig: `rg: /mirrors/app: No such file or directory`
+- cmd: `rg "orders_2024" -l`
+- examples: `aaaaaaaa-0000-0000-0000-000000000001[3]` · `aaaaaaaa-0000-0000-0000-000000000002[5]`
+    rg: /mirrors/app: No such file or directory
+- suggested fix:
+
+### B2. bash: db query · exit 1 — 1× across 1 run(s)
+- sig: `psql: error: connection to server failed`
+- cmd: `psql -c 'SELECT * FROM orders`
+- examples: `aaaaaaaa-0000-0000-0000-000000000003[2]`
+    psql: error: connection to server failed
+- suggested fix:
+
+## Blocked egress
+
+### E1. egress: `api.blocked-vendor.test` — blocked 2× across 2 run(s)
+- example runs: `aaaaaaaa-0000-0000-0000-000000000001` · `aaaaaaaa-0000-0000-0000-000000000002`
+- suggested fix:
+
