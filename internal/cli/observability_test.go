@@ -3,8 +3,80 @@ package cli
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
+
+// TestProjectScopeRidesAsQueryParam pins the core of the --project rework: the flag is a SERVER-SIDE
+// scope, threaded onto each read request as ?project=<id-or-name> with the SAME (default) token — not a
+// profile/token selector. It drives `rc fleet/runs/status/health/thread --project momentum-tools`
+// against a stub that records the project query param per endpoint.
+func TestProjectScopeRidesAsQueryParam(t *testing.T) {
+	got := map[string]string{} // endpoint label → observed ?project=
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		got["runs"] = r.URL.Query().Get("project")
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
+		got["health"] = r.URL.Query().Get("project")
+		_, _ = w.Write([]byte(`{"rows":[]}`))
+	})
+	mux.HandleFunc("GET /api/v1/threads/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
+		got["thread"] = r.URL.Query().Get("project")
+		_, _ = w.Write([]byte(`{"id":"t1","resolved_by":"none","runs":[],"replypen":null}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	const scope = "momentum-tools"
+	cases := []struct {
+		label string
+		args  []string
+	}{
+		{"runs", []string{"fleet", "--project", scope}},
+		{"runs", []string{"runs", "--project", scope}},
+		{"runs", []string{"status", "--project", scope}},
+		{"health", []string{"health", "--project", scope}},
+		{"thread", []string{"thread", "t1", "--project", scope}},
+	}
+	for _, tc := range cases {
+		e, _, _ := newTestEnv(t, srv, "json")
+		if err := run(t, e, tc.args...); err != nil {
+			t.Fatalf("%v: %v", tc.args, err)
+		}
+		if got[tc.label] != scope {
+			t.Errorf("%v: server saw project=%q, want %q", tc.args, got[tc.label], scope)
+		}
+	}
+}
+
+// TestNoProjectScopeOmitsQueryParam: without --project the read request carries no project param (a
+// pinned token reads its own project; the server would disregard the param anyway).
+func TestNoProjectScopeOmitsQueryParam(t *testing.T) {
+	var sawProject string
+	hit := false
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		hit = true
+		sawProject = r.URL.Query().Get("project")
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet"); err != nil {
+		t.Fatalf("fleet: %v", err)
+	}
+	if !hit {
+		t.Fatal("fleet never hit /api/v1/runs")
+	}
+	if sawProject != "" {
+		t.Errorf("no --project, but server saw project=%q", sawProject)
+	}
+}
 
 // decodeJSON unmarshals body into v, failing the test on a decode error.
 func decodeJSON(t *testing.T, body []byte, v any) {
@@ -29,6 +101,30 @@ func TestFleetTable(t *testing.T) {
 		t.Fatalf("fleet: %v", err)
 	}
 	assertGolden(t, "fleet.golden", out.String())
+}
+
+// TestFleetByModel pins the model×cost×fallback breakdown — per answered model: runs, total/avg cost,
+// and the fallback count (the opus run is a fallback from sonnet in the fixtures). It's the highest-value
+// view: which model burned the spend, and how much was a fallback.
+func TestFleetByModel(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "--kind", "fleet", "--by-model"); err != nil {
+		t.Fatalf("fleet --by-model: %v", err)
+	}
+	assertGolden(t, "fleet_by_model.golden", out.String())
+}
+
+// TestFleetTimeline pins the per-day runs/errors/cost histogram (the "what changed today" anchor).
+func TestFleetTimeline(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "--kind", "fleet", "--timeline"); err != nil {
+		t.Fatalf("fleet --timeline: %v", err)
+	}
+	assertGolden(t, "fleet_timeline.golden", out.String())
 }
 
 // TestFleetAgentTable pins the token-lean agent index (full ids + ranked "look here first" + all runs).

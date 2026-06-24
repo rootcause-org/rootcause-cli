@@ -16,6 +16,11 @@ Aggregate:
   peak context: median 10k · max 64k · ≥50k: 1/4 (context-rot risk)
   blocked-egress: 1 run(s) with blocked attempts
 
+By model (cost · fallbacks):
+  MODEL                      RUNS  COST     AVG      FALLBACK
+  anthropic/claude-opus-4    1     $0.9200  $0.9200  1 (100%)
+  anthropic/claude-sonnet-4  3     $0.1200  $0.0400  -
+
 Worst offenders (full ids — `rc run <id> --debug`):
   Top cost:
     aaaaaaaa-0000-0000-0000-000000000001 $0.9200 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB

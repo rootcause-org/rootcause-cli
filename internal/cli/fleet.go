@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -19,12 +20,17 @@ func newFleetCmd(e *env) *cobra.Command {
 	var kind string
 	var format string
 	var ctxWarn int
+	var all bool
+	var byModel bool
+	var timeline bool
 	cmd := &cobra.Command{
 		Use:   "fleet",
 		Short: "Fleet digest of recent runs (flags, rates, worst offenders)",
 		Long: "Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + " +
 			"cost, the aggregate rates, and the worst-offender shortlists. --format agent gives a token-lean " +
-			"index for an agent to triage. -o json is a raw passthrough of the paged run rows.",
+			"index for an agent to triage. --all fans out across every project (all-projects token), grouped " +
+			"per project with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by " +
+			"project under --all).",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if format != "" && format != "human" && format != "agent" {
@@ -34,9 +40,16 @@ func newFleetCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			opt := render.FleetOptions{Days: days, Kind: kind, Format: format, CtxWarn: ctxWarn, ByModel: byModel, Timeline: timeline}
+
+			if all {
+				return runFleetAll(e, c, kind, opt)
+			}
+
 			// The run index has no days filter (it's keyset-paged), so --days is a header label here — the
-			// digest window is the recent runs the index returns. kind IS a server-side filter.
-			p := client.RunsParams{Kind: kind}
+			// digest window is the recent runs the index returns. kind IS a server-side filter; --project
+			// scopes an all-projects token to one project (disregarded for a pinned token).
+			p := client.RunsParams{Kind: kind, Project: e.scopeProject()}
 
 			runs, capped, err := c.AllRuns(e.ctx(), p)
 			if err != nil {
@@ -49,9 +62,7 @@ func newFleetCmd(e *env) *cobra.Command {
 			if e.jsonOut() {
 				return emitRunsJSON(e, runs)
 			}
-			render.Fleet(e.out, runs, render.FleetOptions{
-				Days: days, Kind: kind, Format: format, CtxWarn: ctxWarn,
-			})
+			render.Fleet(e.out, runs, opt)
 			return nil
 		},
 	}
@@ -59,7 +70,64 @@ func newFleetCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
 	cmd.Flags().StringVar(&format, "format", "human", "output style: human|agent")
 	cmd.Flags().IntVar(&ctxWarn, "ctx-warn", render.DefaultCtxWarn, "peak-context tokens at/above which a run gets the CTX flag (0 disables)")
+	cmd.Flags().BoolVar(&all, "all", false, "fan out across every project (requires an all-projects token)")
+	cmd.Flags().BoolVar(&byModel, "by-model", false, "add the model×cost×fallback breakdown (which model burned the spend, how much was a fallback)")
+	cmd.Flags().BoolVar(&timeline, "timeline", false, "add the per-day runs/errors/cost timeline")
 	return cmd
+}
+
+// runFleetAll fans the digest out across the whole fleet: list projects, page each one's runs with an
+// explicit ?project= scope, then render grouped-by-project with a fleet total. In -o json it emits the
+// merged structure {projects:[{project, runs:[…]}], total_runs}. A per-project fetch error aborts (the
+// digest is only honest if it's complete).
+func runFleetAll(e *env, c *client.Client, kind string, opt render.FleetOptions) error {
+	projects, err := fanOutProjects(e, c)
+	if err != nil {
+		return err
+	}
+
+	groups := make([]render.FleetGroup, 0, len(projects))
+	for _, proj := range projects {
+		runs, capped, ferr := c.AllRuns(e.ctx(), client.RunsParams{Kind: kind, Project: proj.ID})
+		if ferr != nil {
+			return fmt.Errorf("fleet --all: project %s: %w", proj.Name, ferr)
+		}
+		if capped {
+			warnCapped(e, "fleet --all: hit the page cap for "+proj.Name+" — older runs omitted; narrow --kind")
+		}
+		groups = append(groups, render.FleetGroup{Project: proj.Name, Runs: runs})
+	}
+
+	if e.jsonOut() {
+		return emitFleetAllJSON(e, groups)
+	}
+	render.FleetAll(e.out, groups, opt)
+	return nil
+}
+
+// emitFleetAllJSON emits the merged fan-out structure: one entry per project carrying its raw run rows,
+// plus a fleet total. The rows are the verbatim wire structs (no client digest), reassembled across
+// pages and grouped by project — the passthrough contract extended to the fan-out shape.
+func emitFleetAllJSON(e *env, groups []render.FleetGroup) error {
+	type projEntry struct {
+		Project string              `json:"project"`
+		Runs    []client.RunSummary `json:"runs"`
+	}
+	entries := make([]projEntry, 0, len(groups))
+	total := 0
+	for _, g := range groups {
+		runs := g.Runs
+		if runs == nil {
+			runs = []client.RunSummary{}
+		}
+		entries = append(entries, projEntry{Project: g.Project, Runs: runs})
+		total += len(runs)
+	}
+	b, err := json.Marshal(map[string]any{"projects": entries, "total_runs": total})
+	if err != nil {
+		return err
+	}
+	return render.JSON(e.out, b)
 }
 
 // emitRunsJSON emits the paged run rows as a single JSON object {runs:[…]} — the raw passthrough contract

@@ -25,7 +25,9 @@
         "cost_usd": 0.92,
         "total_tokens": 180000,
         "peak_context_tokens": 64000,
-        "model": "anthropic/claude-opus-4"
+        "model": "anthropic/claude-opus-4",
+        "is_fallback": true,
+        "planned_model": "anthropic/claude-sonnet-4"
       }
     },
     {

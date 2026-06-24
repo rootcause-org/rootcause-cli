@@ -32,18 +32,26 @@ type RunSummary struct {
 // pointers — nil for a baseline bearer, so the digest's cost/$!/CTX columns simply blank out. Mirrors the
 // server's runIndexHealth field-for-field.
 type RunHealth struct {
-	Turns              int64    `json:"turns"`
-	GroundingTurns     int64    `json:"grounding_turns"`
-	BashTotal          int64    `json:"bash_total"`
-	BashErrCount       int64    `json:"bash_err_count"`
-	BigStdoutCount     int64    `json:"big_stdout_count"`
-	BlockedEgress      int64    `json:"blocked_egress"`
-	GroundingDiscarded bool     `json:"grounding_discarded"`
-	NoJournal          bool     `json:"no_journal"`
-	CostUSD            *float64 `json:"cost_usd,omitempty"`
-	TotalTokens        *int64   `json:"total_tokens,omitempty"`
-	PeakContextTokens  *int64   `json:"peak_context_tokens,omitempty"`
-	Model              string   `json:"model,omitempty"`
+	Turns              int64 `json:"turns"`
+	GroundingTurns     int64 `json:"grounding_turns"`
+	BashTotal          int64 `json:"bash_total"`
+	BashErrCount       int64 `json:"bash_err_count"`
+	BigStdoutCount     int64 `json:"big_stdout_count"`
+	BlockedEgress      int64 `json:"blocked_egress"`
+	GroundingDiscarded bool  `json:"grounding_discarded"`
+	NoJournal          bool  `json:"no_journal"`
+	// IsFallback is the CLEAN model-fallback signal (run_health.is_fallback): the loop swapped the
+	// planned model for a different one that answered. SAFE (a boolean) so it rides for any bearer —
+	// it drives the digest's fallback flag (FB) + the model×cost×fallback breakdown. The empty-string-
+	// vs-NULL trap on runs.model_fallback_from is baked into the view, so the CLI never recomputes it.
+	IsFallback        bool     `json:"is_fallback"`
+	CostUSD           *float64 `json:"cost_usd,omitempty"`
+	TotalTokens       *int64   `json:"total_tokens,omitempty"`
+	PeakContextTokens *int64   `json:"peak_context_tokens,omitempty"`
+	Model             string   `json:"model,omitempty"`
+	// PlannedModel is the model the loop planned but that failed (run_health.model_fallback_from), set
+	// only when IsFallback. Operator-tier like Model — omitted for a baseline bearer.
+	PlannedModel string `json:"planned_model,omitempty"`
 }
 
 // SourceCount is the per-source tally inside the health summary.
@@ -291,6 +299,20 @@ type ThreadTrace struct {
 	ResolvedBy string          `json:"resolved_by"`
 	Runs       []RunSummary    `json:"runs"`
 	ReplyPen   json.RawMessage `json:"replypen"` // reserved; null until the ReplyPen-side stitch lands
+}
+
+// Project is one row of GET /api/v1/projects — a fleet handle (id + name). It's what `rc projects`
+// renders and the seed the `--all` fan-out lists before hitting each project's read surface with
+// ?project=<id>. Mirrors the server's projectItem field-for-field.
+type Project struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// ProjectsResponse is GET /api/v1/projects — the projects the bearer may see (every one for an
+// all-projects admin token; just its own for a project-pinned token).
+type ProjectsResponse struct {
+	Projects []Project `json:"projects"`
 }
 
 // --- observability feeds (rc fleet / patterns / health) ---
