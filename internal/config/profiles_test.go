@@ -44,7 +44,7 @@ func TestLoad_NoBrain_DefaultProfile(t *testing.T) {
 	clearEnv(t)
 	writeConfig(t, "[default]\nbase_url = \"https://default.example\"\n")
 
-	res, err := load("", "", t.TempDir()) // auto mode, cwd has no marker
+	res, err := load("", t.TempDir()) // auto mode, cwd has no marker
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestLoad_NoBrain_NoConfig_BuiltInBase(t *testing.T) {
 	clearEnv(t)
 	writeConfig(t, "") // no config file at all
 
-	res, err := load("", "", t.TempDir())
+	res, err := load("", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestLoad_EnvBaseURLWins(t *testing.T) {
 	writeConfig(t, "[default]\nbase_url = \"https://default.example\"\n")
 	t.Setenv(envBaseURL, "https://env.example")
 
-	res, err := load("", "", t.TempDir())
+	res, err := load("", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestLoad_Brain_ProfileIsProject(t *testing.T) {
 	writeConfig(t, "")
 	dir := brainDirWith(t, "project = \"momentum-tools\"\nbase_url = \"https://rc.example\"\n")
 
-	res, err := load("", "", dir)
+	res, err := load("", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestLoad_Brain_BaseURLPrecedence(t *testing.T) {
 	writeConfig(t, "[profiles.momentum-tools]\nbase_url = \"https://profile.example\"\n")
 	dir := brainDirWith(t, "project = \"momentum-tools\"\n") // marker, no base_url
 
-	res, err := load("", "", dir)
+	res, err := load("", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestLoad_Brain_BaseURLPrecedence(t *testing.T) {
 
 	// Env still wins over everything.
 	t.Setenv(envBaseURL, "https://env.example")
-	res2, _ := load("", "", dir)
+	res2, _ := load("", dir)
 	if res2.BaseURL != "https://env.example" {
 		t.Errorf("env base must win, got %q", res2.BaseURL)
 	}
@@ -136,7 +136,7 @@ func TestLoad_ExplicitProfileBypassesBrain(t *testing.T) {
 	writeConfig(t, "[profiles.staging]\nbase_url = \"https://staging.example\"\n")
 	dir := brainDirWith(t, "project = \"momentum-tools\"\n")
 
-	res, err := load("staging", "", dir) // explicit --profile overrides the brain binding
+	res, err := load("staging", dir) // explicit --profile overrides the brain binding
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,23 +151,25 @@ func TestLoad_ExplicitProfileBypassesBrain(t *testing.T) {
 	}
 }
 
-func TestLoad_ExplicitProjectSelectsProfile(t *testing.T) {
+// --project is NO LONGER a profile/token selector — it's a server-side scope the command layer threads
+// into each read request. So config resolution ignores it entirely: inside a brain, the profile + base
+// URL still come from the brain marker regardless of any --project the user passed. (The scope itself is
+// carried on env.project and asserted in the cli package, not here.)
+func TestLoad_ProjectFlagIsNotAProfile(t *testing.T) {
 	clearEnv(t)
 	writeConfig(t, "[profiles.acme]\nbase_url = \"https://acme.example\"\n")
-	dir := brainDirWith(t, "project = \"momentum-tools\"\n") // a brain we deliberately override
+	dir := brainDirWith(t, "project = \"momentum-tools\"\nbase_url = \"https://rc.example\"\n")
 
-	res, err := load("", "acme", dir) // --project overrides the brain binding
+	// load takes only the profile name; --project never reaches it. The brain binding stands.
+	res, err := load("", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Profile != "acme" || res.Project != "acme" {
-		t.Errorf("profile/project = %q/%q, want acme", res.Profile, res.Project)
+	if res.Profile != "momentum-tools" || res.Project != "momentum-tools" {
+		t.Errorf("profile/project = %q/%q, want momentum-tools (brain binding, not a --project profile)", res.Profile, res.Project)
 	}
-	if res.Brain != nil {
-		t.Errorf("--project must not carry a brain binding: %+v", res.Brain)
-	}
-	if res.BaseURL != "https://acme.example" {
-		t.Errorf("base=%q, want acme profile base", res.BaseURL)
+	if res.BaseURL != "https://rc.example" {
+		t.Errorf("base=%q, want the brain marker's base — a stray --project must not select acme's profile", res.BaseURL)
 	}
 }
 
@@ -176,7 +178,7 @@ func TestLoad_TenantBrain(t *testing.T) {
 	writeConfig(t, "")
 	dir := brainDirWith(t, "project = \"dentai\"\ntenant = \"de-kies\"\nbase_url = \"https://rc.example\"\n")
 
-	res, err := load("", "", dir)
+	res, err := load("", dir)
 	if err != nil {
 		t.Fatal(err)
 	}

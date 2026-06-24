@@ -34,7 +34,7 @@ func newLoginCmd(e *env) *cobra.Command {
 			"all-projects, if you're an admin) on the browser consent screen.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile, e.project)
+			res, err := config.Load(e.profile)
 			if err != nil {
 				return err
 			}
@@ -88,7 +88,7 @@ func newLogoutCmd(e *env) *cobra.Command {
 		Short: "Revoke and clear this profile's stored tokens",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile, e.project)
+			res, err := config.Load(e.profile)
 			if err != nil {
 				return err
 			}
@@ -140,7 +140,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 		Short: "Show the resolved profile/project/tenant + sign-in status (local; no server call)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile, e.project)
+			res, err := config.Load(e.profile)
 			if err != nil {
 				return err
 			}
@@ -170,10 +170,16 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			}
 
 			tenant := e.scopeTenantFromResolved(res)
+			// --project is a server-side SCOPE (not a profile): when set it names the project each read
+			// request targets, overriding the brain's own project for display. Empty → the brain's project.
+			project := res.Project
+			if e.project != "" {
+				project = e.project
+			}
 			if e.jsonOut() {
 				return writeJSON(e, map[string]any{
 					"profile":    res.Profile,
-					"project":    emptyDash(res.Project),
+					"project":    emptyDash(project),
 					"tenant":     tenant,
 					"base_url":   base,
 					"brain_dir":  brainDir(res),
@@ -183,7 +189,10 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			}
 
 			fmt.Fprintf(e.out, "profile:   %s\n", res.Profile)
-			fmt.Fprintf(e.out, "project:   %s\n", emptyDash(res.Project))
+			fmt.Fprintf(e.out, "project:   %s\n", emptyDash(project))
+			if e.project != "" {
+				fmt.Fprintf(e.out, "           (--project scope; needs an all-projects token)\n")
+			}
 			if tenant != "" {
 				fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
 			}

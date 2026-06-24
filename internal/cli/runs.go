@@ -33,7 +33,7 @@ func newRunsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Before: f.before}
+			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Before: f.before, Project: e.scopeProject()}
 			if render.IsJSON(e.mode(), e.out) {
 				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs"+queryString(params), nil)
 				if err != nil {
@@ -72,6 +72,9 @@ func queryString(p client.RunsParams) string {
 	}
 	if p.Before != "" {
 		q.Set("before", p.Before)
+	}
+	if p.Project != "" {
+		q.Set("project", p.Project)
 	}
 	if enc := q.Encode(); enc != "" {
 		return "?" + enc

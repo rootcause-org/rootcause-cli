@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -21,33 +22,28 @@ func newPatternsCmd(e *env) *cobra.Command {
 	var days int
 	var top int
 	var kind string
+	var all bool
 	cmd := &cobra.Command{
 		Use:   "patterns",
 		Short: "Cluster recent failures into ranked patterns (bash + blocked egress)",
 		Long: "Page GET /api/v1/runs/events and /runs/egress and cluster them like run_patterns: bash-failure " +
 			"signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix " +
-			"stub. -o json is a raw passthrough of the paged event + egress rows.",
+			"stub. --all fans out across every project (all-projects token), one clustered section per project. " +
+			"-o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			fp := client.FeedParams{Days: days, Kind: kind}
+			if all {
+				return runPatternsAll(e, c, days, top, kind)
+			}
 
-			events, capE, err := c.AllEvents(e.ctx(), fp)
+			fp := client.FeedParams{Days: days, Kind: kind, Project: e.scopeProject()}
+			events, egress, err := fetchPatternsFeeds(e, c, fp, "patterns")
 			if err != nil {
 				return err
-			}
-			if capE {
-				warnCapped(e, "patterns: hit the events page cap — older events omitted; narrow --kind/--days")
-			}
-			egress, capG, err := c.AllEgress(e.ctx(), fp)
-			if err != nil {
-				return err
-			}
-			if capG {
-				warnCapped(e, "patterns: hit the egress page cap — older rows omitted; narrow --kind/--days")
 			}
 
 			if e.jsonOut() {
@@ -60,7 +56,73 @@ func newPatternsCmd(e *env) *cobra.Command {
 	cmd.Flags().IntVar(&days, "days", 14, "window in days")
 	cmd.Flags().IntVar(&top, "top", 15, "max patterns per section")
 	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
+	cmd.Flags().BoolVar(&all, "all", false, "fan out across every project (requires an all-projects token)")
 	return cmd
+}
+
+// fetchPatternsFeeds pages the two raw feeds (events + egress) for one scope, warning (never failing) on
+// a page-cap hit. label namespaces the cap warning so a fan-out names the project.
+func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label string) ([]client.RunEvent, []client.EgressRow, error) {
+	events, capE, err := c.AllEvents(e.ctx(), fp)
+	if err != nil {
+		return nil, nil, err
+	}
+	if capE {
+		warnCapped(e, label+": hit the events page cap — older events omitted; narrow --kind/--days")
+	}
+	egress, capG, err := c.AllEgress(e.ctx(), fp)
+	if err != nil {
+		return nil, nil, err
+	}
+	if capG {
+		warnCapped(e, label+": hit the egress page cap — older rows omitted; narrow --kind/--days")
+	}
+	return events, egress, nil
+}
+
+// runPatternsAll fans the pattern mining out across the fleet: page each project's feeds with an explicit
+// ?project= scope and cluster them under a per-project header (table mode) or merge them into a
+// {project→{events,egress}} object (-o json). A per-project fetch error aborts.
+func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error {
+	projects, err := fanOutProjects(e, c)
+	if err != nil {
+		return err
+	}
+
+	type entry struct {
+		Project string             `json:"project"`
+		Events  []client.RunEvent  `json:"events"`
+		Egress  []client.EgressRow `json:"egress"`
+	}
+	entries := make([]entry, 0, len(projects))
+	for _, proj := range projects {
+		fp := client.FeedParams{Days: days, Kind: kind, Project: proj.ID}
+		events, egress, ferr := fetchPatternsFeeds(e, c, fp, "patterns --all ("+proj.Name+")")
+		if ferr != nil {
+			return fmt.Errorf("patterns --all: project %s: %w", proj.Name, ferr)
+		}
+		if events == nil {
+			events = []client.RunEvent{}
+		}
+		if egress == nil {
+			egress = []client.EgressRow{}
+		}
+		entries = append(entries, entry{Project: proj.Name, Events: events, Egress: egress})
+		if !e.jsonOut() {
+			fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
+			render.Patterns(e.out, events, egress, render.PatternsOptions{Days: days, Top: top, Kind: kind})
+			fmt.Fprintln(e.out)
+		}
+	}
+
+	if e.jsonOut() {
+		b, merr := json.Marshal(map[string]any{"projects": entries})
+		if merr != nil {
+			return merr
+		}
+		return render.JSON(e.out, b)
+	}
+	return nil
 }
 
 // emitPatternsJSON emits the paged raw inputs as one {events:[…],egress:[…]} object — the passthrough

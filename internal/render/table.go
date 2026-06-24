@@ -15,6 +15,21 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
+// Projects renders the fleet handle list (`rc projects`): one row per project (name + id), name-ordered
+// as the server sends them. A pure function of the wire rows so a golden pins it.
+func Projects(w io.Writer, resp *client.ProjectsResponse) {
+	if len(resp.Projects) == 0 {
+		fmt.Fprintln(w, "(no projects)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "NAME\tID")
+	for _, p := range resp.Projects {
+		fmt.Fprintf(tw, "%s\t%s\n", p.Name, p.ID)
+	}
+	tw.Flush()
+}
+
 // Status renders the health summary first (the point of `rc status`) then the recent-runs table.
 func Status(w io.Writer, resp *client.RunsResponse) {
 	writeSummary(w, &resp.Summary)

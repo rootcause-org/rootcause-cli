@@ -42,6 +42,20 @@ func stubServer(t *testing.T) *httptest.Server {
 		_, _ = w.Write(fixture(t, "runs.json"))
 	})
 
+	// Fleet enumeration (rc projects + the --all fan-out seed). A "solo" project drives the --all
+	// scoped-token error; the default returns the two-project fleet.
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		if r.Header.Get("X-Test-Solo") != "" {
+			_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"only-me"}]}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"projects":[` +
+			`{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"},` +
+			`{"id":"bbbbbbbb-0000-0000-0000-000000000002","name":"bravo"}]}`))
+	})
+
 	// Observability feeds (rc fleet / patterns / health). The events feed is paged: page 1 carries a
 	// next_before, page 2 (before set) is the last page — exercising the CLI's paging loop + accumulation.
 	mux.HandleFunc("GET /api/v1/runs/events", func(w http.ResponseWriter, r *http.Request) {

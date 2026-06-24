@@ -41,14 +41,14 @@ func newThreadCmd(e *env) *cobra.Command {
 			if render.IsJSON(e.mode(), e.out) {
 				// Raw passthrough: emit exactly what the server sent (render, don't reshape) so jq sees the
 				// true shape, including the reserved `replypen` field.
-				raw, err := c.Raw(e.ctx(), "GET", client.ThreadTracePath(id), nil)
+				raw, err := c.Raw(e.ctx(), "GET", client.ThreadTracePath(id, e.scopeProject()), nil)
 				if err != nil {
 					return err
 				}
 				return render.JSON(e.out, raw)
 			}
 
-			tr, err := c.ThreadTrace(e.ctx(), id)
+			tr, err := c.ThreadTrace(e.ctx(), id, e.scopeProject())
 			if err != nil {
 				return err
 			}

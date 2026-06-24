@@ -45,12 +45,15 @@ func New(baseURL string, tokens TokenSource) *Client {
 }
 
 // RunsParams are the query filters for GET /api/v1/runs. Zero values are omitted (the server applies
-// its defaults), so `rc status` (no filters) and `rc runs --limit 10` share one path.
+// its defaults), so `rc status` (no filters) and `rc runs --limit 10` share one path. Project is the
+// explicit scope an all-projects admin token names per request (the `--all` fan-out); a pinned token
+// ignores it server-side.
 type RunsParams struct {
 	Limit    int
 	Kind     string
 	Category string
 	Before   string
+	Project  string
 }
 
 // Runs fetches GET /api/v1/runs — the shared endpoint behind both `rc status` and `rc runs`.
@@ -68,12 +71,25 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 	if p.Before != "" {
 		q.Set("before", p.Before)
 	}
+	if p.Project != "" {
+		q.Set("project", p.Project)
+	}
 	path := "/api/v1/runs"
 	if enc := q.Encode(); enc != "" {
 		path += "?" + enc
 	}
 	var out RunsResponse
 	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// Projects fetches GET /api/v1/projects — the fleet handles an all-projects admin token may see. Used by
+// `rc projects` and the seed of every `--all` fan-out.
+func (c *Client) Projects(ctx context.Context) (*ProjectsResponse, error) {
+	var out ProjectsResponse
+	if err := c.do(ctx, http.MethodGet, "/api/v1/projects", nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

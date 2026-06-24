@@ -67,7 +67,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		SilenceErrors: true, // Execute prints the error itself, verbatim
 	}
 	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
-	root.PersistentFlags().StringVar(&e.project, "project", "", "target a project's token + scope (overrides the brain binding)")
+	root.PersistentFlags().StringVar(&e.project, "project", "", "scope the request to one project by name or id (requires an all-projects token)")
 	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "scope the request to a tenant by slug")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
 
@@ -76,6 +76,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newRunsCmd(e),
 		newRunCmd(e),
 		newThreadCmd(e),
+		newProjectsCmd(e),
 		newFleetCmd(e),
 		newPatternsCmd(e),
 		newHealthCmd(e),
@@ -106,11 +107,13 @@ func (e *env) mode() render.Mode {
 	}
 }
 
-// newClient resolves config for the selected profile/project and builds an OAuth-authenticated client.
-// The bearer comes from the token store (refreshed transparently); it errors clearly with a "run `rc
-// login`" prompt when there's no stored token. The base URL and token can be overridden in tests.
+// newClient resolves config for the selected profile and builds an OAuth-authenticated client. The
+// bearer comes from the token store (refreshed transparently); it errors clearly with a "run `rc login`"
+// prompt when there's no stored token. --project is NOT resolved here — it's a server-side scope the
+// commands thread into each read request (see scopeProject). The base URL and token can be overridden in
+// tests.
 func (e *env) newClient() (*client.Client, error) {
-	res, err := config.Load(e.profile, e.project)
+	res, err := config.Load(e.profile)
 	if err != nil {
 		return nil, err
 	}
@@ -171,6 +174,12 @@ func (e *env) tenantOr(flag string) string {
 func (e *env) scopeTenant() string {
 	return e.tenantOr(e.tenant)
 }
+
+// scopeProject is the explicit --project scope (id-or-name) for a read request: it rides as ?project= on
+// the observability endpoints, where an all-projects admin token uses it to scope a single project. Empty
+// for the common case (a pinned token reads its own project; the param is then disregarded server-side).
+// It is NOT a profile/token selector — the token is resolved independently of it.
+func (e *env) scopeProject() string { return e.project }
 
 // tenantSlug is the explicitly-addressed tenant for `rc tenant settings` — the persistent --tenant only
 // (no brain fallback: editing a tenant's record is an explicit act, never inferred from the checkout).

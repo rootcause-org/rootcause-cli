@@ -10,10 +10,13 @@
 // IS the project name, so `rc login` there mints a token under the project's name and every later `rc`
 // auto-targets it.
 //
+// `--project` is NOT a profile selector — it does not pick a token. It is a SERVER-SIDE scope (a
+// uuid-or-name passed as ?project= on the read endpoints), meaningful only for an all-projects admin
+// token; the command layer threads it into the client, not this resolver. (See internal/cli/root.go.)
+//
 // Precedence for the profile name (the token-store key):
 //
 //	explicit --profile <name>   → that profile (an AWS-style override; no brain binding)
-//	explicit --project <name>   → that project's profile (no brain binding)
 //	otherwise, inside a brain:    the brain marker's project
 //	otherwise:                    "default"
 //
@@ -46,8 +49,9 @@ const (
 
 // Resolved is the effective config for one invocation. Profile is the token-store key the command's
 // client authenticates with. BaseURLFromDefault is true when nothing set a base URL and we fell back to
-// DefaultBaseURL. Brain is non-nil when a .rootcause.toml was discovered; Project/Tenant come from it
-// (or from an explicit --project). BaseURL is always non-empty.
+// DefaultBaseURL. Brain is non-nil when a .rootcause.toml was discovered; Project/Tenant come from it.
+// BaseURL is always non-empty. Project here is the BRAIN's project (the checkout's identity), NOT the
+// --project scope override — that's a server-side selector the command layer owns, never a profile.
 type Resolved struct {
 	Profile            string
 	BaseURL            string
@@ -80,18 +84,19 @@ type file struct {
 	Profiles map[string]profile `toml:"profiles"`
 }
 
-// Load resolves config for one invocation. profileName comes from --profile, projectName from
-// --project; both empty means "auto" (bind to the brain in cwd, else [default]).
-func Load(profileName, projectName string) (Resolved, error) {
+// Load resolves config for one invocation. profileName comes from --profile; empty means "auto" (bind
+// to the brain in cwd, else [default]). --project is NOT resolved here — it's a server-side scope the
+// command layer threads into the client, never a token-store key.
+func Load(profileName string) (Resolved, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "" // a missing cwd only disables brain auto-discovery
 	}
-	return load(profileName, projectName, cwd)
+	return load(profileName, cwd)
 }
 
 // load is Load with cwd injected, so the resolution matrix is unit-testable without chdir.
-func load(profileName, projectName, cwd string) (Resolved, error) {
+func load(profileName, cwd string) (Resolved, error) {
 	f, err := loadFile()
 	if err != nil {
 		return Resolved{}, err
@@ -106,15 +111,6 @@ func load(profileName, projectName, cwd string) (Resolved, error) {
 			prof = f.Default
 		}
 		res := Resolved{Profile: profileName}
-		res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(prof.BaseURL)
-		return res, nil
-	}
-
-	// Explicit --project <name>: select that project's profile (and surface it as the Project), without a
-	// brain binding. base_url comes from a matching [profiles.<name>] if present, else env/default.
-	if projectName != "" {
-		prof := f.Profiles[projectName]
-		res := Resolved{Profile: projectName, Project: projectName}
 		res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(prof.BaseURL)
 		return res, nil
 	}

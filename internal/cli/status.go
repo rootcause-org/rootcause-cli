@@ -21,16 +21,18 @@ func newStatusCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// --project scopes an all-projects token to one project (disregarded for a pinned token).
+			params := client.RunsParams{Project: e.scopeProject()}
 			// JSON mode is a verbatim passthrough so `| jq` sees the true response; table mode decodes
 			// into the typed struct for rendering.
 			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs", nil)
+				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs"+queryString(params), nil)
 				if err != nil {
 					return err
 				}
 				return render.JSON(e.out, raw)
 			}
-			resp, err := c.Runs(e.ctx(), client.RunsParams{})
+			resp, err := c.Runs(e.ctx(), params)
 			if err != nil {
 				return err
 			}
