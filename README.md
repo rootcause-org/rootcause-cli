@@ -125,9 +125,25 @@ base_url = "https://staging.your-rootcause-host"
 ```
 
 **Profiles** are the token-store keys. The profile is resolved as: explicit `--profile <name>` >
-explicit `--project <name>` > the brain marker's project > `"default"`. `--profile`/`--project` pick
-*which stored token* a command uses; `--tenant <slug>` scopes a request within the token's project where
-the endpoint accepts it.
+the brain marker's project > `"default"`. `--profile` picks *which stored token* a command uses.
+`--project <id-or-name>` is **not** a token selector — it's a **server-side scope**: it keeps the active
+token and names one project on the read endpoints (`?project=`), so an **all-projects admin token** can
+review a single project (`rc fleet --project momentum-tools`); a project-pinned token disregards it.
+`--tenant <slug>` scopes a request within the token's project where the endpoint accepts it.
+
+For a whole-fleet review with an all-projects token, `rc fleet`/`patterns`/`health` take **`--all`**:
+the CLI lists the fleet (`rc projects`) and fans out per project — `fleet --all` groups the digest by
+project with a fleet total, `health --all` exits non-zero if ANY project is unhealthy, `patterns --all`
+clusters per project. `-o json` emits the merged `{projects:[…]}` shape. `--all` against a project-scoped
+token is a friendly error (it needs an all-projects token), not a silent single-project run.
+
+`rc fleet` also carries the aggregates operators used to drop to raw SQL for: **`--by-model`** (per
+answered model — runs, total/avg cost, and how many were **fallbacks**; the highest-value view, it
+surfaces "one model is N% of spend purely as a fallback") and **`--timeline`** (per-day
+runs/errors/cost). Both off by default to keep the digest scannable; the per-run `is_fallback` /
+`planned_model` always ride in `-o json` so any breakdown is re-derivable. Stuck runs (`running` past
+a 30m clock with no finish) and a `FB` model-fallback flag are surfaced inline; every worst-offender
+line carries the full triage tail (cost · secs · turns · bash_err · ctx · FB).
 
 **`.rootcause.toml`** (committed, per brain) names the project + endpoint — no secret, safe to commit,
 ships the binding with a clone. There is no longer any `.rootcause.secret.toml` — credentials live only
@@ -135,14 +151,16 @@ in the OAuth token store.
 
 ## Commands
 
-Global flags: `--profile <name>` / `--project <name>` pick the stored token; `--tenant <slug>` scopes a
-request to a tenant; `-o json|table` forces output.
+Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>` scopes a read to one
+project server-side (requires an all-projects token); `--tenant <slug>` scopes a request to a tenant;
+`-o json|table` forces output.
 
 | Command | Does |
 |---|---|
 | `rc login [--device]` | OAuth sign-in: PKCE loopback (browser) by default, `--device` for headless/SSH. Stores the token under the resolved profile |
 | `rc logout` | revoke the profile's token server-side and clear it from the local store |
 | `rc whoami` | the resolved profile/project/tenant + sign-in status (local only — no server call) |
+| `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
 | `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). `--session` threads the run onto a multi-turn session (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
