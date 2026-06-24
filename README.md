@@ -127,8 +127,9 @@ base_url = "https://staging.your-rootcause-host"
 **Profiles** are the token-store keys. The profile is resolved as: explicit `--profile <name>` >
 the brain marker's project > `"default"`. `--profile` picks *which stored token* a command uses.
 `--project <id-or-name>` is **not** a token selector — it's a **server-side scope**: it keeps the active
-token and names one project on the read endpoints (`?project=`), so an **all-projects admin token** can
-review a single project (`rc fleet --project momentum-tools`); a project-pinned token disregards it.
+token and names one project on supported endpoints (`?project=`), so an **all-projects admin token** can
+review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask --project
+momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
 `--tenant <slug>` scopes a request within the token's project where the endpoint accepts it.
 
 For a whole-fleet review with an all-projects token, `rc fleet`/`patterns`/`health` take **`--all`**:
@@ -151,9 +152,9 @@ in the OAuth token store.
 
 ## Commands
 
-Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>` scopes a read to one
-project server-side (requires an all-projects token); `--tenant <slug>` scopes a request to a tenant;
-`-o json|table` forces output.
+Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>` scopes supported
+requests to one project server-side (needed for all-projects tokens on per-project reads and `ask`);
+`--tenant <slug>` scopes a request to a tenant; `-o json|table` forces output.
 
 | Command | Does |
 |---|---|
@@ -162,7 +163,7 @@ project server-side (requires an all-projects token); `--tenant <slug>` scopes a
 | `rc whoami` | the resolved profile/project/tenant + sign-in status (local only — no server call) |
 | `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). `--session` threads the run onto a multi-turn session (see below) |
+| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). With an all-projects token, add global `--project <id-or-name>`. `--session` threads the run onto a multi-turn session (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |

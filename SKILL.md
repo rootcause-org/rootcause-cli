@@ -14,9 +14,9 @@ project + principal server-side: a pinned token scopes to one project, an all-pr
 cross-project).
 `--profile` picks *which stored token* to use; the token's project scope is baked in at consent time.
 `--project <id-or-name>` is a different lever — a **server-side scope**, not a token selector: it keeps
-the active token and names one project on the read endpoints (`?project=`), letting an **all-projects
-admin token** review a single project (`rc fleet --project momentum-tools`). A pinned token disregards
-it (it can't widen its own scope). The bet: a dev pulls this in to slice their data the way
+the active token and names one project on supported endpoints (`?project=`), letting an **all-projects
+admin token** review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask
+--project momentum-tools "…"`). A pinned token disregards it (it can't widen its own scope). The bet: a dev pulls this in to slice their data the way
 they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an action/skill, runs
 `rc runs` → `rc run <id> --events` to **verify against real runs** — the author→verify loop taught in
 [rootcause-brain-skills/docs/rc-cli.md](../rootcause-brain-skills/docs/rc-cli.md).
@@ -113,9 +113,9 @@ it's a server-side scope the command layer threads onto each read request, never
   project's token; with no token it's a hard error naming the project — never a silent fallback);
 - **outside any brain** → `"default"`.
 
-`--project <id-or-name>` rides as `?project=` on the observability endpoints (run index, feeds, health,
-thread-trace); an all-projects admin token uses it to scope one project, a pinned token disregards it
-server-side. See `env.scopeProject` in `internal/cli/root.go`.
+`--project <id-or-name>` rides as `?project=` on supported per-project endpoints (run index, feeds,
+health, thread-trace, and prompt submit); an all-projects admin token uses it to scope one project, a
+pinned token disregards it server-side. See `env.scopeProject` in `internal/cli/root.go`.
 
 **Fleet-wide `--all`** (`rc fleet`/`patterns`/`health`) is the FAT-CLIENT fan-out that complements
 `--project`: it lists the fleet via `rc projects`, then calls the per-project read endpoint once per
