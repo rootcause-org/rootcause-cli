@@ -99,6 +99,31 @@ func TestAskBrainRefForwarded(t *testing.T) {
 	}
 }
 
+// TestAskProjectForwarded asserts global --project rides as ?project= on the submit request, not in
+// the JSON body. That lets an all-projects token trigger a selected project's prompt run.
+func TestAskProjectForwarded(t *testing.T) {
+	var gotProject, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProject = r.URL.Query().Get("project")
+		buf := new(bytes.Buffer)
+		_, _ = buf.ReadFrom(r.Body)
+		gotBody = buf.String()
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "dentai", "ask", "q", "--no-wait"); err != nil {
+		t.Fatalf("ask --project: %v", err)
+	}
+	if gotProject != "dentai" {
+		t.Errorf("project query = %q, want dentai", gotProject)
+	}
+	if strings.Contains(gotBody, "project") {
+		t.Errorf("project should not be sent in JSON body; body=%s", gotBody)
+	}
+}
+
 // TestAskBadBrainRef: a 400 BAD_BRAIN_REF is surfaced verbatim with the push-the-ref hint.
 func TestAskBadBrainRef(t *testing.T) {
 	srv := stubServer(t)

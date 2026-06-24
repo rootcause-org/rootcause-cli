@@ -16,9 +16,9 @@ import (
 )
 
 // Client is an OAuth-bearer handle to the API. The access token resolves the caller's project +
-// principal server-side (a pinned token scopes to one project; an all-projects admin token reads
-// cross-project), so there is no project parameter anywhere. The token comes from a TokenSource that
-// refreshes it transparently — the client retries a 401 once after a forced refresh.
+// principal server-side (a pinned token scopes to one project; an all-projects admin token can name a
+// per-request project on supported endpoints). The token comes from a TokenSource that refreshes it
+// transparently — the client retries a 401 once after a forced refresh.
 type Client struct {
 	baseURL string
 	tokens  TokenSource
@@ -138,11 +138,15 @@ func (c *Client) BrainDiff(ctx context.Context, id string) (*BrainDiff, error) {
 // Submit posts POST /api/v1/runs to trigger a run. It returns BOTH the typed 202 body (for the
 // poll/render logic) AND the verbatim bytes, so a caller that must echo the response to a jq pipeline
 // (`rc ask --no-wait -o json`) never drops a server field — same "render, don't reshape" invariant as
-// the GET passthroughs. The project is resolved from the bearer key; brain_ref (when set) names a
-// non-main ref for a test run.
+// the GET passthroughs. A pinned token supplies the project; an all-projects admin token may name one
+// with req.Project. brain_ref (when set) names a non-main ref for a test run.
 func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse, json.RawMessage, error) {
+	path := "/api/v1/runs"
+	if req.Project != "" {
+		path += "?project=" + url.QueryEscape(req.Project)
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, "/api/v1/runs", req, &raw); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out SubmitResponse

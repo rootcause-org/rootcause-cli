@@ -22,11 +22,11 @@ type askFlags struct {
 }
 
 // newAskCmd builds `rc ask "<question>"` — the trigger verb. It POSTs the prompt to /api/v1/runs
-// (env-authed by the project key), then by DEFAULT waits, polling /runs/{id} until the run reaches a
-// terminal status, and prints the same summary as `rc run <id>`. --no-wait returns the run_id
-// immediately. --brain-ref runs the question against a non-main brain ref (a dev/* branch) — the
-// project dev's "test without pushing main" loop. The CLI stays thin: it triggers + polls + renders;
-// all run logic lives server-side.
+// (OAuth-authed, optionally ?project=-scoped), then by DEFAULT waits, polling /runs/{id} until the run
+// reaches a terminal status, and prints the same summary as `rc run <id>`. --no-wait returns the run_id
+// immediately. --brain-ref runs the question against a non-main brain ref (a dev/* branch) — the project
+// dev's "test without pushing main" loop. The CLI stays thin: it triggers + polls + renders; all run
+// logic lives server-side.
 func newAskCmd(e *env) *cobra.Command {
 	var f askFlags
 	cmd := &cobra.Command{
@@ -45,6 +45,7 @@ func newAskCmd(e *env) *cobra.Command {
 				SessionID: f.session,
 				Tenant:    e.scopeTenant(),
 				BrainRef:  f.brainRef,
+				Project:   e.scopeProject(),
 			})
 			if err != nil {
 				return err
