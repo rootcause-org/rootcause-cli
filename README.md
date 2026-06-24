@@ -105,7 +105,8 @@ rc ask "…"                # just works
 
 That gives two workflows: project developers can keep one token per project profile, while a global
 admin can keep one all-projects token in `default` and still have each brain checkout auto-scope to its
-own project.
+own project. Main intent: the checkout chooses the project context; the profile only chooses which
+local token to use.
 
 **Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
 built-in production default (`https://rootcause.probackup.io`). A stored token also remembers the issuer it was minted
@@ -156,7 +157,9 @@ in the OAuth token store.
 ## Commands
 
 Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>` scopes supported
-requests to one project server-side (needed for all-projects tokens on per-project reads and `ask`);
+requests to one project server-side (useful for all-projects tokens outside a brain checkout or as an
+override; inside a brain checkout the `.rootcause.toml` project is used automatically when falling back
+to `default`);
 `--tenant <slug>` scopes a request to a tenant; `-o json|table` forces output.
 
 | Command | Does |
@@ -166,7 +169,7 @@ requests to one project server-side (needed for all-projects tokens on per-proje
 | `rc whoami` | the resolved profile/project/tenant + sign-in status (local only — no server call) |
 | `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). With an all-projects token, add global `--project <id-or-name>`. `--session` threads the run onto a multi-turn session (see below) |
+| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--session` threads the run onto a multi-turn session (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
