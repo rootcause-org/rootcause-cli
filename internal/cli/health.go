@@ -95,9 +95,9 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 			allHealthy = false
 		}
 		if !e.jsonOut() {
-			fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
+			_, _ = fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
 			render.Health(e.out, resp)
-			fmt.Fprintln(e.out)
+			_, _ = fmt.Fprintln(e.out)
 		}
 	}
 
@@ -110,11 +110,11 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 			return rerr
 		}
 	} else {
-		fmt.Fprintf(e.out, "════ FLEET ════\n  %d projects · ", len(projects))
+		_, _ = fmt.Fprintf(e.out, "════ FLEET ════\n  %d projects · ", len(projects))
 		if allHealthy {
-			fmt.Fprintln(e.out, "all healthy")
+			_, _ = fmt.Fprintln(e.out, "all healthy")
 		} else {
-			fmt.Fprintln(e.out, "UNHEALTHY (≥1 project)")
+			_, _ = fmt.Fprintln(e.out, "UNHEALTHY (≥1 project)")
 		}
 	}
 

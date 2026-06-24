@@ -45,35 +45,35 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 			bad = append(bad, m)
 		}
 	}
-	fmt.Fprintf(w, "Mirrors — %d/%d healthy\n", len(h.Mirrors)-len(bad), len(h.Mirrors))
+	_, _ = fmt.Fprintf(w, "Mirrors — %d/%d healthy\n", len(h.Mirrors)-len(bad), len(h.Mirrors))
 	if len(bad) > 0 {
 		unhealthy = true
 		for _, m := range bad {
-			fmt.Fprintf(w, "  ! %s: state=%s fails=%d last_ok=%s ago — %s\n",
+			_, _ = fmt.Fprintf(w, "  ! %s: state=%s fails=%d last_ok=%s ago — %s\n",
 				m.Repo, m.State, m.ConsecutiveFailures, ageOrNever(m.HoursSinceOK), firstLine80(m.LastError))
 		}
 	} else {
-		fmt.Fprintln(w, "  ok — all mirrors synced recently")
+		_, _ = fmt.Fprintln(w, "  ok — all mirrors synced recently")
 	}
 
 	// 2. dead-lettered runs — any in the window is unhealthy (the customer never got the draft).
-	fmt.Fprintf(w, "\nDead-lettered runs (last %dh) — %d total\n", h.WindowHours, len(h.DeadLettered))
+	_, _ = fmt.Fprintf(w, "\nDead-lettered runs (last %dh) — %d total\n", h.WindowHours, len(h.DeadLettered))
 	if len(h.DeadLettered) > 0 {
 		unhealthy = true
 		for _, d := range h.DeadLettered {
-			fmt.Fprintf(w, "  ! %s %s — %s\n", d.Kind, short8(d.RunID), firstLine120(d.Error))
+			_, _ = fmt.Fprintf(w, "  ! %s %s — %s\n", d.Kind, short8(d.RunID), firstLine120(d.Error))
 		}
 	} else {
-		fmt.Fprintln(w, "  ok — no runs dead-lettered in window")
+		_, _ = fmt.Fprintln(w, "  ok — no runs dead-lettered in window")
 	}
 
 	// The DB surface can't see the CloudWatch alert/config-sanity inputs health.py also checks.
-	fmt.Fprintln(w, "\nnote: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.")
+	_, _ = fmt.Fprintln(w, "\nnote: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.")
 
 	if unhealthy {
-		fmt.Fprintln(w, "\nUNHEALTHY")
+		_, _ = fmt.Fprintln(w, "\nUNHEALTHY")
 	} else {
-		fmt.Fprintln(w, "\nhealthy")
+		_, _ = fmt.Fprintln(w, "\nhealthy")
 	}
 	return !unhealthy
 }

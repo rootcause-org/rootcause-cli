@@ -32,15 +32,15 @@ func (c *Client) LoginDevice(ctx context.Context, out io.Writer) (Tokens, error)
 		return Tokens{}, err
 	}
 
-	fmt.Fprintln(out, "To sign in, open this URL in a browser:")
+	_, _ = fmt.Fprintln(out, "To sign in, open this URL in a browser:")
 	if da.VerificationURIComplete != "" {
-		fmt.Fprintf(out, "    %s\n", da.VerificationURIComplete)
-		fmt.Fprintf(out, "  (or %s and enter code %s)\n", da.VerificationURI, da.UserCode)
+		_, _ = fmt.Fprintf(out, "    %s\n", da.VerificationURIComplete)
+		_, _ = fmt.Fprintf(out, "  (or %s and enter code %s)\n", da.VerificationURI, da.UserCode)
 	} else {
-		fmt.Fprintf(out, "    %s\n", da.VerificationURI)
-		fmt.Fprintf(out, "  and enter code: %s\n", da.UserCode)
+		_, _ = fmt.Fprintf(out, "    %s\n", da.VerificationURI)
+		_, _ = fmt.Fprintf(out, "  and enter code: %s\n", da.UserCode)
 	}
-	fmt.Fprintln(out, "Waiting for approval…")
+	_, _ = fmt.Fprintln(out, "Waiting for approval…")
 
 	interval := time.Duration(da.Interval) * time.Second
 	if interval <= 0 {
@@ -101,7 +101,7 @@ func (c *Client) startDevice(ctx context.Context) (deviceAuth, error) {
 	if err != nil {
 		return deviceAuth{}, fmt.Errorf("device authorization request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return deviceAuth{}, parseTokenError(resp)
 	}

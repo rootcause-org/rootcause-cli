@@ -128,7 +128,7 @@ func (c *Client) Revoke(ctx context.Context, token string) error {
 	if err != nil {
 		return fmt.Errorf("revoke request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return parseTokenError(resp)
 	}
@@ -160,7 +160,7 @@ func (c *Client) postToken(ctx context.Context, form url.Values) (Tokens, error)
 	if err != nil {
 		return Tokens{}, fmt.Errorf("token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return Tokens{}, parseTokenError(resp)
 	}

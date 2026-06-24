@@ -81,7 +81,7 @@ func TestLoginPKCEStateMismatch(t *testing.T) {
 	opener := func(authURL string) error {
 		resp, err := http.Get(authURL)
 		if err == nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		return err
 	}

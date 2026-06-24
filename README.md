@@ -92,8 +92,9 @@ rc logout           # revoke the token server-side and clear it locally
 ```
 
 **Let the brain checkout select the profile.** A brain repo (`rootcause-brain-<project>`) commits a
-`.rootcause.toml` binding it to one project + base URL, so `rc` run anywhere inside it targets that
-project's token automatically:
+`.rootcause.toml` binding it to one project + base URL, so `rc` run anywhere inside it first looks for
+a local token profile with the same name. If that profile exists, it uses it; otherwise it uses the
+`default` profile and sends the brain project as the server-side `--project` scope where supported:
 
 ```bash
 cd rootcause-brain-acme   # committed .rootcause.toml: project = "acme", base_url = "…"
@@ -102,8 +103,9 @@ rc whoami                 # profile: acme · project: acme · auth: logged in
 rc ask "…"                # just works
 ```
 
-Inside a brain with no token, `rc` fails **loudly** naming the project and telling you to `rc login` —
-it never silently uses a different project's token.
+That gives two workflows: project developers can keep one token per project profile, while a global
+admin can keep one all-projects token in `default` and still have each brain checkout auto-scope to its
+own project.
 
 **Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
 built-in production default (`https://rootcause.probackup.io`). A stored token also remembers the issuer it was minted
@@ -125,7 +127,8 @@ base_url = "https://staging.your-rootcause-host"
 ```
 
 **Profiles** are the token-store keys. The profile is resolved as: explicit `--profile <name>` >
-the brain marker's project > `"default"`. `--profile` picks *which stored token* a command uses.
+the brain marker's project if that token exists > `"default"`. `--profile` picks *which stored token*
+a command uses.
 `--project <id-or-name>` is **not** a token selector — it's a **server-side scope**: it keeps the active
 token and names one project on supported endpoints (`?project=`), so an **all-projects admin token** can
 review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask --project

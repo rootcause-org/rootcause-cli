@@ -71,8 +71,8 @@ func newLoginCmd(e *env) *cobra.Command {
 			if res.Brain != nil {
 				target = res.Brain.Project + " (brain " + res.Brain.Dir + ")"
 			}
-			fmt.Fprintf(e.out, "logged in — token stored for profile %q\n", res.Profile)
-			fmt.Fprintf(e.err, "target: %s · %s\n", target, base)
+			_, _ = fmt.Fprintf(e.out, "logged in — token stored for profile %q\n", res.Profile)
+			_, _ = fmt.Fprintf(e.err, "target: %s · %s\n", target, base)
 			return nil
 		},
 	}
@@ -97,7 +97,7 @@ func newLogoutCmd(e *env) *cobra.Command {
 				return err
 			}
 			if !ok {
-				fmt.Fprintf(e.out, "already logged out (profile %q)\n", res.Profile)
+				_, _ = fmt.Fprintf(e.out, "already logged out (profile %q)\n", res.Profile)
 				return nil
 			}
 			// Best-effort revocation: a network failure here must not block clearing the local store (the
@@ -114,7 +114,7 @@ func newLogoutCmd(e *env) *cobra.Command {
 			defer cancel()
 			if t.RefreshToken != "" {
 				if rerr := oc.Revoke(ctx, t.RefreshToken); rerr != nil {
-					fmt.Fprintf(e.err, "warning: could not revoke refresh token server-side: %v\n", rerr)
+					_, _ = fmt.Fprintf(e.err, "warning: could not revoke refresh token server-side: %v\n", rerr)
 				}
 			}
 			if t.AccessToken != "" {
@@ -123,7 +123,7 @@ func newLogoutCmd(e *env) *cobra.Command {
 			if err := token.Delete(res.Profile); err != nil {
 				return err
 			}
-			fmt.Fprintf(e.out, "logged out (profile %q)\n", res.Profile)
+			_, _ = fmt.Fprintf(e.out, "logged out (profile %q)\n", res.Profile)
 			return nil
 		},
 	}
@@ -153,6 +153,17 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			autoProject := ""
+			if !loggedIn && e.profile == "" && res.Brain != nil {
+				if fallback, ok, ferr := token.Load(config.DefaultProfile); ferr != nil {
+					return ferr
+				} else if ok {
+					t = fallback
+					loggedIn = true
+					res.Profile = config.DefaultProfile
+					autoProject = res.Brain.Project
+				}
+			}
 			if loggedIn && t.BaseURL != "" && e.baseURLOvr == "" {
 				base = t.BaseURL
 			}
@@ -171,10 +182,12 @@ func newWhoamiCmd(e *env) *cobra.Command {
 
 			tenant := e.scopeTenantFromResolved(res)
 			// --project is a server-side SCOPE (not a profile): when set it names the project each read
-			// request targets, overriding the brain's own project for display. Empty → the brain's project.
+			// request targets. A brain fallback to the default profile does the same automatically.
 			project := res.Project
 			if e.project != "" {
 				project = e.project
+			} else if autoProject != "" {
+				project = autoProject
 			}
 			if e.jsonOut() {
 				return writeJSON(e, map[string]any{
@@ -188,21 +201,23 @@ func newWhoamiCmd(e *env) *cobra.Command {
 				})
 			}
 
-			fmt.Fprintf(e.out, "profile:   %s\n", res.Profile)
-			fmt.Fprintf(e.out, "project:   %s\n", emptyDash(project))
+			_, _ = fmt.Fprintf(e.out, "profile:   %s\n", res.Profile)
+			_, _ = fmt.Fprintf(e.out, "project:   %s\n", emptyDash(project))
 			if e.project != "" {
-				fmt.Fprintf(e.out, "           (--project scope; needs an all-projects token)\n")
+				_, _ = fmt.Fprintf(e.out, "           (--project scope; needs an all-projects token)\n")
+			} else if autoProject != "" {
+				_, _ = fmt.Fprintf(e.out, "           (brain scope via default profile)\n")
 			}
 			if tenant != "" {
-				fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
+				_, _ = fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
 			}
-			fmt.Fprintf(e.out, "base URL:  %s\n", base)
+			_, _ = fmt.Fprintf(e.out, "base URL:  %s\n", base)
 			if res.Brain != nil {
-				fmt.Fprintf(e.out, "brain:     %s\n", res.Brain.Dir)
+				_, _ = fmt.Fprintf(e.out, "brain:     %s\n", res.Brain.Dir)
 			}
-			fmt.Fprintf(e.out, "auth:      %s\n", status)
+			_, _ = fmt.Fprintf(e.out, "auth:      %s\n", status)
 			if expiry != "" {
-				fmt.Fprintf(e.out, "           %s\n", expiry)
+				_, _ = fmt.Fprintf(e.out, "           %s\n", expiry)
 			}
 			return nil
 		},

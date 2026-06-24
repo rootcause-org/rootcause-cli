@@ -42,6 +42,11 @@ type env struct {
 	// resolved is the config resolved by the last newClient call, so a command can read the brain's
 	// tenant (to default --tenant) and the resolved profile without re-loading.
 	resolved config.Resolved
+
+	// autoProject is set when a command falls back from a missing brain-named profile to the default
+	// profile. It lets all-projects tokens keep the checkout's project scope without the user repeating
+	// --project in every brain repo.
+	autoProject string
 }
 
 // Execute is the binary entrypoint. It returns the process exit code so main stays trivial; any
@@ -117,6 +122,7 @@ func (e *env) newClient() (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	e.autoProject = ""
 	e.resolved = res // so commands can default --tenant to the brain's tenant
 
 	baseURL := res.BaseURL
@@ -135,6 +141,19 @@ func (e *env) newClient() (*client.Client, error) {
 		return nil, err
 	}
 	if !ok {
+		if e.profile == "" && res.Brain != nil {
+			if fallback, fallbackOK, ferr := token.Load(config.DefaultProfile); ferr != nil {
+				return nil, ferr
+			} else if fallbackOK {
+				tok = fallback
+				res.Profile = config.DefaultProfile
+				e.autoProject = res.Brain.Project
+				e.resolved = res
+				ok = true
+			}
+		}
+	}
+	if !ok {
 		return nil, notLoggedIn(res)
 	}
 	// A token is pinned to the issuer it was minted against — prefer that base URL so a command hits the
@@ -146,8 +165,8 @@ func (e *env) newClient() (*client.Client, error) {
 	return client.New(baseURL, newLiveSource(res.Profile, baseURL)), nil
 }
 
-// notLoggedIn is the clear "no token for this profile" error, naming the project (and the one-command
-// fix) when inside a brain so the user is never silently mis-scoped.
+// notLoggedIn is the clear "no token for this profile" error. Inside a brain this is reached only
+// when neither the brain-named profile nor default has a token, so name the project and the fix.
 func notLoggedIn(res config.Resolved) error {
 	if res.Brain != nil {
 		return fmt.Errorf("this brain is project %q but you're not logged in for it\n"+
@@ -174,7 +193,12 @@ func (e *env) scopeTenant() string {
 // the observability endpoints, where an all-projects admin token uses it to scope a single project. Empty
 // for the common case (a pinned token reads its own project; the param is then disregarded server-side).
 // It is NOT a profile/token selector — the token is resolved independently of it.
-func (e *env) scopeProject() string { return e.project }
+func (e *env) scopeProject() string {
+	if e.project != "" {
+		return e.project
+	}
+	return e.autoProject
+}
 
 // tenantSlug is the explicitly-addressed tenant for `rc tenant settings` — the persistent --tenant only
 // (no brain fallback: editing a tenant's record is an explicit act, never inferred from the checkout).
@@ -195,18 +219,18 @@ func printError(w io.Writer, err error) {
 			printNonEnvelopeHTTPError(w, apiErr)
 			return
 		}
-		fmt.Fprintf(w, "%s: %s\n", apiErr.Code, apiErr.Message)
+		_, _ = fmt.Fprintf(w, "%s: %s\n", apiErr.Code, apiErr.Message)
 		// INVALID_SETTINGS carries per-field detail; print one line per field as specified.
 		for _, f := range apiErr.Fields {
-			fmt.Fprintf(w, "  %s: %s\n", f.Key, f.Message)
+			_, _ = fmt.Fprintf(w, "  %s: %s\n", f.Key, f.Message)
 		}
 		// A rejected --brain-ref usually means the ref isn't on the project's brain origin yet.
 		if apiErr.Code == "BAD_BRAIN_REF" {
-			fmt.Fprintln(w, "  push the ref to your project's brain first: git push origin <ref>")
+			_, _ = fmt.Fprintln(w, "  push the ref to your project's brain first: git push origin <ref>")
 		}
 		return
 	}
-	fmt.Fprintf(w, "error: %s\n", err.Error())
+	_, _ = fmt.Fprintf(w, "error: %s\n", err.Error())
 }
 
 // printNonEnvelopeHTTPError renders a non-2xx with no decodable error envelope. The bare "HTTP 405"
@@ -215,17 +239,17 @@ func printError(w io.Writer, err error) {
 func printNonEnvelopeHTTPError(w io.Writer, e *client.APIError) {
 	statusText := http.StatusText(e.Status)
 	if e.Method != "" && e.Path != "" {
-		fmt.Fprintf(w, "error: %s %s → HTTP %d %s\n", e.Method, e.Path, e.Status, statusText)
+		_, _ = fmt.Fprintf(w, "error: %s %s → HTTP %d %s\n", e.Method, e.Path, e.Status, statusText)
 	} else {
-		fmt.Fprintf(w, "error: HTTP %d %s\n", e.Status, statusText)
+		_, _ = fmt.Fprintf(w, "error: HTTP %d %s\n", e.Status, statusText)
 	}
 	switch e.Status {
 	case http.StatusMethodNotAllowed:
-		fmt.Fprintln(w, "  endpoint not available on this server — it may be older than this CLI; the runs list endpoint isn't deployed")
+		_, _ = fmt.Fprintln(w, "  endpoint not available on this server — it may be older than this CLI; the runs list endpoint isn't deployed")
 	case http.StatusNotFound:
-		fmt.Fprintln(w, "  not found — check the id/path, or this endpoint may not be available on this server")
+		_, _ = fmt.Fprintln(w, "  not found — check the id/path, or this endpoint may not be available on this server")
 	}
 	if e.BaseURL != "" {
-		fmt.Fprintf(w, "  base URL: %s\n", e.BaseURL)
+		_, _ = fmt.Fprintf(w, "  base URL: %s\n", e.BaseURL)
 	}
 }

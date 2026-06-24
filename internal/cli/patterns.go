@@ -109,9 +109,9 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error 
 		}
 		entries = append(entries, entry{Project: proj.Name, Events: events, Egress: egress})
 		if !e.jsonOut() {
-			fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
+			_, _ = fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
 			render.Patterns(e.out, events, egress, render.PatternsOptions{Days: days, Top: top, Kind: kind})
-			fmt.Fprintln(e.out)
+			_, _ = fmt.Fprintln(e.out)
 		}
 	}
 

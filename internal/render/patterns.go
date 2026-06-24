@@ -274,56 +274,56 @@ func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, 
 		}
 	}
 
-	fmt.Fprintf(w, "# Run patterns — last %d days\n\n", opt.Days)
-	fmt.Fprintf(w, "%d failing bash events · %d blocked egress rows · %d events scanned\n", failing, blocked, len(events))
-	fmt.Fprintln(w, "Rank by: cross-run reach · frequency. Every pattern ends in a suggested-fix stub.")
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "# Run patterns — last %d days\n\n", opt.Days)
+	_, _ = fmt.Fprintf(w, "%d failing bash events · %d blocked egress rows · %d events scanned\n", failing, blocked, len(events))
+	_, _ = fmt.Fprintln(w, "Rank by: cross-run reach · frequency. Every pattern ends in a suggested-fix stub.")
+	_, _ = fmt.Fprintln(w)
 
 	anything := false
 
 	if len(bash) > 0 {
 		anything = true
-		fmt.Fprintln(w, "## Bash failure clusters")
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "## Bash failure clusters")
+		_, _ = fmt.Fprintln(w)
 		for i, g := range clipBash(bash, opt.Top) {
-			fmt.Fprintf(w, "### B%d. bash: %s · exit %d — %d× across %d run(s)\n", i+1, g.label, g.exitCode, g.count, len(g.runs))
+			_, _ = fmt.Fprintf(w, "### B%d. bash: %s · exit %d — %d× across %d run(s)\n", i+1, g.label, g.exitCode, g.count, len(g.runs))
 			sig := g.sig
 			if sig == "" {
 				sig = "(no stderr)"
 			}
-			fmt.Fprintf(w, "- sig: `%s`\n", sig)
+			_, _ = fmt.Fprintf(w, "- sig: `%s`\n", sig)
 			if g.cmd != "" {
-				fmt.Fprintf(w, "- cmd: `%s`\n", g.cmd)
+				_, _ = fmt.Fprintf(w, "- cmd: `%s`\n", g.cmd)
 			}
 			if len(g.examples) > 0 {
-				fmt.Fprintf(w, "- examples: %s\n", strings.Join(backtickEach(g.examples), " · "))
+				_, _ = fmt.Fprintf(w, "- examples: %s\n", strings.Join(backtickEach(g.examples), " · "))
 			}
 			for _, ln := range g.evidence {
-				fmt.Fprintf(w, "    %s\n", ln)
+				_, _ = fmt.Fprintf(w, "    %s\n", ln)
 			}
-			fmt.Fprintln(w, "- suggested fix:")
-			fmt.Fprintln(w)
+			_, _ = fmt.Fprintln(w, "- suggested fix:")
+			_, _ = fmt.Fprintln(w)
 		}
 	}
 
 	if len(egr) > 0 {
 		anything = true
-		fmt.Fprintln(w, "## Blocked egress")
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w, "## Blocked egress")
+		_, _ = fmt.Fprintln(w)
 		for i, g := range clipEgress(egr, opt.Top) {
-			fmt.Fprintf(w, "### E%d. egress: `%s` — blocked %d× across %d run(s)\n", i+1, g.host, g.count, len(g.runs))
-			fmt.Fprintf(w, "- example runs: %s\n", strings.Join(backtickEach(sortedRunIDs(g.runs, 2)), " · "))
-			fmt.Fprintln(w, "- suggested fix:")
-			fmt.Fprintln(w)
+			_, _ = fmt.Fprintf(w, "### E%d. egress: `%s` — blocked %d× across %d run(s)\n", i+1, g.host, g.count, len(g.runs))
+			_, _ = fmt.Fprintf(w, "- example runs: %s\n", strings.Join(backtickEach(sortedRunIDs(g.runs, 2)), " · "))
+			_, _ = fmt.Fprintln(w, "- suggested fix:")
+			_, _ = fmt.Fprintln(w)
 		}
 	}
 
 	truncated := (len(bash) - min(len(bash), opt.Top)) + (len(egr) - min(len(egr), opt.Top))
 	if truncated > 0 {
-		fmt.Fprintf(w, "_(%d lower-ranked pattern(s) dropped — raise --top/--days)_\n", truncated)
+		_, _ = fmt.Fprintf(w, "_(%d lower-ranked pattern(s) dropped — raise --top/--days)_\n", truncated)
 	}
 	if !anything {
-		fmt.Fprintln(w, "_(no failure patterns in window — a clean fleet)_")
+		_, _ = fmt.Fprintln(w, "_(no failure patterns in window — a clean fleet)_")
 	}
 }
 

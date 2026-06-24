@@ -59,7 +59,7 @@ func newThreadCmd(e *env) *cobra.Command {
 			// half and interleave it. The server-to-server call uses the project's webhook_secret
 			// (replypen.Sign/Verify); the customer OAuth token never reaches ReplyPen.
 			if !noReplyPen {
-				fmt.Fprintln(e.err, "note: ReplyPen-side trace is pending (separate signed endpoint, not yet wired) — showing the rootcause side only")
+				_, _ = fmt.Fprintln(e.err, "note: ReplyPen-side trace is pending (separate signed endpoint, not yet wired) — showing the rootcause side only")
 			}
 			return nil
 		},

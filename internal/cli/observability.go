@@ -16,7 +16,7 @@ import (
 // warnCapped writes a one-line cap notice to stderr (never stdout, so piped JSON stays clean). The page
 // loops surface this when they stop at the page cap — no silent truncation.
 func warnCapped(e *env, msg string) {
-	fmt.Fprintln(e.err, "warning: "+msg)
+	_, _ = fmt.Fprintln(e.err, "warning: "+msg)
 }
 
 // errBadFormat is the client-side guard for --format (the only enum the commands validate locally; the

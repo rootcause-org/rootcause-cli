@@ -163,6 +163,32 @@ func TestWhoamiLocal(t *testing.T) {
 	}
 }
 
+func TestWhoamiBrainFallsBackToDefaultProfile(t *testing.T) {
+	isolatedConfig(t)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"pro-backup\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedToken(t, "default", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+	})
+
+	var out, errb bytes.Buffer
+	e := &env{output: "table", out: &out, err: &errb}
+	if err := run(t, e, "whoami"); err != nil {
+		t.Fatalf("whoami: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"profile:   default", "project:   pro-backup", "brain scope via default profile", "logged in"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("whoami missing %q\n--- got ---\n%s", want, got)
+		}
+	}
+}
+
 // TestRefreshOn401: an expired stored access token is refreshed transparently before the request, and
 // the rotated pair is persisted.
 func TestRefreshOn401(t *testing.T) {

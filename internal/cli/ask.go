@@ -58,8 +58,8 @@ func newAskCmd(e *env) *cobra.Command {
 				if jsonMode {
 					return render.JSON(e.out, raw)
 				}
-				fmt.Fprintln(e.out, sub.RunID)
-				fmt.Fprintf(e.err, "submitted — poll with: rc run %s\n", sub.RunID)
+				_, _ = fmt.Fprintln(e.out, sub.RunID)
+				_, _ = fmt.Fprintf(e.err, "submitted — poll with: rc run %s\n", sub.RunID)
 				return nil
 			}
 
@@ -110,19 +110,19 @@ func waitForRun(e *env, c *client.Client, sub *client.SubmitResponse, timeout ti
 		}
 		if isTerminalStatus(detail.Status) {
 			if showProgress {
-				fmt.Fprintf(e.err, "\r\033[K") // clear the progress line before the summary prints
+				_, _ = fmt.Fprintf(e.err, "\r\033[K") // clear the progress line before the summary prints
 			}
 			return detail, nil
 		}
 		if showProgress {
-			fmt.Fprintf(e.err, "\r\033[K%s … %s", sub.RunID, detail.Status)
+			_, _ = fmt.Fprintf(e.err, "\r\033[K%s … %s", sub.RunID, detail.Status)
 		}
 		timer := time.NewTimer(interval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
 			if showProgress {
-				fmt.Fprintf(e.err, "\r\033[K")
+				_, _ = fmt.Fprintf(e.err, "\r\033[K")
 			}
 			return nil, fmt.Errorf("timed out after %s waiting for run %s (last status: %s)", timeout, sub.RunID, detail.Status)
 		case <-timer.C:

@@ -151,9 +151,9 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 	}
 
 	// Two paths + a one-line summary on stdout so the calling agent can relay them without re-fetching.
-	fmt.Fprintln(e.out, indexPath)
-	fmt.Fprintln(e.out, jsonlPath)
-	fmt.Fprintf(e.err, "run %s · status=%s · %d events · read the index, then jq the jsonl\n",
+	_, _ = fmt.Fprintln(e.out, indexPath)
+	_, _ = fmt.Fprintln(e.out, jsonlPath)
+	_, _ = fmt.Fprintf(e.err, "run %s · status=%s · %d events · read the index, then jq the jsonl\n",
 		full.Run.RunID, full.Run.Status, len(full.Events))
 	return nil
 }

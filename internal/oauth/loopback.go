@@ -30,7 +30,7 @@ func (c *Client) LoginPKCE(ctx context.Context, opener func(string) error, out i
 	if err != nil {
 		return Tokens{}, fmt.Errorf("bind loopback port: %w", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 	port := ln.Addr().(*net.TCPAddr).Port
 	redirectURI := fmt.Sprintf("http://127.0.0.1:%d%s", port, callbackPath)
 
@@ -61,8 +61,8 @@ func (c *Client) LoginPKCE(ctx context.Context, opener func(string) error, out i
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	fmt.Fprintln(out, "Opening your browser to sign in. If it doesn't open, visit:")
-	fmt.Fprintf(out, "    %s\n", authURL)
+	_, _ = fmt.Fprintln(out, "Opening your browser to sign in. If it doesn't open, visit:")
+	_, _ = fmt.Fprintf(out, "    %s\n", authURL)
 	if opener != nil {
 		// A failed open is non-fatal: the URL is already printed for a manual paste.
 		_ = opener(authURL)
@@ -125,7 +125,7 @@ func writeClosePage(w http.ResponseWriter, ok bool) {
 	if !ok {
 		title, msg = "Sign-in failed", "Something went wrong signing in. Return to your terminal for details."
 	}
-	fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>rootcause — %s</title>
+	_, _ = fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><title>rootcause — %s</title>
 <style>body{font-family:system-ui,sans-serif;background:#0f1115;color:#e6e6e6;display:flex;min-height:100vh;margin:0;align-items:center;justify-content:center}
 .card{background:#171a21;padding:2rem;border-radius:12px;max-width:420px;text-align:center}h1{font-size:1.1rem;margin:0 0 .75rem}p{margin:0;color:#9aa0aa;line-height:1.5}</style>
 </head><body><div class="card"><h1>%s</h1><p>%s</p></div></body></html>`, title, title, msg)

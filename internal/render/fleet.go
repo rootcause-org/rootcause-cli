@@ -60,9 +60,9 @@ func FleetAll(w io.Writer, groups []FleetGroup, opt FleetOptions) {
 		opt.CtxWarn = DefaultCtxWarn
 	}
 	for _, g := range groups {
-		fmt.Fprintf(w, "════ %s ════\n\n", g.Project)
+		_, _ = fmt.Fprintf(w, "════ %s ════\n\n", g.Project)
 		Fleet(w, g.Runs, opt)
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 	fleetTotal(w, groups)
 }
@@ -70,7 +70,7 @@ func FleetAll(w io.Writer, groups []FleetGroup, opt FleetOptions) {
 // fleetTotal renders the fan-out footer: the fleet-wide run/done/error counts, total cost, and a
 // per-project one-line breakdown — the "whole fleet at a glance" the per-project sections roll up into.
 func fleetTotal(w io.Writer, groups []FleetGroup) {
-	fmt.Fprintln(w, "════ FLEET TOTAL ════")
+	_, _ = fmt.Fprintln(w, "════ FLEET TOTAL ════")
 	var total, done, errc int
 	var totalCost float64
 	for _, g := range groups {
@@ -85,17 +85,17 @@ func fleetTotal(w io.Writer, groups []FleetGroup) {
 			totalCost += cost(r)
 		}
 	}
-	fmt.Fprintf(w, "  %d projects · %d runs — done %d · error %d", len(groups), total, done, errc)
+	_, _ = fmt.Fprintf(w, "  %d projects · %d runs — done %d · error %d", len(groups), total, done, errc)
 	if totalCost > 0 {
-		fmt.Fprintf(w, " · cost %s", costCell(totalCost))
+		_, _ = fmt.Fprintf(w, " · cost %s", costCell(totalCost))
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 
 	// Per-project rollup: the aggregates operators used to drop to db.py's GROUP BY project_id for —
 	// run/error counts, cost, latency (avg/max secs), bash failures, blocked egress, and the
 	// grounding-discarded / no-journal flag counts. One row per project.
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "  PROJECT\tRUNS\tERR\tCOST\tAVG_S\tMAX_S\tBASH_ERR\tEGR\tGD\tJ0")
+	_, _ = fmt.Fprintln(tw, "  PROJECT\tRUNS\tERR\tCOST\tAVG_S\tMAX_S\tBASH_ERR\tEGR\tGD\tJ0")
 	for _, g := range groups {
 		var gerr, gbashErr, gegr, ggd, gj0 int
 		var gcost, gsecsSum, gmaxSecs float64
@@ -129,11 +129,11 @@ func fleetTotal(w io.Writer, groups []FleetGroup) {
 		if gsecsN > 0 {
 			avgSecs = gsecsSum / float64(gsecsN)
 		}
-		fmt.Fprintf(tw, "  %s\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n",
+		_, _ = fmt.Fprintf(tw, "  %s\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n",
 			g.Project, len(g.Runs), gerr, costCell(gcost),
 			secsCell(avgSecs), secsCell(gmaxSecs), gbashErr, gegr, ggd, gj0)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // secsCell renders a wall-clock seconds value as "Ns" (rounded), "-" when zero/absent.
@@ -315,23 +315,23 @@ func fleetHuman(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	if kinds == "" {
 		kinds = "all kinds"
 	}
-	fmt.Fprintf(w, "Fleet digest — last %d days · %s · %d runs\n\n", opt.Days, kinds, len(runs))
-	fmt.Fprintln(w, fleetLegend)
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintf(w, "Fleet digest — last %d days · %s · %d runs\n\n", opt.Days, kinds, len(runs))
+	_, _ = fmt.Fprintln(w, fleetLegend)
+	_, _ = fmt.Fprintln(w)
 
 	if len(runs) == 0 {
-		fmt.Fprintln(w, "(no runs in window)")
+		_, _ = fmt.Fprintln(w, "(no runs in window)")
 		return
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "RUN8\tKIND\tSTATUS\tDURATION\tCOST\tCTX\tFLAGS")
+	_, _ = fmt.Fprintln(tw, "RUN8\tKIND\tSTATUS\tDURATION\tCOST\tCTX\tFLAGS")
 	for _, r := range runs {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			short8(r.RunID), r.Kind, r.Status, duration(r.DurationMs),
 			costCell(cost(r)), ctxCell(peakCtx(r)), flagStr(r, spikes, opt.CtxWarn))
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	fleetAggregate(w, runs, opt)
 	if opt.ByModel {
@@ -378,9 +378,9 @@ func fleetByModel(w io.Writer, runs []client.RunSummary) {
 	}
 	sort.SliceStable(order, func(i, j int) bool { return byModel[order[i]].total > byModel[order[j]].total })
 
-	fmt.Fprintln(w, "\nBy model (cost · fallbacks):")
+	_, _ = fmt.Fprintln(w, "\nBy model (cost · fallbacks):")
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "  MODEL\tRUNS\tCOST\tAVG\tFALLBACK")
+	_, _ = fmt.Fprintln(tw, "  MODEL\tRUNS\tCOST\tAVG\tFALLBACK")
 	for _, m := range order {
 		a := byModel[m]
 		avg := 0.0
@@ -391,9 +391,9 @@ func fleetByModel(w io.Writer, runs []client.RunSummary) {
 		if a.fallbacks > 0 {
 			fb = fmt.Sprintf("%d (%d%%)", a.fallbacks, pct(a.fallbacks, a.runs))
 		}
-		fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\n", m, a.runs, costCell(a.total), costCell(avg), fb)
+		_, _ = fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\t%s\n", m, a.runs, costCell(a.total), costCell(avg), fb)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // fleetTimeline renders the per-day runs/errors/cost histogram across the window — the "what changed
@@ -428,14 +428,14 @@ func fleetTimeline(w io.Writer, runs []client.RunSummary) {
 	}
 	sort.Strings(dates) // ISO date strings sort chronologically
 
-	fmt.Fprintln(w, "\nDaily timeline:")
+	_, _ = fmt.Fprintln(w, "\nDaily timeline:")
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "  DAY\tRUNS\tERR\tCOST")
+	_, _ = fmt.Fprintln(tw, "  DAY\tRUNS\tERR\tCOST")
 	for _, d := range dates {
 		b := byDay[d]
-		fmt.Fprintf(tw, "  %s\t%d\t%d\t%s\n", d, b.runs, b.errors, costCell(b.cost))
+		_, _ = fmt.Fprintf(tw, "  %s\t%d\t%d\t%s\n", d, b.runs, b.errors, costCell(b.cost))
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // runDate is the run's created_at date (YYYY-MM-DD, UTC) for the timeline bucket; "" if unparseable.
@@ -461,20 +461,20 @@ func fleetStuck(w io.Writer, runs []client.RunSummary) {
 	if len(stuck) == 0 {
 		return
 	}
-	fmt.Fprintf(w, "\nStuck/running (no finish past %s):\n", stuckRunAfter)
+	_, _ = fmt.Fprintf(w, "\nStuck/running (no finish past %s):\n", stuckRunAfter)
 	for _, r := range stuck {
 		age := "?"
 		if t, err := time.Parse(time.RFC3339, r.CreatedAt); err == nil {
 			age = duration(now.Sub(t).Milliseconds())
 		}
-		fmt.Fprintf(w, "  %s %s old (%s)\n", r.RunID, age, r.Kind)
+		_, _ = fmt.Fprintf(w, "  %s %s old (%s)\n", r.RunID, age, r.Kind)
 	}
 }
 
 // fleetAggregate ports runs_digest.py's "## Aggregate" block: done/error counts, grounding-discarded
 // rate, journal coverage (analyses), cost total/median, peak-context spread, blocked-egress hosts.
 func fleetAggregate(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
-	fmt.Fprintln(w, "\nAggregate:")
+	_, _ = fmt.Fprintln(w, "\nAggregate:")
 	done, errc := 0, 0
 	for _, r := range runs {
 		switch r.Status {
@@ -489,7 +489,7 @@ func fleetAggregate(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	if other > 0 {
 		line += fmt.Sprintf(" · other %d", other)
 	}
-	fmt.Fprintln(w, line)
+	_, _ = fmt.Fprintln(w, line)
 
 	gd := 0
 	for _, r := range runs {
@@ -497,7 +497,7 @@ func fleetAggregate(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 			gd++
 		}
 	}
-	fmt.Fprintf(w, "  grounding discarded: %d/%d (%d%%)\n", gd, len(runs), pct(gd, len(runs)))
+	_, _ = fmt.Fprintf(w, "  grounding discarded: %d/%d (%d%%)\n", gd, len(runs), pct(gd, len(runs)))
 
 	var analyses, journaled int
 	for _, r := range runs {
@@ -509,7 +509,7 @@ func fleetAggregate(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 		}
 	}
 	if analyses > 0 {
-		fmt.Fprintf(w, "  journal coverage (analyses): %d/%d (%d%%)\n", journaled, analyses, pct(journaled, analyses))
+		_, _ = fmt.Fprintf(w, "  journal coverage (analyses): %d/%d (%d%%)\n", journaled, analyses, pct(journaled, analyses))
 	}
 
 	var costs []float64
@@ -520,7 +520,7 @@ func fleetAggregate(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 		total += c
 	}
 	if total > 0 {
-		fmt.Fprintf(w, "  cost: total %s · median %s\n", costCell(total), costCell(median(costs)))
+		_, _ = fmt.Fprintf(w, "  cost: total %s · median %s\n", costCell(total), costCell(median(costs)))
 	}
 
 	var ctxs []int64
@@ -539,15 +539,15 @@ func fleetAggregate(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 		}
 	}
 	if len(ctxs) > 0 {
-		fmt.Fprintf(w, "  peak context: median %s · max %s · ≥%s: %d/%d (context-rot risk)\n",
+		_, _ = fmt.Fprintf(w, "  peak context: median %s · max %s · ≥%s: %d/%d (context-rot risk)\n",
 			tokens(medianInt(ctxs)), tokens(maxCtx), tokens(int64(opt.CtxWarn)), rotted, len(runs))
 	}
 
 	hosts := egressHostsFromRuns(runs)
 	if len(hosts) == 0 {
-		fmt.Fprintln(w, "  blocked-egress runs: none")
+		_, _ = fmt.Fprintln(w, "  blocked-egress runs: none")
 	} else {
-		fmt.Fprintf(w, "  blocked-egress: %d run(s) with blocked attempts\n", len(hosts))
+		_, _ = fmt.Fprintf(w, "  blocked-egress: %d run(s) with blocked attempts\n", len(hosts))
 	}
 }
 
@@ -568,33 +568,33 @@ func egressHostsFromRuns(runs []client.RunSummary) []string {
 // needs no follow-up query: the operator sees at a glance whether a top-cost run was also a fallback, ran
 // long, or burned context. The fallback offenders block calls out the runs that swapped models.
 func fleetOffenders(w io.Writer, runs []client.RunSummary, spikes map[string]bool, opt FleetOptions) {
-	fmt.Fprintln(w, "\nWorst offenders (full ids — `rc run <id> --debug`):")
+	_, _ = fmt.Fprintln(w, "\nWorst offenders (full ids — `rc run <id> --debug`):")
 	printed := false
 
 	topCost := topByCost(runs, 3)
 	if len(topCost) > 0 {
 		printed = true
-		fmt.Fprintln(w, "  Top cost:")
+		_, _ = fmt.Fprintln(w, "  Top cost:")
 		for _, r := range topCost {
-			fmt.Fprintf(w, "    %s %s — %s\n", r.RunID, costCell(cost(r)), offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s %s — %s\n", r.RunID, costCell(cost(r)), offenderTail(r))
 		}
 	}
 
 	topErr := topByBashErr(runs, 3)
 	if len(topErr) > 0 {
 		printed = true
-		fmt.Fprintln(w, "  Top bash failures:")
+		_, _ = fmt.Fprintln(w, "  Top bash failures:")
 		for _, r := range topErr {
-			fmt.Fprintf(w, "    %s ERR×%d — %s\n", r.RunID, r.Health.BashErrCount, offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s ERR×%d — %s\n", r.RunID, r.Health.BashErrCount, offenderTail(r))
 		}
 	}
 
 	topCtx := topByCtx(runs, opt.CtxWarn, 3)
 	if len(topCtx) > 0 {
 		printed = true
-		fmt.Fprintln(w, "  Top context (rot risk):")
+		_, _ = fmt.Fprintln(w, "  Top context (rot risk):")
 		for _, r := range topCtx {
-			fmt.Fprintf(w, "    %s ctx %s — %s\n", r.RunID, tokens(peakCtx(r)), offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s ctx %s — %s\n", r.RunID, tokens(peakCtx(r)), offenderTail(r))
 		}
 	}
 
@@ -606,9 +606,9 @@ func fleetOffenders(w io.Writer, runs []client.RunSummary, spikes map[string]boo
 	}
 	if len(egr) > 0 {
 		printed = true
-		fmt.Fprintln(w, "  Blocked egress:")
+		_, _ = fmt.Fprintln(w, "  Blocked egress:")
 		for _, r := range egr {
-			fmt.Fprintf(w, "    %s EGR×%d — %s\n", r.RunID, r.Health.BlockedEgress, offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s EGR×%d — %s\n", r.RunID, r.Health.BlockedEgress, offenderTail(r))
 		}
 	}
 
@@ -622,18 +622,18 @@ func fleetOffenders(w io.Writer, runs []client.RunSummary, spikes map[string]boo
 		printed = true
 		// Most expensive fallbacks first — the spend a fallback model quietly drove.
 		sort.SliceStable(fb, func(i, j int) bool { return cost(fb[i]) > cost(fb[j]) })
-		fmt.Fprintln(w, "  Model fallbacks:")
+		_, _ = fmt.Fprintln(w, "  Model fallbacks:")
 		for _, r := range fb {
 			planned := r.Health.PlannedModel
 			if planned == "" {
 				planned = "?"
 			}
-			fmt.Fprintf(w, "    %s %s←%s — %s\n", r.RunID, answeredModel(r), planned, offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s %s←%s — %s\n", r.RunID, answeredModel(r), planned, offenderTail(r))
 		}
 	}
 
 	if !printed {
-		fmt.Fprintln(w, "  (none — a clean window)")
+		_, _ = fmt.Fprintln(w, "  (none — a clean window)")
 	}
 }
 
@@ -669,9 +669,9 @@ func offenderTail(r client.RunSummary) string {
 
 func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	spikes := costSpikes(runs)
-	fmt.Fprintf(w, "runs — last %dd · %d runs\n\n", opt.Days, len(runs))
+	_, _ = fmt.Fprintf(w, "runs — last %dd · %d runs\n\n", opt.Days, len(runs))
 	if len(runs) == 0 {
-		fmt.Fprintln(w, "(no runs in window)")
+		_, _ = fmt.Fprintln(w, "(no runs in window)")
 		return
 	}
 
@@ -688,27 +688,27 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 		return severity(flagged[i], spikes, opt.CtxWarn) > severity(flagged[j], spikes, opt.CtxWarn)
 	})
 	if len(flagged) > 0 {
-		fmt.Fprintln(w, "look here first:")
+		_, _ = fmt.Fprintln(w, "look here first:")
 		for i, r := range flagged {
 			if i >= shortlistCap {
-				fmt.Fprintf(w, "  … +%d more flagged (see all runs)\n", len(flagged)-shortlistCap)
+				_, _ = fmt.Fprintf(w, "  … +%d more flagged (see all runs)\n", len(flagged)-shortlistCap)
 				break
 			}
 			reason := flagStr(r, spikes, opt.CtxWarn)
 			if r.Status == "error" {
 				reason = strings.TrimSpace("err " + reason)
 			}
-			fmt.Fprintf(w, "  %s  %s\n", r.RunID, reason)
+			_, _ = fmt.Fprintf(w, "  %s  %s\n", r.RunID, reason)
 		}
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 
-	fmt.Fprintln(w, "all runs (newest first):")
+	_, _ = fmt.Fprintln(w, "all runs (newest first):")
 	for _, r := range runs {
-		fmt.Fprintf(w, "  %s  %s  %s  %s  c%s  %s\n",
+		_, _ = fmt.Fprintf(w, "  %s  %s  %s  %s  c%s  %s\n",
 			r.RunID, r.Kind, r.Status, costCell(cost(r)), tokens(peakCtx(r)), flagStr(r, spikes, opt.CtxWarn))
 	}
-	fmt.Fprintln(w, "\ndrill: rc run <id> --debug")
+	_, _ = fmt.Fprintln(w, "\ndrill: rc run <id> --debug")
 }
 
 // --- sorting helpers ---

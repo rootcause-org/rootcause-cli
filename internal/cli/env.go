@@ -47,7 +47,7 @@ func newEnvKeysCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), e.scopeTenant())
+			resp, err := c.Env(e.ctx(), e.scopeTenant(), e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -56,9 +56,9 @@ func newEnvKeysCmd(e *env) *cobra.Command {
 				return writeJSON(e, map[string]any{"project": resp.Project, "tenant": resp.Tenant, "keys": names, "count": len(names)})
 			}
 			for _, n := range names {
-				fmt.Fprintln(e.out, n)
+				_, _ = fmt.Fprintln(e.out, n)
 			}
-			fmt.Fprintf(e.err, "%d keys (%s)\n", len(names), scopeLabel(resp))
+			_, _ = fmt.Fprintf(e.err, "%d keys (%s)\n", len(names), scopeLabel(resp))
 			return nil
 		},
 	}
@@ -75,7 +75,7 @@ func newEnvPullCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), e.scopeTenant())
+			resp, err := c.Env(e.ctx(), e.scopeTenant(), e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -89,8 +89,8 @@ func newEnvPullCmd(e *env) *cobra.Command {
 					"keys": names, "count": len(names),
 				})
 			}
-			fmt.Fprintf(e.out, "wrote %s (0600) — %d keys (%s):\n", localEnvPath, len(names), scopeLabel(resp))
-			fmt.Fprintf(e.out, "  %s\n", strings.Join(names, ", "))
+			_, _ = fmt.Fprintf(e.out, "wrote %s (0600) — %d keys (%s):\n", localEnvPath, len(names), scopeLabel(resp))
+			_, _ = fmt.Fprintf(e.out, "  %s\n", strings.Join(names, ", "))
 			return nil
 		},
 	}
@@ -107,7 +107,7 @@ func newEnvDiffCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.Env(e.ctx(), e.scopeTenant())
+			resp, err := c.Env(e.ctx(), e.scopeTenant(), e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -174,18 +174,18 @@ func diffEnv(local, server map[string]string) envDiff {
 // renderDiff prints the human drift report (names only).
 func renderDiff(e *env, resp *client.EnvResponse, d envDiff) {
 	if d.inSync() {
-		fmt.Fprintf(e.out, "in sync: %d keys match the server (%s)\n", len(resp.Keys), scopeLabel(resp))
+		_, _ = fmt.Fprintf(e.out, "in sync: %d keys match the server (%s)\n", len(resp.Keys), scopeLabel(resp))
 		return
 	}
-	fmt.Fprintf(e.out, "DRIFT vs server (%s) — names only:\n", scopeLabel(resp))
+	_, _ = fmt.Fprintf(e.out, "DRIFT vs server (%s) — names only:\n", scopeLabel(resp))
 	if len(d.valueDiffers) > 0 {
-		fmt.Fprintf(e.out, "  value differs : %s\n", strings.Join(d.valueDiffers, ", "))
+		_, _ = fmt.Fprintf(e.out, "  value differs : %s\n", strings.Join(d.valueDiffers, ", "))
 	}
 	if len(d.onlyLocal) > 0 {
-		fmt.Fprintf(e.out, "  only local    : %s\n", strings.Join(d.onlyLocal, ", "))
+		_, _ = fmt.Fprintf(e.out, "  only local    : %s\n", strings.Join(d.onlyLocal, ", "))
 	}
 	if len(d.onlyServer) > 0 {
-		fmt.Fprintf(e.out, "  only on server: %s\n", strings.Join(d.onlyServer, ", "))
+		_, _ = fmt.Fprintf(e.out, "  only on server: %s\n", strings.Join(d.onlyServer, ", "))
 	}
 }
 

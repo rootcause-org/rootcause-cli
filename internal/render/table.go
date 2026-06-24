@@ -19,21 +19,21 @@ import (
 // as the server sends them. A pure function of the wire rows so a golden pins it.
 func Projects(w io.Writer, resp *client.ProjectsResponse) {
 	if len(resp.Projects) == 0 {
-		fmt.Fprintln(w, "(no projects)")
+		_, _ = fmt.Fprintln(w, "(no projects)")
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "NAME\tID")
+	_, _ = fmt.Fprintln(tw, "NAME\tID")
 	for _, p := range resp.Projects {
-		fmt.Fprintf(tw, "%s\t%s\n", p.Name, p.ID)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\n", p.Name, p.ID)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // Status renders the health summary first (the point of `rc status`) then the recent-runs table.
 func Status(w io.Writer, resp *client.RunsResponse) {
 	writeSummary(w, &resp.Summary)
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 	Runs(w, resp)
 }
 
@@ -44,39 +44,39 @@ func writeSummary(w io.Writer, s *client.Summary) {
 	if s.Healthy {
 		health = "healthy"
 	}
-	fmt.Fprintf(w, "Health: %s\n", health)
+	_, _ = fmt.Fprintf(w, "Health: %s\n", health)
 
 	if len(s.CountsBySource) > 0 {
-		fmt.Fprintln(w, "\nSources:")
+		_, _ = fmt.Fprintln(w, "\nSources:")
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "  SOURCE\tTOTAL\tERRORS")
+		_, _ = fmt.Fprintln(tw, "  SOURCE\tTOTAL\tERRORS")
 		// Stable order: sort source names so goldens don't flake on map iteration.
 		for _, name := range sortedKeys(s.CountsBySource) {
 			c := s.CountsBySource[name]
-			fmt.Fprintf(tw, "  %s\t%d\t%d\n", name, c.Total, c.Errors)
+			_, _ = fmt.Fprintf(tw, "  %s\t%d\t%d\n", name, c.Total, c.Errors)
 		}
-		tw.Flush()
+		_ = tw.Flush()
 	}
 
 	if s.LastSuccess != nil {
-		fmt.Fprintf(w, "\nLast success: %s (%s) at %s\n", s.LastSuccess.RunID, s.LastSuccess.Source, s.LastSuccess.At)
+		_, _ = fmt.Fprintf(w, "\nLast success: %s (%s) at %s\n", s.LastSuccess.RunID, s.LastSuccess.Source, s.LastSuccess.At)
 	} else {
-		fmt.Fprintln(w, "\nLast success: none")
+		_, _ = fmt.Fprintln(w, "\nLast success: none")
 	}
 	if s.LastError != nil {
-		fmt.Fprintf(w, "Last error:   %s (%s, %s) at %s\n", s.LastError.RunID, s.LastError.Source, s.LastError.Category, s.LastError.At)
+		_, _ = fmt.Fprintf(w, "Last error:   %s (%s, %s) at %s\n", s.LastError.RunID, s.LastError.Source, s.LastError.Category, s.LastError.At)
 	} else {
-		fmt.Fprintln(w, "Last error:   none")
+		_, _ = fmt.Fprintln(w, "Last error:   none")
 	}
 
 	if len(s.Attention) > 0 {
-		fmt.Fprintf(w, "\nNeeds attention (%d):\n", len(s.Attention))
+		_, _ = fmt.Fprintf(w, "\nNeeds attention (%d):\n", len(s.Attention))
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "  RUN\tSOURCE\tCATEGORY\tOUTCOME\tAT")
+		_, _ = fmt.Fprintln(tw, "  RUN\tSOURCE\tCATEGORY\tOUTCOME\tAT")
 		for _, a := range s.Attention {
-			fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", a.RunID, a.Source, a.Category, a.Outcome, a.At)
+			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\n", a.RunID, a.Source, a.Category, a.Outcome, a.At)
 		}
-		tw.Flush()
+		_ = tw.Flush()
 	}
 }
 
@@ -84,18 +84,18 @@ func writeSummary(w io.Writer, s *client.Summary) {
 // the server returned one.
 func Runs(w io.Writer, resp *client.RunsResponse) {
 	if len(resp.Runs) == 0 {
-		fmt.Fprintln(w, "No runs.")
+		_, _ = fmt.Fprintln(w, "No runs.")
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "RUN\tKIND\tSOURCE\tSTATUS\tOUTCOME\tCATEGORY\tDURATION\tCREATED")
+	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSOURCE\tSTATUS\tOUTCOME\tCATEGORY\tDURATION\tCREATED")
 	for _, r := range resp.Runs {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			r.RunID, r.Kind, r.Source, r.Status, r.Outcome, r.Category, duration(r.DurationMs), r.CreatedAt)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 	if resp.NextBefore != "" {
-		fmt.Fprintf(w, "\nMore: rc runs --before %s\n", resp.NextBefore)
+		_, _ = fmt.Fprintf(w, "\nMore: rc runs --before %s\n", resp.NextBefore)
 	}
 }
 
@@ -107,47 +107,47 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 // stays clean.
 func Run(w io.Writer, r *client.RunDetail) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
-	fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
-	fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
+	_, _ = fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
+	_, _ = fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
+	_, _ = fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
 	if r.Category != "" {
-		fmt.Fprintf(tw, "Category:\t%s\n", r.Category)
+		_, _ = fmt.Fprintf(tw, "Category:\t%s\n", r.Category)
 	}
 	if oc := metaString(r.Metadata, "outcome"); oc != "" {
-		fmt.Fprintf(tw, "Outcome:\t%s\n", oc)
+		_, _ = fmt.Fprintf(tw, "Outcome:\t%s\n", oc)
 	}
 	if why := runWhy(r.Debug); why != "" {
-		fmt.Fprintf(tw, "Why:\t%s\n", why)
+		_, _ = fmt.Fprintf(tw, "Why:\t%s\n", why)
 	}
-	fmt.Fprintf(tw, "Draft?:\t%s\n", yesNo(r.HasDraft))
-	fmt.Fprintf(tw, "Note?:\t%s\n", yesNo(r.HasNote))
-	fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
+	_, _ = fmt.Fprintf(tw, "Draft?:\t%s\n", yesNo(r.HasDraft))
+	_, _ = fmt.Fprintf(tw, "Note?:\t%s\n", yesNo(r.HasNote))
+	_, _ = fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
-		fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
+		_, _ = fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
 	}
 	if d := runDetailDuration(r); d != "" {
-		fmt.Fprintf(tw, "Duration:\t%s\n", d)
+		_, _ = fmt.Fprintf(tw, "Duration:\t%s\n", d)
 	}
 	if cost := runCost(r); cost > 0 {
-		fmt.Fprintf(tw, "Cost:\t$%.2f\n", cost)
+		_, _ = fmt.Fprintf(tw, "Cost:\t$%.2f\n", cost)
 	}
 	if r.Turns > 0 {
-		fmt.Fprintf(tw, "Turns:\t%d\n", r.Turns)
+		_, _ = fmt.Fprintf(tw, "Turns:\t%d\n", r.Turns)
 	}
 	if r.BashTotal > 0 {
-		fmt.Fprintf(tw, "Bash:\t%d\n", r.BashTotal)
+		_, _ = fmt.Fprintf(tw, "Bash:\t%d\n", r.BashTotal)
 	}
-	fmt.Fprintf(tw, "Attachments:\t%d\n", len(r.Attachments))
+	_, _ = fmt.Fprintf(tw, "Attachments:\t%d\n", len(r.Attachments))
 	if r.RunURL != "" {
-		fmt.Fprintf(tw, "View run:\t%s\n", r.RunURL)
+		_, _ = fmt.Fprintf(tw, "View run:\t%s\n", r.RunURL)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	if r.Error != "" {
-		fmt.Fprintf(w, "\nError:\n%s\n", r.Error)
+		_, _ = fmt.Fprintf(w, "\nError:\n%s\n", r.Error)
 	}
 	if r.AnswerMarkdown != "" {
-		fmt.Fprintf(w, "\nAnswer:\n%s\n", r.AnswerMarkdown)
+		_, _ = fmt.Fprintf(w, "\nAnswer:\n%s\n", r.AnswerMarkdown)
 	}
 }
 
@@ -156,39 +156,39 @@ func Run(w io.Writer, r *client.RunDetail) {
 // changes from this run" line (the explicit empty case — a declined / swallowed run).
 func BrainDiff(w io.Writer, d *client.BrainDiff) {
 	if !d.Found {
-		fmt.Fprintf(w, "Run: %s\n", d.RunID)
-		fmt.Fprintln(w, "No brain changes from this run.")
+		_, _ = fmt.Fprintf(w, "Run: %s\n", d.RunID)
+		_, _ = fmt.Fprintln(w, "No brain changes from this run.")
 		return
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "Run:\t%s\n", d.RunID)
-	fmt.Fprintf(tw, "Commit:\t%s\n", shortSHA(d.SHA))
+	_, _ = fmt.Fprintf(tw, "Run:\t%s\n", d.RunID)
+	_, _ = fmt.Fprintf(tw, "Commit:\t%s\n", shortSHA(d.SHA))
 	if d.Author != "" {
-		fmt.Fprintf(tw, "Author:\t%s\n", d.Author)
+		_, _ = fmt.Fprintf(tw, "Author:\t%s\n", d.Author)
 	}
 	if d.CommittedAt != "" {
-		fmt.Fprintf(tw, "Committed:\t%s\n", d.CommittedAt)
+		_, _ = fmt.Fprintf(tw, "Committed:\t%s\n", d.CommittedAt)
 	}
 	if subj := firstLine(d.Message); subj != "" {
-		fmt.Fprintf(tw, "Message:\t%s\n", subj)
+		_, _ = fmt.Fprintf(tw, "Message:\t%s\n", subj)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	if len(d.Files) > 0 {
-		fmt.Fprintf(w, "\nFiles (%d):\n", len(d.Files))
+		_, _ = fmt.Fprintf(w, "\nFiles (%d):\n", len(d.Files))
 		ftw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(ftw, "  FILE\tCHURN")
+		_, _ = fmt.Fprintln(ftw, "  FILE\tCHURN")
 		for _, f := range d.Files {
-			fmt.Fprintf(ftw, "  %s\t%s\n", f.Path, churn(f.Additions, f.Deletions))
+			_, _ = fmt.Fprintf(ftw, "  %s\t%s\n", f.Path, churn(f.Additions, f.Deletions))
 		}
-		ftw.Flush()
+		_ = ftw.Flush()
 	}
 
 	if strings.TrimSpace(d.Diff) != "" {
-		fmt.Fprintf(w, "\nDiff:\n%s\n", strings.TrimRight(d.Diff, "\n"))
+		_, _ = fmt.Fprintf(w, "\nDiff:\n%s\n", strings.TrimRight(d.Diff, "\n"))
 		if d.DiffTruncated {
-			fmt.Fprintln(w, "… (diff truncated)")
+			_, _ = fmt.Fprintln(w, "… (diff truncated)")
 		}
 	}
 }
@@ -285,32 +285,32 @@ func truncate(s string, max int) string {
 // Events renders the per-event trace as a readable per-iteration block: a header line per event plus
 // command / stdout / stderr / reply markers when present.
 func Events(w io.Writer, resp *client.EventsResponse) {
-	fmt.Fprintf(w, "Run: %s\n", resp.RunID)
+	_, _ = fmt.Fprintf(w, "Run: %s\n", resp.RunID)
 	if len(resp.Events) == 0 {
-		fmt.Fprintln(w, "No events.")
+		_, _ = fmt.Fprintln(w, "No events.")
 		return
 	}
 	// Renumber 1..N in the human view: the server's raw seq can be a negative sentinel block
 	// (#-1000000, #-999999, …) that is meaningless to a reader. The raw seq is preserved in JSON/NDJSON.
 	for i, e := range resp.Events {
-		fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
+		_, _ = fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
 			i+1, e.Tool, e.Status, e.ExitCode, duration(e.DurationMs), e.At)
 		if e.Command != "" {
-			fmt.Fprintf(w, "    $ %s\n", e.Command)
+			_, _ = fmt.Fprintf(w, "    $ %s\n", e.Command)
 		}
 		if e.HasDraft || e.HasNote {
-			fmt.Fprintf(w, "    draft=%t note=%t\n", e.HasDraft, e.HasNote)
+			_, _ = fmt.Fprintf(w, "    draft=%t note=%t\n", e.HasDraft, e.HasNote)
 		}
 		// Terminal reply that DECLINED: the reasoned "why nothing" (no draft/note placed). This is the
 		// one-read answer to "the run declined — why?" the lean trace previously couldn't show.
 		if e.DeclineReason != "" {
-			fmt.Fprintf(w, "    declined: %s\n", indentBlock(e.DeclineReason))
+			_, _ = fmt.Fprintf(w, "    declined: %s\n", indentBlock(e.DeclineReason))
 		}
 		if e.Stdout != "" {
-			fmt.Fprintf(w, "    stdout: %s\n", indentBlock(e.Stdout))
+			_, _ = fmt.Fprintf(w, "    stdout: %s\n", indentBlock(e.Stdout))
 		}
 		if e.Stderr != "" {
-			fmt.Fprintf(w, "    stderr: %s\n", indentBlock(e.Stderr))
+			_, _ = fmt.Fprintf(w, "    stderr: %s\n", indentBlock(e.Stderr))
 		}
 	}
 }
@@ -322,104 +322,104 @@ func Events(w io.Writer, resp *client.EventsResponse) {
 func Full(w io.Writer, f *client.FullResponse) {
 	r := &f.Run
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
-	fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
+	_, _ = fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
+	_, _ = fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
 	// Debug flags sit right under Status — they explain HOW the run reached that status. The full
 	// decline_reason (which can be a paragraph) is rendered as a block below; here we show only the
 	// terse flags. Each row prints only when the signal is present, so a clean run stays clean.
 	if d := r.Debug; d != nil {
 		if d.Guardrail != "" {
-			fmt.Fprintf(tw, "Guardrail:\t%s\n", d.Guardrail)
+			_, _ = fmt.Fprintf(tw, "Guardrail:\t%s\n", d.Guardrail)
 		}
 		if d.Forced != "" {
-			fmt.Fprintf(tw, "Forced:\t%s\n", d.Forced)
+			_, _ = fmt.Fprintf(tw, "Forced:\t%s\n", d.Forced)
 		}
 		if d.FallbackFrom != "" {
-			fmt.Fprintf(tw, "Fallback from:\t%s\n", d.FallbackFrom)
+			_, _ = fmt.Fprintf(tw, "Fallback from:\t%s\n", d.FallbackFrom)
 		}
 		if d.RecoverableRetries > 0 {
-			fmt.Fprintf(tw, "Recoverable retries:\t%d\n", d.RecoverableRetries)
+			_, _ = fmt.Fprintf(tw, "Recoverable retries:\t%d\n", d.RecoverableRetries)
 		}
 	}
-	fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
+	_, _ = fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
 	if r.Trigger != "" {
-		fmt.Fprintf(tw, "Trigger:\t%s\n", r.Trigger)
+		_, _ = fmt.Fprintf(tw, "Trigger:\t%s\n", r.Trigger)
 	}
 	if r.BrainRef != "" {
-		fmt.Fprintf(tw, "Brain ref:\t%s\n", r.BrainRef)
+		_, _ = fmt.Fprintf(tw, "Brain ref:\t%s\n", r.BrainRef)
 	}
 	if r.Model != "" {
-		fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
+		_, _ = fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
 	}
-	fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
+	_, _ = fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
-		fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
+		_, _ = fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
 	}
 	if r.RunCostUSD > 0 {
-		fmt.Fprintf(tw, "Cost:\t$%.2f\n", r.RunCostUSD)
+		_, _ = fmt.Fprintf(tw, "Cost:\t$%.2f\n", r.RunCostUSD)
 	}
 	if r.RunTotalTokens > 0 {
-		fmt.Fprintf(tw, "Tokens:\t%d\n", r.RunTotalTokens)
+		_, _ = fmt.Fprintf(tw, "Tokens:\t%d\n", r.RunTotalTokens)
 	}
 	if r.Question != "" {
-		fmt.Fprintf(tw, "Question:\t%s\n", r.Question)
+		_, _ = fmt.Fprintf(tw, "Question:\t%s\n", r.Question)
 	}
 	if tu := metaString(r.Metadata, "trace_url"); tu != "" {
-		fmt.Fprintf(tw, "Trace:\t%s\n", tu)
+		_, _ = fmt.Fprintf(tw, "Trace:\t%s\n", tu)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	// The full decline_reason verbatim (untruncated, may span lines) — the headline "why nothing" for a
 	// declined run. Rendered as a block since the index view only shows a truncated one-liner.
 	if r.Debug != nil && r.Debug.DeclineReason != "" {
-		fmt.Fprintf(w, "\nDecline reason:\n%s\n", r.Debug.DeclineReason)
+		_, _ = fmt.Fprintf(w, "\nDecline reason:\n%s\n", r.Debug.DeclineReason)
 	}
 
 	if len(r.Egress) > 0 {
-		fmt.Fprintf(w, "\nEgress (%d):\n", len(r.Egress))
+		_, _ = fmt.Fprintf(w, "\nEgress (%d):\n", len(r.Egress))
 		etw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(etw, "  HOST\tCOUNT\tBLOCKED")
+		_, _ = fmt.Fprintln(etw, "  HOST\tCOUNT\tBLOCKED")
 		for _, h := range r.Egress {
-			fmt.Fprintf(etw, "  %s\t%d\t%s\n", h.Host, h.Count, yesNo(h.Blocked))
+			_, _ = fmt.Fprintf(etw, "  %s\t%d\t%s\n", h.Host, h.Count, yesNo(h.Blocked))
 		}
-		etw.Flush()
+		_ = etw.Flush()
 	}
 
-	fmt.Fprintf(w, "\nTimeline (%d):\n", len(f.Events))
+	_, _ = fmt.Fprintf(w, "\nTimeline (%d):\n", len(f.Events))
 	for i, e := range f.Events {
-		fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
+		_, _ = fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
 			i+1, eventTool(e.Tool, e.Label), e.Status, e.ExitCode, duration(e.DurationMs), e.At)
 		if meta := eventCostLine(&e); meta != "" {
-			fmt.Fprintf(w, "    %s\n", meta)
+			_, _ = fmt.Fprintf(w, "    %s\n", meta)
 		}
 		if e.Command != "" {
-			fmt.Fprintf(w, "    $ %s\n", e.Command)
+			_, _ = fmt.Fprintf(w, "    $ %s\n", e.Command)
 		}
 		if len(e.Args) > 0 {
-			fmt.Fprintf(w, "    args: %s\n", indentBlock(string(e.Args)))
+			_, _ = fmt.Fprintf(w, "    args: %s\n", indentBlock(string(e.Args)))
 		}
 		if e.Reasoning != "" {
-			fmt.Fprintf(w, "    reasoning: %s\n", indentBlock(e.Reasoning))
+			_, _ = fmt.Fprintf(w, "    reasoning: %s\n", indentBlock(e.Reasoning))
 		}
 		if e.HasDraft || e.HasNote {
-			fmt.Fprintf(w, "    draft=%t note=%t\n", e.HasDraft, e.HasNote)
+			_, _ = fmt.Fprintf(w, "    draft=%t note=%t\n", e.HasDraft, e.HasNote)
 		}
 		if e.Stdout != "" {
-			fmt.Fprintf(w, "    stdout: %s\n", indentBlock(e.Stdout))
+			_, _ = fmt.Fprintf(w, "    stdout: %s\n", indentBlock(e.Stdout))
 		}
 		if e.Stderr != "" {
-			fmt.Fprintf(w, "    stderr: %s\n", indentBlock(e.Stderr))
+			_, _ = fmt.Fprintf(w, "    stderr: %s\n", indentBlock(e.Stderr))
 		}
 	}
 
 	if r.SystemPrompt != "" {
-		fmt.Fprintf(w, "\nSystem prompt:\n%s\n", r.SystemPrompt)
+		_, _ = fmt.Fprintf(w, "\nSystem prompt:\n%s\n", r.SystemPrompt)
 	}
 	if r.Draft != "" {
-		fmt.Fprintf(w, "\nDraft:\n%s\n", r.Draft)
+		_, _ = fmt.Fprintf(w, "\nDraft:\n%s\n", r.Draft)
 	}
 	for _, n := range r.Notes {
-		fmt.Fprintf(w, "\nNote (%s):\n%s\n", n.Key, n.Body)
+		_, _ = fmt.Fprintf(w, "\nNote (%s):\n%s\n", n.Key, n.Body)
 	}
 }
 
@@ -451,18 +451,18 @@ func eventCostLine(e *client.EventItem) string {
 // default per key. kb_enrich_model is shown only when the server included it.
 func Settings(w io.Writer, s *client.Settings) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "KEY\tVALUE\tEFFECTIVE\tDEFAULT")
-	fmt.Fprintf(tw, "max_run_usd\t%s\t%s\t%s\n",
+	_, _ = fmt.Fprintln(tw, "KEY\tVALUE\tEFFECTIVE\tDEFAULT")
+	_, _ = fmt.Fprintf(tw, "max_run_usd\t%s\t%s\t%s\n",
 		numOrBlank(s.MaxRunUSD.Value), num(s.MaxRunUSD.Effective), num(s.MaxRunUSD.Default))
-	fmt.Fprintf(tw, "default_tier\t%s\t%s\t%s\n",
+	_, _ = fmt.Fprintf(tw, "default_tier\t%s\t%s\t%s\n",
 		strOrBlank(s.DefaultTier.Value), s.DefaultTier.Effective, s.DefaultTier.Default)
-	fmt.Fprintf(tw, "image_model\t%s\t%s\t%s\n",
+	_, _ = fmt.Fprintf(tw, "image_model\t%s\t%s\t%s\n",
 		strOrBlank(s.ImageModel.Value), s.ImageModel.Effective, s.ImageModel.Default)
 	if s.KBEnrichModel != nil {
-		fmt.Fprintf(tw, "kb_enrich_model\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "kb_enrich_model\t%s\t%s\t%s\n",
 			strOrBlank(s.KBEnrichModel.Value), s.KBEnrichModel.Effective, s.KBEnrichModel.Default)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 }
 
 // --- small formatting helpers ---

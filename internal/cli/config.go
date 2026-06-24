@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -33,13 +34,13 @@ func newConfigGetCmd(e *env) *cobra.Command {
 				return err
 			}
 			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/settings", nil)
+				raw, err := c.Raw(e.ctx(), "GET", settingsPath(e.scopeProject()), nil)
 				if err != nil {
 					return err
 				}
 				return render.JSON(e.out, raw)
 			}
-			s, err := c.GetSettings(e.ctx())
+			s, err := c.GetSettings(e.ctx(), e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -66,13 +67,13 @@ func newConfigSetCmd(e *env) *cobra.Command {
 			// PATCH returns the full updated settings; render that (so the user sees the new effective
 			// values), JSON passthrough included.
 			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "PATCH", "/api/v1/settings", patch)
+				raw, err := c.Raw(e.ctx(), "PATCH", settingsPath(e.scopeProject()), patch)
 				if err != nil {
 					return err
 				}
 				return render.JSON(e.out, raw)
 			}
-			s, err := c.PatchSettings(e.ctx(), patch)
+			s, err := c.PatchSettings(e.ctx(), patch, e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -80,6 +81,13 @@ func newConfigSetCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func settingsPath(project string) string {
+	if project == "" {
+		return "/api/v1/settings"
+	}
+	return "/api/v1/settings?project=" + url.QueryEscape(project)
 }
 
 // parseSetArgs turns key=value args into the sparse PATCH body. Keys pass through verbatim (the

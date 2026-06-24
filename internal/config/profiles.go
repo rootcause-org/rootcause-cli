@@ -1,14 +1,15 @@
 // Package config resolves the two things every command needs before it can authenticate: a base URL
 // and a PROFILE NAME (the key the OAuth token store is keyed by). The INTENT is a single, documented
-// precedence so behavior is predictable — and crucially, so that running `rc` inside a brain checkout
-// targets THAT brain's project, not whatever a global [default] happens to point at.
+// precedence so behavior is predictable. Running `rc` inside a brain checkout discovers THAT brain's
+// project; the command layer may use it either as the profile name (when such a token exists) or as the
+// server-side project scope when it falls back to the default profile.
 //
 // Auth itself moved to OAuth: tokens live in ~/.config/rootcause/tokens.json (see internal/token),
 // keyed by profile. This package no longer holds any secret — it only decides WHICH profile's token to
 // use and WHICH base URL to hit. A brain repo carries a committed, non-secret marker (.rootcause.toml:
-// project + tenant + base_url) that binds the directory to one project; inside such a repo the profile
-// IS the project name, so `rc login` there mints a token under the project's name and every later `rc`
-// auto-targets it.
+// project + tenant + base_url) that binds the directory to one project. In auto mode this resolver
+// first names the project profile; the command layer can fall back to "default" when no such token is
+// stored and carry the marker's project as ?project= for an all-projects token.
 //
 // `--project` is NOT a profile selector — it does not pick a token. It is a SERVER-SIDE scope (a
 // uuid-or-name passed as ?project= on the read endpoints), meaningful only for an all-projects admin
@@ -17,7 +18,7 @@
 // Precedence for the profile name (the token-store key):
 //
 //	explicit --profile <name>   → that profile (an AWS-style override; no brain binding)
-//	otherwise, inside a brain:    the brain marker's project
+//	otherwise, inside a brain:    the brain marker's project (commands may fall back to default if absent)
 //	otherwise:                    "default"
 //
 // Precedence for the base URL (per field, env always wins):
@@ -127,7 +128,7 @@ func load(profileName, cwd string) (Resolved, error) {
 		return res, nil
 	}
 
-	// Inside a brain: the profile IS the project name. base_url: env > marker > matching profile > default.
+	// Inside a brain: first name the project profile. base_url: env > marker > matching profile > default.
 	prof := f.Profiles[brain.Project]
 	res := Resolved{
 		Profile: brain.Project,

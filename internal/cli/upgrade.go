@@ -57,12 +57,12 @@ func runUpgrade(e *env, current string, checkOnly bool) error {
 	}
 	// Compare without the leading "v" — main.version is injected as "0.5.1", the tag is "v0.5.1".
 	if compareVersions(current, latest) >= 0 {
-		fmt.Fprintf(e.out, "rc is already up to date (%s)\n", normVersion(current))
+		_, _ = fmt.Fprintf(e.out, "rc is already up to date (%s)\n", normVersion(current))
 		return nil
 	}
 
 	if checkOnly {
-		fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n  run: rc upgrade\n", normVersion(current), normVersion(latest))
+		_, _ = fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n  run: rc upgrade\n", normVersion(current), normVersion(latest))
 		return nil
 	}
 
@@ -79,12 +79,12 @@ func runUpgrade(e *env, current string, checkOnly bool) error {
 		// version exists, so the only reason a bare `brew upgrade rc` would say "already latest" is a
 		// stale local tap clone — Homebrew's auto-update refreshes the core JSON API but can skip a
 		// git tap. Pairing the two means a stale tap can never mask a release we just detected.
-		fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n"+
+		_, _ = fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n"+
 			"  this rc was installed with Homebrew — upgrade with: brew update && brew upgrade rc\n", normVersion(current), normVersion(latest))
 		return nil
 	}
 
-	fmt.Fprintf(e.err, "==> downloading rc %s for %s/%s\n", normVersion(latest), runtime.GOOS, runtime.GOARCH)
+	_, _ = fmt.Fprintf(e.err, "==> downloading rc %s for %s/%s\n", normVersion(latest), runtime.GOOS, runtime.GOARCH)
 	bin, err := fetchReleaseBinary(e.ctx(), latest, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return err
@@ -92,7 +92,7 @@ func runUpgrade(e *env, current string, checkOnly bool) error {
 	if err := replaceBinary(exe, bin); err != nil {
 		return err
 	}
-	fmt.Fprintf(e.out, "upgraded rc → %s (%s)\n", normVersion(latest), exe)
+	_, _ = fmt.Fprintf(e.out, "upgraded rc → %s (%s)\n", normVersion(latest), exe)
 	return nil
 }
 

@@ -1,11 +1,17 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
 // TestProjectScopeRidesAsQueryParam pins the core of the --project rework: the flag is a SERVER-SIDE
@@ -75,6 +81,39 @@ func TestNoProjectScopeOmitsQueryParam(t *testing.T) {
 	}
 	if sawProject != "" {
 		t.Errorf("no --project, but server saw project=%q", sawProject)
+	}
+}
+
+func TestBrainDefaultProfileFallbackAddsProjectScope(t *testing.T) {
+	isolatedConfig(t)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"pro-backup\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var sawProject string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		sawProject = r.URL.Query().Get("project")
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	seedToken(t, "default", token.Token{
+		AccessToken: "test-key", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
+	})
+
+	var out, errb bytes.Buffer
+	e := &env{output: "json", out: &out, err: &errb}
+	if err := run(t, e, "status"); err != nil {
+		t.Fatalf("status: %v", err)
+	}
+	if sawProject != "pro-backup" {
+		t.Errorf("server saw project=%q, want pro-backup", sawProject)
 	}
 }
 

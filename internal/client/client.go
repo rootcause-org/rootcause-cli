@@ -159,10 +159,17 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse
 // Env fetches GET /api/v1/env — the project's PRODUCTION grounding secrets (decrypted), project ∪
 // tenant when tenant is set. The response carries live secret VALUES, so callers must render NAMES
 // only (or write the values straight to ./.env); never print a value to stdout/logs.
-func (c *Client) Env(ctx context.Context, tenant string) (*EnvResponse, error) {
+func (c *Client) Env(ctx context.Context, tenant, project string) (*EnvResponse, error) {
 	path := "/api/v1/env"
+	q := url.Values{}
 	if tenant != "" {
-		path += "?tenant=" + url.QueryEscape(tenant)
+		q.Set("tenant", tenant)
+	}
+	if project != "" {
+		q.Set("project", project)
+	}
+	if enc := q.Encode(); enc != "" {
+		path += "?" + enc
 	}
 	var out EnvResponse
 	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
@@ -172,9 +179,13 @@ func (c *Client) Env(ctx context.Context, tenant string) (*EnvResponse, error) {
 }
 
 // GetSettings fetches GET /api/v1/settings.
-func (c *Client) GetSettings(ctx context.Context) (*Settings, error) {
+func (c *Client) GetSettings(ctx context.Context, project string) (*Settings, error) {
+	path := "/api/v1/settings"
+	if project != "" {
+		path += "?project=" + url.QueryEscape(project)
+	}
 	var out Settings
-	if err := c.do(ctx, http.MethodGet, "/api/v1/settings", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -183,9 +194,13 @@ func (c *Client) GetSettings(ctx context.Context) (*Settings, error) {
 // PatchSettings sends a sparse PATCH /api/v1/settings (only the changed keys) and returns the new
 // full settings. The body is an opaque key→value map: the server owns the whitelist and validation,
 // so the CLI passes keys through verbatim and lets the server reject unknown/forbidden ones.
-func (c *Client) PatchSettings(ctx context.Context, patch map[string]any) (*Settings, error) {
+func (c *Client) PatchSettings(ctx context.Context, patch map[string]any, project string) (*Settings, error) {
+	path := "/api/v1/settings"
+	if project != "" {
+		path += "?project=" + url.QueryEscape(project)
+	}
 	var out Settings
-	if err := c.do(ctx, http.MethodPatch, "/api/v1/settings", patch, &out); err != nil {
+	if err := c.do(ctx, http.MethodPatch, path, patch, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -257,7 +272,7 @@ func (c *Client) attempt(ctx context.Context, method, path string, reqBody []byt
 		// silently went to the localhost default instead of the intended host is obvious.
 		return nil, nil, fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("read response: %w", err)

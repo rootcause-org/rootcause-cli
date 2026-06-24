@@ -383,24 +383,24 @@ func renderTenantSettings(e *env, ts *client.TenantSettings, schema *tenantSchem
 	if len(ts.Settings) > 0 {
 		_ = json.Unmarshal(ts.Settings, &values)
 	}
-	fmt.Fprintf(e.out, "tenant: %s", ts.TenantID)
+	_, _ = fmt.Fprintf(e.out, "tenant: %s", ts.TenantID)
 	if ts.Version != "" {
-		fmt.Fprintf(e.out, "  version: %s", ts.Version)
+		_, _ = fmt.Fprintf(e.out, "  version: %s", ts.Version)
 	}
 	if ts.AppliedAt != "" {
-		fmt.Fprintf(e.out, "  applied: %s", ts.AppliedAt)
+		_, _ = fmt.Fprintf(e.out, "  applied: %s", ts.AppliedAt)
 	}
-	fmt.Fprintln(e.out)
+	_, _ = fmt.Fprintln(e.out)
 
 	if len(values) == 0 {
-		fmt.Fprintln(e.out, "(no settings configured)")
+		_, _ = fmt.Fprintln(e.out, "(no settings configured)")
 		return
 	}
 
 	if schema == nil {
 		// Plain key=value, sorted — acceptable fallback per the spec.
 		for _, k := range sortedRawKeys(values) {
-			fmt.Fprintf(e.out, "  %s = %s\n", k, formatValue(values[k]))
+			_, _ = fmt.Fprintf(e.out, "  %s = %s\n", k, formatValue(values[k]))
 		}
 		return
 	}
@@ -424,10 +424,10 @@ func renderTenantSettings(e *env, ts *client.TenantSettings, schema *tenantSchem
 			}
 			return keys[i] < keys[j]
 		})
-		fmt.Fprintf(e.out, "\n%s:\n", g.labelNL)
+		_, _ = fmt.Fprintf(e.out, "\n%s:\n", g.labelNL)
 		for _, k := range keys {
 			rendered[k] = true
-			fmt.Fprintf(e.out, "  %s = %s\n", labelFor(schema, k), formatValue(values[k]))
+			_, _ = fmt.Fprintf(e.out, "  %s = %s\n", labelFor(schema, k), formatValue(values[k]))
 		}
 	}
 	// Any field not placed by the schema (unknown key on the stored record) — show it so nothing is
@@ -440,9 +440,9 @@ func renderTenantSettings(e *env, ts *client.TenantSettings, schema *tenantSchem
 	}
 	if len(orphans) > 0 {
 		sort.Strings(orphans)
-		fmt.Fprintln(e.out, "\nOther:")
+		_, _ = fmt.Fprintln(e.out, "\nOther:")
 		for _, k := range orphans {
-			fmt.Fprintf(e.out, "  %s = %s\n", k, formatValue(values[k]))
+			_, _ = fmt.Fprintf(e.out, "  %s = %s\n", k, formatValue(values[k]))
 		}
 	}
 }

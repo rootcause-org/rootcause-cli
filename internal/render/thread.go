@@ -27,33 +27,33 @@ func shortID(id string) string {
 // per-run health flag column), the "where it likely failed" hint on the newest run, and the pending-
 // ReplyPen footer. An unresolved id (resolved_by "none", no runs) is an explicit, useful empty answer.
 func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
-	fmt.Fprintf(w, "Thread: %s\n", t.ID)
-	fmt.Fprintf(w, "Resolved by: %s\n", resolvedLabel(t.ResolvedBy))
+	_, _ = fmt.Fprintf(w, "Thread: %s\n", t.ID)
+	_, _ = fmt.Fprintf(w, "Resolved by: %s\n", resolvedLabel(t.ResolvedBy))
 
 	if len(t.Runs) == 0 {
-		fmt.Fprintln(w, "\nNo runs on the rootcause side for this id.")
-		fmt.Fprintln(w, "Either we never received a webhook for it, or the id isn't a thread/session we ran.")
-		fmt.Fprintln(w, "\n"+replyPenFooter)
+		_, _ = fmt.Fprintln(w, "\nNo runs on the rootcause side for this id.")
+		_, _ = fmt.Fprintln(w, "Either we never received a webhook for it, or the id isn't a thread/session we ran.")
+		_, _ = fmt.Fprintln(w, "\n"+replyPenFooter)
 		return
 	}
 
-	fmt.Fprintf(w, "\n%d run(s), newest first:\n", len(t.Runs))
+	_, _ = fmt.Fprintf(w, "\n%d run(s), newest first:\n", len(t.Runs))
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "RUN\tKIND\tSTATUS\tOUTCOME\tCATEGORY\tHEALTH\tDRAFT\tCREATED\tTOPIC")
+	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSTATUS\tOUTCOME\tCATEGORY\tHEALTH\tDRAFT\tCREATED\tTOPIC")
 	for _, r := range t.Runs {
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			shortID(r.RunID), r.Kind, r.Status, r.Outcome, r.Category,
 			healthFlags(r.Health), draftNote(r), r.CreatedAt, strOrBlank(r.Topic))
 	}
-	tw.Flush()
+	_ = tw.Flush()
 
 	// The deterministic verdict on the NEWEST run (runs are newest-first) — the one the operator cares
 	// about ("did THIS turn get a draft, and if not, where did it stop").
 	if hint := threadFailureHint(&t.Runs[0]); hint != "" {
-		fmt.Fprintf(w, "\nLikely: %s\n", hint)
+		_, _ = fmt.Fprintf(w, "\nLikely: %s\n", hint)
 	}
 
-	fmt.Fprintln(w, "\n"+replyPenFooter)
+	_, _ = fmt.Fprintln(w, "\n"+replyPenFooter)
 }
 
 // replyPenFooter marks the one-sided scope: the ReplyPen half (did it send us the webhook? did it place

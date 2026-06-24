@@ -109,13 +109,14 @@ token-store key) + a **base URL** — no secret. `Load(profile)` (note: `--proje
 it's a server-side scope the command layer threads onto each read request, never a token selector):
 
 - **explicit `--profile <name>`** → that profile, no brain binding (the override escape hatch);
-- **inside a brain** → the brain marker's project IS the profile (running `rc` there targets that
-  project's token; with no token it's a hard error naming the project — never a silent fallback);
+- **inside a brain** → first try the brain marker's project as the profile; if no token exists for it,
+  fall back to `"default"` and carry the marker's project as `?project=` on supported endpoints;
 - **outside any brain** → `"default"`.
 
 `--project <id-or-name>` rides as `?project=` on supported per-project endpoints (run index, feeds,
-health, thread-trace, and prompt submit); an all-projects admin token uses it to scope one project, a
-pinned token disregards it server-side. See `env.scopeProject` in `internal/cli/root.go`.
+health, thread-trace, prompt submit, env, and settings); an all-projects admin token uses it to scope
+one project, a pinned token disregards it server-side. The brain→default fallback sets this scope
+implicitly from `.rootcause.toml`. See `env.scopeProject` in `internal/cli/root.go`.
 
 **Fleet-wide `--all`** (`rc fleet`/`patterns`/`health`) is the FAT-CLIENT fan-out that complements
 `--project`: it lists the fleet via `rc projects`, then calls the per-project read endpoint once per
