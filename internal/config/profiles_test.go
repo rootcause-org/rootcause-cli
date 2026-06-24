@@ -70,8 +70,8 @@ func TestLoad_NoBrain_NoConfig_BuiltInBase(t *testing.T) {
 	if res.Profile != DefaultProfile {
 		t.Errorf("profile=%q, want default", res.Profile)
 	}
-	if res.BaseURL != DefaultBaseURL || !res.BaseURLFromDefault {
-		t.Errorf("base=%q fromDefault=%v, want built-in default", res.BaseURL, res.BaseURLFromDefault)
+	if res.BaseURL != "https://rootcause.probackup.io" || !res.BaseURLFromDefault {
+		t.Errorf("base=%q fromDefault=%v, want production built-in default", res.BaseURL, res.BaseURLFromDefault)
 	}
 }
 

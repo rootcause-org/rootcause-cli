@@ -143,11 +143,6 @@ func (e *env) newClient() (*client.Client, error) {
 		baseURL = tok.BaseURL
 		res.BaseURLFromDefault = false
 	}
-	if res.BaseURLFromDefault {
-		// Logged in but no base URL set anywhere → about to hit localhost. Warn to stderr (never stdout, so
-		// piped output stays clean) rather than fail.
-		fmt.Fprintf(e.err, "warning: no base URL set; defaulting to %s — set ROOTCAUSE_BASE_URL or base_url in your config profile\n", baseURL)
-	}
 	return client.New(baseURL, newLiveSource(res.Profile, baseURL)), nil
 }
 

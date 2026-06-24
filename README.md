@@ -106,11 +106,11 @@ Inside a brain with no token, `rc` fails **loudly** naming the project and telli
 it never silently uses a different project's token.
 
 **Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
-built-in default (`http://localhost:8080`). A stored token also remembers the issuer it was minted
+built-in production default (`https://rootcause.probackup.io`). A stored token also remembers the issuer it was minted
 against, so commands hit the same server you logged in to.
 
 ```bash
-export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: http://localhost:8080
+export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: https://rootcause.probackup.io
 ```
 
 Optional `~/.config/rootcause/config.toml` holds **base-URL-only** profiles (no secrets — tokens live

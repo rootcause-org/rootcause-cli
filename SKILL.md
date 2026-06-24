@@ -135,7 +135,7 @@ boolean (it bakes around the `runs.model_fallback_from` empty-string-vs-NULL tra
 skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in `-o json`.
 
 Base URL per field: `ROOTCAUSE_BASE_URL` > marker `base_url` > `[profiles.<name>] base_url` > built-in
-default (`http://localhost:8080`). A stored token also pins the issuer it was minted against, so commands
+production default (`https://rootcause.probackup.io`). A stored token also pins the issuer it was minted against, so commands
 hit the same server. `Resolved` carries `Profile`/`Project`/`Brain` so `root.go` crafts the loud error
 and `rc whoami` explains the binding (locally — there is no server identity endpoint yet). Honors
 `XDG_CONFIG_HOME`. The committed marker is non-secret; tokens live only in the 0600 token store.

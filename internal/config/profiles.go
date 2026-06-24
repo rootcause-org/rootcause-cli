@@ -35,7 +35,7 @@ import (
 
 const (
 	// DefaultBaseURL is the built-in fallback when neither config, brain marker, nor env sets one.
-	DefaultBaseURL = "http://localhost:8080"
+	DefaultBaseURL = "https://rootcause.probackup.io"
 
 	// MarkerFileName is the committed, non-secret per-brain marker binding the checkout to a project.
 	// It is KEPT under OAuth — it carries no secret, only the project/tenant binding + base URL.
@@ -140,7 +140,7 @@ func load(profileName, cwd string) (Resolved, error) {
 }
 
 // resolveBaseURL picks the first non-empty URL: env override, then the given candidates in order, then
-// the built-in default (with the from-default flag set so the command layer can warn).
+// the built-in default (with the from-default flag set for diagnostics).
 func resolveBaseURL(candidates ...string) (string, bool) {
 	if v := os.Getenv(envBaseURL); v != "" {
 		return v, false
