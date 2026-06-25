@@ -611,6 +611,9 @@ func Full(w io.Writer, f *client.FullResponse) {
 	if len(drift) > 0 {
 		_, _ = fmt.Fprintf(tw, "Tenant settings drift:\t%d changed\n", len(drift))
 	}
+	if grounding := groundingSummary(r.GroundingSources); grounding != "" {
+		_, _ = fmt.Fprintf(tw, "Grounding:\t%s\n", grounding)
+	}
 	if r.Model != "" {
 		_, _ = fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
 	}
@@ -638,6 +641,8 @@ func Full(w io.Writer, f *client.FullResponse) {
 			_, _ = fmt.Fprintf(w, "  %s: then %s; now %s\n", d.Key, d.Then, d.Now)
 		}
 	}
+
+	renderGroundingSources(w, r.GroundingSources)
 
 	// The full decline_reason verbatim (untruncated, may span lines) — the headline "why nothing" for a
 	// declined run. Rendered as a block since the index view only shows a truncated one-liner.
@@ -690,6 +695,138 @@ func Full(w io.Writer, f *client.FullResponse) {
 	}
 	for _, n := range r.Notes {
 		_, _ = fmt.Fprintf(w, "\nNote (%s):\n%s\n", n.Key, n.Body)
+	}
+}
+
+func groundingSummary(gs *client.GroundingSources) string {
+	if gs == nil {
+		return ""
+	}
+	if !gs.Captured {
+		if gs.Reason != "" {
+			return "not captured (" + gs.Reason + ")"
+		}
+		return "not captured"
+	}
+	parts := []string{fmt.Sprintf("%d sources", len(gs.Sources))}
+	if attention := client.GroundingSourceAttentionCount(gs); attention > 0 {
+		parts = append(parts, fmt.Sprintf("%d attention", attention))
+	}
+	if drift := client.GroundingSourceDriftCount(gs); drift > 0 {
+		parts = append(parts, fmt.Sprintf("%d drift fields", drift))
+	}
+	if gs.CapturedAt != "" {
+		parts = append(parts, "captured="+gs.CapturedAt)
+	}
+	if gs.CurrentCheckedAt != "" {
+		parts = append(parts, "checked="+gs.CurrentCheckedAt)
+	}
+	return strings.Join(parts, "  ")
+}
+
+func renderGroundingSources(w io.Writer, gs *client.GroundingSources) {
+	if gs == nil || !gs.Captured || len(gs.Sources) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "\nGrounding sources (%d):\n", len(gs.Sources))
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "  !\tSOURCE\tSNAPSHOT\tSYNC\tCURRENT\tDRIFT")
+	for _, s := range client.SortGroundingSources(gs.Sources) {
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
+			groundingMark(s), groundingSourceName(s), groundingSnapshot(s), groundingSync(s), groundingCurrent(s), groundingDrift(s))
+	}
+	_ = tw.Flush()
+}
+
+func groundingMark(s client.GroundingSource) string {
+	if !s.Configured || !s.Available || !s.Mounted || len(s.Drift) > 0 {
+		return "!"
+	}
+	return ""
+}
+
+func groundingSourceName(s client.GroundingSource) string {
+	if s.Kind == "" {
+		return s.Name
+	}
+	if s.Name == "" {
+		return s.Kind
+	}
+	return s.Kind + "/" + s.Name
+}
+
+func groundingSnapshot(s client.GroundingSource) string {
+	var parts []string
+	if s.MountPath != "" {
+		parts = append(parts, s.MountPath)
+	}
+	if ref := refSHA(s.Ref, s.CommitSHA); ref != "" {
+		parts = append(parts, ref)
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, " ")
+}
+
+func groundingSync(s client.GroundingSource) string {
+	var parts []string
+	if !s.Configured {
+		parts = append(parts, "not configured")
+	}
+	if !s.Available {
+		parts = append(parts, "unavailable")
+	}
+	if !s.Mounted {
+		parts = append(parts, "not mounted")
+	}
+	if len(parts) == 0 {
+		if s.State != "" {
+			parts = append(parts, s.State)
+		} else {
+			parts = append(parts, "ok")
+		}
+	}
+	if s.LastOKAt != "" {
+		parts = append(parts, "last_ok="+s.LastOKAt)
+	}
+	return strings.Join(parts, " ")
+}
+
+func groundingCurrent(s client.GroundingSource) string {
+	if s.Current == nil {
+		return "-"
+	}
+	var parts []string
+	if ref := refSHA(s.Current.Ref, s.Current.CommitSHA); ref != "" {
+		parts = append(parts, ref)
+	}
+	if s.Current.State != "" {
+		parts = append(parts, s.Current.State)
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, " ")
+}
+
+func groundingDrift(s client.GroundingSource) string {
+	if len(s.Drift) == 0 {
+		return "-"
+	}
+	return strings.Join(s.Drift, ",")
+}
+
+func refSHA(ref, sha string) string {
+	switch {
+	case ref != "" && sha != "":
+		return ref + "@" + shortSHA(sha)
+	case ref != "":
+		return ref
+	case sha != "":
+		return shortSHA(sha)
+	default:
+		return ""
 	}
 }
 

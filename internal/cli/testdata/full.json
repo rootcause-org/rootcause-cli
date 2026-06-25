@@ -40,7 +40,67 @@
     "egress": [
       { "host": "api.stripe.com", "count": 3, "blocked": false },
       { "host": "evil.example", "count": 1, "blocked": true }
-    ]
+    ],
+    "grounding_sources": {
+      "captured": true,
+      "captured_at": "2026-06-19T09:00:03Z",
+      "current_checked_at": "2026-06-25T10:05:00Z",
+      "sources": [
+        {
+          "kind": "mirror",
+          "name": "app",
+          "mount_path": "/mirrors/app",
+          "configured": true,
+          "available": true,
+          "mounted": true,
+          "ref": "main",
+          "commit_sha": "abc123def4567890",
+          "committed_at": "2026-06-18T16:30:00Z",
+          "last_ok_at": "2026-06-19T08:55:00Z",
+          "last_attempt_at": "2026-06-19T08:55:00Z",
+          "state": "ok",
+          "current": {
+            "ref": "main",
+            "commit_sha": "abc123def4567890",
+            "last_ok_at": "2026-06-25T10:00:00Z",
+            "state": "ok"
+          }
+        },
+        {
+          "kind": "kb",
+          "name": "kb",
+          "mount_path": "/kb",
+          "configured": true,
+          "available": true,
+          "mounted": true,
+          "ref": "intercom/en",
+          "commit_sha": "93fa1200babe0000",
+          "committed_at": "2026-06-18T12:00:00Z",
+          "last_ok_at": "2026-06-19T08:50:00Z",
+          "last_attempt_at": "2026-06-19T08:50:00Z",
+          "state": "ok",
+          "details": {
+            "provider": "intercom",
+            "locale": "en",
+            "scope": {
+              "mode": "tenant",
+              "tenant": "de-kies",
+              "total": 220,
+              "visible": 142,
+              "hidden": 78,
+              "scoped": true
+            }
+          },
+          "current": {
+            "ref": "intercom/en",
+            "commit_sha": "1200babe93fa0000",
+            "last_ok_at": "2026-06-25T10:00:00Z",
+            "state": "ok"
+          },
+          "drift": ["commit_sha"]
+        }
+      ]
+    }
   },
   "events": [
     {

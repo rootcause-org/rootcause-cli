@@ -185,9 +185,9 @@ func emitNDJSON(e *env, events []client.Event) error {
 
 // emitFullJSONL turns the /full bundle into the brain-renderer's input contract: a `{"type":"run",…}`
 // header line followed by one `{"type":"event",…}` line per event. It works from the RAW bundle bytes
-// (decomposing {run:{…},events:[…]}) so every server field rides through verbatim — the only transform
-// is injecting the `type` discriminator. This is the stable cross-repo seam; keep its shape pinned by
-// the golden test.
+// (decomposing {run:{…},events:[…]}) so every server field rides through verbatim. The run header also
+// gets the derived grounding_source_drift_count for quick jq filters. This is the stable cross-repo
+// seam; keep its shape pinned by the golden test.
 func emitFullJSONL(e *env, raw json.RawMessage) error {
 	var bundle struct {
 		Run    json.RawMessage   `json:"run"`
@@ -220,7 +220,27 @@ func emitTyped(e *env, obj json.RawMessage, typ string) error {
 		return werr
 	}
 	fields["type"] = json.RawMessage(`"` + typ + `"`)
+	if typ == "run" {
+		if count, ok := groundingSourceDriftCount(fields["grounding_sources"]); ok {
+			b, err := json.Marshal(count)
+			if err != nil {
+				return err
+			}
+			fields["grounding_source_drift_count"] = b
+		}
+	}
 	enc := json.NewEncoder(e.out)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(fields)
+}
+
+func groundingSourceDriftCount(raw json.RawMessage) (int, bool) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return 0, false
+	}
+	var gs client.GroundingSources
+	if err := json.Unmarshal(raw, &gs); err != nil {
+		return 0, false
+	}
+	return client.GroundingSourceDriftCount(&gs), true
 }

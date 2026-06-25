@@ -249,46 +249,103 @@ type EgressItem struct {
 	Blocked bool   `json:"blocked"`
 }
 
+// GroundingSources is the reproducibility stamp for what the run saw: the historical snapshot
+// mounted into the workspace plus the current sync state so the CLI can surface stale or missing
+// grounding without recomputing anything. Old runs return captured:false with a reason.
+type GroundingSources struct {
+	Captured         bool              `json:"captured"`
+	Reason           string            `json:"reason,omitempty"`
+	CapturedAt       string            `json:"captured_at,omitempty"`
+	CurrentCheckedAt string            `json:"current_checked_at,omitempty"`
+	Sources          []GroundingSource `json:"sources,omitempty"`
+}
+
+// GroundingSource is one mounted grounding input (mirror, kb, or a future kind). Details stays
+// freeform because each kind owns its provider/scope payload.
+type GroundingSource struct {
+	Kind          string                  `json:"kind"`
+	Name          string                  `json:"name"`
+	MountPath     string                  `json:"mount_path,omitempty"`
+	Configured    bool                    `json:"configured"`
+	Available     bool                    `json:"available"`
+	Mounted       bool                    `json:"mounted"`
+	Ref           string                  `json:"ref,omitempty"`
+	CommitSHA     string                  `json:"commit_sha,omitempty"`
+	CommittedAt   string                  `json:"committed_at,omitempty"`
+	LastOKAt      string                  `json:"last_ok_at,omitempty"`
+	LastAttemptAt string                  `json:"last_attempt_at,omitempty"`
+	State         string                  `json:"state,omitempty"`
+	Details       map[string]any          `json:"details,omitempty"`
+	Current       *GroundingSourceCurrent `json:"current,omitempty"`
+	Drift         []string                `json:"drift,omitempty"`
+}
+
+// GroundingSourceCurrent is the current sync state for a historical grounding source.
+type GroundingSourceCurrent struct {
+	Ref       string `json:"ref,omitempty"`
+	CommitSHA string `json:"commit_sha,omitempty"`
+	LastOKAt  string `json:"last_ok_at,omitempty"`
+	State     string `json:"state,omitempty"`
+}
+
 // RunHeader is the run-level half of GET /api/v1/runs/{id}/full — the superset of RunDetail the
 // brain-renderer's JSONL run-header line needs: full draft/notes bodies (not booleans), the untrimmed
 // system_prompt, warm inputs (warm_start_digest/grounding_seed), run-level cost/tokens, egress, and
 // metadata.trace_url. Mirrors the server's `run` object field-for-field.
 type RunHeader struct {
-	RunID                 string           `json:"run_id"`
-	Scenario              string           `json:"scenario,omitempty"`
-	Project               string           `json:"project,omitempty"`
-	Tenant                string           `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
-	Status                string           `json:"status"`
-	Kind                  string           `json:"kind"`
-	Trigger               string           `json:"trigger,omitempty"`
-	BrainRef              string           `json:"brain_ref,omitempty"`
-	BrainResolved         string           `json:"brain_resolved,omitempty"`
-	TenantSettings        string           `json:"tenant_settings,omitempty"`
-	TenantSettingsCurrent string           `json:"tenant_settings_current,omitempty"`
-	Error                 string           `json:"error,omitempty"`
-	ThreadID              string           `json:"thread_id,omitempty"`
-	SessionID             string           `json:"session_id,omitempty"`
-	Topic                 string           `json:"topic,omitempty"`
-	Question              string           `json:"question,omitempty"`
-	WarmStartDigest       string           `json:"warm_start_digest,omitempty"`
-	GroundingSeed         string           `json:"grounding_seed,omitempty"`
-	SystemPrompt          string           `json:"system_prompt,omitempty"`
-	CreatedAt             string           `json:"created_at"`
-	FinishedAt            string           `json:"finished_at,omitempty"`
-	Model                 string           `json:"model,omitempty"`
-	RunCostUSD            float64          `json:"run_cost_usd,omitempty"`
-	RunTotalTokens        int64            `json:"run_total_tokens,omitempty"`
-	Draft                 string           `json:"draft,omitempty"`
-	DraftMarkdown         string           `json:"draft_markdown,omitempty"`
-	AnswerMarkdown        string           `json:"answer_markdown,omitempty"`
-	Notes                 []Note           `json:"notes,omitempty"`
-	Decline               string           `json:"decline,omitempty"`
-	DeclineReason         string           `json:"decline_reason,omitempty"`
-	ProposedActions       []ProposedAction `json:"proposed_actions,omitempty"`
-	SourcePR              *SourcePR        `json:"source_pr,omitempty"`
-	Debug                 *RunDebug        `json:"debug,omitempty"`
-	Metadata              map[string]any   `json:"metadata,omitempty"`
-	Egress                []EgressItem     `json:"egress,omitempty"`
+	RunID                 string            `json:"run_id"`
+	Scenario              string            `json:"scenario,omitempty"`
+	Project               string            `json:"project,omitempty"`
+	Tenant                string            `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
+	Status                string            `json:"status"`
+	Kind                  string            `json:"kind"`
+	Trigger               string            `json:"trigger,omitempty"`
+	BrainRef              string            `json:"brain_ref,omitempty"`
+	BrainResolved         string            `json:"brain_resolved,omitempty"`
+	TenantSettings        string            `json:"tenant_settings,omitempty"`
+	TenantSettingsCurrent string            `json:"tenant_settings_current,omitempty"`
+	Error                 string            `json:"error,omitempty"`
+	ThreadID              string            `json:"thread_id,omitempty"`
+	SessionID             string            `json:"session_id,omitempty"`
+	Topic                 string            `json:"topic,omitempty"`
+	Question              string            `json:"question,omitempty"`
+	WarmStartDigest       string            `json:"warm_start_digest,omitempty"`
+	GroundingSeed         string            `json:"grounding_seed,omitempty"`
+	SystemPrompt          string            `json:"system_prompt,omitempty"`
+	CreatedAt             string            `json:"created_at"`
+	FinishedAt            string            `json:"finished_at,omitempty"`
+	Model                 string            `json:"model,omitempty"`
+	RunCostUSD            float64           `json:"run_cost_usd,omitempty"`
+	RunTotalTokens        int64             `json:"run_total_tokens,omitempty"`
+	Draft                 string            `json:"draft,omitempty"`
+	DraftMarkdown         string            `json:"draft_markdown,omitempty"`
+	AnswerMarkdown        string            `json:"answer_markdown,omitempty"`
+	Notes                 []Note            `json:"notes,omitempty"`
+	Decline               string            `json:"decline,omitempty"`
+	DeclineReason         string            `json:"decline_reason,omitempty"`
+	ProposedActions       []ProposedAction  `json:"proposed_actions,omitempty"`
+	SourcePR              *SourcePR         `json:"source_pr,omitempty"`
+	Debug                 *RunDebug         `json:"debug,omitempty"`
+	Metadata              map[string]any    `json:"metadata,omitempty"`
+	Egress                []EgressItem      `json:"egress,omitempty"`
+	GroundingSources      *GroundingSources `json:"grounding_sources,omitempty"`
+	GroundingSourcesRaw   json.RawMessage   `json:"-"`
+}
+
+// UnmarshalJSON keeps the exact grounding_sources object for debug JSONL while still exposing typed
+// fields to human renderers.
+func (r *RunHeader) UnmarshalJSON(data []byte) error {
+	type runHeaderAlias RunHeader
+	var out runHeaderAlias
+	if err := json.Unmarshal(data, &out); err != nil {
+		return err
+	}
+	*r = RunHeader(out)
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err == nil {
+		r.GroundingSourcesRaw = raw["grounding_sources"]
+	}
+	return nil
 }
 
 // EventItem is one event in the /full bundle — the superset of Event: it adds the ai_usage join

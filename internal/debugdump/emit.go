@@ -60,6 +60,13 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		"metadata":                metadataJSON(r.Metadata),
 		"egress":                  egressJSON(r.Egress),
 	}
+	if len(r.GroundingSourcesRaw) > 0 {
+		header["grounding_sources"] = json.RawMessage(r.GroundingSourcesRaw)
+		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
+	} else if r.GroundingSources != nil {
+		header["grounding_sources"] = r.GroundingSources
+		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
+	}
 	if len(r.ProposedActions) > 0 {
 		header["proposed_actions"] = r.ProposedActions
 	}
@@ -164,6 +171,7 @@ func RenderIndex(full *client.FullResponse) string {
 	add(fmt.Sprintf("- **Events (full, queryable):** `%s` — one JSON object per event; jq it (see Drill down).", jsonlName), "")
 
 	add(renderProjectionInputs(r)...)
+	add(renderGroundingSources(r.GroundingSources)...)
 
 	add("## Question", "")
 	if r.Question != "" {
@@ -293,6 +301,153 @@ func renderProjectionInputs(r client.RunHeader) []string {
 	}
 	out = append(out, "")
 	return out
+}
+
+func renderGroundingSources(gs *client.GroundingSources) []string {
+	if gs == nil {
+		return nil
+	}
+	out := []string{"## Grounding sources", ""}
+	if !gs.Captured {
+		reason := gs.Reason
+		if reason == "" {
+			reason = "unknown"
+		}
+		return append(out, fmt.Sprintf("- **Captured:** no (`%s`)", backtickSafe(reason)), "")
+	}
+	out = append(out, fmt.Sprintf("- **Captured:** yes · captured_at `%s` · current_checked_at `%s`",
+		backtickSafe(orQ(gs.CapturedAt)), backtickSafe(orQ(gs.CurrentCheckedAt))))
+	driftCount := client.GroundingSourceDriftCount(gs)
+	attention := client.GroundingSourceAttentionCount(gs)
+	if driftCount > 0 || attention > 0 {
+		out = append(out, fmt.Sprintf("- **Attention:** %d source(s), %d drift field(s)", attention, driftCount))
+	}
+	if len(gs.Sources) == 0 {
+		return append(out, "- _(no source rows)_", "")
+	}
+	for _, s := range client.SortGroundingSources(gs.Sources) {
+		out = append(out, "", fmt.Sprintf("### `%s`", backtickSafe(groundingSourceName(s))))
+		if s.MountPath != "" {
+			out = append(out, fmt.Sprintf("- **Source:** `%s`", backtickSafe(s.MountPath)))
+		}
+		if detail := groundingDetails(s.Details); detail != "" {
+			out = append(out, fmt.Sprintf("- **Details:** %s", detail))
+		}
+		out = append(out, fmt.Sprintf("- **Snapshot:** %s", groundingSnapshot(s)))
+		out = append(out, fmt.Sprintf("- **Sync:** %s", groundingSync(s)))
+		out = append(out, fmt.Sprintf("- **Current drift:** %s", groundingCurrentDrift(s)))
+	}
+	out = append(out, "")
+	return out
+}
+
+func groundingSourceName(s client.GroundingSource) string {
+	if s.Kind == "" {
+		return s.Name
+	}
+	if s.Name == "" {
+		return s.Kind
+	}
+	return s.Kind + "/" + s.Name
+}
+
+func groundingSnapshot(s client.GroundingSource) string {
+	parts := []string{
+		kv("ref", s.Ref),
+		kv("sha", shortSHA(s.CommitSHA)),
+		kv("committed", s.CommittedAt),
+		kvBool("mounted", s.Mounted),
+	}
+	return joinNonEmpty(parts, " · ")
+}
+
+func groundingSync(s client.GroundingSource) string {
+	parts := []string{
+		kvBool("configured", s.Configured),
+		kvBool("available", s.Available),
+		kv("state", s.State),
+		kv("last_ok", s.LastOKAt),
+		kv("last_attempt", s.LastAttemptAt),
+	}
+	return joinNonEmpty(parts, " · ")
+}
+
+func groundingCurrentDrift(s client.GroundingSource) string {
+	var parts []string
+	if len(s.Drift) == 0 {
+		parts = append(parts, "none")
+	} else {
+		quoted := make([]string, 0, len(s.Drift))
+		for _, d := range s.Drift {
+			quoted = append(quoted, "`"+backtickSafe(d)+"`")
+		}
+		parts = append(parts, strings.Join(quoted, ", "))
+	}
+	if s.Current != nil {
+		parts = append(parts,
+			kv("now_ref", s.Current.Ref),
+			kv("now_sha", shortSHA(s.Current.CommitSHA)),
+			kv("state", s.Current.State),
+			kv("last_ok", s.Current.LastOKAt),
+		)
+	}
+	return joinNonEmpty(parts, " · ")
+}
+
+func groundingDetails(details map[string]any) string {
+	if len(details) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, k := range []string{"provider", "locale"} {
+		if v, ok := details[k]; ok {
+			parts = append(parts, kv(k, fmt.Sprint(v)))
+		}
+	}
+	if scope, ok := details["scope"].(map[string]any); ok {
+		parts = append(parts, "scope="+backtickSafe(scopeSummary(scope)))
+	}
+	return joinNonEmpty(parts, " · ")
+}
+
+func scopeSummary(scope map[string]any) string {
+	var parts []string
+	for _, k := range []string{"mode", "tenant", "visible", "total", "hidden", "scoped"} {
+		if v, ok := scope[k]; ok {
+			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+		}
+	}
+	if len(parts) == 0 {
+		return "present"
+	}
+	return strings.Join(parts, " ")
+}
+
+func kv(key, value string) string {
+	if value == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s `%s`", key, backtickSafe(value))
+}
+
+func kvBool(key string, value bool) string {
+	if value {
+		return key + " `yes`"
+	}
+	return key + " `no`"
+}
+
+func joinNonEmpty(parts []string, sep string) string {
+	out := parts[:0]
+	for _, p := range parts {
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return "-"
+	}
+	return strings.Join(out, sep)
 }
 
 // renderOutcome shows the draft gist (first 8 lines), action proposals, note gists, or a "no callback" marker.
@@ -538,6 +693,13 @@ func short8(id string) string {
 		return id[:8]
 	}
 	return id
+}
+
+func shortSHA(sha string) string {
+	if len(sha) > 12 {
+		return sha[:12]
+	}
+	return sha
 }
 
 func orQ(s string) string {

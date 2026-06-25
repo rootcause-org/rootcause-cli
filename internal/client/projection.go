@@ -115,6 +115,56 @@ func TenantSettingsDrift(snapshotRaw, currentRaw string) ([]TenantSettingsDriftI
 	return out, nil
 }
 
+// GroundingSourceDriftCount counts source fields that changed between the run snapshot and the current
+// sync state. It ignores uncaptured old runs and nil blocks.
+func GroundingSourceDriftCount(gs *GroundingSources) int {
+	if gs == nil || !gs.Captured {
+		return 0
+	}
+	n := 0
+	for _, s := range gs.Sources {
+		n += len(s.Drift)
+	}
+	return n
+}
+
+// GroundingSourceAttentionCount counts sources whose historical snapshot needs attention: missing
+// config/sync/mount or any current drift.
+func GroundingSourceAttentionCount(gs *GroundingSources) int {
+	if gs == nil || !gs.Captured {
+		return 0
+	}
+	n := 0
+	for _, s := range gs.Sources {
+		if !s.Configured || !s.Available || !s.Mounted || len(s.Drift) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// SortGroundingSources returns a copy ordered for human triage: missing/drifted rows first, then
+// kind/name for determinism.
+func SortGroundingSources(in []GroundingSource) []GroundingSource {
+	out := append([]GroundingSource(nil), in...)
+	sort.SliceStable(out, func(i, j int) bool {
+		ai := groundingNeedsAttention(out[i])
+		aj := groundingNeedsAttention(out[j])
+		if ai != aj {
+			return ai
+		}
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func groundingNeedsAttention(s GroundingSource) bool {
+	return !s.Configured || !s.Available || !s.Mounted || len(s.Drift) > 0
+}
+
 func selectorValues(settings map[string]any, keys []string) []TenantSettingValue {
 	out := make([]TenantSettingValue, 0, len(keys))
 	for _, k := range keys {

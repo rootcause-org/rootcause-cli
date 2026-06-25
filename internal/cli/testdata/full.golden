@@ -7,6 +7,7 @@ Brain resolved:         dev/refund-rework @ abc123def456
 Tenant:                 de-kies
 Tenant settings:        source=cli  synced_at=2026-06-22T10:00:00Z  version=sha256:tenantabc  selectors=4
 Tenant settings drift:  1 changed
+Grounding:              2 sources  1 attention  1 drift fields  captured=2026-06-19T09:00:03Z  checked=2026-06-25T10:05:00Z
 Model:                  claude-opus-4-8
 Created:                2026-06-19T09:00:00Z
 Finished:               2026-06-19T09:01:30Z
@@ -17,6 +18,11 @@ Trace:                  https://trace.example/abc123
 
 Careful: when this run happened, these tenant settings differed from the current config.
   practice_name: then De Kies; now De Nieuwe Kies
+
+Grounding sources (2):
+  !  SOURCE      SNAPSHOT                        SYNC                             CURRENT                      DRIFT
+  !  kb/kb       /kb intercom/en@93fa1200babe    ok last_ok=2026-06-19T08:50:00Z  intercom/en@1200babe93fa ok  commit_sha
+     mirror/app  /mirrors/app main@abc123def456  ok last_ok=2026-06-19T08:55:00Z  main@abc123def456 ok         -
 
 Egress (2):
   HOST            COUNT  BLOCKED

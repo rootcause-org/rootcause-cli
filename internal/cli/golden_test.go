@@ -191,6 +191,17 @@ func TestRunFullJSONL(t *testing.T) {
 	if ts, ok := head["tenant_settings_current"].(string); !ok || !strings.Contains(ts, "sha256:tenantdef") {
 		t.Errorf("tenant_settings_current raw snapshot not carried through: %T %v", head["tenant_settings_current"], head["tenant_settings_current"])
 	}
+	if count, ok := head["grounding_source_drift_count"].(float64); !ok || count != 1 {
+		t.Errorf("grounding_source_drift_count = %T %v, want 1", head["grounding_source_drift_count"], head["grounding_source_drift_count"])
+	}
+	gs, ok := head["grounding_sources"].(map[string]any)
+	if !ok || gs["captured"] != true {
+		t.Fatalf("grounding_sources missing from full JSONL header: %T %v", head["grounding_sources"], head["grounding_sources"])
+	}
+	sources, ok := gs["sources"].([]any)
+	if !ok || len(sources) != 2 {
+		t.Fatalf("grounding sources = %T %v, want 2", gs["sources"], gs["sources"])
+	}
 	for i, ln := range lines[1:] {
 		var ev map[string]any
 		if err := json.Unmarshal([]byte(ln), &ev); err != nil {
@@ -243,6 +254,12 @@ func TestRunDebug(t *testing.T) {
 	}
 	if head["brain_resolved"] != "dev/refund-rework @ abc123def456" || head["tenant"] != "de-kies" {
 		t.Errorf("debug header projection metadata missing: brain_resolved=%v tenant=%v", head["brain_resolved"], head["tenant"])
+	}
+	if count, ok := head["grounding_source_drift_count"].(float64); !ok || count != 1 {
+		t.Errorf("debug grounding_source_drift_count = %T %v, want 1", head["grounding_source_drift_count"], head["grounding_source_drift_count"])
+	}
+	if gs, ok := head["grounding_sources"].(map[string]any); !ok || gs["captured"] != true {
+		t.Fatalf("debug header grounding_sources missing: %T %v", head["grounding_sources"], head["grounding_sources"])
 	}
 	ts, ok := head["tenant_settings"].(map[string]any)
 	if !ok || ts["source"] != "cli" || ts["version"] != "sha256:tenantabc" {
