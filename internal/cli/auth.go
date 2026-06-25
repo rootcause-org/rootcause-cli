@@ -181,6 +181,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			}
 
 			tenant := e.scopeTenantFromResolved(res)
+			tenantSource := e.tenantSourceFromResolved(res)
 			// --project is a server-side SCOPE (not a profile): when set it names the project each read
 			// request targets. A brain fallback to the default profile does the same automatically.
 			project := res.Project
@@ -191,13 +192,14 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			}
 			if e.jsonOut() {
 				return writeJSON(e, map[string]any{
-					"profile":    res.Profile,
-					"project":    emptyDash(project),
-					"tenant":     tenant,
-					"base_url":   base,
-					"brain_dir":  brainDir(res),
-					"logged_in":  loggedIn,
-					"expires_at": tokenExpiry(t, loggedIn),
+					"profile":       res.Profile,
+					"project":       emptyDash(project),
+					"tenant":        tenant,
+					"tenant_source": tenantSource,
+					"base_url":      base,
+					"brain_dir":     brainDir(res),
+					"logged_in":     loggedIn,
+					"expires_at":    tokenExpiry(t, loggedIn),
 				})
 			}
 
@@ -209,7 +211,11 @@ func newWhoamiCmd(e *env) *cobra.Command {
 				_, _ = fmt.Fprintf(e.out, "           (brain scope via default profile)\n")
 			}
 			if tenant != "" {
-				_, _ = fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
+				if tenantSource != "" {
+					_, _ = fmt.Fprintf(e.out, "tenant:    %s (%s)\n", tenant, tenantSource)
+				} else {
+					_, _ = fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
+				}
 			}
 			_, _ = fmt.Fprintf(e.out, "base URL:  %s\n", base)
 			if res.Brain != nil {
@@ -241,6 +247,13 @@ func (e *env) scopeTenantFromResolved(res config.Resolved) string {
 		return e.tenant
 	}
 	return res.Tenant
+}
+
+func (e *env) tenantSourceFromResolved(res config.Resolved) string {
+	if e.tenant != "" {
+		return "--tenant"
+	}
+	return res.TenantSource
 }
 
 // tokenExpiry renders the stored expiry for the JSON view ("" when logged out / unknown).

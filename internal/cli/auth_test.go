@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -186,6 +187,66 @@ func TestWhoamiBrainFallsBackToDefaultProfile(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("whoami missing %q\n--- got ---\n%s", want, got)
 		}
+	}
+}
+
+func TestWhoamiShowsLocalTenantSource(t *testing.T) {
+	isolatedConfig(t)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"dentai\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".rootcause"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause", "local.toml"),
+		[]byte("tenant = \"de-kies\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedToken(t, "dentai", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+	})
+
+	var out, errb bytes.Buffer
+	e := &env{output: "table", out: &out, err: &errb}
+	if err := run(t, e, "whoami"); err != nil {
+		t.Fatalf("whoami: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"profile:   dentai", "project:   dentai", "tenant:    de-kies (.rootcause/local.toml)"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("whoami missing %q\n--- got ---\n%s", want, got)
+		}
+	}
+}
+
+func TestWhoamiJSONIncludesTenantSource(t *testing.T) {
+	isolatedConfig(t)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"dentai\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedToken(t, "dentai", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+	})
+
+	var out, errb bytes.Buffer
+	e := &env{output: "json", out: &out, err: &errb}
+	if err := run(t, e, "--tenant", "de-kies", "whoami"); err != nil {
+		t.Fatalf("whoami: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode whoami json: %v\n%s", err, out.String())
+	}
+	if got["tenant"] != "de-kies" || got["tenant_source"] != "--tenant" {
+		t.Fatalf("tenant/source = %v/%v, want de-kies/--tenant", got["tenant"], got["tenant_source"])
 	}
 }
 

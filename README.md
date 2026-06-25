@@ -137,6 +137,14 @@ token and names one project on supported endpoints (`?project=`), so an **all-pr
 review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask --project
 momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
 `--tenant <slug>` scopes a request within the token's project where the endpoint accepts it.
+Inside a brain checkout, `tenant = "<slug>"` in the committed `.rootcause.toml` supplies that default.
+For a developer-local default that must not ship with the brain, write `.rootcause/local.toml`:
+
+```toml
+tenant = "de-kies"
+```
+
+`--tenant` still wins over either file. `rc whoami` shows the tenant source.
 
 For a whole-fleet review with an all-projects token, `rc fleet`/`patterns`/`health` take **`--all`**:
 the CLI lists the fleet (`rc projects`) and fans out per project — `fleet --all` groups the digest by
@@ -153,8 +161,9 @@ a 30m clock with no finish) and a `FB` model-fallback flag are surfaced inline; 
 line carries the full triage tail (cost · secs · turns · bash_err · ctx · FB).
 
 **`.rootcause.toml`** (committed, per brain) names the project + endpoint — no secret, safe to commit,
-ships the binding with a clone. There is no longer any `.rootcause.secret.toml` — credentials live only
-in the OAuth token store.
+ships the binding with a clone. Optional gitignored **`.rootcause/local.toml`** can set only a local
+`tenant = "<slug>"` default for tenant-enabled projects. There is no longer any `.rootcause.secret.toml`
+— credentials live only in the OAuth token store.
 
 ## Commands
 
@@ -237,7 +246,8 @@ rc env pull --tenant <slug> # a tenant-enabled project: the project ∪ tenant e
 > **Secret hygiene:** no `rc env` subcommand ever prints a secret **value** — `pull` writes values only
 > to the 0600 file and reports names + count; `keys`/`diff` are names-only in both table and JSON modes.
 > The pulled `.env` holds **real production secrets** on your laptop — treat it like a password file
-> (it's gitignored in every brain repo). A tenant-enabled project (e.g. dentai) requires `--tenant`.
+> (it's gitignored in every brain repo). A tenant-enabled project (e.g. dentai) requires `--tenant`, or
+> a tenant default in `.rootcause.toml` / `.rootcause/local.toml`.
 
 ## Releasing
 

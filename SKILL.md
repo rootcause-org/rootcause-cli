@@ -85,7 +85,7 @@ internal/client/          the ONE http wrapper (client.go: refresh-on-401 retry)
 internal/oauth/           the OAuth protocol client: PKCE loopback (loopback.go) + device grant
                           (device.go) + refresh/revoke/token exchange (oauth.go) + browser opener.
 internal/token/           the token store: ~/.config/rootcause/tokens.json (0600), per-profile.
-internal/config/          resolution: brain marker (.rootcause.toml) + env + config.toml → profile + base URL.
+internal/config/          resolution: brain marker (.rootcause.toml) + local overlay (.rootcause/local.toml) + env + config.toml → profile + base URL + tenant.
 internal/debugdump/       the rc-agent-debug decomposer: decorate + emit JSONL + render thin index.
 internal/render/          render.go (TTY-detect + JSON passthrough) + table.go (one renderer per view).
 ```
@@ -115,8 +115,9 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
 
 ### Config & profile precedence
 In `internal/config` (`profiles.go`), resolution is **brain-aware** and picks a **profile name** (the
-token-store key) + a **base URL** — no secret. `Load(profile)` (note: `--project` is **not** an input —
-it's a server-side scope the command layer threads onto each read request, never a token selector):
+token-store key) + a **base URL** + an optional tenant default — no secret. `Load(profile)` (note:
+`--project` is **not** an input — it's a server-side scope the command layer threads onto each read
+request, never a token selector):
 
 - **explicit `--profile <name>`** → that profile, no brain binding (the override escape hatch);
 - **inside a brain** → first try the brain marker's project as the profile; if no token exists for it,
@@ -150,8 +151,11 @@ skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in
 Base URL per field: `ROOTCAUSE_BASE_URL` > marker `base_url` > `[profiles.<name>] base_url` > built-in
 production default (`https://rootcause.probackup.io`). A stored token also pins the issuer it was minted against, so commands
 hit the same server. `Resolved` carries `Profile`/`Project`/`Brain` so `root.go` crafts the loud error
-and `rc whoami` explains the binding (locally — there is no server identity endpoint yet). Honors
-`XDG_CONFIG_HOME`. The committed marker is non-secret; tokens live only in the 0600 token store.
+and `rc whoami` explains the binding (locally — there is no server identity endpoint yet). Tenant
+default precedence is explicit `--tenant` (command layer) > gitignored `.rootcause/local.toml` >
+committed `.rootcause.toml`; `whoami` prints the source. The local overlay only supports `tenant`, so
+profile/base URL still come from the documented global/marker/env paths. Honors `XDG_CONFIG_HOME`. The
+committed marker is non-secret; tokens live only in the 0600 token store.
 
 ### The `--debug` decomposer (`internal/debugdump`)
 `rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/full` (cross-project for an

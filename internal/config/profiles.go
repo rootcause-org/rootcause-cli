@@ -7,9 +7,11 @@
 // Auth itself moved to OAuth: tokens live in ~/.config/rootcause/tokens.json (see internal/token),
 // keyed by profile. This package no longer holds any secret — it only decides WHICH profile's token to
 // use and WHICH base URL to hit. A brain repo carries a committed, non-secret marker (.rootcause.toml:
-// project + tenant + base_url) that binds the directory to one project. In auto mode this resolver
-// first names the project profile; the command layer can fall back to "default" when no such token is
-// stored and carry the marker's project as ?project= for an all-projects token.
+// project + tenant + base_url) that binds the directory to one project. A developer may also keep a
+// gitignored per-checkout .rootcause/local.toml with tenant = "..."; it only supplies the local tenant
+// default. In auto mode this resolver first names the project profile; the command layer can fall back
+// to "default" when no such token is stored and carry the marker's project as ?project= for an
+// all-projects token.
 //
 // `--project` is NOT a profile selector — it does not pick a token. It is a SERVER-SIDE scope (a
 // uuid-or-name passed as ?project= on the read endpoints), meaningful only for an all-projects admin
@@ -42,6 +44,10 @@ const (
 	// It is KEPT under OAuth — it carries no secret, only the project/tenant binding + base URL.
 	MarkerFileName = ".rootcause.toml"
 
+	// LocalFileName is a gitignored per-brain developer overlay under the wholesale-ignored .rootcause
+	// artifact dir. It only supplies local defaults, currently tenant.
+	LocalFileName = ".rootcause/local.toml"
+
 	// DefaultProfile is the profile name used outside any brain (and when no --profile/--project is given).
 	DefaultProfile = "default"
 
@@ -59,6 +65,7 @@ type Resolved struct {
 	BaseURLFromDefault bool
 	Project            string
 	Tenant             string
+	TenantSource       string
 	Brain              *Brain
 }
 
@@ -71,6 +78,12 @@ type Brain struct {
 	Tenant  string `toml:"tenant"`
 	BaseURL string `toml:"base_url"`
 	Dir     string `toml:"-"`
+}
+
+// local is the optional gitignored per-checkout overlay. Keep it intentionally narrow: global config
+// and environment variables already cover base URL/profile, while tenant is often developer-local.
+type local struct {
+	Tenant string `toml:"tenant"`
 }
 
 // profile is one [default] / [profiles.<name>] block in config.toml. Under OAuth it carries only a
@@ -130,11 +143,16 @@ func load(profileName, cwd string) (Resolved, error) {
 
 	// Inside a brain: first name the project profile. base_url: env > marker > matching profile > default.
 	prof := f.Profiles[brain.Project]
+	tenant, tenantSource, err := resolveTenant(brain)
+	if err != nil {
+		return Resolved{}, err
+	}
 	res := Resolved{
-		Profile: brain.Project,
-		Project: brain.Project,
-		Tenant:  brain.Tenant,
-		Brain:   brain,
+		Profile:      brain.Project,
+		Project:      brain.Project,
+		Tenant:       tenant,
+		TenantSource: tenantSource,
+		Brain:        brain,
 	}
 	res.BaseURL, res.BaseURLFromDefault = resolveBaseURL(brain.BaseURL, prof.BaseURL)
 	return res, nil
@@ -152,6 +170,29 @@ func resolveBaseURL(candidates ...string) (string, bool) {
 		}
 	}
 	return DefaultBaseURL, true
+}
+
+func resolveTenant(brain *Brain) (string, string, error) {
+	tenant := brain.Tenant
+	source := ""
+	if tenant != "" {
+		source = MarkerFileName
+	}
+
+	path := filepath.Join(brain.Dir, LocalFileName)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return tenant, source, nil
+	} else if err != nil {
+		return "", "", fmt.Errorf("stat %s: %w", path, err)
+	}
+	var l local
+	if _, err := toml.DecodeFile(path, &l); err != nil {
+		return "", "", fmt.Errorf("parse %s: %w", path, err)
+	}
+	if l.Tenant != "" {
+		return l.Tenant, LocalFileName, nil
+	}
+	return tenant, source, nil
 }
 
 // DiscoverBrain walks up from start looking for the nearest committed .rootcause.toml marker. Returns

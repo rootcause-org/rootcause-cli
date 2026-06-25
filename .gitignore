@@ -4,3 +4,4 @@
 
 # `rc run <id> --debug` default output dir
 /rc-debug/
+/.rootcause/

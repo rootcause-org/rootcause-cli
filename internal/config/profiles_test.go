@@ -185,8 +185,57 @@ func TestLoad_TenantBrain(t *testing.T) {
 	if res.Project != "dentai" || res.Tenant != "de-kies" {
 		t.Errorf("project/tenant = %q/%q, want dentai/de-kies", res.Project, res.Tenant)
 	}
+	if res.TenantSource != MarkerFileName {
+		t.Errorf("tenant source = %q, want %s", res.TenantSource, MarkerFileName)
+	}
 	if res.Brain == nil || res.Brain.Tenant != "de-kies" {
 		t.Errorf("brain tenant not carried: %+v", res.Brain)
+	}
+}
+
+func TestLoad_LocalTenantDefault(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, "project = \"dentai\"\nbase_url = \"https://rc.example\"\n")
+	if err := os.MkdirAll(filepath.Join(dir, ".rootcause"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, LocalFileName), []byte("tenant = \"de-kies\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := load("", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Project != "dentai" || res.Tenant != "de-kies" {
+		t.Errorf("project/tenant = %q/%q, want dentai/de-kies", res.Project, res.Tenant)
+	}
+	if res.TenantSource != LocalFileName {
+		t.Errorf("tenant source = %q, want %s", res.TenantSource, LocalFileName)
+	}
+	if res.Brain == nil || res.Brain.Tenant != "" {
+		t.Errorf("local tenant should not mutate committed marker: %+v", res.Brain)
+	}
+}
+
+func TestLoad_LocalTenantOverridesMarkerTenant(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, "project = \"dentai\"\ntenant = \"shared\"\nbase_url = \"https://rc.example\"\n")
+	if err := os.MkdirAll(filepath.Join(dir, ".rootcause"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, LocalFileName), []byte("tenant = \"de-kies\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := load("", filepath.Join(dir, "nested"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Tenant != "de-kies" || res.TenantSource != LocalFileName {
+		t.Errorf("tenant/source = %q/%q, want de-kies/%s", res.Tenant, res.TenantSource, LocalFileName)
 	}
 }
 

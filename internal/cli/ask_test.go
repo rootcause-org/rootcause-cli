@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -210,6 +212,40 @@ func TestAskFromSubjectForwarded(t *testing.T) {
 	}
 	if got["subject"] != "Invoice question" {
 		t.Errorf("subject = %v", got["subject"])
+	}
+}
+
+func TestAskUsesLocalTenantDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"dentai\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".rootcause"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause", "local.toml"),
+		[]byte("tenant = \"de-kies\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	e.profile = "" // auto mode: discover the brain and its local tenant default.
+	if err := run(t, e, "ask", "q", "--no-wait"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	if got["tenant"] != "de-kies" {
+		t.Fatalf("tenant = %v, want de-kies; body=%v", got["tenant"], got)
 	}
 }
 
