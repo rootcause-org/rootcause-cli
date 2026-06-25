@@ -370,6 +370,19 @@ type ProjectsResponse struct {
 	Projects []Project `json:"projects"`
 }
 
+type WhoamiScope struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	Slug string `json:"slug,omitempty"`
+}
+
+type WhoamiResponse struct {
+	Email       string       `json:"email,omitempty"`
+	AllProjects bool         `json:"all_projects"`
+	Project     *WhoamiScope `json:"project,omitempty"`
+	Tenant      *WhoamiScope `json:"tenant,omitempty"`
+}
+
 // --- observability feeds (rc fleet / patterns / health) ---
 
 // RunEvent is one raw run_events row from GET /api/v1/runs/events — the bulk feed `rc patterns`

@@ -69,6 +69,21 @@ func newOAuthStub(t *testing.T) *oauthStub {
 	return s
 }
 
+func newWhoamiStub(t *testing.T, body string) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			t.Error("whoami missing Authorization header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv
+}
+
 // isolatedConfig points XDG at a temp dir so the token store is per-test.
 func isolatedConfig(t *testing.T) {
 	t.Helper()
@@ -137,18 +152,19 @@ func TestLogoutRevokesAndClears(t *testing.T) {
 	}
 }
 
-// TestWhoamiLocal: `rc whoami` reports the brain project + logged-in status from local state, no server.
+// TestWhoamiLocal: `rc whoami` reports the brain project, login scope, and logged-in status.
 func TestWhoamiLocal(t *testing.T) {
 	isolatedConfig(t)
+	srv := newWhoamiStub(t, `{"all_projects":false,"project":{"id":"11111111-1111-1111-1111-111111111111","name":"momentum-tools"}}`)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
-		[]byte("project = \"momentum-tools\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		[]byte("project = \"momentum-tools\"\nbase_url = \""+srv.URL+"\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	seedToken(t, "momentum-tools", token.Token{
 		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
-		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
 	})
 
 	var out, errb bytes.Buffer
@@ -157,7 +173,7 @@ func TestWhoamiLocal(t *testing.T) {
 		t.Fatalf("whoami: %v", err)
 	}
 	got := out.String()
-	for _, want := range []string{"momentum-tools", "https://rc.example", "logged in"} {
+	for _, want := range []string{"momentum-tools", srv.URL, "logged in"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("whoami missing %q\n--- got ---\n%s", want, got)
 		}
@@ -166,15 +182,16 @@ func TestWhoamiLocal(t *testing.T) {
 
 func TestWhoamiBrainFallsBackToDefaultProfile(t *testing.T) {
 	isolatedConfig(t)
+	srv := newWhoamiStub(t, `{"all_projects":true}`)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
-		[]byte("project = \"pro-backup\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		[]byte("project = \"pro-backup\"\nbase_url = \""+srv.URL+"\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	seedToken(t, "default", token.Token{
 		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
-		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
 	})
 
 	var out, errb bytes.Buffer
@@ -192,10 +209,11 @@ func TestWhoamiBrainFallsBackToDefaultProfile(t *testing.T) {
 
 func TestWhoamiShowsLocalTenantSource(t *testing.T) {
 	isolatedConfig(t)
+	srv := newWhoamiStub(t, `{"all_projects":false,"project":{"id":"11111111-1111-1111-1111-111111111111","name":"dentai"},"tenant":{"id":"22222222-2222-2222-2222-222222222222","slug":"de-kies","name":"De Kies"}}`)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
-		[]byte("project = \"dentai\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		[]byte("project = \"dentai\"\nbase_url = \""+srv.URL+"\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(dir, ".rootcause"), 0o755); err != nil {
@@ -207,7 +225,7 @@ func TestWhoamiShowsLocalTenantSource(t *testing.T) {
 	}
 	seedToken(t, "dentai", token.Token{
 		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
-		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
 	})
 
 	var out, errb bytes.Buffer
@@ -225,28 +243,29 @@ func TestWhoamiShowsLocalTenantSource(t *testing.T) {
 
 func TestWhoamiJSONIncludesTenantSource(t *testing.T) {
 	isolatedConfig(t)
+	srv := newWhoamiStub(t, `{"all_projects":false,"project":{"id":"11111111-1111-1111-1111-111111111111","name":"dentai"},"tenant":{"id":"22222222-2222-2222-2222-222222222222","slug":"de-kies","name":"De Kies"}}`)
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
-		[]byte("project = \"dentai\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		[]byte("project = \"dentai\"\nbase_url = \""+srv.URL+"\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	seedToken(t, "dentai", token.Token{
 		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
-		ExpiresAt: time.Now().Add(time.Hour), BaseURL: "https://rc.example",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
 	})
 
 	var out, errb bytes.Buffer
 	e := &env{output: "json", out: &out, err: &errb}
-	if err := run(t, e, "--tenant", "de-kies", "whoami"); err != nil {
+	if err := run(t, e, "--tenant", "other", "whoami"); err != nil {
 		t.Fatalf("whoami: %v", err)
 	}
 	var got map[string]any
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
 		t.Fatalf("decode whoami json: %v\n%s", err, out.String())
 	}
-	if got["tenant"] != "de-kies" || got["tenant_source"] != "--tenant" {
-		t.Fatalf("tenant/source = %v/%v, want de-kies/--tenant", got["tenant"], got["tenant_source"])
+	if got["tenant"] != "other" || got["tenant_source"] != "--tenant" || got["login_tenant"] != "de-kies" {
+		t.Fatalf("tenant/source/login = %v/%v/%v, want other/--tenant/de-kies", got["tenant"], got["tenant_source"], got["login_tenant"])
 	}
 }
 

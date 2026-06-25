@@ -63,7 +63,8 @@ follow-up off the prior turns' command trail (see
 [multi_turn_warm_start.md](../rootcause/.agents/skills/features/multi_turn_warm_start.md) — the prior
 *answer* is not yet replayed for prompt/mcp). `--brain-ref dev/<branch>` runs against a non-main brain
 ref (a test run); `--effort pro|max` sends `reasoning_effort` to force a stronger rootcause model tier
-for this run (omitted/default keeps normal tier selection); `--tenant <slug>` binds a tenant.
+for this run (omitted/default keeps normal tier selection). On tenant-enabled projects, the login
+normally supplies the tenant; `--tenant <slug>` is an explicit override.
 
 `rc env` is the one place the CLI deliberately **does not** pass the server body through: `GET
 /api/v1/env` returns live secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and
@@ -104,7 +105,7 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
   first-party client `rcocl_cli`: **PKCE loopback** by default (bind a localhost port, open the browser
   at `/oauth/authorize`, catch `http://127.0.0.1:<port>/callback`, exchange the code — the loopback
   redirect is port-insensitive server-side per RFC 8252), or **`--device`** (RFC 8628: print a code,
-  poll `/oauth/token`). The **project scope is chosen on the browser consent screen**, not the CLI.
+  poll `/oauth/token`). The **project/tenant scope is chosen on the browser consent screen**, not the CLI.
 - **Token store** (`internal/token`): `~/.config/rootcause/tokens.json` (0600), keyed by profile —
   `{access_token, refresh_token, expires_at, base_url}`. `rc logout` revokes server-side + clears it.
 - **Transparent refresh**: `client.Client` takes a `TokenSource`; `tokensource.go`'s `liveSource` reads
@@ -115,7 +116,7 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
 
 ### Config & profile precedence
 In `internal/config` (`profiles.go`), resolution is **brain-aware** and picks a **profile name** (the
-token-store key) + a **base URL** + an optional tenant default — no secret. `Load(profile)` (note:
+token-store key) + a **base URL** + an optional local tenant override — no secret. `Load(profile)` (note:
 `--project` is **not** an input — it's a server-side scope the command layer threads onto each read
 request, never a token selector):
 
@@ -128,6 +129,8 @@ request, never a token selector):
 health, thread-trace, prompt submit, env, and settings); an all-projects admin token uses it to scope
 one project, a pinned token disregards it server-side. The brain→default fallback sets this scope
 implicitly from `.rootcause.toml`. See `env.scopeProject` in `internal/cli/root.go`.
+On tenant-enabled projects, the active OAuth login normally binds one tenant. Plain `rc ask` sends no
+tenant flag and the server uses that token-bound tenant; `rc whoami` calls `/api/v1/whoami` to show it.
 
 **Fleet-wide `--all`** (`rc fleet`/`patterns`/`health`) is the FAT-CLIENT fan-out that complements
 `--project`: it lists the fleet via `rc projects`, then calls the per-project read endpoint once per
@@ -149,13 +152,13 @@ boolean (it bakes around the `runs.model_fallback_from` empty-string-vs-NULL tra
 skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in `-o json`.
 
 Base URL per field: `ROOTCAUSE_BASE_URL` > marker `base_url` > `[profiles.<name>] base_url` > built-in
-production default (`https://rootcause.probackup.io`). A stored token also pins the issuer it was minted against, so commands
-hit the same server. `Resolved` carries `Profile`/`Project`/`Brain` so `root.go` crafts the loud error
-and `rc whoami` explains the binding (locally — there is no server identity endpoint yet). Tenant
-default precedence is explicit `--tenant` (command layer) > gitignored `.rootcause/local.toml` >
-committed `.rootcause.toml`; `whoami` prints the source. The local overlay only supports `tenant`, so
-profile/base URL still come from the documented global/marker/env paths. Honors `XDG_CONFIG_HOME`. The
-committed marker is non-secret; tokens live only in the 0600 token store.
+production default (`https://rootcause.probackup.io`). A stored token also pins the issuer it was minted
+against, so commands hit the same server. `Resolved` carries `Profile`/`Project`/`Brain` so `root.go`
+crafts the loud error, and `rc whoami` asks `/api/v1/whoami` for the login-bound project/tenant when a
+token is present. Explicit `--tenant` and `.rootcause/local.toml` remain local override/debug paths. The
+local overlay only supports `tenant`, so profile/base URL still come from the documented
+global/marker/env paths. Honors `XDG_CONFIG_HOME`. The committed marker is non-secret; tokens live only
+in the 0600 token store.
 
 ### The `--debug` decomposer (`internal/debugdump`)
 `rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/full` (cross-project for an

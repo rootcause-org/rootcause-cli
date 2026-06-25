@@ -7,9 +7,9 @@
 // Auth itself moved to OAuth: tokens live in ~/.config/rootcause/tokens.json (see internal/token),
 // keyed by profile. This package no longer holds any secret — it only decides WHICH profile's token to
 // use and WHICH base URL to hit. A brain repo carries a committed, non-secret marker (.rootcause.toml:
-// project + tenant + base_url) that binds the directory to one project. A developer may also keep a
-// gitignored per-checkout .rootcause/local.toml with tenant = "..."; it only supplies the local tenant
-// default. In auto mode this resolver first names the project profile; the command layer can fall back
+// project + base_url) that binds the directory to one project. A developer may also keep a gitignored
+// per-checkout .rootcause/local.toml with tenant = "..." as an explicit local override. In auto mode
+// this resolver first names the project profile; the command layer can fall back
 // to "default" when no such token is stored and carry the marker's project as ?project= for an
 // all-projects token.
 //
@@ -41,11 +41,11 @@ const (
 	DefaultBaseURL = "https://rootcause.probackup.io"
 
 	// MarkerFileName is the committed, non-secret per-brain marker binding the checkout to a project.
-	// It is KEPT under OAuth — it carries no secret, only the project/tenant binding + base URL.
+	// It is KEPT under OAuth — it carries no secret, only the project binding + base URL.
 	MarkerFileName = ".rootcause.toml"
 
 	// LocalFileName is a gitignored per-brain developer overlay under the wholesale-ignored .rootcause
-	// artifact dir. It only supplies local defaults, currently tenant.
+	// artifact dir. It only supplies local overrides, currently tenant.
 	LocalFileName = ".rootcause/local.toml"
 
 	// DefaultProfile is the profile name used outside any brain (and when no --profile/--project is given).
@@ -70,9 +70,8 @@ type Resolved struct {
 }
 
 // Brain is the committed .rootcause.toml marker: the project this checkout belongs to plus its API
-// endpoint. Dir is the directory the marker was found in. Tenant is set only for a TENANT brain (a
-// delta repo over a tenant-enabled project) — it becomes the default --tenant for env/ask so the
-// checkout resolves the project ∪ tenant scope without repeating the flag.
+// endpoint. Dir is the directory the marker was found in. Tenant is a legacy/local override; the normal
+// tenant-enabled path gets tenant scope from the active OAuth login.
 type Brain struct {
 	Project string `toml:"project"`
 	Tenant  string `toml:"tenant"`

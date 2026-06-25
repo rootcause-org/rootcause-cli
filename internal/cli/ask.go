@@ -13,8 +13,8 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// askFlags holds `rc ask`'s flags, bound per-command so each invocation is isolated. The tenant comes
-// from the persistent --tenant (or the brain marker), not a local flag.
+// askFlags holds `rc ask`'s flags, bound per-command so each invocation is isolated. Tenant scope is
+// normally login-bound; the persistent --tenant remains an explicit override.
 type askFlags struct {
 	brainRef string
 	effort   string

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/config"
 	"github.com/rootcause-org/rootcause-cli/internal/oauth"
 	"github.com/rootcause-org/rootcause-cli/internal/token"
@@ -130,14 +131,13 @@ func newLogoutCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// newWhoamiCmd builds `rc whoami` — answer "which profile/project will rc hit from here, and am I
-// signed in?" entirely from LOCAL state (the brain marker, the persistent flags, and the token store).
-// It does not call the server: there is no identity endpoint, so memberships/identity aren't shown —
-// the token's project binding lives server-side and is enforced on each request.
+// newWhoamiCmd builds `rc whoami` — answer "which profile/project will rc hit from here, am I signed
+// in, and which project/tenant is the login bound to?" Local config supplies the checkout/profile view;
+// /api/v1/whoami supplies the token-bound scope when a token is present.
 func newWhoamiCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "whoami",
-		Short: "Show the resolved profile/project/tenant + sign-in status (local; no server call)",
+		Short: "Show the resolved profile/project/login tenant + sign-in status",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			res, err := config.Load(e.profile)
@@ -180,8 +180,14 @@ func newWhoamiCmd(e *env) *cobra.Command {
 				}
 			}
 
+			scope, scopeErr := e.loginScope(res.Profile, base, loggedIn)
+			loginProject, loginTenant, loginAllProjects := loginScopeLabels(scope)
 			tenant := e.scopeTenantFromResolved(res)
 			tenantSource := e.tenantSourceFromResolved(res)
+			if tenant == "" && loginTenant != "" {
+				tenant = loginTenant
+				tenantSource = "login"
+			}
 			// --project is a server-side SCOPE (not a profile): when set it names the project each read
 			// request targets. A brain fallback to the default profile does the same automatically.
 			project := res.Project
@@ -190,16 +196,23 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			} else if autoProject != "" {
 				project = autoProject
 			}
+			if loginProject != "" && project == "" {
+				project = loginProject
+			}
 			if e.jsonOut() {
 				return writeJSON(e, map[string]any{
-					"profile":       res.Profile,
-					"project":       emptyDash(project),
-					"tenant":        tenant,
-					"tenant_source": tenantSource,
-					"base_url":      base,
-					"brain_dir":     brainDir(res),
-					"logged_in":     loggedIn,
-					"expires_at":    tokenExpiry(t, loggedIn),
+					"profile":            res.Profile,
+					"project":            emptyDash(project),
+					"tenant":             tenant,
+					"tenant_source":      tenantSource,
+					"login_project":      loginProject,
+					"login_tenant":       loginTenant,
+					"login_all_projects": loginAllProjects,
+					"login_scope_error":  scopeErr,
+					"base_url":           base,
+					"brain_dir":          brainDir(res),
+					"logged_in":          loggedIn,
+					"expires_at":         tokenExpiry(t, loggedIn),
 				})
 			}
 
@@ -210,11 +223,25 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			} else if autoProject != "" {
 				_, _ = fmt.Fprintf(e.out, "           (brain scope via default profile)\n")
 			}
+			if loginProject != "" && loginProject != project {
+				_, _ = fmt.Fprintf(e.out, "login:     project %s\n", loginProject)
+			} else if loginAllProjects {
+				_, _ = fmt.Fprintf(e.out, "login:     all projects\n")
+			}
 			if tenant != "" {
 				if tenantSource != "" {
 					_, _ = fmt.Fprintf(e.out, "tenant:    %s (%s)\n", tenant, tenantSource)
 				} else {
 					_, _ = fmt.Fprintf(e.out, "tenant:    %s\n", tenant)
+				}
+				if loginTenant != "" && tenant != loginTenant {
+					_, _ = fmt.Fprintf(e.out, "login:     tenant %s\n", loginTenant)
+				}
+			} else if loggedIn {
+				if scopeErr != "" {
+					_, _ = fmt.Fprintf(e.out, "tenant:    - (login scope unavailable)\n")
+				} else {
+					_, _ = fmt.Fprintf(e.out, "tenant:    - (login has no tenant)\n")
 				}
 			}
 			_, _ = fmt.Fprintf(e.out, "base URL:  %s\n", base)
@@ -229,6 +256,33 @@ func newWhoamiCmd(e *env) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func (e *env) loginScope(profile, base string, loggedIn bool) (*client.WhoamiResponse, string) {
+	if !loggedIn {
+		return nil, ""
+	}
+	ctx, cancel := context.WithTimeout(e.ctx(), 3*time.Second)
+	defer cancel()
+	c := client.New(base, newLiveSource(profile, base))
+	scope, err := c.Whoami(ctx)
+	if err != nil {
+		return nil, err.Error()
+	}
+	return scope, ""
+}
+
+func loginScopeLabels(scope *client.WhoamiResponse) (projectName, tenantSlug string, allProjects bool) {
+	if scope == nil {
+		return "", "", false
+	}
+	if scope.Project != nil {
+		projectName = scope.Project.Name
+	}
+	if scope.Tenant != nil {
+		tenantSlug = scope.Tenant.Slug
+	}
+	return projectName, tenantSlug, scope.AllProjects
 }
 
 // browserOpener is the function LoginPKCE uses to launch the browser — the real opener in normal use,

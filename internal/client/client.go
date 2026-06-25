@@ -96,6 +96,15 @@ func (c *Client) Projects(ctx context.Context) (*ProjectsResponse, error) {
 	return &out, nil
 }
 
+// Whoami fetches GET /api/v1/whoami — the OAuth token's bound project/tenant scope.
+func (c *Client) Whoami(ctx context.Context) (*WhoamiResponse, error) {
+	var out WhoamiResponse
+	if err := c.do(ctx, http.MethodGet, "/api/v1/whoami", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // Run fetches GET /api/v1/runs/{id} — one run, high level.
 func (c *Client) Run(ctx context.Context, id string) (*RunDetail, error) {
 	var out RunDetail

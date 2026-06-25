@@ -26,7 +26,7 @@ import (
 type env struct {
 	profile    string // --profile: an explicit token-store profile (AWS-style override)
 	project    string // --project: select a project's token (and scope) without a brain
-	tenant     string // --tenant: scope a request to a tenant by slug (where the endpoint accepts it)
+	tenant     string // --tenant: explicit tenant override where an endpoint accepts it
 	output     string // "", "json", or "table" (from -o/--output)
 	baseURLOvr string // test-only override of the resolved base URL; empty in normal use
 	tokenOvr   string // test-only static bearer; bypasses the token store + refresh
@@ -39,8 +39,8 @@ type env struct {
 	// drives the loopback callback so the flow runs without a real browser.
 	openBrowser func(string) error
 
-	// resolved is the config resolved by the last newClient call, so a command can read the brain's
-	// tenant (to default --tenant) and the resolved profile without re-loading.
+	// resolved is the config resolved by the last newClient call, so a command can read local overrides
+	// and the resolved profile without re-loading.
 	resolved config.Resolved
 
 	// autoProject is set when a command falls back from a missing brain-named profile to the default
@@ -73,7 +73,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 	}
 	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
 	root.PersistentFlags().StringVar(&e.project, "project", "", "scope the request to one project by name or id (requires an all-projects token)")
-	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "scope the request to a tenant by slug")
+	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "override the login tenant where supported")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
 
 	root.AddCommand(
@@ -123,7 +123,7 @@ func (e *env) newClient() (*client.Client, error) {
 		return nil, err
 	}
 	e.autoProject = ""
-	e.resolved = res // so commands can default --tenant to the brain's tenant
+	e.resolved = res // so commands can apply any local tenant override
 
 	baseURL := res.BaseURL
 	if e.baseURLOvr != "" {
@@ -175,8 +175,8 @@ func notLoggedIn(res config.Resolved) error {
 	return fmt.Errorf("not logged in (profile %q) — run `rc login`", res.Profile)
 }
 
-// tenantOr returns the explicit --tenant flag when set, else the brain marker's tenant (captured by
-// newClient). Call after newClient so e.resolved is populated.
+// tenantOr returns the explicit --tenant flag when set, else any local tenant override captured by
+// newClient. Call after newClient so e.resolved is populated.
 func (e *env) tenantOr(flag string) string {
 	if flag != "" {
 		return flag
@@ -184,7 +184,8 @@ func (e *env) tenantOr(flag string) string {
 	return e.resolved.Tenant
 }
 
-// scopeTenant is the resolved tenant for a request: the persistent --tenant, else the brain's tenant.
+// scopeTenant is the explicit/local tenant override for a request. Empty lets the login-bound tenant win
+// server-side on tenant-enabled projects.
 func (e *env) scopeTenant() string {
 	return e.tenantOr(e.tenant)
 }

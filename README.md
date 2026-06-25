@@ -83,9 +83,9 @@ install …@latest` re-installs the latest for Go users.)
 
 `rc` authenticates with **OAuth**. Sign in once with `rc login`; it stores an access + refresh token in
 `~/.config/rootcause/tokens.json` (0600) and refreshes the short-lived access token transparently on
-every later command. The token's **project scope is chosen on the browser consent screen** (a single
-project, or — for a global admin — all projects); there is no key to paste and no `--project` is needed
-to *prove* scope, it's baked into the token.
+every later command. The token's **scope is chosen on the browser consent screen** (a single project,
+one tenant under a project, or — for a global admin — all projects); there is no key to paste and no
+`--project`/`--tenant` is needed to prove scope, it's baked into the token.
 
 ```bash
 rc login            # opens your browser (PKCE loopback), catches the redirect, stores the token
@@ -101,7 +101,7 @@ a local token profile with the same name. If that profile exists, it uses it; ot
 ```bash
 cd rootcause-brain-acme   # committed .rootcause.toml: project = "acme", base_url = "…"
 rc login                  # stores a token under the "acme" profile
-rc whoami                 # profile: acme · project: acme · auth: logged in
+rc whoami                 # profile: acme · project: acme · tenant if bound · auth: logged in
 rc ask "…"                # just works
 ```
 
@@ -136,15 +136,9 @@ a command uses.
 token and names one project on supported endpoints (`?project=`), so an **all-projects admin token** can
 review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask --project
 momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
-`--tenant <slug>` scopes a request within the token's project where the endpoint accepts it.
-Inside a brain checkout, `tenant = "<slug>"` in the committed `.rootcause.toml` supplies that default.
-For a developer-local default that must not ship with the brain, write `.rootcause/local.toml`:
-
-```toml
-tenant = "de-kies"
-```
-
-`--tenant` still wins over either file. `rc whoami` shows the tenant source.
+On tenant-enabled projects, the active `rc login` normally binds one tenant. Plain `rc ask "…"` uses
+that tenant automatically; `rc whoami` shows it. `--tenant <slug>` remains an explicit override/debug
+flag where an endpoint accepts it, but it is not needed in the normal path.
 
 For a whole-fleet review with an all-projects token, `rc fleet`/`patterns`/`health` take **`--all`**:
 the CLI lists the fleet (`rc projects`) and fans out per project — `fleet --all` groups the digest by
@@ -161,9 +155,9 @@ a 30m clock with no finish) and a `FB` model-fallback flag are surfaced inline; 
 line carries the full triage tail (cost · secs · turns · bash_err · ctx · FB).
 
 **`.rootcause.toml`** (committed, per brain) names the project + endpoint — no secret, safe to commit,
-ships the binding with a clone. Optional gitignored **`.rootcause/local.toml`** can set only a local
-`tenant = "<slug>"` default for tenant-enabled projects. There is no longer any `.rootcause.secret.toml`
-— credentials live only in the OAuth token store.
+ships the binding with a clone. Optional gitignored **`.rootcause/local.toml`** can still set a local
+tenant override for debugging. There is no longer any `.rootcause.secret.toml` — credentials live only
+in the OAuth token store.
 
 ## Commands
 
@@ -171,13 +165,14 @@ Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>
 requests to one project server-side (useful for all-projects tokens outside a brain checkout or as an
 override; inside a brain checkout the `.rootcause.toml` project is used automatically when falling back
 to `default`);
-`--tenant <slug>` scopes a request to a tenant; `-o json|table` forces output.
+`--tenant <slug>` explicitly overrides a tenant where supported; normally the login supplies tenant
+scope. `-o json|table` forces output.
 
 | Command | Does |
 |---|---|
 | `rc login [--device]` | OAuth sign-in: PKCE loopback (browser) by default, `--device` for headless/SSH. Stores the token under the resolved profile |
 | `rc logout` | revoke the profile's token server-side and clear it from the local store |
-| `rc whoami` | the resolved profile/project/tenant + sign-in status (local only — no server call) |
+| `rc whoami` | the resolved profile/project/login tenant + sign-in status |
 | `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
 | `rc ask "<q>" [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection |
@@ -240,14 +235,13 @@ needs AWS/SSM access). Run it **from inside the brain clone** (it reads/writes `
 rc env keys                 # what keys exist (names only — safe to paste/log)
 rc env pull                 # write ./.env at 0600 — then `brain-dev --live` can run grounding locally
 rc env diff                 # has my local ./.env drifted from production? (names-only; exit≠0 on drift)
-rc env pull --tenant <slug> # a tenant-enabled project: the project ∪ tenant env (tenant authoritative)
 ```
 
 > **Secret hygiene:** no `rc env` subcommand ever prints a secret **value** — `pull` writes values only
 > to the 0600 file and reports names + count; `keys`/`diff` are names-only in both table and JSON modes.
 > The pulled `.env` holds **real production secrets** on your laptop — treat it like a password file
-> (it's gitignored in every brain repo). A tenant-enabled project (e.g. dentai) requires `--tenant`, or
-> a tenant default in `.rootcause.toml` / `.rootcause/local.toml`.
+> (it's gitignored in every brain repo). A tenant-enabled project (e.g. dentai) uses the tenant bound to
+> your `rc login`.
 
 ## Releasing
 
