@@ -30,6 +30,7 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 ## Working on it
 - **Toolchain:** Go 1.25 via `mise` (pinned in `mise.toml`); `cobra`+`pflag`, `BurntSushi/toml`. Run from the repo dir so mise selects go 1.25.
 - **Before finishing any change:** `go build ./... && go vet ./... && go test ./...`, and `gofmt -w`.
+- **Greenfield release bias:** verified + low regression risk ⇒ promote/publish immediately.
 - **Golden tests** live in `internal/cli/` (fixtures `testdata/*.json` → `*.golden`); regenerate with `go test ./internal/cli -update`. Fixtures use canned timestamps — never `time.Now`.
 - **Adding a command for a new endpoint:** wire struct in `internal/client/types.go` (match server JSON) → client method → render fn (+ golden) → cobra command. A command MAY fan out to several raw endpoints and compute a view locally; whatever it computes, `-o json` must still surface the raw underlying data.
 
