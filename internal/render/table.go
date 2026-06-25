@@ -607,6 +607,10 @@ func Full(w io.Writer, f *client.FullResponse) {
 	if settings := projectionSummary(r.TenantSettings); settings != "" {
 		_, _ = fmt.Fprintf(tw, "Tenant settings:\t%s\n", settings)
 	}
+	drift, _ := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent)
+	if len(drift) > 0 {
+		_, _ = fmt.Fprintf(tw, "Tenant settings drift:\t%d changed\n", len(drift))
+	}
 	if r.Model != "" {
 		_, _ = fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
 	}
@@ -627,6 +631,13 @@ func Full(w io.Writer, f *client.FullResponse) {
 		_, _ = fmt.Fprintf(tw, "Trace:\t%s\n", tu)
 	}
 	_ = tw.Flush()
+
+	if len(drift) > 0 {
+		_, _ = fmt.Fprintln(w, "\nCareful: when this run happened, these tenant settings differed from the current config.")
+		for _, d := range drift {
+			_, _ = fmt.Fprintf(w, "  %s: then %s; now %s\n", d.Key, d.Then, d.Now)
+		}
+	}
 
 	// The full decline_reason verbatim (untruncated, may span lines) — the headline "why nothing" for a
 	// declined run. Rendered as a block since the index view only shows a truncated one-liner.

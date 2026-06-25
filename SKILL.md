@@ -174,7 +174,9 @@ disp/grounding/label/command/gist; `emit.go` writes the JSONL + the index (timel
 flags, files read, egress, example jq calls). The run header preserves the production projection
 metadata from `/full`: `brain_resolved`, `tenant`, and the parsed `tenant_settings` snapshot
 (source/synced_at/version/settings; branch selector values summarized in the markdown index when
-parseable). One shape note vs the operator dump: the JSONL `egress` carries the API's aggregated rollup
+parseable). When `/full` also returns `tenant_settings_current`, the CLI diffs `settings` locally and
+prints a drift warning only when values differ; `tenant_settings_drift` rides in the debug JSONL header.
+One shape note vs the operator dump: the JSONL `egress` carries the API's aggregated rollup
 (`{host, count, blocked}`), not the operator dump's per-row `{decision, port, …}` — the per-event
 drill-down keys are identical, only egress differs.
 

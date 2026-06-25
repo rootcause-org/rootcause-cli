@@ -31,36 +31,40 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		}
 	}
 	header := map[string]any{
-		"type":              "run",
-		"run_id":            r.RunID,
-		"project":           r.Project,
-		"tenant":            emptyNil(r.Tenant),
-		"status":            r.Status,
-		"kind":              r.Kind,
-		"trigger":           emptyNil(r.Trigger),
-		"brain_ref":         emptyNil(r.BrainRef),
-		"brain_resolved":    emptyNil(r.BrainResolved),
-		"tenant_settings":   tenantSettingsJSON(r.TenantSettings),
-		"error":             emptyNil(r.Error),
-		"thread_id":         emptyNil(r.ThreadID),
-		"session_id":        emptyNil(r.SessionID),
-		"topic":             emptyNil(r.Topic),
-		"question":          emptyNil(r.Question),
-		"warm_start_digest": emptyNil(r.WarmStartDigest),
-		"grounding_seed":    emptyNil(r.GroundingSeed),
-		"system_prompt":     emptyNil(r.SystemPrompt),
-		"created_at":        emptyNil(r.CreatedAt),
-		"finished_at":       emptyNil(r.FinishedAt),
-		"model":             emptyNil(model),
-		"run_cost_usd":      r.RunCostUSD,
-		"run_total_tokens":  r.RunTotalTokens,
-		"draft":             emptyNil(r.Draft),
-		"notes":             notesJSON(r.Notes),
-		"metadata":          metadataJSON(r.Metadata),
-		"egress":            egressJSON(r.Egress),
+		"type":                    "run",
+		"run_id":                  r.RunID,
+		"project":                 r.Project,
+		"tenant":                  emptyNil(r.Tenant),
+		"status":                  r.Status,
+		"kind":                    r.Kind,
+		"trigger":                 emptyNil(r.Trigger),
+		"brain_ref":               emptyNil(r.BrainRef),
+		"brain_resolved":          emptyNil(r.BrainResolved),
+		"tenant_settings":         tenantSettingsJSON(r.TenantSettings),
+		"tenant_settings_current": tenantSettingsJSON(r.TenantSettingsCurrent),
+		"error":                   emptyNil(r.Error),
+		"thread_id":               emptyNil(r.ThreadID),
+		"session_id":              emptyNil(r.SessionID),
+		"topic":                   emptyNil(r.Topic),
+		"question":                emptyNil(r.Question),
+		"warm_start_digest":       emptyNil(r.WarmStartDigest),
+		"grounding_seed":          emptyNil(r.GroundingSeed),
+		"system_prompt":           emptyNil(r.SystemPrompt),
+		"created_at":              emptyNil(r.CreatedAt),
+		"finished_at":             emptyNil(r.FinishedAt),
+		"model":                   emptyNil(model),
+		"run_cost_usd":            r.RunCostUSD,
+		"run_total_tokens":        r.RunTotalTokens,
+		"draft":                   emptyNil(r.Draft),
+		"notes":                   notesJSON(r.Notes),
+		"metadata":                metadataJSON(r.Metadata),
+		"egress":                  egressJSON(r.Egress),
 	}
 	if len(r.ProposedActions) > 0 {
 		header["proposed_actions"] = r.ProposedActions
+	}
+	if drift, err := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
+		header["tenant_settings_drift"] = drift
 	}
 	if err := enc.Encode(header); err != nil {
 		return err
@@ -257,7 +261,7 @@ func RenderIndex(full *client.FullResponse) string {
 }
 
 func renderProjectionInputs(r client.RunHeader) []string {
-	if r.BrainResolved == "" && r.Tenant == "" && r.TenantSettings == "" {
+	if r.BrainResolved == "" && r.Tenant == "" && r.TenantSettings == "" && r.TenantSettingsCurrent == "" {
 		return nil
 	}
 	var out []string
@@ -278,6 +282,13 @@ func renderProjectionInputs(r client.RunHeader) []string {
 			if selectors := client.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
 				out = append(out, fmt.Sprintf("- **Branch selectors:** %s", selectorSummary(selectors)))
 			}
+		}
+	}
+	if drift, err := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
+		out = append(out, "", "### Current drift", "")
+		out = append(out, "Careful: when this run happened, these tenant settings differed from the current config.")
+		for _, d := range drift {
+			out = append(out, fmt.Sprintf("- `%s`: then `%s`; now `%s`", backtickSafe(d.Key), backtickSafe(d.Then), backtickSafe(d.Now)))
 		}
 	}
 	out = append(out, "")

@@ -254,40 +254,41 @@ type EgressItem struct {
 // system_prompt, warm inputs (warm_start_digest/grounding_seed), run-level cost/tokens, egress, and
 // metadata.trace_url. Mirrors the server's `run` object field-for-field.
 type RunHeader struct {
-	RunID           string           `json:"run_id"`
-	Scenario        string           `json:"scenario,omitempty"`
-	Project         string           `json:"project,omitempty"`
-	Tenant          string           `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
-	Status          string           `json:"status"`
-	Kind            string           `json:"kind"`
-	Trigger         string           `json:"trigger,omitempty"`
-	BrainRef        string           `json:"brain_ref,omitempty"`
-	BrainResolved   string           `json:"brain_resolved,omitempty"`
-	TenantSettings  string           `json:"tenant_settings,omitempty"`
-	Error           string           `json:"error,omitempty"`
-	ThreadID        string           `json:"thread_id,omitempty"`
-	SessionID       string           `json:"session_id,omitempty"`
-	Topic           string           `json:"topic,omitempty"`
-	Question        string           `json:"question,omitempty"`
-	WarmStartDigest string           `json:"warm_start_digest,omitempty"`
-	GroundingSeed   string           `json:"grounding_seed,omitempty"`
-	SystemPrompt    string           `json:"system_prompt,omitempty"`
-	CreatedAt       string           `json:"created_at"`
-	FinishedAt      string           `json:"finished_at,omitempty"`
-	Model           string           `json:"model,omitempty"`
-	RunCostUSD      float64          `json:"run_cost_usd,omitempty"`
-	RunTotalTokens  int64            `json:"run_total_tokens,omitempty"`
-	Draft           string           `json:"draft,omitempty"`
-	DraftMarkdown   string           `json:"draft_markdown,omitempty"`
-	AnswerMarkdown  string           `json:"answer_markdown,omitempty"`
-	Notes           []Note           `json:"notes,omitempty"`
-	Decline         string           `json:"decline,omitempty"`
-	DeclineReason   string           `json:"decline_reason,omitempty"`
-	ProposedActions []ProposedAction `json:"proposed_actions,omitempty"`
-	SourcePR        *SourcePR        `json:"source_pr,omitempty"`
-	Debug           *RunDebug        `json:"debug,omitempty"`
-	Metadata        map[string]any   `json:"metadata,omitempty"`
-	Egress          []EgressItem     `json:"egress,omitempty"`
+	RunID                 string           `json:"run_id"`
+	Scenario              string           `json:"scenario,omitempty"`
+	Project               string           `json:"project,omitempty"`
+	Tenant                string           `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
+	Status                string           `json:"status"`
+	Kind                  string           `json:"kind"`
+	Trigger               string           `json:"trigger,omitempty"`
+	BrainRef              string           `json:"brain_ref,omitempty"`
+	BrainResolved         string           `json:"brain_resolved,omitempty"`
+	TenantSettings        string           `json:"tenant_settings,omitempty"`
+	TenantSettingsCurrent string           `json:"tenant_settings_current,omitempty"`
+	Error                 string           `json:"error,omitempty"`
+	ThreadID              string           `json:"thread_id,omitempty"`
+	SessionID             string           `json:"session_id,omitempty"`
+	Topic                 string           `json:"topic,omitempty"`
+	Question              string           `json:"question,omitempty"`
+	WarmStartDigest       string           `json:"warm_start_digest,omitempty"`
+	GroundingSeed         string           `json:"grounding_seed,omitempty"`
+	SystemPrompt          string           `json:"system_prompt,omitempty"`
+	CreatedAt             string           `json:"created_at"`
+	FinishedAt            string           `json:"finished_at,omitempty"`
+	Model                 string           `json:"model,omitempty"`
+	RunCostUSD            float64          `json:"run_cost_usd,omitempty"`
+	RunTotalTokens        int64            `json:"run_total_tokens,omitempty"`
+	Draft                 string           `json:"draft,omitempty"`
+	DraftMarkdown         string           `json:"draft_markdown,omitempty"`
+	AnswerMarkdown        string           `json:"answer_markdown,omitempty"`
+	Notes                 []Note           `json:"notes,omitempty"`
+	Decline               string           `json:"decline,omitempty"`
+	DeclineReason         string           `json:"decline_reason,omitempty"`
+	ProposedActions       []ProposedAction `json:"proposed_actions,omitempty"`
+	SourcePR              *SourcePR        `json:"source_pr,omitempty"`
+	Debug                 *RunDebug        `json:"debug,omitempty"`
+	Metadata              map[string]any   `json:"metadata,omitempty"`
+	Egress                []EgressItem     `json:"egress,omitempty"`
 }
 
 // EventItem is one event in the /full bundle — the superset of Event: it adds the ai_usage join

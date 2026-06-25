@@ -1,18 +1,22 @@
-Run:              11111111-1111-1111-1111-111111111111
-Status:           done
-Kind:             prompt
-Trigger:          test
-Brain ref:        dev/refund-rework
-Brain resolved:   dev/refund-rework @ abc123def456
-Tenant:           de-kies
-Tenant settings:  source=cli  synced_at=2026-06-22T10:00:00Z  version=sha256:tenantabc  selectors=4
-Model:            claude-opus-4-8
-Created:          2026-06-19T09:00:00Z
-Finished:         2026-06-19T09:01:30Z
-Cost:             $1.08
-Tokens:           4210
-Question:         Do I still have open invoices?
-Trace:            https://trace.example/abc123
+Run:                    11111111-1111-1111-1111-111111111111
+Status:                 done
+Kind:                   prompt
+Trigger:                test
+Brain ref:              dev/refund-rework
+Brain resolved:         dev/refund-rework @ abc123def456
+Tenant:                 de-kies
+Tenant settings:        source=cli  synced_at=2026-06-22T10:00:00Z  version=sha256:tenantabc  selectors=4
+Tenant settings drift:  1 changed
+Model:                  claude-opus-4-8
+Created:                2026-06-19T09:00:00Z
+Finished:               2026-06-19T09:01:30Z
+Cost:                   $1.08
+Tokens:                 4210
+Question:               Do I still have open invoices?
+Trace:                  https://trace.example/abc123
+
+Careful: when this run happened, these tenant settings differed from the current config.
+  practice_name: then De Kies; now De Nieuwe Kies
 
 Egress (2):
   HOST            COUNT  BLOCKED

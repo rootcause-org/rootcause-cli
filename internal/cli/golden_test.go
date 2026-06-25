@@ -188,6 +188,9 @@ func TestRunFullJSONL(t *testing.T) {
 	if ts, ok := head["tenant_settings"].(string); !ok || !strings.Contains(ts, "sha256:tenantabc") {
 		t.Errorf("tenant_settings raw snapshot not carried through: %T %v", head["tenant_settings"], head["tenant_settings"])
 	}
+	if ts, ok := head["tenant_settings_current"].(string); !ok || !strings.Contains(ts, "sha256:tenantdef") {
+		t.Errorf("tenant_settings_current raw snapshot not carried through: %T %v", head["tenant_settings_current"], head["tenant_settings_current"])
+	}
 	for i, ln := range lines[1:] {
 		var ev map[string]any
 		if err := json.Unmarshal([]byte(ln), &ev); err != nil {
@@ -244,6 +247,18 @@ func TestRunDebug(t *testing.T) {
 	ts, ok := head["tenant_settings"].(map[string]any)
 	if !ok || ts["source"] != "cli" || ts["version"] != "sha256:tenantabc" {
 		t.Errorf("debug header tenant_settings not parsed: %T %v", head["tenant_settings"], head["tenant_settings"])
+	}
+	current, ok := head["tenant_settings_current"].(map[string]any)
+	if !ok || current["version"] != "sha256:tenantdef" {
+		t.Errorf("debug header tenant_settings_current not parsed: %T %v", head["tenant_settings_current"], head["tenant_settings_current"])
+	}
+	drift, ok := head["tenant_settings_drift"].([]any)
+	if !ok || len(drift) != 1 {
+		t.Fatalf("debug header tenant_settings_drift missing: %T %v", head["tenant_settings_drift"], head["tenant_settings_drift"])
+	}
+	item, ok := drift[0].(map[string]any)
+	if !ok || item["key"] != "practice_name" || item["then"] != "De Kies" || item["now"] != "De Nieuwe Kies" {
+		t.Errorf("debug drift item = %#v", drift[0])
 	}
 	actions, ok := head["proposed_actions"].([]any)
 	if !ok || len(actions) != 1 {

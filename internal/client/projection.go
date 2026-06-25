@@ -22,6 +22,14 @@ type TenantSettingValue struct {
 	Value string
 }
 
+// TenantSettingsDriftItem is one setting whose historical run value differs from the tenant's current
+// record. Then is what the run saw; Now is what the tenant row holds today.
+type TenantSettingsDriftItem struct {
+	Key  string `json:"key"`
+	Then string `json:"then"`
+	Now  string `json:"now"`
+}
+
 // ParseTenantSettingsSnapshot decodes RunHeader.TenantSettings. The server currently sends this as a
 // JSON string containing the snapshot object; an empty string means a flat or pre-stamp run.
 func ParseTenantSettingsSnapshot(raw string) (*TenantSettingsSnapshot, error) {
@@ -63,6 +71,50 @@ func BranchSelectorValues(settings map[string]any) []TenantSettingValue {
 	return selectorValues(settings, keys)
 }
 
+// TenantSettingsDrift compares two tenant-settings snapshots and returns only settings whose values
+// differ. Version/source changes with identical settings are deliberately ignored: the warning is for
+// variables that could change model behavior.
+func TenantSettingsDrift(snapshotRaw, currentRaw string) ([]TenantSettingsDriftItem, error) {
+	snapshot, err := ParseTenantSettingsSnapshot(snapshotRaw)
+	if err != nil {
+		return nil, err
+	}
+	current, err := ParseTenantSettingsSnapshot(currentRaw)
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil || current == nil {
+		return nil, nil
+	}
+	keys := map[string]bool{}
+	for k := range snapshot.Settings {
+		keys[k] = true
+	}
+	for k := range current.Settings {
+		keys[k] = true
+	}
+	sorted := make([]string, 0, len(keys))
+	for k := range keys {
+		sorted = append(sorted, k)
+	}
+	sort.Strings(sorted)
+
+	out := make([]TenantSettingsDriftItem, 0)
+	for _, k := range sorted {
+		then, thenOK := snapshot.Settings[k]
+		now, nowOK := current.Settings[k]
+		if canonicalSettingValue(then, thenOK) == canonicalSettingValue(now, nowOK) {
+			continue
+		}
+		out = append(out, TenantSettingsDriftItem{
+			Key:  k,
+			Then: displaySettingValue(then, thenOK),
+			Now:  displaySettingValue(now, nowOK),
+		})
+	}
+	return out, nil
+}
+
 func selectorValues(settings map[string]any, keys []string) []TenantSettingValue {
 	out := make([]TenantSettingValue, 0, len(keys))
 	for _, k := range keys {
@@ -77,6 +129,31 @@ func selectorValues(settings map[string]any, keys []string) []TenantSettingValue
 		out = append(out, TenantSettingValue{Key: k, Value: s})
 	}
 	return out
+}
+
+func canonicalSettingValue(v any, ok bool) string {
+	if !ok {
+		return "<unset>"
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%#v", v)
+	}
+	return string(b)
+}
+
+func displaySettingValue(v any, ok bool) string {
+	if !ok {
+		return "(unset)"
+	}
+	if s, ok := scalarString(v); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return string(b)
 }
 
 func scalarString(v any) (string, bool) {

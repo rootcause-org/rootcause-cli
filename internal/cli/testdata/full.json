@@ -9,6 +9,7 @@
     "brain_ref": "dev/refund-rework",
     "brain_resolved": "dev/refund-rework @ abc123def456",
     "tenant_settings": "{\"source\":\"cli\",\"synced_at\":\"2026-06-22T10:00:00Z\",\"version\":\"sha256:tenantabc\",\"settings\":{\"newpatient_method\":\"waitlist\",\"existingpatient_method\":\"book_via_link\",\"reschedule_method\":\"propose_options_confirm\",\"booking_hygienist_dentist_interaction\":\"hygienist_first\",\"practice_name\":\"De Kies\"}}",
+    "tenant_settings_current": "{\"source\":\"cli\",\"synced_at\":\"2026-06-25T10:00:00Z\",\"version\":\"sha256:tenantdef\",\"settings\":{\"newpatient_method\":\"waitlist\",\"existingpatient_method\":\"book_via_link\",\"reschedule_method\":\"propose_options_confirm\",\"booking_hygienist_dentist_interaction\":\"hygienist_first\",\"practice_name\":\"De Nieuwe Kies\"}}",
     "thread_id": "thr_abc",
     "session_id": "sess_xyz",
     "topic": "open invoices",

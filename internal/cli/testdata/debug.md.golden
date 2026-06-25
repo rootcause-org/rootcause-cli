@@ -16,6 +16,11 @@
 - **Tenant settings:** source `cli` · synced_at `2026-06-22T10:00:00Z` · version `sha256:tenantabc`
 - **Branch selectors:** `newpatient_method=waitlist` · `existingpatient_method=book_via_link` · `reschedule_method=propose_options_confirm` · `booking_hygienist_dentist_interaction=hygienist_first`
 
+### Current drift
+
+Careful: when this run happened, these tenant settings differed from the current config.
+- `practice_name`: then `De Kies`; now `De Nieuwe Kies`
+
 ## Question
 
 ```
