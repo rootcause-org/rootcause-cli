@@ -1,0 +1,32 @@
+{
+  "run": {
+    "run_id": "email-rich",
+    "scenario": "email",
+    "project": "coca-cola",
+    "status": "done",
+    "kind": "prompt",
+    "trigger": "test",
+    "created_at": "2026-06-19T09:00:00Z",
+    "finished_at": "2026-06-19T09:01:30Z",
+    "draft": "Hi Sophie,\n\nYou have 2 open invoices totalling $480.",
+    "notes": [
+      { "key": "summary", "body": "Checked Stripe customer cus_123 and found two unpaid invoices." }
+    ],
+    "proposed_actions": [
+      {
+        "id": "act_123",
+        "slug": "send_invoice_reminder",
+        "label": "Send invoice reminder",
+        "description": "Sends a reminder for the two unpaid invoices.",
+        "url": "https://rootcause.probackup.io/actions/tok_123"
+      }
+    ],
+    "source_pr": {
+      "repo": "billing",
+      "title": "Clarify overdue invoice copy",
+      "url": "https://github.com/acme/billing/pull/7"
+    },
+    "metadata": { "trace_url": "https://trace.example/email-rich", "outcome": "ok" }
+  },
+  "events": []
+}

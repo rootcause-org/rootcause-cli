@@ -1,0 +1,30 @@
+Run:       raw-rich
+Scenario:  raw
+Status:    done
+Category:  answered
+Outcome:   ok
+Kind:      prompt
+Created:   2026-06-19T09:00:00Z
+Finished:  2026-06-19T09:00:45Z
+Duration:  45.0s
+Cost:      $0.31
+Turns:     4
+Bash:      9
+View run:  https://rootcause.probackup.io/runs/raw-rich?t=def456
+
+Answer:
+There are 17 active subscriptions and 2 past-due invoices.
+
+Actions (1):
+  ID       ACTION              LABEL
+  act_456  sync_billing_cache  Sync billing cache
+    url: https://rootcause.probackup.io/actions/tok_456
+    Refreshes the derived billing cache after the investigation.
+
+PR:
+  Title:  Add missing billing index
+  Repo:   analytics
+  URL:    https://github.com/acme/analytics/pull/9
+
+Metadata:
+  query_ms:  148

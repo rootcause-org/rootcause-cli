@@ -14,7 +14,8 @@ Sources:
   SOURCE      TOTAL  ERRORS
   Prompt API  12     0
 
-$ rc ask "Do I still have open invoices?"   # trigger a run, wait, print the answer
+$ rc ask "Do I still have open invoices?"   # simulate a support email, wait, print draft/note
+$ rc ask --scenario raw "How many active subscriptions are past due?"
 $ rc ask --effort pro "Retry this with a stronger model tier"
 $ rc runs --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run <id> --events        # full per-iteration trace (NDJSON when piped)
@@ -170,7 +171,7 @@ to `default`);
 | `rc whoami` | the resolved profile/project/tenant + sign-in status (local only — no server call) |
 | `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--no-wait] [--timeout 5m]` | trigger a run; waits for the answer by default (`--no-wait` prints the run_id). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection |
+| `rc ask "<q>" [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
@@ -187,6 +188,13 @@ to `default`);
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
 dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin
 dev/<branch>`); the server runs the real loop against it and flags any actions/PRs as test.
+
+`rc ask` defaults to `--scenario email`: it sends an explicit `scenario=email` to the Prompt API and
+wraps the prompt as one synthetic inbound message from `--from` with `--subject` (or a compact prompt
+first line). Use this for high-fidelity brain-dev checks: tone, notes, actions, PR proposals, and
+declines are rendered like a reviewable support result. Use `--scenario raw` for direct investigations;
+the CLI sends `scenario=raw` and prints one Markdown answer. `--scenario mcp` is accepted as a
+compatibility alias for raw, but `raw` is the documented name.
 
 `rc ask --effort pro|max` is a per-run escalation knob. It maps to rootcause's model tiers, not raw
 provider effort values; use it when you explicitly want a stronger retry. Omit it, or pass

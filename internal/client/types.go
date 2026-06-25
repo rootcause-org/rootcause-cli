@@ -124,24 +124,31 @@ type RunDebug struct {
 // is always present (always [] in v0). category/has_draft/has_note come from the shared row-builder;
 // duration_ms/cost_usd/turns/bash_total are the run_health triage scalars (cost is the run's TOTAL spend).
 type RunDetail struct {
-	RunID          string         `json:"run_id"`
-	Status         string         `json:"status"`
-	Kind           string         `json:"kind"`
-	Category       string         `json:"category"`
-	CreatedAt      string         `json:"created_at"`
-	FinishedAt     string         `json:"finished_at,omitempty"`
-	DurationMs     int64          `json:"duration_ms,omitempty"`
-	HasDraft       bool           `json:"has_draft"`
-	HasNote        bool           `json:"has_note"`
-	Turns          int64          `json:"turns,omitempty"`
-	BashTotal      int64          `json:"bash_total,omitempty"`
-	CostUSD        float64        `json:"cost_usd,omitempty"`
-	AnswerMarkdown string         `json:"answer_markdown,omitempty"`
-	RunURL         string         `json:"run_url,omitempty"`
-	Attachments    []any          `json:"attachments"`
-	Error          string         `json:"error,omitempty"`
-	Debug          *RunDebug      `json:"debug,omitempty"`
-	Metadata       map[string]any `json:"metadata,omitempty"`
+	RunID           string           `json:"run_id"`
+	Scenario        string           `json:"scenario,omitempty"`
+	Status          string           `json:"status"`
+	Kind            string           `json:"kind"`
+	Category        string           `json:"category"`
+	Outcome         string           `json:"outcome,omitempty"`
+	CreatedAt       string           `json:"created_at"`
+	FinishedAt      string           `json:"finished_at,omitempty"`
+	DurationMs      int64            `json:"duration_ms,omitempty"`
+	HasDraft        bool             `json:"has_draft"`
+	HasNote         bool             `json:"has_note"`
+	Turns           int64            `json:"turns,omitempty"`
+	BashTotal       int64            `json:"bash_total,omitempty"`
+	CostUSD         float64          `json:"cost_usd,omitempty"`
+	AnswerMarkdown  string           `json:"answer_markdown,omitempty"`
+	DraftMarkdown   string           `json:"draft_markdown,omitempty"`
+	Notes           []Note           `json:"notes,omitempty"`
+	DeclineReason   string           `json:"decline_reason,omitempty"`
+	ProposedActions []ProposedAction `json:"proposed_actions,omitempty"`
+	SourcePR        *SourcePR        `json:"source_pr,omitempty"`
+	RunURL          string           `json:"run_url,omitempty"`
+	Attachments     []any            `json:"attachments"`
+	Error           string           `json:"error,omitempty"`
+	Debug           *RunDebug        `json:"debug,omitempty"`
+	Metadata        map[string]any   `json:"metadata,omitempty"`
 }
 
 // Event is one tool-call in a run's trace (GET /api/v1/runs/{id}/events). Command is bash-only;
@@ -169,16 +176,18 @@ type EventsResponse struct {
 	Events []Event `json:"events"`
 }
 
-// SubmitRequest is the POST /api/v1/runs body plus optional URL scope. session_id/tenant/brain_ref/
-// reasoning_effort are omitempty so a bare `rc ask "<q>"` sends just {prompt}; brain_ref names a non-main
-// brain ref (a dev/* branch) for a test run. Project is the ?project= selector for all-projects admin
-// tokens, never JSON.
+// SubmitRequest is the POST /api/v1/runs body plus optional URL scope. Scenario is explicit even for the
+// default email simulation; sender/subject shape the synthetic inbound email for that scenario. Project
+// is the ?project= selector for all-projects admin tokens, never JSON.
 type SubmitRequest struct {
 	Prompt          string `json:"prompt"`
+	Scenario        string `json:"scenario"`
 	SessionID       string `json:"session_id,omitempty"`
 	Tenant          string `json:"tenant,omitempty"`
 	BrainRef        string `json:"brain_ref,omitempty"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Sender          string `json:"sender,omitempty"`
+	Subject         string `json:"subject,omitempty"`
 	Project         string `json:"-"`
 }
 
@@ -194,8 +203,42 @@ type SubmitResponse struct {
 // Note is one named note body on a run, returned in full by /full (vs. the has_note boolean on the
 // lean run detail).
 type Note struct {
-	Key  string `json:"key"`
-	Body string `json:"body"`
+	Key          string       `json:"key,omitempty"`
+	Body         string       `json:"body,omitempty"`
+	BodyMarkdown string       `json:"body_markdown,omitempty"`
+	BodyHTML     string       `json:"body_html,omitempty"`
+	BodyText     string       `json:"body_text,omitempty"`
+	Actions      []NoteAction `json:"actions,omitempty"`
+}
+
+// NoteAction is the email-plane button shape nested under notes[].actions.
+type NoteAction struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	URL         string `json:"url"`
+	Color       string `json:"color,omitempty"`
+}
+
+// ProposedAction is the canonical pull-plane action proposal shape from rootcause.
+type ProposedAction struct {
+	ID          string `json:"id"`
+	Slug        string `json:"slug,omitempty"`
+	Label       string `json:"label,omitempty"`
+	Description string `json:"description,omitempty"`
+	URL         string `json:"url,omitempty"`
+	Color       string `json:"color,omitempty"`
+}
+
+// SourcePR is a proposed source change. The host may return either the original proposal fields or the
+// opened PR URL; all fields are optional so older/newer servers decode cleanly.
+type SourcePR struct {
+	Repo  string `json:"repo,omitempty"`
+	Base  string `json:"base,omitempty"`
+	Title string `json:"title,omitempty"`
+	Body  string `json:"body,omitempty"`
+	Diff  string `json:"diff,omitempty"`
+	URL   string `json:"url,omitempty"`
 }
 
 // EgressItem is one host the run reached out to (the egress_log rollup): how many times, and whether
@@ -211,31 +254,38 @@ type EgressItem struct {
 // system_prompt, warm inputs (warm_start_digest/grounding_seed), run-level cost/tokens, egress, and
 // metadata.trace_url. Mirrors the server's `run` object field-for-field.
 type RunHeader struct {
-	RunID           string         `json:"run_id"`
-	Project         string         `json:"project,omitempty"`
-	Tenant          string         `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
-	Status          string         `json:"status"`
-	Kind            string         `json:"kind"`
-	Trigger         string         `json:"trigger,omitempty"`
-	BrainRef        string         `json:"brain_ref,omitempty"`
-	Error           string         `json:"error,omitempty"`
-	ThreadID        string         `json:"thread_id,omitempty"`
-	SessionID       string         `json:"session_id,omitempty"`
-	Topic           string         `json:"topic,omitempty"`
-	Question        string         `json:"question,omitempty"`
-	WarmStartDigest string         `json:"warm_start_digest,omitempty"`
-	GroundingSeed   string         `json:"grounding_seed,omitempty"`
-	SystemPrompt    string         `json:"system_prompt,omitempty"`
-	CreatedAt       string         `json:"created_at"`
-	FinishedAt      string         `json:"finished_at,omitempty"`
-	Model           string         `json:"model,omitempty"`
-	RunCostUSD      float64        `json:"run_cost_usd,omitempty"`
-	RunTotalTokens  int64          `json:"run_total_tokens,omitempty"`
-	Draft           string         `json:"draft,omitempty"`
-	Notes           []Note         `json:"notes,omitempty"`
-	Debug           *RunDebug      `json:"debug,omitempty"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
-	Egress          []EgressItem   `json:"egress,omitempty"`
+	RunID           string           `json:"run_id"`
+	Scenario        string           `json:"scenario,omitempty"`
+	Project         string           `json:"project,omitempty"`
+	Tenant          string           `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
+	Status          string           `json:"status"`
+	Kind            string           `json:"kind"`
+	Trigger         string           `json:"trigger,omitempty"`
+	BrainRef        string           `json:"brain_ref,omitempty"`
+	Error           string           `json:"error,omitempty"`
+	ThreadID        string           `json:"thread_id,omitempty"`
+	SessionID       string           `json:"session_id,omitempty"`
+	Topic           string           `json:"topic,omitempty"`
+	Question        string           `json:"question,omitempty"`
+	WarmStartDigest string           `json:"warm_start_digest,omitempty"`
+	GroundingSeed   string           `json:"grounding_seed,omitempty"`
+	SystemPrompt    string           `json:"system_prompt,omitempty"`
+	CreatedAt       string           `json:"created_at"`
+	FinishedAt      string           `json:"finished_at,omitempty"`
+	Model           string           `json:"model,omitempty"`
+	RunCostUSD      float64          `json:"run_cost_usd,omitempty"`
+	RunTotalTokens  int64            `json:"run_total_tokens,omitempty"`
+	Draft           string           `json:"draft,omitempty"`
+	DraftMarkdown   string           `json:"draft_markdown,omitempty"`
+	AnswerMarkdown  string           `json:"answer_markdown,omitempty"`
+	Notes           []Note           `json:"notes,omitempty"`
+	Decline         string           `json:"decline,omitempty"`
+	DeclineReason   string           `json:"decline_reason,omitempty"`
+	ProposedActions []ProposedAction `json:"proposed_actions,omitempty"`
+	SourcePR        *SourcePR        `json:"source_pr,omitempty"`
+	Debug           *RunDebug        `json:"debug,omitempty"`
+	Metadata        map[string]any   `json:"metadata,omitempty"`
+	Egress          []EgressItem     `json:"egress,omitempty"`
 }
 
 // EventItem is one event in the /full bundle — the superset of Event: it adds the ai_usage join

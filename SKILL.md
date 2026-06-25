@@ -29,7 +29,7 @@ but they keep the raw rows reachable via `-o json`.
 
 | Command | Endpoint | What |
 |---|---|---|
-| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--project` for all-projects admin tokens and `--effort default|pro|max`; see below) |
+| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--scenario email|raw`, `--project` for all-projects admin tokens, and `--effort default|pro|max`; see below) |
 | `rc projects` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
 | `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
@@ -44,13 +44,18 @@ but they keep the raw rows reachable via `-o json`.
 health summary), `runs` leads with the filterable table (`--limit`/`--kind`/`--category`/`--before`).
 
 `rc ask` ([ask.go](internal/cli/ask.go)) is the one **trigger**: it `POST`s the prompt to `/api/v1/runs`,
-then by default polls `/runs/{id}` to a terminal status and renders the answer like `rc run <id>`
-(`--no-wait` prints the `run_id` and returns; JSON echoes the verbatim 202 body so `jq -r .run_id`
-works). It stays thin — submit + poll + render; all run logic is server-side. `--project <id-or-name>`
-rides as `?project=` on submit, letting an all-projects admin token trigger a selected project while a
-pinned token keeps its own server-side scope. `--session <id>` carries a **client-chosen** `session_id`
-(the multi-turn join key — *not* `run_id`); the server keys continuity on `(project, session_id,
-kind=prompt)` and warm-starts each follow-up off the prior turns' command trail (see
+then by default polls `/runs/{id}` to a terminal status and renders by scenario (`--no-wait` prints the
+`run_id` and returns; JSON echoes the verbatim 202 body so `jq -r .run_id` works). It stays thin —
+submit + poll + render; all run logic is server-side. The CLI always sends an explicit `scenario`:
+`email` by default, or `raw` (`mcp` accepted as a raw alias). `email` wraps the prompt as a synthetic
+inbound support message with `sender` from `--from` (default `rc-ask@example.test`) and `subject` from
+`--subject` or a compact first line, then table-renders draft, notes, actions, PR, and run metadata
+(using `/runs/{id}/full` when available). `raw` omits default email fields and table-renders one direct
+answer plus actions, PR, and run metadata. `--project <id-or-name>` rides as `?project=` on submit,
+letting an all-projects admin token trigger a selected project while a pinned token keeps its own
+server-side scope. `--session <id>` carries a **client-chosen** `session_id` (the multi-turn join key —
+*not* `run_id`); the server keys continuity on `(project, session_id, kind=prompt)` and warm-starts each
+follow-up off the prior turns' command trail (see
 [multi_turn_warm_start.md](../rootcause/.agents/skills/features/multi_turn_warm_start.md) — the prior
 *answer* is not yet replayed for prompt/mcp). `--brain-ref dev/<branch>` runs against a non-main brain
 ref (a test run); `--effort pro|max` sends `reasoning_effort` to force a stronger rootcause model tier

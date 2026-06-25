@@ -22,9 +22,29 @@ func TestAskWaitsForTerminal(t *testing.T) {
 	if !strings.Contains(got, "Run:") || !strings.Contains(got, "11111111-1111-1111-1111-111111111111") {
 		t.Errorf("expected run summary, got:\n%s", got)
 	}
-	if !strings.Contains(got, "missing index") {
-		t.Errorf("expected the answer body in the summary, got:\n%s", got)
+	if !strings.Contains(got, "Draft:") || !strings.Contains(got, "Note (anomaly):") {
+		t.Errorf("expected email draft/note rendering, got:\n%s", got)
 	}
+}
+
+func TestAskEmailTableGolden(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "ask", "email-rich"); err != nil {
+		t.Fatalf("ask email: %v", err)
+	}
+	assertGolden(t, "ask_email.golden", out.String())
+}
+
+func TestAskRawTableGolden(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "ask", "show billing counts", "--scenario", "raw"); err != nil {
+		t.Fatalf("ask raw: %v", err)
+	}
+	assertGolden(t, "ask_raw.golden", out.String())
 }
 
 // TestAskWaitJSON: the wait path in -o json emits the /runs/{id} body verbatim, so `jq -r .run_id`
@@ -99,6 +119,100 @@ func TestAskBrainRefForwarded(t *testing.T) {
 	}
 }
 
+func TestAskDefaultScenarioEmailFieldsForwarded(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "Do I have open invoices?\nPlease check.", "--no-wait"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	if got["scenario"] != "email" {
+		t.Errorf("scenario = %v, want email", got["scenario"])
+	}
+	if got["sender"] != defaultAskFrom {
+		t.Errorf("sender = %v, want %s", got["sender"], defaultAskFrom)
+	}
+	if got["subject"] != "Do I have open invoices?" {
+		t.Errorf("subject = %v, want compact first line", got["subject"])
+	}
+}
+
+func TestAskScenarioMCPAliasIsRaw(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--scenario", "mcp", "--no-wait"); err != nil {
+		t.Fatalf("ask --scenario mcp: %v", err)
+	}
+	if got["scenario"] != "raw" {
+		t.Errorf("scenario = %v, want raw", got["scenario"])
+	}
+	if _, ok := got["sender"]; ok {
+		t.Errorf("raw default should omit sender, got body=%v", got)
+	}
+	if _, ok := got["subject"]; ok {
+		t.Errorf("raw default should omit subject, got body=%v", got)
+	}
+}
+
+func TestAskRawSubjectDoesNotSendDefaultSender(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--scenario", "raw", "--subject", "operator note", "--no-wait"); err != nil {
+		t.Fatalf("ask raw --subject: %v", err)
+	}
+	if got["subject"] != "operator note" {
+		t.Errorf("subject = %v", got["subject"])
+	}
+	if _, ok := got["sender"]; ok {
+		t.Errorf("raw --subject should not send default sender, got body=%v", got)
+	}
+}
+
+func TestAskFromSubjectForwarded(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--from", "sophie@example.test", "--subject", "Invoice question", "--no-wait"); err != nil {
+		t.Fatalf("ask --from --subject: %v", err)
+	}
+	if got["sender"] != "sophie@example.test" {
+		t.Errorf("sender = %v", got["sender"])
+	}
+	if got["subject"] != "Invoice question" {
+		t.Errorf("subject = %v", got["subject"])
+	}
+}
+
 // TestAskEffortForwarded asserts --effort rides through as reasoning_effort in the POST body.
 func TestAskEffortForwarded(t *testing.T) {
 	var gotBody string
@@ -133,6 +247,19 @@ func TestAskBadEffort(t *testing.T) {
 				t.Errorf("expected invalid --effort error, got: %v", err)
 			}
 		})
+	}
+}
+
+func TestAskBadScenario(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "ask", "q", "--scenario", "support", "--no-wait")
+	if err == nil {
+		t.Fatal("expected invalid --scenario error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid --scenario") {
+		t.Errorf("expected invalid --scenario error, got: %v", err)
 	}
 }
 

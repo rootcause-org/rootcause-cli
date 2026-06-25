@@ -1,0 +1,36 @@
+Run:       email-rich
+Scenario:  email
+Status:    done
+Category:  answered
+Outcome:   ok
+Kind:      prompt
+Created:   2026-06-19T09:00:00Z
+Finished:  2026-06-19T09:01:30Z
+Duration:  1m30s
+Cost:      $1.08
+Turns:     12
+Bash:      34
+View run:  https://rootcause.probackup.io/runs/email-rich?t=abc123
+
+Draft:
+Hi Sophie,
+
+You have 2 open invoices totalling $480.
+
+Note (summary):
+Checked Stripe customer cus_123 and found two unpaid invoices.
+
+Actions (1):
+  ID       ACTION                 LABEL
+  act_123  send_invoice_reminder  Send invoice reminder
+    url: https://rootcause.probackup.io/actions/tok_123
+    Sends a reminder for the two unpaid invoices.
+
+PR:
+  Title:  Clarify overdue invoice copy
+  Repo:   billing
+  URL:    https://github.com/acme/billing/pull/7
+
+Metadata:
+  tokens:     4210
+  trace_url:  https://trace.example/email-rich

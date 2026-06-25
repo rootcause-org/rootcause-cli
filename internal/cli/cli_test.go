@@ -111,6 +111,16 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "run_declined.json"))
 			return
 		}
+		if r.PathValue("id") == "email-rich" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(fixture(t, "ask_email_run.json"))
+			return
+		}
+		if r.PathValue("id") == "raw-rich" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(fixture(t, "ask_raw_run.json"))
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "run.json"))
 	})
@@ -140,6 +150,10 @@ func stubServer(t *testing.T) *httptest.Server {
 		// untruncated decline_reason block.
 		if r.PathValue("id") == "declined" {
 			_, _ = w.Write(fixture(t, "full_declined.json"))
+			return
+		}
+		if r.PathValue("id") == "email-rich" {
+			_, _ = w.Write(fixture(t, "ask_email_full.json"))
 			return
 		}
 		_, _ = w.Write(fixture(t, "full.json"))
@@ -180,6 +194,10 @@ func stubServer(t *testing.T) *httptest.Server {
 		runID := "11111111-1111-1111-1111-111111111111"
 		if strings.Contains(body, "hang-please") {
 			runID = "running"
+		} else if strings.Contains(body, "email-rich") {
+			runID = "email-rich"
+		} else if strings.Contains(body, `"scenario":"raw"`) {
+			runID = "raw-rich"
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)

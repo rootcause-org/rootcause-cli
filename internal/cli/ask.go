@@ -18,10 +18,15 @@ import (
 type askFlags struct {
 	brainRef string
 	effort   string
+	scenario string
+	from     string
+	subject  string
 	session  string
 	noWait   bool
 	timeout  time.Duration
 }
+
+const defaultAskFrom = "rc-ask@example.test"
 
 // newAskCmd builds `rc ask "<question>"` — the trigger verb. It POSTs the prompt to /api/v1/runs
 // (OAuth-authed, optionally ?project=-scoped), then by DEFAULT waits, polling /runs/{id} until the run
@@ -46,13 +51,22 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			scenario, err := normalizeAskScenario(f.scenario)
+			if err != nil {
+				return err
+			}
+
+			sender, subject := askEmailFields(scenario, args[0], f.from, f.subject, cmd.Flags().Changed("from"), cmd.Flags().Changed("subject"))
 
 			sub, raw, err := c.Submit(e.ctx(), client.SubmitRequest{
 				Prompt:          args[0],
+				Scenario:        scenario,
 				SessionID:       f.session,
 				Tenant:          e.scopeTenant(),
 				BrainRef:        f.brainRef,
 				ReasoningEffort: effort,
+				Sender:          sender,
+				Subject:         subject,
 				Project:         e.scopeProject(),
 			})
 			if err != nil {
@@ -76,8 +90,8 @@ func newAskCmd(e *env) *cobra.Command {
 				return err
 			}
 
-			// Render the terminal run exactly like `rc run <id>`: JSON is a verbatim passthrough of
-			// /runs/{id} (so the seam matches), table uses the typed detail we already polled.
+			// JSON remains a verbatim passthrough of /runs/{id}. Table mode is scenario-aware: email tries
+			// the richer /full bundle for draft/note bodies, raw stays the lean single-answer view.
 			if jsonMode {
 				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(detail.RunID), nil)
 				if err != nil {
@@ -85,10 +99,18 @@ func newAskCmd(e *env) *cobra.Command {
 				}
 				return render.JSON(e.out, raw)
 			}
-			render.Run(e.out, detail)
+			if scenario == "email" {
+				full, _ := c.Full(e.ctx(), detail.RunID)
+				render.AskEmail(e.out, detail, full)
+				return nil
+			}
+			render.AskRaw(e.out, detail)
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&f.scenario, "scenario", "email", "answer shape: email or raw (alias: mcp)")
+	cmd.Flags().StringVar(&f.from, "from", defaultAskFrom, "sender address for --scenario email")
+	cmd.Flags().StringVar(&f.subject, "subject", "", "subject for --scenario email (default: compact prompt first line)")
 	cmd.Flags().StringVar(&f.effort, "effort", "", "reasoning effort override: default, pro, or max")
 	cmd.Flags().StringVar(&f.brainRef, "brain-ref", "", "run against a non-main brain ref (e.g. dev/refund-rework) — a test run")
 	cmd.Flags().StringVar(&f.session, "session", "", "session id to thread the run onto")
@@ -107,6 +129,58 @@ func normalizeAskEffort(v string, set bool) (string, error) {
 	default:
 		return "", fmt.Errorf("invalid --effort %q (want default, pro, or max)", effort)
 	}
+}
+
+func normalizeAskScenario(v string) (string, error) {
+	switch scenario := strings.TrimSpace(strings.ToLower(v)); scenario {
+	case "", "email":
+		return "email", nil
+	case "raw", "mcp":
+		return "raw", nil
+	default:
+		return "", fmt.Errorf("invalid --scenario %q (want email or raw)", scenario)
+	}
+}
+
+func askEmailFields(scenario, prompt, from, subject string, fromSet, subjectSet bool) (string, string) {
+	if scenario != "email" {
+		if fromSet {
+			from = strings.TrimSpace(from)
+		} else {
+			from = ""
+		}
+		if subjectSet {
+			subject = strings.TrimSpace(subject)
+		} else {
+			subject = ""
+		}
+		return from, subject
+	}
+	sender := strings.TrimSpace(from)
+	if sender == "" {
+		sender = defaultAskFrom
+	}
+	subj := strings.TrimSpace(subject)
+	if subj == "" {
+		subj = compactAskSubject(prompt)
+	}
+	return sender, subj
+}
+
+func compactAskSubject(prompt string) string {
+	line := strings.TrimSpace(prompt)
+	if i := strings.IndexByte(line, '\n'); i >= 0 {
+		line = strings.TrimSpace(line[:i])
+	}
+	line = strings.Join(strings.Fields(line), " ")
+	if line == "" {
+		return "rc ask"
+	}
+	r := []rune(line)
+	if len(r) > 80 {
+		line = strings.TrimRight(string(r[:80]), " ") + "..."
+	}
+	return line
 }
 
 // waitForRun polls /runs/{id} until the run reaches a terminal status or the timeout elapses, printing
