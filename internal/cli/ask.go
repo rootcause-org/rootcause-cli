@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,7 @@ import (
 // from the persistent --tenant (or the brain marker), not a local flag.
 type askFlags struct {
 	brainRef string
+	effort   string
 	session  string
 	noWait   bool
 	timeout  time.Duration
@@ -33,19 +35,25 @@ func newAskCmd(e *env) *cobra.Command {
 		Use:   "ask <question>",
 		Short: "Trigger a run from a question and wait for the answer",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
 			jsonMode := render.IsJSON(e.mode(), e.out)
 
+			effort, err := normalizeAskEffort(f.effort, cmd.Flags().Changed("effort"))
+			if err != nil {
+				return err
+			}
+
 			sub, raw, err := c.Submit(e.ctx(), client.SubmitRequest{
-				Prompt:    args[0],
-				SessionID: f.session,
-				Tenant:    e.scopeTenant(),
-				BrainRef:  f.brainRef,
-				Project:   e.scopeProject(),
+				Prompt:          args[0],
+				SessionID:       f.session,
+				Tenant:          e.scopeTenant(),
+				BrainRef:        f.brainRef,
+				ReasoningEffort: effort,
+				Project:         e.scopeProject(),
 			})
 			if err != nil {
 				return err
@@ -81,11 +89,24 @@ func newAskCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&f.effort, "effort", "", "reasoning effort override: default, pro, or max")
 	cmd.Flags().StringVar(&f.brainRef, "brain-ref", "", "run against a non-main brain ref (e.g. dev/refund-rework) — a test run")
 	cmd.Flags().StringVar(&f.session, "session", "", "session id to thread the run onto")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")
 	return cmd
+}
+
+func normalizeAskEffort(v string, set bool) (string, error) {
+	if !set {
+		return "", nil
+	}
+	switch effort := strings.TrimSpace(v); effort {
+	case "default", "pro", "max":
+		return effort, nil
+	default:
+		return "", fmt.Errorf("invalid --effort %q (want default, pro, or max)", effort)
+	}
 }
 
 // waitForRun polls /runs/{id} until the run reaches a terminal status or the timeout elapses, printing

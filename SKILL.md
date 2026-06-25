@@ -29,7 +29,7 @@ but they keep the raw rows reachable via `-o json`.
 
 | Command | Endpoint | What |
 |---|---|---|
-| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--project` for all-projects admin tokens; see below) |
+| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--project` for all-projects admin tokens and `--effort default|pro|max`; see below) |
 | `rc projects` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
 | `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
@@ -53,7 +53,8 @@ pinned token keeps its own server-side scope. `--session <id>` carries a **clien
 kind=prompt)` and warm-starts each follow-up off the prior turns' command trail (see
 [multi_turn_warm_start.md](../rootcause/.agents/skills/features/multi_turn_warm_start.md) — the prior
 *answer* is not yet replayed for prompt/mcp). `--brain-ref dev/<branch>` runs against a non-main brain
-ref (a test run); `--tenant <slug>` binds a tenant.
+ref (a test run); `--effort pro|max` sends `reasoning_effort` to force a stronger rootcause model tier
+for this run (omitted/default keeps normal tier selection); `--tenant <slug>` binds a tenant.
 
 `rc env` is the one place the CLI deliberately **does not** pass the server body through: `GET
 /api/v1/env` returns live secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and

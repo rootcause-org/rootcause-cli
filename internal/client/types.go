@@ -169,15 +169,17 @@ type EventsResponse struct {
 	Events []Event `json:"events"`
 }
 
-// SubmitRequest is the POST /api/v1/runs body plus optional URL scope. session_id/tenant/brain_ref are
-// omitempty so a bare `rc ask "<q>"` sends just {prompt}; brain_ref names a non-main brain ref (a dev/*
-// branch) for a test run. Project is the ?project= selector for all-projects admin tokens, never JSON.
+// SubmitRequest is the POST /api/v1/runs body plus optional URL scope. session_id/tenant/brain_ref/
+// reasoning_effort are omitempty so a bare `rc ask "<q>"` sends just {prompt}; brain_ref names a non-main
+// brain ref (a dev/* branch) for a test run. Project is the ?project= selector for all-projects admin
+// tokens, never JSON.
 type SubmitRequest struct {
-	Prompt    string `json:"prompt"`
-	SessionID string `json:"session_id,omitempty"`
-	Tenant    string `json:"tenant,omitempty"`
-	BrainRef  string `json:"brain_ref,omitempty"`
-	Project   string `json:"-"`
+	Prompt          string `json:"prompt"`
+	SessionID       string `json:"session_id,omitempty"`
+	Tenant          string `json:"tenant,omitempty"`
+	BrainRef        string `json:"brain_ref,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Project         string `json:"-"`
 }
 
 // SubmitResponse is the 202 body from POST /api/v1/runs: the run id + where/when to poll. PollAfterMs
