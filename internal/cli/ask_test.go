@@ -213,6 +213,69 @@ func TestAskFromSubjectForwarded(t *testing.T) {
 	}
 }
 
+func TestAskRetriesLegacyPromptBodyOnMalformedSubmit(t *testing.T) {
+	var attempts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		var got map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if attempts == 1 {
+			for _, key := range []string{"scenario", "sender", "subject", "tenant"} {
+				if _, ok := got[key]; !ok {
+					t.Fatalf("first rich submit missing %s: %v", key, got)
+				}
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"code":"BAD_BODY","message":"malformed request body"}}`))
+			return
+		}
+		if attempts != 2 {
+			t.Fatalf("unexpected attempt %d", attempts)
+		}
+		if got["prompt"] != "q" || got["tenant"] != "de-kies" {
+			t.Fatalf("legacy submit should preserve prompt+tenant, got %v", got)
+		}
+		for _, key := range []string{"scenario", "sender", "subject"} {
+			if _, ok := got[key]; ok {
+				t.Fatalf("legacy submit should omit %s: %v", key, got)
+			}
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--tenant", "de-kies", "ask", "q", "--no-wait"); err != nil {
+		t.Fatalf("ask legacy fallback: %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts = %d, want 2", attempts)
+	}
+	if !strings.Contains(out.String(), `"run_id": "r1"`) {
+		t.Fatalf("missing fallback response on stdout: %s", out.String())
+	}
+}
+
+func TestAskDoesNotDropBrainRefForLegacyFallback(t *testing.T) {
+	var attempts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"code":"BAD_BODY","message":"malformed request body"}}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "ask", "q", "--brain-ref", "dev/refund-rework", "--no-wait")
+	if err == nil {
+		t.Fatal("expected BAD_BODY error, got nil")
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1", attempts)
+	}
+}
+
 // TestAskEffortForwarded asserts --effort rides through as reasoning_effort in the POST body.
 func TestAskEffortForwarded(t *testing.T) {
 	var gotBody string

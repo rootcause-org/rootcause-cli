@@ -176,9 +176,9 @@ type EventsResponse struct {
 	Events []Event `json:"events"`
 }
 
-// SubmitRequest is the POST /api/v1/runs body plus optional URL scope. Scenario is explicit even for the
-// default email simulation; sender/subject shape the synthetic inbound email for that scenario. Project
-// is the ?project= selector for all-projects admin tokens, never JSON.
+// SubmitRequest is the rich POST /api/v1/runs body plus optional URL scope. Scenario is explicit even
+// for the default email simulation; sender/subject shape the synthetic inbound email for that scenario.
+// Project is the ?project= selector for all-projects admin tokens, never JSON.
 type SubmitRequest struct {
 	Prompt          string `json:"prompt"`
 	Scenario        string `json:"scenario"`

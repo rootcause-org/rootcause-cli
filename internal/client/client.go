@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -139,14 +140,21 @@ func (c *Client) BrainDiff(ctx context.Context, id string) (*BrainDiff, error) {
 // poll/render logic) AND the verbatim bytes, so a caller that must echo the response to a jq pipeline
 // (`rc ask --no-wait -o json`) never drops a server field — same "render, don't reshape" invariant as
 // the GET passthroughs. A pinned token supplies the project; an all-projects admin token may name one
-// with req.Project. brain_ref (when set) names a non-main ref for a test run.
+// with req.Project. brain_ref (when set) names a non-main ref for a test run. Older deployed Prompt API
+// builds rejected scenario/sender/subject as unknown fields, so a schema-malformed BAD_BODY retries the
+// legacy prompt+tenant body only when no run-control field would be silently dropped.
 func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse, json.RawMessage, error) {
 	path := "/api/v1/runs"
 	if req.Project != "" {
 		path += "?project=" + url.QueryEscape(req.Project)
 	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+	err := c.do(ctx, http.MethodPost, path, req, &raw)
+	if err != nil && shouldRetryLegacySubmit(err, req) {
+		raw = nil
+		err = c.do(ctx, http.MethodPost, path, legacySubmitRequest{Prompt: req.Prompt, Tenant: req.Tenant}, &raw)
+	}
+	if err != nil {
 		return nil, nil, err
 	}
 	var out SubmitResponse
@@ -154,6 +162,22 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse
 		return nil, nil, fmt.Errorf("decode submit response: %w", err)
 	}
 	return &out, raw, nil
+}
+
+type legacySubmitRequest struct {
+	Prompt string `json:"prompt"`
+	Tenant string `json:"tenant,omitempty"`
+}
+
+func shouldRetryLegacySubmit(err error, req SubmitRequest) bool {
+	if req.SessionID != "" || req.BrainRef != "" || req.ReasoningEffort != "" {
+		return false
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.Status == http.StatusBadRequest && apiErr.Code == "BAD_BODY" && apiErr.Message == "malformed request body"
 }
 
 // Env fetches GET /api/v1/env — the project's PRODUCTION grounding secrets (decrypted), project ∪

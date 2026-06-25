@@ -46,12 +46,16 @@ health summary), `runs` leads with the filterable table (`--limit`/`--kind`/`--c
 `rc ask` ([ask.go](internal/cli/ask.go)) is the one **trigger**: it `POST`s the prompt to `/api/v1/runs`,
 then by default polls `/runs/{id}` to a terminal status and renders by scenario (`--no-wait` prints the
 `run_id` and returns; JSON echoes the verbatim 202 body so `jq -r .run_id` works). It stays thin —
-submit + poll + render; all run logic is server-side. The CLI always sends an explicit `scenario`:
-`email` by default, or `raw` (`mcp` accepted as a raw alias). `email` wraps the prompt as a synthetic
-inbound support message with `sender` from `--from` (default `rc-ask@example.test`) and `subject` from
-`--subject` or a compact first line, then table-renders draft, notes, actions, PR, and run metadata
-(using `/runs/{id}/full` when available). `raw` omits default email fields and table-renders one direct
-answer plus actions, PR, and run metadata. `--project <id-or-name>` rides as `?project=` on submit,
+submit + poll + render; all run logic is server-side. The CLI first sends the rich contract: explicit
+`scenario` (`email` by default, or `raw`; `mcp` accepted as a raw alias), `sender`/`subject` for email,
+and any run-control fields. If a deployed server rejects that body as schema-malformed, and no
+run-control field (`session_id`, `brain_ref`, `reasoning_effort`) would be lost, the client retries the
+legacy body `{prompt, tenant?}` so older Prompt API deployments still accept plain `rc ask`. `email`
+wraps the prompt as a synthetic inbound support message with `sender` from `--from` (default
+`rc-ask@example.test`) and `subject` from `--subject` or a compact first line, then table-renders draft,
+notes, actions, PR, and run metadata (using `/runs/{id}/full` when available). `raw` omits default email
+fields and table-renders one direct answer plus actions, PR, and run metadata. `--project <id-or-name>`
+rides as `?project=` on submit,
 letting an all-projects admin token trigger a selected project while a pinned token keeps its own
 server-side scope. `--session <id>` carries a **client-chosen** `session_id` (the multi-turn join key —
 *not* `run_id`); the server keys continuity on `(project, session_id, kind=prompt)` and warm-starts each
