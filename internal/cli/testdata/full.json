@@ -2,10 +2,13 @@
   "run": {
     "run_id": "11111111-1111-1111-1111-111111111111",
     "project": "coca-cola",
+    "tenant": "de-kies",
     "status": "done",
     "kind": "prompt",
     "trigger": "test",
     "brain_ref": "dev/refund-rework",
+    "brain_resolved": "dev/refund-rework @ abc123def456",
+    "tenant_settings": "{\"source\":\"cli\",\"synced_at\":\"2026-06-22T10:00:00Z\",\"version\":\"sha256:tenantabc\",\"settings\":{\"newpatient_method\":\"waitlist\",\"existingpatient_method\":\"book_via_link\",\"reschedule_method\":\"propose_options_confirm\",\"booking_hygienist_dentist_interaction\":\"hygienist_first\",\"practice_name\":\"De Kies\"}}",
     "thread_id": "thr_abc",
     "session_id": "sess_xyz",
     "topic": "open invoices",

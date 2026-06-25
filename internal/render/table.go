@@ -598,6 +598,15 @@ func Full(w io.Writer, f *client.FullResponse) {
 	if r.BrainRef != "" {
 		_, _ = fmt.Fprintf(tw, "Brain ref:\t%s\n", r.BrainRef)
 	}
+	if r.BrainResolved != "" {
+		_, _ = fmt.Fprintf(tw, "Brain resolved:\t%s\n", r.BrainResolved)
+	}
+	if r.Tenant != "" {
+		_, _ = fmt.Fprintf(tw, "Tenant:\t%s\n", r.Tenant)
+	}
+	if settings := projectionSummary(r.TenantSettings); settings != "" {
+		_, _ = fmt.Fprintf(tw, "Tenant settings:\t%s\n", settings)
+	}
 	if r.Model != "" {
 		_, _ = fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
 	}
@@ -693,6 +702,34 @@ func eventCostLine(e *client.EventItem) string {
 	}
 	if e.TotalTokens > 0 {
 		parts = append(parts, fmt.Sprintf("%d tok", e.TotalTokens))
+	}
+	return strings.Join(parts, "  ")
+}
+
+func projectionSummary(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	snap, err := client.ParseTenantSettingsSnapshot(raw)
+	if err != nil {
+		return "present (unparseable)"
+	}
+	if snap == nil {
+		return ""
+	}
+	var parts []string
+	if snap.Source != "" {
+		parts = append(parts, "source="+snap.Source)
+	}
+	if snap.SyncedAt != "" {
+		parts = append(parts, "synced_at="+snap.SyncedAt)
+	}
+	if snap.Version != "" {
+		parts = append(parts, "version="+snap.Version)
+	}
+	if selectors := client.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
+		parts = append(parts, fmt.Sprintf("selectors=%d", len(selectors)))
 	}
 	return strings.Join(parts, "  ")
 }

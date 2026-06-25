@@ -157,10 +157,13 @@ stdout: the calling agent reads the index, then drills into the JSONL with its o
 contract is kept compatible with the Python/shared-runtime renderer: line 1 is a `{"type":"run"…}`
 header, every later line a `{"type":"event"…}` keyed by `disp` (grounding pre-steps `P1,P2,…`; the main
 loop `1,2,…`), so existing jq recipes (`select(.disp=="23").command`) keep working. `decorate` derives
-disp/grounding/label/command/gist; `emit.go` writes the JSONL + the index (timeline, flags, files read,
-egress, example jq calls). One shape note vs the operator dump: the JSONL `egress` carries the API's
-aggregated rollup (`{host, count, blocked}`), not the operator dump's per-row `{decision, port, …}` —
-the per-event drill-down keys are identical, only egress differs.
+disp/grounding/label/command/gist; `emit.go` writes the JSONL + the index (timeline, projection inputs,
+flags, files read, egress, example jq calls). The run header preserves the production projection
+metadata from `/full`: `brain_resolved`, `tenant`, and the parsed `tenant_settings` snapshot
+(source/synced_at/version/settings; branch selector values summarized in the markdown index when
+parseable). One shape note vs the operator dump: the JSONL `egress` carries the API's aggregated rollup
+(`{host, count, blocked}`), not the operator dump's per-row `{decision, port, …}` — the per-event
+drill-down keys are identical, only egress differs.
 
 ### Errors
 Any non-2xx → the client decodes `{"error":{code,message,fields?}}` into a typed `APIError` and the CLI

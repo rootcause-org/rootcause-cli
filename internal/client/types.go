@@ -262,6 +262,8 @@ type RunHeader struct {
 	Kind            string           `json:"kind"`
 	Trigger         string           `json:"trigger,omitempty"`
 	BrainRef        string           `json:"brain_ref,omitempty"`
+	BrainResolved   string           `json:"brain_resolved,omitempty"`
+	TenantSettings  string           `json:"tenant_settings,omitempty"`
 	Error           string           `json:"error,omitempty"`
 	ThreadID        string           `json:"thread_id,omitempty"`
 	SessionID       string           `json:"session_id,omitempty"`

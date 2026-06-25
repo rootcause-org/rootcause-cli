@@ -34,10 +34,13 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		"type":              "run",
 		"run_id":            r.RunID,
 		"project":           r.Project,
+		"tenant":            emptyNil(r.Tenant),
 		"status":            r.Status,
 		"kind":              r.Kind,
 		"trigger":           emptyNil(r.Trigger),
 		"brain_ref":         emptyNil(r.BrainRef),
+		"brain_resolved":    emptyNil(r.BrainResolved),
+		"tenant_settings":   tenantSettingsJSON(r.TenantSettings),
 		"error":             emptyNil(r.Error),
 		"thread_id":         emptyNil(r.ThreadID),
 		"session_id":        emptyNil(r.SessionID),
@@ -153,6 +156,8 @@ func RenderIndex(full *client.FullResponse) string {
 	add(steps)
 	add(fmt.Sprintf("- **Events (full, queryable):** `%s` — one JSON object per event; jq it (see Drill down).", jsonlName), "")
 
+	add(renderProjectionInputs(r)...)
+
 	add("## Question", "")
 	if r.Question != "" {
 		add(fence(r.Question, ""))
@@ -246,6 +251,34 @@ func RenderIndex(full *client.FullResponse) string {
 		}, "\n"), "sh"))
 	add("")
 	return strings.Join(L, "\n")
+}
+
+func renderProjectionInputs(r client.RunHeader) []string {
+	if r.BrainResolved == "" && r.Tenant == "" && r.TenantSettings == "" {
+		return nil
+	}
+	var out []string
+	out = append(out, "## Projection inputs", "")
+	if r.BrainResolved != "" {
+		out = append(out, fmt.Sprintf("- **Brain resolved:** `%s`", backtickSafe(r.BrainResolved)))
+	}
+	if r.Tenant != "" {
+		out = append(out, fmt.Sprintf("- **Tenant:** `%s`", backtickSafe(r.Tenant)))
+	}
+	if strings.TrimSpace(r.TenantSettings) != "" {
+		snap, err := client.ParseTenantSettingsSnapshot(r.TenantSettings)
+		if err != nil {
+			out = append(out, fmt.Sprintf("- **Tenant settings:** present (unparseable: `%s`)", backtickSafe(err.Error())))
+		} else if snap != nil {
+			out = append(out, fmt.Sprintf("- **Tenant settings:** source `%s` · synced_at `%s` · version `%s`",
+				backtickSafe(orQ(snap.Source)), backtickSafe(orQ(snap.SyncedAt)), backtickSafe(orQ(snap.Version))))
+			if selectors := client.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
+				out = append(out, fmt.Sprintf("- **Branch selectors:** %s", selectorSummary(selectors)))
+			}
+		}
+	}
+	out = append(out, "")
+	return out
 }
 
 // renderOutcome shows the draft gist (first 8 lines) + note gists, or a "no callback" marker.
@@ -426,12 +459,35 @@ func metadataJSON(m map[string]any) any {
 	return m
 }
 
+func tenantSettingsJSON(raw string) any {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if json.Valid([]byte(raw)) {
+		return json.RawMessage(raw)
+	}
+	return raw
+}
+
 func egressJSON(egress []client.EgressItem) []map[string]any {
 	out := make([]map[string]any, 0, len(egress))
 	for _, g := range egress {
 		out = append(out, map[string]any{"host": g.Host, "count": g.Count, "blocked": g.Blocked})
 	}
 	return out
+}
+
+func selectorSummary(vals []client.TenantSettingValue) string {
+	parts := make([]string, 0, len(vals))
+	for _, v := range vals {
+		parts = append(parts, fmt.Sprintf("`%s=%s`", backtickSafe(v.Key), backtickSafe(v.Value)))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func backtickSafe(s string) string {
+	return strings.ReplaceAll(s, "`", "'")
 }
 
 func traceURL(meta map[string]any) string {

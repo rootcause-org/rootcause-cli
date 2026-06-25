@@ -182,6 +182,12 @@ func TestRunFullJSONL(t *testing.T) {
 	if head["draft"] != "You have 2 open invoices totalling $480." {
 		t.Errorf("draft body not carried through: %v", head["draft"])
 	}
+	if head["brain_resolved"] != "dev/refund-rework @ abc123def456" || head["tenant"] != "de-kies" {
+		t.Errorf("projection metadata not carried through: brain_resolved=%v tenant=%v", head["brain_resolved"], head["tenant"])
+	}
+	if ts, ok := head["tenant_settings"].(string); !ok || !strings.Contains(ts, "sha256:tenantabc") {
+		t.Errorf("tenant_settings raw snapshot not carried through: %T %v", head["tenant_settings"], head["tenant_settings"])
+	}
 	for i, ln := range lines[1:] {
 		var ev map[string]any
 		if err := json.Unmarshal([]byte(ln), &ev); err != nil {
@@ -231,6 +237,13 @@ func TestRunDebug(t *testing.T) {
 	var head map[string]any
 	if err := json.Unmarshal([]byte(jl[0]), &head); err != nil || head["type"] != "run" {
 		t.Fatalf("first line not a run header: %v (%v)", head["type"], err)
+	}
+	if head["brain_resolved"] != "dev/refund-rework @ abc123def456" || head["tenant"] != "de-kies" {
+		t.Errorf("debug header projection metadata missing: brain_resolved=%v tenant=%v", head["brain_resolved"], head["tenant"])
+	}
+	ts, ok := head["tenant_settings"].(map[string]any)
+	if !ok || ts["source"] != "cli" || ts["version"] != "sha256:tenantabc" {
+		t.Errorf("debug header tenant_settings not parsed: %T %v", head["tenant_settings"], head["tenant_settings"])
 	}
 	disps := map[string]bool{}
 	for _, ln := range jl[1:] {

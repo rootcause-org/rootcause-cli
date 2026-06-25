@@ -9,6 +9,13 @@
 - **Steps:** 2 main + 1 grounding · **Egress:** 2 (1 blocked)
 - **Events (full, queryable):** `11111111-coca-cola.jsonl` — one JSON object per event; jq it (see Drill down).
 
+## Projection inputs
+
+- **Brain resolved:** `dev/refund-rework @ abc123def456`
+- **Tenant:** `de-kies`
+- **Tenant settings:** source `cli` · synced_at `2026-06-22T10:00:00Z` · version `sha256:tenantabc`
+- **Branch selectors:** `newpatient_method=waitlist` · `existingpatient_method=book_via_link` · `reschedule_method=propose_options_confirm` · `booking_hygienist_dentist_interaction=hygienist_first`
+
 ## Question
 
 ```
