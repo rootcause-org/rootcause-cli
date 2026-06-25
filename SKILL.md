@@ -72,6 +72,11 @@ normally supplies the tenant; `--tenant <slug>` is an explicit override.
 only filesystem write in the CLI — but performs **no server write** (it's a GET), so the read-only-API
 scope guard holds.
 
+`rc run --full/--debug` treats historical snapshots as authoritative: `brain_resolved`,
+`tenant_settings`, and `grounding_sources` come from `/full`; current tenant/source state is only a drift
+annotation. Debug JSONL preserves raw `grounding_sources` and adds `grounding_source_drift_count`; table
+and markdown render missing/drifted mirrors or KB first.
+
 ## Architecture — four thin layers, no logic
 
 ```
