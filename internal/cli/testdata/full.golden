@@ -40,5 +40,8 @@ You are rootcause. Answer from grounded data only.
 Draft:
 You have 2 open invoices totalling $480.
 
+Note (proposals):
+
+
 Note (anomaly):
 customer_id had no index; query was slow

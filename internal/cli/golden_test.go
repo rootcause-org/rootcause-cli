@@ -245,6 +245,14 @@ func TestRunDebug(t *testing.T) {
 	if !ok || ts["source"] != "cli" || ts["version"] != "sha256:tenantabc" {
 		t.Errorf("debug header tenant_settings not parsed: %T %v", head["tenant_settings"], head["tenant_settings"])
 	}
+	actions, ok := head["proposed_actions"].([]any)
+	if !ok || len(actions) != 1 {
+		t.Fatalf("debug header proposed_actions missing: %T %v", head["proposed_actions"], head["proposed_actions"])
+	}
+	action, ok := actions[0].(map[string]any)
+	if !ok || action["slug"] != "create_appointment" {
+		t.Errorf("debug header proposed action slug = %v, want create_appointment", action["slug"])
+	}
 	disps := map[string]bool{}
 	for _, ln := range jl[1:] {
 		var ev map[string]any

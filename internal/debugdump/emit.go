@@ -59,6 +59,9 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		"metadata":          metadataJSON(r.Metadata),
 		"egress":            egressJSON(r.Egress),
 	}
+	if len(r.ProposedActions) > 0 {
+		header["proposed_actions"] = r.ProposedActions
+	}
 	if err := enc.Encode(header); err != nil {
 		return err
 	}
@@ -281,9 +284,9 @@ func renderProjectionInputs(r client.RunHeader) []string {
 	return out
 }
 
-// renderOutcome shows the draft gist (first 8 lines) + note gists, or a "no callback" marker.
+// renderOutcome shows the draft gist (first 8 lines), action proposals, note gists, or a "no callback" marker.
 func renderOutcome(r client.RunHeader) []string {
-	if r.Draft == "" && len(r.Notes) == 0 && len(r.Metadata) == 0 {
+	if r.Draft == "" && len(r.Notes) == 0 && len(r.ProposedActions) == 0 && len(r.Metadata) == 0 {
 		return []string{"_(no stored callback — run errored or never produced one)_"}
 	}
 	var out []string
@@ -296,6 +299,23 @@ func renderOutcome(r client.RunHeader) []string {
 		out = append(out, fmt.Sprintf("**Draft** (%d lines):", len(lines)), "", fence(g, ""), "")
 	} else {
 		out = append(out, "**Draft:** none", "")
+	}
+	if len(r.ProposedActions) > 0 {
+		out = append(out, fmt.Sprintf("**Proposed actions** (%d):", len(r.ProposedActions)), "")
+		for _, a := range r.ProposedActions {
+			id := firstNonEmpty(a.ID, "?")
+			slug := firstNonEmpty(a.Slug, "?")
+			label := firstNonEmpty(a.Label, "?")
+			line := fmt.Sprintf("- `%s` · `%s` · %s", backtickSafe(id), backtickSafe(slug), label)
+			if a.Description != "" {
+				line += " — " + a.Description
+			}
+			out = append(out, line)
+			if a.URL != "" {
+				out = append(out, "  url: "+a.URL)
+			}
+		}
+		out = append(out, "")
 	}
 	for _, n := range r.Notes {
 		key := ""

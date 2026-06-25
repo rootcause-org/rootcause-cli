@@ -23,7 +23,17 @@
     "run_total_tokens": 4210,
     "draft": "You have 2 open invoices totalling $480.",
     "notes": [
+      { "key": "proposals", "body": "" },
       { "key": "anomaly", "body": "customer_id had no index; query was slow" }
+    ],
+    "proposed_actions": [
+      {
+        "id": "act_create_appointment_123",
+        "slug": "create_appointment",
+        "label": "Create appointment",
+        "description": "Book Sophie for the first available hygienist appointment.",
+        "url": "https://rootcause.probackup.io/actions/tok_create_appointment"
+      }
     ],
     "metadata": { "trace_url": "https://trace.example/abc123", "outcome": "ok" },
     "egress": [

@@ -167,7 +167,9 @@ event log and a **thin markdown index** — then prints both paths. It does NOT 
 stdout: the calling agent reads the index, then drills into the JSONL with its own bash/jq. The JSONL
 contract is kept compatible with the Python/shared-runtime renderer: line 1 is a `{"type":"run"…}`
 header, every later line a `{"type":"event"…}` keyed by `disp` (grounding pre-steps `P1,P2,…`; the main
-loop `1,2,…`), so existing jq recipes (`select(.disp=="23").command`) keep working. `decorate` derives
+loop `1,2,…`), so existing jq recipes (`select(.disp=="23").command`) keep working. The run header and
+markdown outcome must preserve pull-plane `proposed_actions`, because the proposals note body can be
+empty while the action proposal is real. `decorate` derives
 disp/grounding/label/command/gist; `emit.go` writes the JSONL + the index (timeline, projection inputs,
 flags, files read, egress, example jq calls). The run header preserves the production projection
 metadata from `/full`: `brain_resolved`, `tenant`, and the parsed `tenant_settings` snapshot
