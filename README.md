@@ -93,6 +93,10 @@ rc login --device   # headless/SSH: prints a short code you approve in a browser
 rc logout           # revoke the token server-side and clear it locally
 ```
 
+`rc login` prints the full sign-in URL before trying to open a browser, so agents can surface that URL
+to a human immediately. If the local browser opener fails, the command keeps waiting on the printed URL;
+use `rc login --device` for true headless/SSH sessions where a browser cannot reach localhost.
+
 **Let the brain checkout select the profile.** A brain repo (`rootcause-brain-<project>`) commits a
 `.rootcause.toml` binding it to one project + base URL, so `rc` run anywhere inside it first looks for
 a local token profile with the same name. If that profile exists, it uses it; otherwise it uses the

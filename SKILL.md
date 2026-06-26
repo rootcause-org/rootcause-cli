@@ -109,8 +109,11 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
 - **`rc login`** ([auth.go](internal/cli/auth.go)) runs a flow in `internal/oauth` against the static
   first-party client `rcocl_cli`: **PKCE loopback** by default (bind a localhost port, open the browser
   at `/oauth/authorize`, catch `http://127.0.0.1:<port>/callback`, exchange the code — the loopback
-  redirect is port-insensitive server-side per RFC 8252), or **`--device`** (RFC 8628: print a code,
-  poll `/oauth/token`). The **project/tenant scope is chosen on the browser consent screen**, not the CLI.
+  redirect is port-insensitive server-side per RFC 8252). It prints the full authorize URL before trying
+  the OS browser opener, and opener failure is non-fatal so agents can hand the URL to a human. Use
+  **`--device`** for true headless/SSH sessions where a browser cannot reach localhost (RFC 8628: print
+  a code, poll `/oauth/token`). The **project/tenant scope is chosen on the browser consent screen**, not
+  the CLI.
 - **Token store** (`internal/token`): `~/.config/rootcause/tokens.json` (0600), keyed by profile —
   `{access_token, refresh_token, expires_at, base_url}`. `rc logout` revokes server-side + clears it.
 - **Transparent refresh**: `client.Client` takes a `TokenSource`; `tokensource.go`'s `liveSource` reads

@@ -61,11 +61,16 @@ func (c *Client) LoginPKCE(ctx context.Context, opener func(string) error, out i
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	_, _ = fmt.Fprintln(out, "Opening your browser to sign in. If it doesn't open, visit:")
+	_, _ = fmt.Fprintln(out, "Opening your browser to sign in.")
+	_, _ = fmt.Fprintln(out, "Sign-in URL:")
 	_, _ = fmt.Fprintf(out, "    %s\n", authURL)
+	_, _ = fmt.Fprintln(out, "Waiting for browser approval...")
 	if opener != nil {
 		// A failed open is non-fatal: the URL is already printed for a manual paste.
-		_ = opener(authURL)
+		if err := opener(authURL); err != nil {
+			_, _ = fmt.Fprintf(out, "Browser open failed: %v\n", err)
+			_, _ = fmt.Fprintln(out, "Use the sign-in URL above, or cancel and run `rc login --device` on headless/SSH.")
+		}
 	}
 
 	select {

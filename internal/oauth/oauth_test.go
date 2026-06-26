@@ -1,9 +1,11 @@
 package oauth
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,6 +67,52 @@ func TestLoginPKCE(t *testing.T) {
 	}
 	if toks.AccessToken != "rcoa_ok" || toks.RefreshToken != "rcor_ok" || toks.ExpiresIn != 3600 {
 		t.Errorf("tokens = %+v", toks)
+	}
+}
+
+// TestLoginPKCEBrowserOpenFailureStillPrintsURL: agents/headless shells need a copyable URL even when
+// the OS browser opener fails. The open error is visible but non-fatal if the URL is approved manually.
+func TestLoginPKCEBrowserOpenFailureStillPrintsURL(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /oauth/authorize", func(w http.ResponseWriter, r *http.Request) {
+		redir := r.URL.Query().Get("redirect_uri") + "?code=auth_code_1&state=" + url.QueryEscape(r.URL.Query().Get("state"))
+		http.Redirect(w, r, redir, http.StatusFound)
+	})
+	mux.HandleFunc("POST /oauth/token", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"rcoa_ok","refresh_token":"rcor_ok","token_type":"Bearer","expires_in":3600}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	var out bytes.Buffer
+	opener := func(authURL string) error {
+		if !strings.Contains(out.String(), "Sign-in URL:") || !strings.Contains(out.String(), srv.URL+"/oauth/authorize?") {
+			t.Fatalf("login prompt before opener = %q, want copyable authorize URL", out.String())
+		}
+		resp, err := http.Get(authURL)
+		if err != nil {
+			return err
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		if err := resp.Body.Close(); err != nil {
+			return err
+		}
+		return fmt.Errorf("no browser launcher")
+	}
+
+	toks, err := NewClient(srv.URL).LoginPKCE(context.Background(), opener, &out)
+	if err != nil {
+		t.Fatalf("LoginPKCE: %v", err)
+	}
+	if toks.AccessToken != "rcoa_ok" {
+		t.Fatalf("access token = %q, want rcoa_ok", toks.AccessToken)
+	}
+	got := out.String()
+	for _, want := range []string{"Sign-in URL:", "Browser open failed: no browser launcher", "rc login --device"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("login output = %q, want %q", got, want)
+		}
 	}
 }
 
