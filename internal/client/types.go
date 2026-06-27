@@ -6,6 +6,117 @@ package client
 
 import "encoding/json"
 
+type ConsoleDBInfo struct {
+	Name        string `json:"name"`
+	Env         string `json:"env"`
+	Description string `json:"description,omitempty"`
+	Scoped      bool   `json:"scoped"`
+	PIIMasked   bool   `json:"pii_masked"`
+}
+
+type ConsoleScriptInfo struct {
+	Name        string   `json:"name"`
+	Path        string   `json:"path"`
+	Purpose     string   `json:"purpose,omitempty"`
+	Args        string   `json:"args,omitempty"`
+	RequiredEnv []string `json:"required_env,omitempty"`
+}
+
+type ConsoleActionSummary struct {
+	ID          string `json:"id"`
+	Description string `json:"description,omitempty"`
+	Risk        string `json:"risk,omitempty"`
+	Preflight   bool   `json:"preflight"`
+}
+
+type CapabilitiesResponse struct {
+	Project    string                 `json:"project"`
+	Tenant     string                 `json:"tenant,omitempty"`
+	Databases  []ConsoleDBInfo        `json:"databases"`
+	Scripts    []ConsoleScriptInfo    `json:"scripts"`
+	Actions    []ConsoleActionSummary `json:"actions"`
+	EgressMode string                 `json:"egress_mode"`
+	Planes     map[string]string      `json:"planes"`
+}
+
+type DBListResponse struct {
+	Project   string          `json:"project"`
+	Tenant    string          `json:"tenant,omitempty"`
+	Databases []ConsoleDBInfo `json:"databases"`
+}
+
+type DBSchemaResponse struct {
+	Project string          `json:"project"`
+	Tenant  string          `json:"tenant,omitempty"`
+	DB      string          `json:"db"`
+	Tables  []DBSchemaTable `json:"tables"`
+}
+
+type DBSchemaTable struct {
+	Schema  string           `json:"schema"`
+	Name    string           `json:"name"`
+	Columns []DBSchemaColumn `json:"columns"`
+}
+
+type DBSchemaColumn struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Nullable bool   `json:"nullable"`
+}
+
+type DBQueryRequest struct {
+	SQL   string `json:"sql"`
+	Limit int    `json:"limit,omitempty"`
+}
+
+type DBQueryResponse struct {
+	Project    string           `json:"project"`
+	Tenant     string           `json:"tenant,omitempty"`
+	DB         string           `json:"db"`
+	RunID      string           `json:"run_id"`
+	Columns    []string         `json:"columns"`
+	Rows       []map[string]any `json:"rows"`
+	RowCount   int              `json:"row_count"`
+	Truncated  bool             `json:"truncated"`
+	DurationMs int64            `json:"duration_ms"`
+}
+
+type BashListResponse struct {
+	Project string              `json:"project"`
+	Tenant  string              `json:"tenant,omitempty"`
+	Scripts []ConsoleScriptInfo `json:"scripts"`
+}
+
+type ActionListResponse struct {
+	Project string                 `json:"project"`
+	Tenant  string                 `json:"tenant,omitempty"`
+	Actions []ConsoleActionSummary `json:"actions"`
+}
+
+type ActionShowResponse struct {
+	Project   string          `json:"project"`
+	Tenant    string          `json:"tenant,omitempty"`
+	ID        string          `json:"id"`
+	Manifest  json.RawMessage `json:"manifest"`
+	Digest    string          `json:"digest"`
+	Preflight bool            `json:"preflight"`
+}
+
+type ActionExecRequest struct {
+	Params map[string]any `json:"params"`
+}
+
+type ActionExecResponse struct {
+	Project    string          `json:"project"`
+	Tenant     string          `json:"tenant,omitempty"`
+	ID         string          `json:"id"`
+	Status     string          `json:"status"`
+	DryRun     bool            `json:"dry_run"`
+	Result     json.RawMessage `json:"result,omitempty"`
+	Error      json.RawMessage `json:"error,omitempty"`
+	DurationMs int64           `json:"duration_ms"`
+}
+
 // RunSummary is one row of GET /api/v1/runs. FinishedAt/DurationMs are absent on an unfinished run.
 // Topic/DeclinedReason and the Health block are operator-tier extras the server attaches for a
 // developer/admin bearer — `rc fleet` reads them for the digest's flags + cost. They're absent (zero/nil)

@@ -50,7 +50,7 @@ func newRunsCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "max runs to return (1..100, server default 50)")
-	cmd.Flags().StringVar(&f.kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
+	cmd.Flags().StringVar(&f.kind, "kind", "", "filter by kind: email|prompt|mcp|analysis|console")
 	cmd.Flags().StringVar(&f.category, "category", "", "filter by category (e.g. ok, timeout, cost_cap)")
 	cmd.Flags().StringVar(&f.before, "before", "", "cursor: run_id to page to the next (older) page")
 	return cmd
