@@ -190,6 +190,11 @@ scope. `-o json|table` forces output.
 | `rc env keys` | key NAMES of the project's production grounding env (log-safe, no values) |
 | `rc env pull` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
 | `rc env diff` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
+| `rc capabilities` | list direct console primitives available to this login |
+| `rc db list\|schema\|query` | guarded production DB reads through rootcause scoping |
+| `rc bash list` | list cataloged brain scripts |
+| `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop |
+| `rc action list\|show\|preflight\|run` | inspect or execute vetted, human-scoped actions |
 | `rc upgrade [--check]` | self-update to the latest release (Linux/WSL/Windows); on a Homebrew install, defers to `brew upgrade rc` |
 | `rc --version` · `rc help` | |
 

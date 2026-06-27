@@ -167,24 +167,39 @@ func newBashCmd(e *env) *cobra.Command {
 			return nil
 		},
 	})
-	cmd.AddCommand(&cobra.Command{
-		Use:   "run [script-or---] [args...]",
-		Short: "Run a script or raw bash (server v2)",
-		Args:  cobra.ArbitraryArgs,
+	var timeout int
+	runCmd := &cobra.Command{
+		Use:   "run [--timeout N] <command>",
+		Short: "Run one command in the guarded workspace console",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			body := map[string]any{"args": args}
+			req := client.BashRunRequest{Command: args[0], TimeoutS: timeout}
 			path := "/api/v1/console/bash/run" + consoleScope(e.scopeProject(), e.scopeTenant())
-			raw, err := c.Raw(e.ctx(), http.MethodPost, path, body)
+			if e.jsonOut() {
+				body := map[string]any{"command": req.Command}
+				if req.TimeoutS > 0 {
+					body["timeout_s"] = req.TimeoutS
+				}
+				raw, err := c.Raw(e.ctx(), http.MethodPost, path, body)
+				if err != nil {
+					return err
+				}
+				return render.JSON(e.out, raw)
+			}
+			resp, err := c.BashRun(e.ctx(), req, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
-			return render.JSON(e.out, raw)
+			render.BashRun(e.out, resp)
+			return nil
 		},
-	})
+	}
+	runCmd.Flags().IntVar(&timeout, "timeout", 0, "per-command timeout in seconds")
+	cmd.AddCommand(runCmd)
 	return cmd
 }
 

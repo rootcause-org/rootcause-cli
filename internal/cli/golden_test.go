@@ -156,6 +156,26 @@ func TestRunBrainDiffMutualExclusion(t *testing.T) {
 	}
 }
 
+func TestBashRunTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
+		t.Fatalf("bash run: %v", err)
+	}
+	assertGolden(t, "bash_run.golden", out.String())
+}
+
+func TestBashRunJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
+		t.Fatalf("bash run -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "bash_run.json"), out.Bytes())
+}
+
 // TestRunFullJSONL locks the cross-repo seam: `rc run <id> --full -o json` must emit a `type:run`
 // header line followed by one `type:event` line per event (JSONL), each carrying its fields verbatim.
 func TestRunFullJSONL(t *testing.T) {

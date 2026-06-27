@@ -87,6 +87,26 @@ type BashListResponse struct {
 	Scripts []ConsoleScriptInfo `json:"scripts"`
 }
 
+type BashRunRequest struct {
+	Command  string `json:"command"`
+	TimeoutS int    `json:"timeout_s,omitempty"`
+}
+
+type BashRunResponse struct {
+	Project         string `json:"project"`
+	Tenant          string `json:"tenant,omitempty"`
+	RunID           string `json:"run_id"`
+	Seq             int32  `json:"seq"`
+	ExitCode        int    `json:"exit_code"`
+	Stdout          string `json:"stdout"`
+	Stderr          string `json:"stderr"`
+	StdoutTruncated bool   `json:"stdout_truncated"`
+	StderrTruncated bool   `json:"stderr_truncated"`
+	TimedOut        bool   `json:"timed_out"`
+	DurationMs      int64  `json:"duration_ms"`
+	EgressBlocked   bool   `json:"egress_blocked"`
+}
+
 type ActionListResponse struct {
 	Project string                 `json:"project"`
 	Tenant  string                 `json:"tenant,omitempty"`

@@ -64,6 +64,12 @@ func (c *Client) BashList(ctx context.Context, project, tenant string) (*BashLis
 	return &out, err
 }
 
+func (c *Client) BashRun(ctx context.Context, req BashRunRequest, project, tenant string) (*BashRunResponse, error) {
+	var out BashRunResponse
+	err := c.do(ctx, http.MethodPost, "/api/v1/console/bash/run"+consoleScope(project, tenant), req, &out)
+	return &out, err
+}
+
 func (c *Client) ActionList(ctx context.Context, project, tenant string) (*ActionListResponse, error) {
 	var out ActionListResponse
 	err := c.do(ctx, http.MethodGet, "/api/v1/console/action"+consoleScope(project, tenant), nil, &out)

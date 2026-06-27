@@ -1,0 +1,14 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "run_id": "22222222-2222-2222-2222-222222222222",
+  "seq": 3,
+  "exit_code": 7,
+  "stdout": "hello\n",
+  "stderr": "warn\n",
+  "stdout_truncated": false,
+  "stderr_truncated": true,
+  "timed_out": false,
+  "duration_ms": 42,
+  "egress_blocked": false
+}

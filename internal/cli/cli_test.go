@@ -214,6 +214,25 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write([]byte(`{"project":"momentum-tools","keys":{"FEATURE_FLAG":"project","REGION":"eu","STRIPE_KEY":"sk_live_SECRET"}}`))
 	})
+	mux.HandleFunc("POST /api/v1/console/bash/run", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		var req struct {
+			Command  string `json:"command"`
+			TimeoutS int    `json:"timeout_s"`
+		}
+		if err := json.Unmarshal([]byte(body), &req); err != nil {
+			t.Fatalf("decode bash run body: %v\n%s", err, body)
+		}
+		if req.Command != "printf hello && >&2 echo warn && exit 7" {
+			t.Fatalf("bash command = %q", req.Command)
+		}
+		if req.TimeoutS != 45 {
+			t.Fatalf("bash timeout_s = %d, want 45", req.TimeoutS)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "bash_run.json"))
+	})
 	mux.HandleFunc("GET /api/v1/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

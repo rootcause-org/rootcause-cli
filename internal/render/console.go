@@ -96,6 +96,43 @@ func BashList(w io.Writer, r *client.BashListResponse) {
 	_ = tw.Flush()
 }
 
+func BashRun(w io.Writer, r *client.BashRunResponse) {
+	if r.Stdout != "" {
+		_, _ = fmt.Fprint(w, r.Stdout)
+		if !strings.HasSuffix(r.Stdout, "\n") {
+			_, _ = fmt.Fprintln(w)
+		}
+	}
+	if r.Stderr != "" {
+		if r.Stdout != "" {
+			_, _ = fmt.Fprintln(w)
+		}
+		_, _ = fmt.Fprintln(w, "stderr:")
+		_, _ = fmt.Fprint(w, r.Stderr)
+		if !strings.HasSuffix(r.Stderr, "\n") {
+			_, _ = fmt.Fprintln(w)
+		}
+	}
+	var flags []string
+	if r.TimedOut {
+		flags = append(flags, "timed_out")
+	}
+	if r.EgressBlocked {
+		flags = append(flags, "egress_blocked")
+	}
+	if r.StdoutTruncated {
+		flags = append(flags, "stdout truncated")
+	}
+	if r.StderrTruncated {
+		flags = append(flags, "stderr truncated")
+	}
+	suffix := ""
+	if len(flags) > 0 {
+		suffix = " (" + strings.Join(flags, ", ") + ")"
+	}
+	_, _ = fmt.Fprintf(w, "\nexit=%d (%dms) run=%s seq=%d%s\n", r.ExitCode, r.DurationMs, r.RunID, r.Seq, suffix)
+}
+
 func ActionList(w io.Writer, r *client.ActionListResponse) {
 	if len(r.Actions) == 0 {
 		_, _ = fmt.Fprintln(w, "(no actions)")
