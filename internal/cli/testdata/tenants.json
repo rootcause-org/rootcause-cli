@@ -1,0 +1,4 @@
+[
+  { "id": "acme", "slug": "acme", "name": "Acme Dental", "status": "active", "project_brain_ref": "stable", "scope_value": "103", "action_mode": "", "action_runner_url": "" },
+  { "id": "globex", "slug": "globex", "name": "Globex", "status": "archived", "project_brain_ref": "stable", "scope_value": "204", "action_mode": "embassy", "action_runner_url": "https://embassy.globex.test/run" }
+]

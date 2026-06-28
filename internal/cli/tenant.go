@@ -23,9 +23,17 @@ import (
 func newTenantCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tenant",
-		Short: "Read or edit a tenant's (dental practice's) settings",
+		Short: "Manage tenants (sub-scopes below a project) and their settings",
 	}
-	cmd.AddCommand(newTenantSettingsCmd(e))
+	// `settings` edits a tenant's onboarding record; ls/add/set are the tenant COLLECTION over
+	// /api/v1/tenants (id = slug). No `rm`: the server has no delete verb — a tenant is archived via
+	// `set <slug> status=archived`.
+	cmd.AddCommand(
+		newTenantSettingsCmd(e),
+		listSubCmd(e, "tenants"),
+		addSubCmd(e, "tenants"),
+		setSubCmd(e, "tenants", "slug"),
+	)
 	return cmd
 }
 

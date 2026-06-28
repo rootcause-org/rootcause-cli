@@ -61,6 +61,26 @@ func TestRepoRmTable(t *testing.T) {
 	}
 }
 
+func TestTenantListTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "tenant", "ls"); err != nil {
+		t.Fatalf("tenant ls: %v", err)
+	}
+	assertGolden(t, "tenant_ls.golden", out.String())
+}
+
+func TestTenantAddTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "tenant", "add", "slug=acme", "name=Acme Dental"); err != nil {
+		t.Fatalf("tenant add: %v", err)
+	}
+	assertGolden(t, "tenant_add.golden", out.String())
+}
+
 func TestConnectionListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

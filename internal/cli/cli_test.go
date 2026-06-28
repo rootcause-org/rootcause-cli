@@ -370,6 +370,21 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "repos.json"))
 	})
+	// tenants collection (id = slug). GET lists; POST asserts the slug arrives and never leaks a secret.
+	mux.HandleFunc("GET /api/v1/tenants", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenants.json"))
+	})
+	mux.HandleFunc("POST /api/v1/tenants", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"slug":"acme"`) {
+			t.Fatalf("tenant create body missing slug: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_item.json"))
+	})
 	mux.HandleFunc("POST /api/v1/repos", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

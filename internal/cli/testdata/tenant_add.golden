@@ -1,0 +1,8 @@
+id:                 acme
+action_mode:        
+action_runner_url:  
+name:               Acme Dental
+project_brain_ref:  stable
+scope_value:        
+slug:               acme
+status:             active
