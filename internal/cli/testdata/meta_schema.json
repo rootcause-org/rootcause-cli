@@ -1,0 +1,12 @@
+{
+  "resources": {
+    "settings": {
+      "name": "settings",
+      "fields": [
+        { "key": "max_run_usd", "scope": "project", "group": "cost", "type": "float", "scopes": ["config:write"], "help": "Per-run cost-cap base in USD.", "default": 1.0 },
+        { "key": "default_tier", "scope": "project", "group": "model", "type": "enum", "enum": ["standard", "pro", "max"], "scopes": ["config:write"], "help": "Default model ladder rung.", "default": "standard" },
+        { "key": "image_model", "scope": "project", "group": "model", "type": "model", "scopes": ["config:write"], "help": "Image-describe model override.", "default": "vendor/img" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "email": "dev@example.com",
+  "all_projects": false,
+  "project": { "id": "aaaaaaaa-0000-0000-0000-000000000001", "name": "alpha" },
+  "scopes": ["config:read", "config:write", "read", "runs:read"],
+  "writable_keys": ["max_run_usd", "default_tier", "image_model"],
+  "resources": ["settings"],
+  "console": { "db": true, "bash": true, "action": false }
+}

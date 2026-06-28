@@ -251,6 +251,23 @@ func stubServer(t *testing.T) *httptest.Server {
 		_, _ = w.Write(fixture(t, "settings.json"))
 	})
 
+	// Discovery layer: the config registry schema + token capabilities.
+	mux.HandleFunc("GET /api/v1/meta/schema", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.URL.Query().Get("resource") == "bogus" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RESOURCE","message":"no such resource: bogus"}}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "meta_schema.json"))
+	})
+	mux.HandleFunc("GET /api/v1/meta/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "meta_capabilities.json"))
+	})
+
 	// Tenant settings editing surface (Wave 3). The schema is served verbatim from the embedded copy;
 	// GET returns a canned record; PATCH echoes the merge AND drives the validation_failed path.
 	mux.HandleFunc("GET /api/v1/tenants/settings/schema", func(w http.ResponseWriter, r *http.Request) {

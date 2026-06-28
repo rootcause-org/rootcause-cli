@@ -239,6 +239,41 @@ func (c *Client) PatchSettings(ctx context.Context, patch map[string]any, projec
 	return &out, nil
 }
 
+// GetSchema fetches GET /api/v1/meta/schema[?resource=] — the declarative config registry. resource
+// empty returns every resource; a name filters to one (404 if unknown).
+func (c *Client) GetSchema(ctx context.Context, resource, project string) (*SchemaResponse, error) {
+	q := url.Values{}
+	if resource != "" {
+		q.Set("resource", resource)
+	}
+	if project != "" {
+		q.Set("project", project)
+	}
+	path := "/api/v1/meta/schema"
+	if e := q.Encode(); e != "" {
+		path += "?" + e
+	}
+	var out SchemaResponse
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAccess fetches GET /api/v1/meta/capabilities — what this token may do, optionally scoped to a
+// project (an all-projects token must pass project to learn its per-project reach).
+func (c *Client) GetAccess(ctx context.Context, project string) (*Access, error) {
+	path := "/api/v1/meta/capabilities"
+	if project != "" {
+		path += "?project=" + url.QueryEscape(project)
+	}
+	var out Access
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetTenantSettings fetches GET /api/v1/tenants/{slug}/settings — one practice's current onboarding
 // record (settings + version + applied_at). slug is path-escaped; the project is the bearer key's.
 func (c *Client) GetTenantSettings(ctx context.Context, slug string) (*TenantSettings, error) {

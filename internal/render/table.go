@@ -6,8 +6,10 @@
 package render
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -884,20 +886,138 @@ func projectionSummary(raw string) string {
 
 // Settings renders the effective settings table: value (what's set, blank if unset), effective, and
 // default per key. kb_enrich_model is shown only when the server included it.
+// Settings renders the generic settings bag (`rc config get`): one row per key, in stable key order,
+// with the override / effective / default / source. The CLI holds no per-key knowledge — it renders
+// whatever keys the server sends, so a new server-side knob appears with no CLI change.
 func Settings(w io.Writer, s *client.Settings) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "KEY\tVALUE\tEFFECTIVE\tDEFAULT")
-	_, _ = fmt.Fprintf(tw, "max_run_usd\t%s\t%s\t%s\n",
-		numOrBlank(s.MaxRunUSD.Value), num(s.MaxRunUSD.Effective), num(s.MaxRunUSD.Default))
-	_, _ = fmt.Fprintf(tw, "default_tier\t%s\t%s\t%s\n",
-		strOrBlank(s.DefaultTier.Value), s.DefaultTier.Effective, s.DefaultTier.Default)
-	_, _ = fmt.Fprintf(tw, "image_model\t%s\t%s\t%s\n",
-		strOrBlank(s.ImageModel.Value), s.ImageModel.Effective, s.ImageModel.Default)
-	if s.KBEnrichModel != nil {
-		_, _ = fmt.Fprintf(tw, "kb_enrich_model\t%s\t%s\t%s\n",
-			strOrBlank(s.KBEnrichModel.Value), s.KBEnrichModel.Effective, s.KBEnrichModel.Default)
+	_, _ = fmt.Fprintln(tw, "KEY\tVALUE\tEFFECTIVE\tDEFAULT\tSOURCE")
+	for _, key := range settingKeys(*s) {
+		f := (*s)[key]
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+			key, jsonScalarOrBlank(f.Value), jsonScalar(f.Effective), jsonScalar(f.Default), f.Source)
 	}
 	_ = tw.Flush()
+}
+
+// Schema renders the config registry (`rc schema`): each resource, then a row per field with its type,
+// enum (if any), write scopes, default, and help.
+func Schema(w io.Writer, resp *client.SchemaResponse) {
+	names := make([]string, 0, len(resp.Resources))
+	for n := range resp.Resources {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for i, n := range names {
+		if i > 0 {
+			_, _ = fmt.Fprintln(w)
+		}
+		_, _ = fmt.Fprintf(w, "%s\n", n)
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "  KEY\tTYPE\tENUM\tSCOPES\tDEFAULT\tHELP")
+		for _, f := range resp.Resources[n].Fields {
+			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
+				f.Key, f.Type, strings.Join(f.Enum, "|"), strings.Join(f.Scopes, ","),
+				jsonScalarOrBlank(f.Default), f.Help)
+		}
+		_ = tw.Flush()
+	}
+}
+
+// ExplainField renders one field's full schema (`rc explain <key>`) as a key: value block — the
+// human-readable twin of /meta/schema for a single knob.
+func ExplainField(w io.Writer, resource string, f client.FieldSchema) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintf(tw, "key:\t%s\n", f.Key)
+	_, _ = fmt.Fprintf(tw, "resource:\t%s\n", resource)
+	_, _ = fmt.Fprintf(tw, "type:\t%s\n", f.Type)
+	if len(f.Enum) > 0 {
+		_, _ = fmt.Fprintf(tw, "enum:\t%s\n", strings.Join(f.Enum, ", "))
+	}
+	_, _ = fmt.Fprintf(tw, "scope:\t%s\n", f.Scope)
+	_, _ = fmt.Fprintf(tw, "group:\t%s\n", f.Group)
+	if len(f.Scopes) > 0 {
+		_, _ = fmt.Fprintf(tw, "write scopes:\t%s\n", strings.Join(f.Scopes, ", "))
+	}
+	if f.Sensitive {
+		_, _ = fmt.Fprintf(tw, "sensitive:\ttrue\n")
+	}
+	if v := jsonScalarOrBlank(f.Default); v != "" {
+		_, _ = fmt.Fprintf(tw, "default:\t%s\n", v)
+	}
+	_, _ = fmt.Fprintf(tw, "help:\t%s\n", f.Help)
+	_ = tw.Flush()
+}
+
+// Access renders `rc access` — what this token may do: its scope (project/all-projects), effective
+// scopes, writable settings keys, reachable resources, and console reach.
+func Access(w io.Writer, a *client.Access) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	if a.AllProjects {
+		_, _ = fmt.Fprintln(tw, "scope:\tall projects")
+	} else if a.Project != nil {
+		_, _ = fmt.Fprintf(tw, "scope:\tproject %s\n", a.Project.Name)
+	}
+	if a.Tenant != nil {
+		_, _ = fmt.Fprintf(tw, "tenant:\t%s\n", a.Tenant.Slug)
+	}
+	_, _ = fmt.Fprintf(tw, "scopes:\t%s\n", strings.Join(a.Scopes, ", "))
+	_, _ = fmt.Fprintf(tw, "writable keys:\t%s\n", joinOrDash(a.WritableKeys))
+	_, _ = fmt.Fprintf(tw, "resources:\t%s\n", joinOrDash(a.Resources))
+	_, _ = fmt.Fprintf(tw, "console:\tdb=%t bash=%t action=%t\n", a.Console.DB, a.Console.Bash, a.Console.Action)
+	_ = tw.Flush()
+}
+
+// sortedKeys returns a settings map's keys in stable order for deterministic table output.
+func settingKeys(s client.Settings) []string {
+	keys := make([]string, 0, len(s))
+	for k := range s {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// scalar renders a JSON scalar (string/number/bool/null) for a table cell: a string unquoted, a
+// number/bool as written, null/empty as "". Keeps the generic bag rendering type-agnostic.
+func jsonScalar(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return strings.TrimSpace(string(raw))
+	}
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return t
+	case float64:
+		return num(t)
+	case bool:
+		return fmt.Sprintf("%t", t)
+	default:
+		return strings.TrimSpace(string(raw))
+	}
+}
+
+// scalarOrBlank is scalar but renders the zero value (empty string, 0) as "" so an unset override reads
+// blank in the table.
+func jsonScalarOrBlank(raw json.RawMessage) string {
+	s := jsonScalar(raw)
+	if s == "0" {
+		return ""
+	}
+	return s
+}
+
+// joinOrDash joins a list with ", " or renders "-" when empty.
+func joinOrDash(ss []string) string {
+	if len(ss) == 0 {
+		return "-"
+	}
+	return strings.Join(ss, ", ")
 }
 
 // --- small formatting helpers ---
@@ -962,12 +1082,6 @@ func metaFloat(m map[string]any, key string) (float64, bool) {
 }
 
 func num(f float64) string { return fmt.Sprintf("%g", f) }
-func numOrBlank(f float64) string {
-	if f == 0 {
-		return "-"
-	}
-	return num(f)
-}
 func strOrBlank(s string) string {
 	if s == "" {
 		return "-"

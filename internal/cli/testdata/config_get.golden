@@ -1,5 +1,5 @@
-KEY              VALUE  EFFECTIVE   DEFAULT
-max_run_usd      5      5           1
-default_tier     pro    pro         standard
-image_model      -      vendor/img  vendor/img
-kb_enrich_model  -      vendor/kb   vendor/kb
+KEY              VALUE  EFFECTIVE   DEFAULT     SOURCE
+default_tier     pro    pro         standard    override
+image_model             vendor/img  vendor/img  default
+kb_enrich_model         vendor/kb   vendor/kb   default
+max_run_usd      5      5           1           override

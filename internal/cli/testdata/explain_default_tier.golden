@@ -1,0 +1,9 @@
+key:           default_tier
+resource:      settings
+type:          enum
+enum:          standard, pro, max
+scope:         project
+group:         model
+write scopes:  config:write
+default:       standard
+help:          Default model ladder rung.

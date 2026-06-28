@@ -410,6 +410,67 @@ func TestConfigSetTable(t *testing.T) {
 	assertGolden(t, "config_set.golden", out.String())
 }
 
+func TestSchemaTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "schema"); err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+	assertGolden(t, "schema.golden", out.String())
+}
+
+func TestSchemaJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "schema"); err != nil {
+		t.Fatalf("schema -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "meta_schema.json"), out.Bytes())
+}
+
+func TestExplainTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "explain", "default_tier"); err != nil {
+		t.Fatalf("explain: %v", err)
+	}
+	assertGolden(t, "explain_default_tier.golden", out.String())
+}
+
+// TestExplainUnknownKey asserts an unknown key is a clear client-side error (not a silent miss).
+func TestExplainUnknownKey(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "explain", "nope")
+	if err == nil || !strings.Contains(err.Error(), "unknown config key") {
+		t.Fatalf("want unknown-key error, got %v", err)
+	}
+}
+
+func TestAccessTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "access"); err != nil {
+		t.Fatalf("access: %v", err)
+	}
+	assertGolden(t, "access.golden", out.String())
+}
+
+func TestAccessJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "access"); err != nil {
+		t.Fatalf("access -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "meta_capabilities.json"), out.Bytes())
+}
+
 // JSON-mode passthrough tests: -o json must emit the canned server body verbatim (re-indented only),
 // so it round-trips to the same value the server sent.
 

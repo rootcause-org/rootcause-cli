@@ -1,0 +1,5 @@
+settings
+  KEY           TYPE   ENUM              SCOPES        DEFAULT     HELP
+  max_run_usd   float                    config:write  1           Per-run cost-cap base in USD.
+  default_tier  enum   standard|pro|max  config:write  standard    Default model ladder rung.
+  image_model   model                    config:write  vendor/img  Image-describe model override.

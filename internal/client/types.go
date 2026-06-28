@@ -657,27 +657,77 @@ type EnvResponse struct {
 	Keys    map[string]string `json:"keys"`
 }
 
-// NumberSetting / StringSetting are one settings field: value (what's set, "" / 0 if unset), effective
-// (value-or-default), default. max_run_usd is numeric; the rest are strings.
-type NumberSetting struct {
-	Value     float64 `json:"value"`
-	Effective float64 `json:"effective"`
-	Default   float64 `json:"default"`
+// SettingField is one field of the server's generic settings bag: the stored override (value),
+// effective (value-or-default), default, the provenance of the effective value ("override"|"default"),
+// and — only with GET ?include=schema — the field's registry schema. Scalars are kept as
+// json.RawMessage so the CLI renders the exact type the server holds (number for max_run_usd, string
+// otherwise) without a typed-per-key shape.
+type SettingField struct {
+	Value     json.RawMessage `json:"value"`
+	Effective json.RawMessage `json:"effective"`
+	Default   json.RawMessage `json:"default"`
+	Source    string          `json:"source"`
+	Schema    json.RawMessage `json:"schema,omitempty"`
 }
 
-type StringSetting struct {
-	Value     string `json:"value"`
-	Effective string `json:"effective"`
-	Default   string `json:"default"`
+// Settings is GET /api/v1/settings (PATCH returns the same shape): a generic key→field map, mirroring
+// the server's registry-driven bag. A field absent from the map (e.g. kb_enrich_model when KB sync is
+// off) is simply unset for this project. The CLI holds no per-key knowledge — it renders whatever keys
+// the server sends, so a new server-side knob shows up with no CLI change.
+type Settings map[string]SettingField
+
+// SchemaResponse is GET /api/v1/meta/schema: the declarative config registry as JSON, keyed by
+// resource name. The self-describing surface `rc schema`/`rc explain` render.
+type SchemaResponse struct {
+	Resources map[string]BagSchema `json:"resources"`
 }
 
-// Settings is GET /api/v1/settings (PATCH returns the same shape). KBEnrichModel is a pointer: the
-// server omits it entirely when the project has no KB sync.
-type Settings struct {
-	MaxRunUSD     NumberSetting  `json:"max_run_usd"`
-	DefaultTier   StringSetting  `json:"default_tier"`
-	ImageModel    StringSetting  `json:"image_model"`
-	KBEnrichModel *StringSetting `json:"kb_enrich_model,omitempty"`
+// BagSchema is one resource's schema: its name + every field descriptor.
+type BagSchema struct {
+	Name   string        `json:"name"`
+	Fields []FieldSchema `json:"fields"`
+}
+
+// FieldSchema is one settable field's public description — everything a human or agent needs to write
+// it without out-of-band docs.
+type FieldSchema struct {
+	Key       string          `json:"key"`
+	Scope     string          `json:"scope"`
+	Group     string          `json:"group"`
+	Type      string          `json:"type"`
+	Enum      []string        `json:"enum,omitempty"`
+	Scopes    []string        `json:"scopes,omitempty"`
+	Sensitive bool            `json:"sensitive,omitempty"`
+	Help      string          `json:"help"`
+	Default   json.RawMessage `json:"default,omitempty"`
+}
+
+// Access is GET /api/v1/meta/capabilities: what THIS token may do (effective scopes, writable keys,
+// reachable resources, console reach). The agent/operator pre-flight. Named Access to avoid confusion
+// with the console CapabilitiesResponse (which lists DB/script/action primitives, not token authority).
+type Access struct {
+	Email        string         `json:"email,omitempty"`
+	AllProjects  bool           `json:"all_projects"`
+	Project      *ScopeItem     `json:"project,omitempty"`
+	Tenant       *ScopeItem     `json:"tenant,omitempty"`
+	Scopes       []string       `json:"scopes"`
+	WritableKeys []string       `json:"writable_keys"`
+	Resources    []string       `json:"resources"`
+	Console      ConsoleCapsSum `json:"console"`
+}
+
+// ScopeItem is a project/tenant identity in a capabilities response.
+type ScopeItem struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	Slug string `json:"slug,omitempty"`
+}
+
+// ConsoleCapsSum is the dev-console reach broken out as booleans.
+type ConsoleCapsSum struct {
+	DB     bool `json:"db"`
+	Bash   bool `json:"bash"`
+	Action bool `json:"action"`
 }
 
 // TenantSettings is GET /api/v1/tenants/{slug}/settings (and the echoed body of a PATCH). It mirrors
