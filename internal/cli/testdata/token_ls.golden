@@ -1,0 +1,3 @@
+ID        SCOPE         STATUS
+tok_aaaa  config:read   active
+tok_bbbb  config:write  revoked

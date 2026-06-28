@@ -410,6 +410,29 @@ func TestConfigSetTable(t *testing.T) {
 	assertGolden(t, "config_set.golden", out.String())
 }
 
+// TestConfigSetListValue locks the list-coercion contract: `config set pr.triggers=inbound,mcp` sends a
+// JSON ARRAY (asserted in the PATCH handler), not a comma string. The handler fatals if it's not an array.
+func TestConfigSetListValue(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "config", "set", "pr.triggers=inbound,mcp"); err != nil {
+		t.Fatalf("config set pr.triggers: %v", err)
+	}
+	assertGolden(t, "config_set.golden", out.String())
+}
+
+// TestConfigSetListClear locks the empty-list "clear" gesture: `config set egress.allowlist=` sends an
+// empty JSON array (asserted server-side), not null or "".
+func TestConfigSetListClear(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "config", "set", "egress.allowlist="); err != nil {
+		t.Fatalf("config set egress.allowlist= : %v", err)
+	}
+}
+
 func TestSchemaTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

@@ -1,0 +1,6 @@
+{
+  "repos": [
+    { "id": "momentum-web", "git_url": "https://github.com/acme/momentum-web.git", "description": "Customer-facing app", "pr_base": "main" },
+    { "id": "momentum-api", "git_url": "https://github.com/acme/momentum-api.git", "description": "Backend API", "pr_base": "develop" }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "members": [
+    { "id": "alice@acme.test", "role": "owner" },
+    { "id": "bob@acme.test", "role": "viewer" }
+  ]
+}

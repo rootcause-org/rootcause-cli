@@ -36,7 +36,11 @@ but they keep the raw rows reachable via `-o json`.
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
 | `rc run <id> --full` | `GET /api/v1/runs/{id}/full` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
 | `rc run <id> --debug` | `GET /api/v1/runs/{id}/full` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
-| `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist |
+| `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
+| `rc repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
+| `rc connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
+| `rc member ls/add/rm` | `GET/POST/DELETE /api/v1/members` | project members (no read/update server-side → 405) |
+| `rc token ls/mint/revoke` | `GET/POST/DELETE /api/v1/tokens` | API tokens; `mint` prints the `refresh_token` ONCE |
 | `rc env keys` / `pull` / `diff` | `GET /api/v1/env` | sync the project's PRODUCTION grounding `.env` to a local 0600 `./.env` — the self-serve, OAuth-authed twin of operator `scripts/rc_env.py --pull/--keys/--verify` |
 | `rc login` / `logout` / `whoami` | `/oauth/*` (+ local) | OAuth sign-in / revoke / local status (see Auth below) |
 
@@ -212,6 +216,22 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   Simple rungs stay 1:1 with one endpoint; a higher-level command may call several raw endpoints and
   compute its view locally — keep the endpoints themselves thin, and always expose the raw rows via
   `-o json`. DB access stays out of the CLI; data comes only through `/api/v1`.
+- **Collection nouns (`repo`/`connection`/`member`/`token`):** all four ride one generic path —
+  [`internal/client/collections.go`](internal/client/collections.go) (list/create/patch/verb/delete over
+  `/api/v1/<resource>[/{id}][/{verb}]`, items kept as flat `map[string]json.RawMessage`) +
+  [`internal/render/collections.go`](internal/render/collections.go) (one list table + one item block,
+  rendering whatever keys came back, `id` pinned first then sorted) +
+  [`internal/cli/collections.go`](internal/cli/collections.go) (the shared `ls/add/set/rm` + verb
+  helpers). The CLI holds **no per-resource field knowledge** — a new server-side field appears with no
+  CLI change, same invariant as the settings bag. `connection reveal` and `token mint` print the
+  secret/refresh-token to **stdout** (so a pipe captures just it) with a one-line **stderr** "shown once"
+  warning; `connection rm` issues `/revoke` then `DELETE`.
+- **`config set` value coercion:** [`config.go`](internal/cli/config.go) is **schema-aware** — it fetches
+  `/meta/schema` ONCE and coerces each `k=v` by the field's declared TYPE: a `list`/`array` type
+  comma-splits into a JSON array (`pr.triggers=inbound,mcp` → `["inbound","mcp"]`; an empty value →
+  `[]`, the clear gesture), a numeric type → a JSON number. On a schema miss (older server, network blip)
+  it falls back to a static known-key set (`egress.allowlist`, `pr.triggers` as lists; `max_run_usd` as a
+  number). The server is always the final validator.
 
 ## The one non-API command: `rc upgrade`
 

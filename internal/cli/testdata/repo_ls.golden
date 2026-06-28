@@ -1,0 +1,3 @@
+ID            DESCRIPTION          GIT_URL                                   PR_BASE
+momentum-web  Customer-facing app  https://github.com/acme/momentum-web.git  main
+momentum-api  Backend API          https://github.com/acme/momentum-api.git  develop

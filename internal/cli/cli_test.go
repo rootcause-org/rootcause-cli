@@ -247,6 +247,30 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{"error":{"code":"INVALID_SETTINGS","message":"settings rejected","fields":[{"key":"max_run_usd","message":"must be a number"}]}}`))
 			return
 		}
+		// A pr.triggers set must arrive as a JSON ARRAY, not a comma string — the list-coercion contract.
+		if strings.Contains(body, `"pr.triggers"`) {
+			var got map[string]any
+			if err := json.Unmarshal([]byte(body), &got); err != nil {
+				t.Fatalf("decode set body: %v\n%s", err, body)
+			}
+			arr, ok := got["pr.triggers"].([]any)
+			if !ok {
+				t.Fatalf("pr.triggers not a JSON array: %T %v\nbody: %s", got["pr.triggers"], got["pr.triggers"], body)
+			}
+			if len(arr) != 2 || arr[0] != "inbound" || arr[1] != "mcp" {
+				t.Fatalf("pr.triggers array = %v, want [inbound mcp]", arr)
+			}
+		}
+		// An empty list value (egress.allowlist=) is the CLEAR gesture: it must arrive as an empty array,
+		// not null or a string.
+		if strings.Contains(body, `"egress.allowlist"`) {
+			var got map[string]any
+			_ = json.Unmarshal([]byte(body), &got)
+			arr, ok := got["egress.allowlist"].([]any)
+			if !ok || len(arr) != 0 {
+				t.Fatalf("egress.allowlist = %T %v, want empty array\nbody: %s", got["egress.allowlist"], got["egress.allowlist"], body)
+			}
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "settings.json"))
 	})
@@ -304,6 +328,105 @@ func stubServer(t *testing.T) *httptest.Server {
 		_ = json.Unmarshal([]byte(body), &req)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"tenant_id":"de-kies","version":"sha256:patched","applied_at":"2026-06-22T10:00:00Z","settings":%s}`, req.Settings)
+	})
+
+	// Collection resources (repos / connections / members / tokens). Each list GET echoes a canned
+	// fixture; create/patch echo a single item; the connection/token item-verbs return their canned
+	// shapes. Handlers assert the auth header (via requireAuth) and, where load-bearing, the request body.
+
+	// repos: full CRUD (id = repo name).
+	mux.HandleFunc("GET /api/v1/repos", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "repos.json"))
+	})
+	mux.HandleFunc("POST /api/v1/repos", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"id":"momentum-web"`) {
+			t.Fatalf("repo create body missing id: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "repo_item.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/repos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"description":"Updated"`) {
+			t.Fatalf("repo patch body missing field: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "repo_item.json"))
+	})
+	mux.HandleFunc("DELETE /api/v1/repos/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// connections: list / create (echoes item, NO secret) / reveal / rotate / revoke / delete.
+	mux.HandleFunc("GET /api/v1/connections", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "connections.json"))
+	})
+	mux.HandleFunc("POST /api/v1/connections", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "connection_item.json"))
+	})
+	mux.HandleFunc("POST /api/v1/connections/{id}/reveal", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"secret":"sk_live_REVEALED_ONCE"}`))
+	})
+	mux.HandleFunc("POST /api/v1/connections/{id}/rotate", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","status":"active","rotated":true}`))
+	})
+	mux.HandleFunc("POST /api/v1/connections/{id}/revoke", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("DELETE /api/v1/connections/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// members: list / create / delete (no read/update server-side).
+	mux.HandleFunc("GET /api/v1/members", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "members.json"))
+	})
+	mux.HandleFunc("POST /api/v1/members", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"id":"carol@acme.test"`) {
+			t.Fatalf("member create body missing id: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"carol@acme.test","role":"editor"}`))
+	})
+	mux.HandleFunc("DELETE /api/v1/members/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// tokens: list / mint (refresh_token+scope+status ONCE) / revoke.
+	mux.HandleFunc("GET /api/v1/tokens", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tokens.json"))
+	})
+	mux.HandleFunc("POST /api/v1/tokens", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"refresh_token":"rc_refresh_MINTED_ONCE","scope":"config:read","status":"active"}`))
+	})
+	mux.HandleFunc("DELETE /api/v1/tokens/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	return httptest.NewServer(mux)

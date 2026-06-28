@@ -411,6 +411,13 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	}
 
 	if out != nil {
+		// A 204/empty body (e.g. a DELETE, or a no-content verb) is valid only where the caller asked for
+		// raw bytes (*json.RawMessage) — leave out nil, nothing to decode. A typed target still requires a
+		// body, so a malformed empty 2xx on a content endpoint stays a decode error rather than a silent
+		// zero value.
+		if _, raw := out.(*json.RawMessage); raw && len(bytes.TrimSpace(data)) == 0 {
+			return nil
+		}
 		if err := json.Unmarshal(data, out); err != nil {
 			return fmt.Errorf("decode response: %w", err)
 		}

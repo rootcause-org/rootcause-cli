@@ -1,0 +1,4 @@
+id:           momentum-web
+description:  Customer-facing app
+git_url:      https://github.com/acme/momentum-web.git
+pr_base:      main
