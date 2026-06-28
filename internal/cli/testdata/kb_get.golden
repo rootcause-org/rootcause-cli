@@ -1,0 +1,6 @@
+KEY        VALUE                     EFFECTIVE                 DEFAULT  SOURCE
+base_url   https://acme.intercom.io  https://acme.intercom.io           override
+help_base                                                               default
+kb_id                                                                   default
+locale                                                                  default
+provider   intercom                  intercom                           override

@@ -205,7 +205,7 @@ func newBashCmd(e *env) *cobra.Command {
 
 func newActionCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "action", Short: "Inspect and execute guarded rootcause actions"}
-	cmd.AddCommand(actionListCmd(e), actionShowCmd(e), actionExecCmd(e, true), actionExecCmd(e, false))
+	cmd.AddCommand(actionListCmd(e), actionShowCmd(e), actionExecCmd(e, true), actionExecCmd(e, false), newActionConfigCmd(e))
 	return cmd
 }
 

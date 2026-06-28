@@ -211,32 +211,43 @@ func (c *Client) Env(ctx context.Context, tenant, project string) (*EnvResponse,
 	return &out, nil
 }
 
-// GetSettings fetches GET /api/v1/settings.
-func (c *Client) GetSettings(ctx context.Context, project string) (*Settings, error) {
-	path := "/api/v1/settings"
-	if project != "" {
-		path += "?project=" + url.QueryEscape(project)
-	}
+// GetBag fetches GET on a config bag at base (e.g. "/api/v1/kb"). The response is the generic
+// {key:{value,effective,default,source}} map shared by every bag (settings/kb/branding/action).
+func (c *Client) GetBag(ctx context.Context, base, project string) (*Settings, error) {
 	var out Settings
-	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, bagURL(base, project), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// PatchSettings sends a sparse PATCH /api/v1/settings (only the changed keys) and returns the new
-// full settings. The body is an opaque key→value map: the server owns the whitelist and validation,
-// so the CLI passes keys through verbatim and lets the server reject unknown/forbidden ones.
-func (c *Client) PatchSettings(ctx context.Context, patch map[string]any, project string) (*Settings, error) {
-	path := "/api/v1/settings"
-	if project != "" {
-		path += "?project=" + url.QueryEscape(project)
-	}
+// PatchBag sends a sparse PATCH on a config bag at base (only the changed keys) and returns the new full
+// bag. The body is an opaque key→value map: the server owns the whitelist and validation, so the CLI
+// passes keys through verbatim and lets the server reject unknown/forbidden/invalid ones.
+func (c *Client) PatchBag(ctx context.Context, base string, patch map[string]any, project string) (*Settings, error) {
 	var out Settings
-	if err := c.do(ctx, http.MethodPatch, path, patch, &out); err != nil {
+	if err := c.do(ctx, http.MethodPatch, bagURL(base, project), patch, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+// bagURL appends ?project= when scoping an all-projects token onto a target project.
+func bagURL(base, project string) string {
+	if project != "" {
+		return base + "?project=" + url.QueryEscape(project)
+	}
+	return base
+}
+
+// GetSettings fetches GET /api/v1/settings (the everyday bag).
+func (c *Client) GetSettings(ctx context.Context, project string) (*Settings, error) {
+	return c.GetBag(ctx, "/api/v1/settings", project)
+}
+
+// PatchSettings sends a sparse PATCH /api/v1/settings and returns the new full settings.
+func (c *Client) PatchSettings(ctx context.Context, patch map[string]any, project string) (*Settings, error) {
+	return c.PatchBag(ctx, "/api/v1/settings", patch, project)
 }
 
 // GetSchema fetches GET /api/v1/meta/schema[?resource=] — the declarative config registry. resource

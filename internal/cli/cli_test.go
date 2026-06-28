@@ -275,6 +275,36 @@ func stubServer(t *testing.T) *httptest.Server {
 		_, _ = w.Write(fixture(t, "settings.json"))
 	})
 
+	// kb bag (GET/PATCH /api/v1/kb): the generic bag shape, same as settings. PATCH echoes the fixture.
+	mux.HandleFunc("GET /api/v1/kb", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "kb.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/kb", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		_ = readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "kb.json"))
+	})
+	// action bag PATCH: asserts the bool-coercion contract — actions_enabled must arrive as a JSON bool,
+	// not the string "true". Returns the kb fixture shape (the body is irrelevant to the assertion).
+	mux.HandleFunc("PATCH /api/v1/action", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if strings.Contains(body, "actions_enabled") {
+			var got map[string]any
+			if err := json.Unmarshal([]byte(body), &got); err != nil {
+				t.Fatalf("decode action set body: %v\n%s", err, body)
+			}
+			if b, ok := got["actions_enabled"].(bool); !ok || !b {
+				t.Fatalf("actions_enabled = %T %v, want JSON bool true\nbody: %s", got["actions_enabled"], got["actions_enabled"], body)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "kb.json"))
+	})
+
 	// Discovery layer: the config registry schema + token capabilities.
 	mux.HandleFunc("GET /api/v1/meta/schema", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

@@ -433,6 +433,40 @@ func TestConfigSetListClear(t *testing.T) {
 	}
 }
 
+// TestKBGetTable pins `rc kb get` — the generic bag command over a non-settings bag renders the same
+// {key:value/effective/default/source} table as `config get`.
+func TestKBGetTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "kb", "get"); err != nil {
+		t.Fatalf("kb get: %v", err)
+	}
+	assertGolden(t, "kb_get.golden", out.String())
+}
+
+// TestKBSetTable pins `rc kb set provider=intercom` round-tripping through PATCH /api/v1/kb.
+func TestKBSetTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "kb", "set", "provider=intercom", "base_url=https://acme.intercom.io"); err != nil {
+		t.Fatalf("kb set: %v", err)
+	}
+	assertGolden(t, "kb_get.golden", out.String())
+}
+
+// TestActionConfigSetBoolCoercion locks the bool-coercion contract: `rc action config set
+// actions_enabled=true` must send a JSON boolean, not the string "true" (asserted in the PATCH handler).
+func TestActionConfigSetBoolCoercion(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "action", "config", "set", "actions_enabled=true"); err != nil {
+		t.Fatalf("action config set actions_enabled=true: %v", err)
+	}
+}
+
 func TestSchemaTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

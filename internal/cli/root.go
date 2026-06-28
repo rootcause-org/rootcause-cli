@@ -91,6 +91,8 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newBashCmd(e),
 		newActionCmd(e),
 		newConfigCmd(e),
+		newKBCmd(e),
+		newBrandingCmd(e),
 		newRepoCmd(e),
 		newConnectionCmd(e),
 		newMemberCmd(e),

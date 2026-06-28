@@ -1,3 +1,13 @@
+action
+  KEY                    TYPE    ENUM  SCOPES     DEFAULT  HELP
+  actions_enabled        bool          admin:box           Whether the action plane is enabled.
+  action_reverse_secret  secret        admin:box           Reverse-channel HMAC secret (write-only).
+
+kb
+  KEY       TYPE  ENUM                               SCOPES        DEFAULT  HELP
+  provider  enum  intercom|supporthero|knowledgeowl  config:write           KB provider.
+  base_url  url                                      config:write           KB API base URL.
+
 settings
   KEY           TYPE   ENUM              SCOPES        DEFAULT     HELP
   max_run_usd   float                    config:write  1           Per-run cost-cap base in USD.

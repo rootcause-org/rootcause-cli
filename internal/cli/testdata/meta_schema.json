@@ -7,6 +7,20 @@
         { "key": "default_tier", "scope": "project", "group": "model", "type": "enum", "enum": ["standard", "pro", "max"], "scopes": ["config:write"], "help": "Default model ladder rung.", "default": "standard" },
         { "key": "image_model", "scope": "project", "group": "model", "type": "model", "scopes": ["config:write"], "help": "Image-describe model override.", "default": "vendor/img" }
       ]
+    },
+    "kb": {
+      "name": "kb",
+      "fields": [
+        { "key": "provider", "scope": "project", "group": "kb", "type": "enum", "enum": ["intercom", "supporthero", "knowledgeowl"], "scopes": ["config:write"], "help": "KB provider." },
+        { "key": "base_url", "scope": "project", "group": "kb", "type": "url", "scopes": ["config:write"], "help": "KB API base URL." }
+      ]
+    },
+    "action": {
+      "name": "action",
+      "fields": [
+        { "key": "actions_enabled", "scope": "project", "group": "action", "type": "bool", "scopes": ["admin:box"], "help": "Whether the action plane is enabled." },
+        { "key": "action_reverse_secret", "scope": "project", "group": "action", "type": "secret", "scopes": ["admin:box"], "sensitive": true, "help": "Reverse-channel HMAC secret (write-only)." }
+      ]
     }
   }
 }

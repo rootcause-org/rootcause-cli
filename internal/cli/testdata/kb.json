@@ -1,0 +1,7 @@
+{
+  "provider": { "value": "intercom", "effective": "intercom", "default": "", "source": "override" },
+  "base_url": { "value": "https://acme.intercom.io", "effective": "https://acme.intercom.io", "default": "", "source": "override" },
+  "kb_id": { "value": "", "effective": "", "default": "", "source": "default" },
+  "locale": { "value": "", "effective": "", "default": "", "source": "default" },
+  "help_base": { "value": "", "effective": "", "default": "", "source": "default" }
+}

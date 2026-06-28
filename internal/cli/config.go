@@ -2,98 +2,26 @@ package cli
 
 import (
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
-	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 // newConfigCmd builds `rc config get` and `rc config set k=v …`, mapping onto GET/PATCH
 // /api/v1/settings. The server owns the key whitelist and all validation; the CLI just shapes the
-// sparse PATCH body and renders the result, surfacing INVALID_SETTINGS field errors verbatim.
+// sparse PATCH body and renders the result, surfacing INVALID_SETTINGS field errors verbatim. It reuses
+// the generic bag builders (bag.go) — `rc kb` / `rc branding` / `rc action config` are the same shape
+// over their own bag paths.
 func newConfigCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Read or change project settings",
 	}
-	cmd.AddCommand(newConfigGetCmd(e), newConfigSetCmd(e))
+	cmd.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"))
 	return cmd
-}
-
-func newConfigGetCmd(e *env) *cobra.Command {
-	return &cobra.Command{
-		Use:   "get",
-		Short: "Show current settings (value / effective / default)",
-		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			c, err := e.newClient()
-			if err != nil {
-				return err
-			}
-			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "GET", settingsPath(e.scopeProject()), nil)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			s, err := c.GetSettings(e.ctx(), e.scopeProject())
-			if err != nil {
-				return err
-			}
-			render.Settings(e.out, s)
-			return nil
-		},
-	}
-}
-
-func newConfigSetCmd(e *env) *cobra.Command {
-	return &cobra.Command{
-		Use:   "set k=v [k=v…]",
-		Short: "Change settings (sparse, validate-then-apply server-side)",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			c, err := e.newClient()
-			if err != nil {
-				return err
-			}
-			// Schema-aware coercion (the "generated CLI" ideal): fetch the registry once so a list-typed
-			// field comma-splits into a JSON array and a number-typed field rides as a JSON number. The
-			// lookup is best-effort — on any miss parseSetArgs falls back to its known list/number keys,
-			// so `config set` still works against an older/odd server (the server is the final validator).
-			coerce := newValueCoercer(e, c)
-			patch, err := parseSetArgs(args, coerce)
-			if err != nil {
-				return err
-			}
-			// PATCH returns the full updated settings; render that (so the user sees the new effective
-			// values), JSON passthrough included.
-			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "PATCH", settingsPath(e.scopeProject()), patch)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			s, err := c.PatchSettings(e.ctx(), patch, e.scopeProject())
-			if err != nil {
-				return err
-			}
-			render.Settings(e.out, s)
-			return nil
-		},
-	}
-}
-
-func settingsPath(project string) string {
-	if project == "" {
-		return "/api/v1/settings"
-	}
-	return "/api/v1/settings?project=" + url.QueryEscape(project)
 }
 
 // kind is how a key's value is coerced into the PATCH body.
@@ -103,6 +31,7 @@ const (
 	kindString valueKind = iota
 	kindNumber           // JSON number (e.g. max_run_usd)
 	kindList             // comma-split → JSON array (e.g. pr.triggers, egress.allowlist)
+	kindBool             // JSON boolean (e.g. actions_enabled, hide_attribution)
 )
 
 // coercer resolves a settings key to its value kind. The schema-aware coercer is built from
@@ -160,6 +89,8 @@ func newValueCoercer(e *env, c *client.Client) coercer {
 			return kindList
 		case kindNumber:
 			return kindNumber
+		case kindBool:
+			return kindBool
 		default:
 			// Schema knew the key as a scalar string/enum; still honor a known number/list override in
 			// case the registry's type vocabulary drifts from what the CLI recognizes.
@@ -177,6 +108,8 @@ func normalizeType(typ string) valueKind {
 		return kindList
 	case t == "int" || t == "integer" || t == "number" || t == "float" || t == "float64":
 		return kindNumber
+	case t == "bool" || t == "boolean":
+		return kindBool
 	default:
 		return kindString
 	}
@@ -202,6 +135,12 @@ func parseSetArgs(args []string, coerce coercer) (map[string]any, error) {
 				patch[key] = f
 			} else {
 				patch[key] = val
+			}
+		case kindBool:
+			if b, err := strconv.ParseBool(val); err == nil {
+				patch[key] = b
+			} else {
+				patch[key] = val // let the server return the precise "must be a boolean" message
 			}
 		default:
 			patch[key] = val
