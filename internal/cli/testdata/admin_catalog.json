@@ -1,0 +1,4 @@
+{ "catalog": [
+  { "key": "podio", "kind": "api_key", "status": "active" },
+  { "key": "stripe", "kind": "api_key", "status": "active" }
+] }

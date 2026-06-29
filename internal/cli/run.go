@@ -113,7 +113,104 @@ func newRunCmd(e *env) *cobra.Command {
 	cmd.Flags().BoolVar(&debug, "debug", false, "decompose the run into a jq-able JSONL + thin markdown index on disk")
 	cmd.Flags().BoolVar(&brainDiff, "brain-diff", false, "show the journal commit this run wrote to the brain")
 	cmd.Flags().StringVar(&outDir, "out-dir", defaultDebugDir, "directory for --debug output files")
+	cmd.AddCommand(runFeedbackCmd(e), runRetryCmd(e))
 	return cmd
+}
+
+// runFeedbackCmd: `rc run feedback <id> [--score N] [--comment TEXT]` over POST
+// /api/v1/runs/{id}/feedback. The score+comment feed the consolidation plane (run-trace feedback). At
+// least one of --score/--comment must be given. Score rides as a JSON number.
+func runFeedbackCmd(e *env) *cobra.Command {
+	var score int
+	var comment string
+	var scoreSet bool
+	cmd := &cobra.Command{
+		Use:   "feedback <run-id> [--score N] [--comment TEXT]",
+		Short: "Record score/comment feedback on a run's trace",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cc *cobra.Command, args []string) error {
+			scoreSet = cc.Flags().Changed("score")
+			if !scoreSet && comment == "" {
+				return fmt.Errorf("nothing to record: pass --score and/or --comment")
+			}
+			body := map[string]any{}
+			if scoreSet {
+				body["score"] = score
+			}
+			if comment != "" {
+				body["comment"] = comment
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			raw, err := c.RunFeedback(e.ctx(), args[0], body, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				if len(raw) > 0 {
+					return render.JSON(e.out, raw)
+				}
+				return render.JSON(e.out, []byte(`{"recorded":true}`))
+			}
+			_, _ = fmt.Fprintf(e.out, "feedback recorded for run %s\n", args[0])
+			return nil
+		},
+	}
+	cmd.Flags().IntVar(&score, "score", 0, "feedback score (e.g. -1, 0, 1)")
+	cmd.Flags().StringVar(&comment, "comment", "", "free-text feedback comment")
+	return cmd
+}
+
+// runRetryCmd: `rc run retry <id> [--tier standard|pro|max]` over POST /api/v1/runs/{id}/retry. Prints
+// the NEW run id (the server re-enqueues the run, optionally at a different tier).
+func runRetryCmd(e *env) *cobra.Command {
+	var tier string
+	cmd := &cobra.Command{
+		Use:   "retry <run-id> [--tier standard|pro|max]",
+		Short: "Re-run a run (optionally at a different tier); prints the new run id",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			body := map[string]any{}
+			if tier != "" {
+				body["tier"] = tier
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			raw, err := c.RunRetry(e.ctx(), args[0], body, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			it := asItem(raw)
+			if id := cellOf(it, "run_id"); id != "" {
+				_, _ = fmt.Fprintln(e.out, id)
+				return nil
+			}
+			render.Item(e.out, it)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&tier, "tier", "", "model tier for the retry: standard|pro|max")
+	return cmd
+}
+
+// cellOf extracts a string field from an Item (the new run id, etc.); "" if absent or non-string.
+func cellOf(it client.Item, key string) string {
+	raw, ok := it[key]
+	if !ok {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return ""
 }
 
 // defaultDebugDir is where `rc run <id> --debug` writes its two files unless --out-dir overrides it.

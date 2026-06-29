@@ -1,13 +1,24 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
+
+// asItem decodes a flat JSON object into a client.Item for the generic key:value renderer. A non-object
+// body yields an empty item (the renderer prints "(no fields returned)"), so a bespoke endpoint that
+// returns a small object renders without a dedicated wire struct.
+func asItem(raw []byte) client.Item {
+	var it client.Item
+	_ = json.Unmarshal(raw, &it)
+	return it
+}
 
 // This file wires the collection noun commands (repo / connection / member / token) onto the generic
 // collections client + flat-item renderers. Each command is a thin adapter — parse flags → one client
@@ -57,6 +68,31 @@ func addSubCmd(e *env, resource string) *cobra.Command {
 				return err
 			}
 			item, raw, err := c.Create(e.ctx(), resource, body, e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.Item(e.out, item)
+			return nil
+		},
+	}
+}
+
+// getSubCmd is the shared `get <id>` verb over GET /api/v1/<resource>/<id> — one element as a
+// key:value block (or -o json passthrough).
+func getSubCmd(e *env, resource, idHelp string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <" + idHelp + ">",
+		Short: "Show one " + resource[:len(resource)-1],
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			item, raw, err := c.Get(e.ctx(), resource, args[0], e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -314,6 +350,20 @@ func tokenRevokeCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// parseJSONOrItemArgs accepts EITHER a single JSON-object argument (a leading "{") parsed as the whole
+// body, OR k=v pairs (parseItemArgs). It lets a nested-path PATCH take a verbatim JSON blob for
+// structured controls while keeping the k=v ergonomics for the common flat case.
+func parseJSONOrItemArgs(args []string) (map[string]any, error) {
+	if len(args) == 1 && strings.HasPrefix(strings.TrimSpace(args[0]), "{") {
+		var body map[string]any
+		if err := json.Unmarshal([]byte(args[0]), &body); err != nil {
+			return nil, fmt.Errorf("parse JSON body: %w", err)
+		}
+		return body, nil
+	}
+	return parseItemArgs(args)
 }
 
 // parseItemArgs turns k=v field args into a flat create/patch body. Keys pass through verbatim (the

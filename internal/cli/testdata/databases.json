@@ -1,0 +1,4 @@
+{ "databases": [
+  { "id": "primary", "dsn": "primary", "engine": "postgres", "description": "Primary OLTP" },
+  { "id": "analytics", "dsn": "analytics", "engine": "postgres", "description": "Read replica" }
+] }

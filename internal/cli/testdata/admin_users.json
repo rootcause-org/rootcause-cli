@@ -1,0 +1,4 @@
+{ "users": [
+  { "id": "usr_alice", "email": "alice@acme.test", "admin": true },
+  { "id": "usr_bob", "email": "bob@acme.test", "admin": false }
+] }

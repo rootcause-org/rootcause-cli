@@ -1,0 +1,4 @@
+id:           primary
+description:  Primary OLTP
+dsn:          primary
+engine:       postgres

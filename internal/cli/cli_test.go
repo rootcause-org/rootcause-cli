@@ -474,7 +474,244 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	registerConfigSurfaceStubs(t, mux)
 	return httptest.NewServer(mux)
+}
+
+// registerConfigSurfaceStubs wires the config-surface endpoints (mailboxes / env per-key / databases +
+// controls / openrouter-key / branding logo / github / brain / run feedback+retry / admin). Split into
+// its own helper to keep stubServer readable; each handler asserts auth and (where load-bearing) the
+// request body, then echoes a canned shape.
+func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
+	t.Helper()
+
+	// mailboxes: list + create (upsert). Create asserts the email arrives.
+	mux.HandleFunc("GET /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "mailboxes.json"))
+	})
+	mux.HandleFunc("POST /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"mailbox":"support@acme.test"`) {
+			t.Fatalf("mailbox create body missing mailbox: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "mailbox_item.json"))
+	})
+
+	// env per-key writes (grounding default; action plane). set asserts the value rode in the BODY
+	// (never argv) and is never echoed; reveal returns {secret}; rm is a 204.
+	mux.HandleFunc("POST /api/v1/env_grounding", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode env set body: %v\n%s", err, body)
+		}
+		if got["key"] != "STRIPE_KEY" || got["value"] != "sk_live_FROM_STDIN" {
+			t.Fatalf("env set body = %v, want key=STRIPE_KEY value=sk_live_FROM_STDIN", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"key":"STRIPE_KEY"}`))
+	})
+	mux.HandleFunc("DELETE /api/v1/env_grounding/{key}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /api/v1/env_grounding/{key}/reveal", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"secret":"sk_live_ENV_REVEALED"}`))
+	})
+	mux.HandleFunc("POST /api/v1/env_action", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		_ = readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"key":"PODIO_TOKEN"}`))
+	})
+
+	// databases: list / get / set + nested controls (GET/PATCH).
+	mux.HandleFunc("GET /api/v1/databases", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "databases.json"))
+	})
+	mux.HandleFunc("GET /api/v1/databases/{dsn}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("dsn") == "controls" {
+			// guard: "controls" is a sub-path, never an id — this branch should never be hit by the tests.
+			t.Fatalf("database get hit with dsn=controls (path collision)")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "database_item.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/databases/{dsn}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"description":"Primary OLTP"`) {
+			t.Fatalf("database set body missing field: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "database_item.json"))
+	})
+	mux.HandleFunc("GET /api/v1/databases/{dsn}/controls", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "database_controls.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/databases/{dsn}/controls", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode controls patch: %v\n%s", err, body)
+		}
+		if got["pii_masked"] != true {
+			t.Fatalf("controls patch pii_masked = %v, want true (JSON bool from JSON arg)\nbody: %s", got["pii_masked"], body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "database_controls.json"))
+	})
+
+	// openrouter-key: PUT (asserts key in body, not URL) / DELETE / reveal.
+	mux.HandleFunc("PUT /api/v1/settings/openrouter-key", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"key":"sk-or-FROM_STDIN"`) {
+			t.Fatalf("openrouter-key PUT body missing key: %s", body)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("DELETE /api/v1/settings/openrouter-key", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("POST /api/v1/settings/openrouter-key/reveal", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"secret":"sk-or-REVEALED_ONCE"}`))
+	})
+
+	// branding logo: PUT multipart (asserts the multipart file part + content type) / DELETE.
+	mux.HandleFunc("PUT /api/v1/branding/logo", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if ct := r.Header.Get("Content-Type"); !strings.HasPrefix(ct, "multipart/form-data") {
+			t.Fatalf("logo PUT content-type = %q, want multipart/form-data", ct)
+		}
+		f, hdr, err := r.FormFile("file")
+		if err != nil {
+			t.Fatalf("logo PUT missing file part: %v", err)
+		}
+		defer func() { _ = f.Close() }()
+		if hdr.Filename != "logo.png" {
+			t.Fatalf("logo filename = %q, want logo.png", hdr.Filename)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"logo":"stored","content_type":"image/png"}`))
+	})
+	mux.HandleFunc("DELETE /api/v1/branding/logo", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// github status.
+	mux.HandleFunc("GET /api/v1/github/status", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "github_status.json"))
+	})
+
+	// brain edit / consolidate — both return {queued, job_id}.
+	mux.HandleFunc("POST /api/v1/brain/edit", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"instruction":"add a runbook for refunds"`) {
+			t.Fatalf("brain edit body missing instruction: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_edit_001"}`))
+	})
+	mux.HandleFunc("POST /api/v1/brain/consolidate", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_consolidate_001"}`))
+	})
+
+	// run feedback / retry.
+	mux.HandleFunc("POST /api/v1/runs/{id}/feedback", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode feedback body: %v\n%s", err, body)
+		}
+		if got["score"] != float64(1) || got["comment"] != "great draft" {
+			t.Fatalf("feedback body = %v, want score=1 comment=great draft", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"recorded":true}`))
+	})
+	mux.HandleFunc("POST /api/v1/runs/{id}/retry", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"tier":"pro"`) {
+			t.Fatalf("retry body missing tier: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"run_id":"99999999-9999-9999-9999-999999999999","status":"queued"}`))
+	})
+
+	// admin: users / projects / catalog.
+	mux.HandleFunc("GET /api/v1/admin/users", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "admin_users.json"))
+	})
+	mux.HandleFunc("POST /api/v1/admin/users", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"email":"dana@acme.test"`) {
+			t.Fatalf("admin user add body missing email: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"usr_dana","email":"dana@acme.test","admin":true}`))
+	})
+	mux.HandleFunc("PATCH /api/v1/admin/users/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		_ = readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","admin":false}`))
+	})
+	mux.HandleFunc("GET /api/v1/admin/projects", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "admin_projects.json"))
+	})
+	mux.HandleFunc("POST /api/v1/admin/projects", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"name":"momentum-tools"`) {
+			t.Fatalf("admin project add body missing name: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"proj_new","name":"momentum-tools","webhook_secret":"whsec_SHOWN_ONCE"}`))
+	})
+	mux.HandleFunc("GET /api/v1/admin/catalog", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "admin_catalog.json"))
+	})
+	mux.HandleFunc("POST /api/v1/admin/catalog", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"key":"podio"`) {
+			t.Fatalf("admin catalog upsert body missing key: %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"key":"podio","kind":"api_key","status":"active"}`))
+	})
 }
 
 // newTestEnv builds an env wired to the stub server with a fixed output mode, capturing stdout/stderr.

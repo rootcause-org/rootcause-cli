@@ -1,0 +1,3 @@
+ID         ADMIN  EMAIL
+usr_alice  true   alice@acme.test
+usr_bob    false  bob@acme.test

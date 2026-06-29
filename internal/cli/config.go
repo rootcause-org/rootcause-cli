@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 // newConfigCmd builds `rc config get` and `rc config set k=v …`, mapping onto GET/PATCH
@@ -20,8 +21,102 @@ func newConfigCmd(e *env) *cobra.Command {
 		Use:   "config",
 		Short: "Read or change project settings",
 	}
-	cmd.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"))
+	cmd.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"),
+		newOpenRouterKeyCmd(e))
 	return cmd
+}
+
+// newOpenRouterKeyCmd builds `rc config openrouter-key set|clear|reveal` over the bespoke
+// /api/v1/settings/openrouter-key endpoint (PUT/DELETE/POST .../reveal). The key is box-wide. `set`
+// reads the key from STDIN by default (secret hygiene); an explicit arg is accepted but lands in shell
+// history. `reveal` is the only command that prints the value.
+func newOpenRouterKeyCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{Use: "openrouter-key", Short: "Manage the OpenRouter API key (set/clear/reveal)"}
+	cmd.AddCommand(openRouterKeySetCmd(e), openRouterKeyClearCmd(e), openRouterKeyRevealCmd(e))
+	return cmd
+}
+
+func openRouterKeySetCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "set [<key>]",
+		Short: "Store the OpenRouter key (from STDIN by default; never echoed)",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			var key string
+			if len(args) == 1 && args[0] != "-" {
+				key = args[0]
+			} else {
+				k, err := readSecretStdin(e, "OpenRouter key")
+				if err != nil {
+					return err
+				}
+				key = k
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			raw, err := c.SetOpenRouterKey(e.ctx(), key, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			_, _ = fmt.Fprintln(e.out, "OpenRouter key stored")
+			return nil
+		},
+	}
+}
+
+func openRouterKeyClearCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "clear",
+		Short: "Remove the stored OpenRouter key",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			raw, err := c.ClearOpenRouterKey(e.ctx(), e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				if len(raw) > 0 {
+					return render.JSON(e.out, raw)
+				}
+				return render.JSON(e.out, []byte(`{"cleared":true}`))
+			}
+			_, _ = fmt.Fprintln(e.out, "OpenRouter key cleared")
+			return nil
+		},
+	}
+}
+
+func openRouterKeyRevealCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "reveal",
+		Short: "Print the stored OpenRouter key (sensitive, shown once)",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			item, raw, err := c.RevealOpenRouterKey(e.ctx(), e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			_, _ = fmt.Fprintln(e.err, "warning: this is a live secret — handle with care; it is shown once")
+			render.Secret(e.out, item)
+			return nil
+		},
+	}
 }
 
 // kind is how a key's value is coerced into the PATCH body.

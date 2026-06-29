@@ -5,6 +5,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 )
@@ -54,6 +55,32 @@ func (e *APIError) Error() string {
 		return fmt.Sprintf("HTTP %d", e.Status)
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
+}
+
+// decodeAPIError turns a non-2xx (status + verbatim body) into a typed APIError. It tries the standard
+// {error:{code,message,fields}} envelope first, then the tenant-settings {error,field_errors} shape,
+// and finally falls back to a no-envelope error that still carries method/path/baseURL so a plain-text
+// 404/405 (proxy, or an older server missing the endpoint) is diagnosable rather than a bare "HTTP N".
+// Shared by the JSON path (do) and the multipart path (doRaw).
+func decodeAPIError(status int, method, path, baseURL string, data []byte) *APIError {
+	apiErr := &APIError{Status: status}
+	var env errorEnvelope
+	var vfe validationFailedEnvelope
+	switch {
+	case json.Unmarshal(data, &env) == nil && env.Error.Code != "":
+		apiErr.Code = env.Error.Code
+		apiErr.Message = env.Error.Message
+		apiErr.Fields = env.Error.Fields
+	case json.Unmarshal(data, &vfe) == nil && vfe.Error != "":
+		apiErr.Code = vfe.Error
+		apiErr.Message = "settings rejected"
+		apiErr.Fields = sortedFieldErrors(vfe.FieldErrors)
+	default:
+		apiErr.Method = method
+		apiErr.Path = pathOnly(path)
+		apiErr.BaseURL = baseURL
+	}
+	return apiErr
 }
 
 // sortedFieldErrors flattens the tenant-settings field_errors map into the []FieldError the command

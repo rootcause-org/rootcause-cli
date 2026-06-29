@@ -395,30 +395,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Try the standard envelope; if it doesn't decode, fall back to an APIError that still carries the
-		// method/path/base URL so a non-JSON 404/405 (proxy, or an older server missing the endpoint) is
-		// diagnosable rather than a bare "HTTP 405".
-		apiErr := &APIError{Status: resp.StatusCode}
-		var env errorEnvelope
-		var vfe validationFailedEnvelope
-		switch {
-		case json.Unmarshal(data, &env) == nil && env.Error.Code != "":
-			apiErr.Code = env.Error.Code
-			apiErr.Message = env.Error.Message
-			apiErr.Fields = env.Error.Fields
-		case json.Unmarshal(data, &vfe) == nil && vfe.Error != "":
-			// The tenant-settings shape: error is a string code, per-field errors are a map. Map it onto
-			// the same APIError so the command layer's one verbatim path renders it (sorted for a stable
-			// order, since map iteration isn't).
-			apiErr.Code = vfe.Error
-			apiErr.Message = "settings rejected"
-			apiErr.Fields = sortedFieldErrors(vfe.FieldErrors)
-		default:
-			apiErr.Method = method
-			apiErr.Path = pathOnly(path)
-			apiErr.BaseURL = c.baseURL
-		}
-		return apiErr
+		return decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
 	}
 
 	if out != nil {

@@ -1,0 +1,1 @@
+{ "dsn": "primary", "pii_masked": true, "row_limit": 1000, "allow_writes": false }

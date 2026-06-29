@@ -1,0 +1,4 @@
+{ "projects": [
+  { "id": "proj_alpha", "name": "alpha", "default_tier": "standard", "egress_mode": "enforce" },
+  { "id": "proj_bravo", "name": "bravo", "default_tier": "pro", "egress_mode": "wildcard" }
+] }

@@ -1,0 +1,3 @@
+ID          DEFAULT_TIER  EGRESS_MODE  NAME
+proj_alpha  standard      enforce      alpha
+proj_bravo  pro           wildcard     bravo

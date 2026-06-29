@@ -33,7 +33,142 @@ func newEnvCmd(e *env) *cobra.Command {
 		Use:   "env",
 		Short: "Sync this project's production grounding .env (pull/diff/keys)",
 	}
-	cmd.AddCommand(newEnvPullCmd(e), newEnvDiffCmd(e), newEnvKeysCmd(e))
+	cmd.AddCommand(newEnvPullCmd(e), newEnvDiffCmd(e), newEnvKeysCmd(e),
+		newEnvSetCmd(e), newEnvRmCmd(e), newEnvRevealCmd(e))
+	return cmd
+}
+
+// envPlaneResource maps the --plane flag to the collection resource backing per-key env writes. The
+// default is the GROUNDING plane (read-only data the agent grounds on); --plane action targets the
+// ACTION plane (the credentials the write-path actions use). Both auto-exist in /meta/schema.
+func envPlaneResource(plane string) (string, error) {
+	switch plane {
+	case "", "grounding":
+		return "env_grounding", nil
+	case "action":
+		return "env_action", nil
+	default:
+		return "", fmt.Errorf("unknown --plane %q (use grounding|action)", plane)
+	}
+}
+
+// newEnvSetCmd: `rc env set key=<K> value=<V> [--plane action]` — upsert ONE env var via POST
+// /api/v1/<plane> (create is an upsert). The VALUE is a secret, so it's read from STDIN by preference:
+// pass `value=-` (or omit value entirely) to read the value from stdin and keep it off the argv/process
+// table. An inline `value=<V>` is accepted for convenience but lands in shell history.
+func newEnvSetCmd(e *env) *cobra.Command {
+	var plane string
+	cmd := &cobra.Command{
+		Use:   "set key=<K> [value=<V>] [--plane grounding|action]",
+		Short: "Upsert one env var (value from STDIN by default; never echoed)",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			resource, err := envPlaneResource(plane)
+			if err != nil {
+				return err
+			}
+			body, err := parseItemArgs(args)
+			if err != nil {
+				return err
+			}
+			if body["key"] == nil || body["key"] == "" {
+				return fmt.Errorf("missing key=<K>")
+			}
+			// Secret hygiene: read the value from stdin when it's absent or explicitly "-", so it never
+			// rides in argv. An inline value=<V> is honored as-is.
+			if v, ok := body["value"]; !ok || v == "-" {
+				secret, rerr := readSecretStdin(e, "env value")
+				if rerr != nil {
+					return rerr
+				}
+				body["value"] = secret
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			item, raw, err := c.Create(e.ctx(), resource, body, e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			// Never echo the value back — print the name + plane only.
+			_, _ = fmt.Fprintf(e.out, "set %s (%s)\n", body["key"], resource)
+			_ = item
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&plane, "plane", "grounding", "which env plane: grounding|action")
+	return cmd
+}
+
+// newEnvRmCmd: `rc env rm <K> [--plane action]` — DELETE /api/v1/<plane>/<K>.
+func newEnvRmCmd(e *env) *cobra.Command {
+	var plane string
+	cmd := &cobra.Command{
+		Use:   "rm <K> [--plane grounding|action]",
+		Short: "Delete one env var",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			resource, err := envPlaneResource(plane)
+			if err != nil {
+				return err
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			raw, err := c.Delete(e.ctx(), resource, args[0], e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				if len(raw) > 0 {
+					return render.JSON(e.out, raw)
+				}
+				return render.JSON(e.out, []byte(`{"deleted":"`+args[0]+`"}`))
+			}
+			_, _ = fmt.Fprintf(e.out, "deleted %s (%s)\n", args[0], resource)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&plane, "plane", "grounding", "which env plane: grounding|action")
+	return cmd
+}
+
+// newEnvRevealCmd: `rc env reveal <K> [--plane action]` — POST /api/v1/<plane>/<K>/reveal → {secret}.
+// Prints the VALUE alone to stdout (capturable) with a stderr sensitivity warning, like connection
+// reveal. The ONE place a per-key value is printed.
+func newEnvRevealCmd(e *env) *cobra.Command {
+	var plane string
+	cmd := &cobra.Command{
+		Use:   "reveal <K> [--plane grounding|action]",
+		Short: "Print one env var's value (sensitive, shown once)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			resource, err := envPlaneResource(plane)
+			if err != nil {
+				return err
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			item, raw, err := c.Verb(e.ctx(), resource, args[0], "reveal", e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			_, _ = fmt.Fprintln(e.err, "warning: this is a live secret — handle with care; it is shown once")
+			render.Secret(e.out, item)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&plane, "plane", "grounding", "which env plane: grounding|action")
 	return cmd
 }
 

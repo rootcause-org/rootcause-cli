@@ -185,11 +185,24 @@ scope. `-o json|table` forces output.
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
 | `rc run <id> --full` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line) |
 | `rc run <id> --debug [--out-dir <dir>]` | decompose the run into a jq-able JSONL event log + a thin markdown index on disk; prints both paths (the cross-project debug path for an all-projects admin token) |
+| `rc run feedback <id> [--score N] [--comment TEXT]` | record score/comment feedback on a run's trace (feeds consolidation) |
+| `rc run retry <id> [--tier standard\|pro\|max]` | re-run a run (optionally at a different tier); prints the new run id |
 | `rc config get` | effective settings + box defaults |
 | `rc config set k=v [k=v…]` | change settings (validated server-side) |
+| `rc config openrouter-key set\|clear\|reveal` | manage the OpenRouter API key (`set` reads from **STDIN** by default; `reveal` prints it once) |
 | `rc env keys` | key NAMES of the project's production grounding env (log-safe, no values) |
 | `rc env pull` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
 | `rc env diff` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
+| `rc env set key=<K> [value=<V>] [--plane grounding\|action]` | upsert one env var — value read from **STDIN** by default, never echoed |
+| `rc env rm <K> [--plane grounding\|action]` | delete one env var |
+| `rc env reveal <K> [--plane grounding\|action]` | print one env var's value (sensitive, shown once) |
+| `rc mailbox ls\|add` | list / upsert a tenant's inbound mailboxes |
+| `rc database ls\|get\|set` | list / read / update registered databases |
+| `rc database controls get\|set <dsn>` | read / change a database's access controls (JSON object or k=v) |
+| `rc branding logo set <file>\|clear` | upload (multipart) or remove the white-label logo |
+| `rc github status` | GitHub App install status (`installed` / `account` / `install_url`) |
+| `rc brain edit <instruction…>` · `rc brain consolidate` | queue an out-of-band brain edit / the consolidation cron (both print `{queued, job_id}`) |
+| `rc admin user ls\|add\|set` · `rc admin project ls\|add` · `rc admin catalog ls\|upsert` | box-level administration (needs a **global-admin** token; no `--project` scope) |
 | `rc capabilities` | list direct console primitives available to this login |
 | `rc db list\|schema\|query` | guarded production DB reads through rootcause scoping |
 | `rc bash list` | list cataloged brain scripts |

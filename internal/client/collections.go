@@ -89,6 +89,20 @@ func (c *Client) List(ctx context.Context, resource, project, tenant string) (*L
 	return &out, raw, nil
 }
 
+// Get fetches GET /api/v1/<resource>/<id> — one collection element, returning the parsed item (for the
+// key:value renderer) and the raw body (for -o json passthrough).
+func (c *Client) Get(ctx context.Context, resource, id, project, tenant string) (Item, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, collectionPath(resource, id, "", project, tenant), nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var item Item
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &item)
+	}
+	return item, raw, nil
+}
+
 // Create posts POST /api/v1/<resource> with the supplied flat body, returning the echoed item (a
 // connection create deliberately omits the secret) and the raw body.
 func (c *Client) Create(ctx context.Context, resource string, body map[string]any, project, tenant string) (Item, json.RawMessage, error) {
