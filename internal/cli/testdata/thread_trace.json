@@ -5,7 +5,7 @@
     {
       "run_id": "aaaaaaaa-1111-1111-1111-111111111111",
       "kind": "email",
-      "source": "ReplyPen",
+      "source": "Inbound",
       "status": "error",
       "outcome": "error",
       "category": "egress_blocked",
@@ -29,7 +29,7 @@
     {
       "run_id": "bbbbbbbb-2222-2222-2222-222222222222",
       "kind": "email",
-      "source": "ReplyPen",
+      "source": "Inbound",
       "status": "done",
       "outcome": "answered",
       "category": "ok",
@@ -50,6 +50,5 @@
         "no_journal": false
       }
     }
-  ],
-  "replypen": null
+  ]
 }

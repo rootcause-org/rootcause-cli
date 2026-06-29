@@ -1,8 +1,8 @@
-// This file renders `rc thread <id>` — the rootcause-side trace of one thread/session: how the id
-// resolved, a newest-first table of its runs with health flags, and a deterministic "where it likely
-// failed" hint when the newest run errored/declined. It ports the diagnosis SPIRIT of the old
-// rc_thread_debug.py (its processor-side decision tree), working purely from the safe per-run projection
-// the API ships — no ReplyPen stitch yet (that's a separate, pending endpoint; the footer says so).
+// This file renders `rc thread <id>` — the trace of one thread/session: how the id resolved, a
+// newest-first table of its runs with health flags + placement (draft/note), and a deterministic "where
+// it likely failed" hint when the newest run errored/declined. The whole pipeline is in-process: the
+// channel plane assembles the thread and enqueues a run, then placement writes a draft/note back to the
+// mailbox. The diagnosis works purely from the safe per-run projection the API ships.
 package render
 
 import (
@@ -23,27 +23,26 @@ func shortID(id string) string {
 	return id
 }
 
-// ThreadTrace renders the rootcause-side thread trace: the id + how it resolved, the runs table (with a
-// per-run health flag column), the "where it likely failed" hint on the newest run, and the pending-
-// ReplyPen footer. An unresolved id (resolved_by "none", no runs) is an explicit, useful empty answer.
+// ThreadTrace renders the thread trace: the id + how it resolved, the runs table (with a per-run health
+// flag column + placement), and the "where it likely failed" hint on the newest run. An unresolved id
+// (resolved_by "none", no runs) is an explicit, useful empty answer.
 func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 	_, _ = fmt.Fprintf(w, "Thread: %s\n", t.ID)
 	_, _ = fmt.Fprintf(w, "Resolved by: %s\n", resolvedLabel(t.ResolvedBy))
 
 	if len(t.Runs) == 0 {
-		_, _ = fmt.Fprintln(w, "\nNo runs on the rootcause side for this id.")
-		_, _ = fmt.Fprintln(w, "Either we never received a webhook for it, or the id isn't a thread/session we ran.")
-		_, _ = fmt.Fprintln(w, "\n"+replyPenFooter)
+		_, _ = fmt.Fprintln(w, "\nNo runs for this id.")
+		_, _ = fmt.Fprintln(w, "Either the channel plane never enqueued a run for it (no inbound assembled), or the id isn't a thread/session we ran.")
 		return
 	}
 
 	_, _ = fmt.Fprintf(w, "\n%d run(s), newest first:\n", len(t.Runs))
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSTATUS\tOUTCOME\tCATEGORY\tHEALTH\tDRAFT\tCREATED\tTOPIC")
+	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSTATUS\tOUTCOME\tCATEGORY\tHEALTH\tPLACED\tCREATED\tTOPIC")
 	for _, r := range t.Runs {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			shortID(r.RunID), r.Kind, r.Status, r.Outcome, r.Category,
-			healthFlags(r.Health), draftNote(r), r.CreatedAt, strOrBlank(r.Topic))
+			healthFlags(r.Health), placement(r), r.CreatedAt, strOrBlank(r.Topic))
 	}
 	_ = tw.Flush()
 
@@ -52,13 +51,7 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 	if hint := threadFailureHint(&t.Runs[0]); hint != "" {
 		_, _ = fmt.Fprintf(w, "\nLikely: %s\n", hint)
 	}
-
-	_, _ = fmt.Fprintln(w, "\n"+replyPenFooter)
 }
-
-// replyPenFooter marks the one-sided scope: the ReplyPen half (did it send us the webhook? did it place
-// our callback?) is a separate, not-yet-landed signed endpoint.
-const replyPenFooter = "ReplyPen side pending (separate endpoint)"
 
 // resolvedLabel turns the wire resolved_by into a reader-facing phrase.
 func resolvedLabel(by string) string {
@@ -72,8 +65,10 @@ func resolvedLabel(by string) string {
 	}
 }
 
-// draftNote summarises the reply outcome of a run in one cell: draft / note / both / -.
-func draftNote(r client.RunSummary) string {
+// placement summarises what a run placed back to the mailbox in one cell: draft / note / draft+note, or
+// "declined" when a terminal run produced nothing on purpose (the agent chose not to draft). A run that
+// produced nothing for a non-decline reason (error/stuck) reads "-".
+func placement(r client.RunSummary) string {
 	switch {
 	case r.HasDraft && r.HasNote:
 		return "draft+note"
@@ -81,6 +76,8 @@ func draftNote(r client.RunSummary) string {
 		return "draft"
 	case r.HasNote:
 		return "note"
+	case r.Outcome == "declined":
+		return "declined"
 	default:
 		return "-"
 	}
@@ -116,13 +113,14 @@ func healthFlags(h *client.RunHealth) string {
 	return strings.Join(f, ",")
 }
 
-// threadFailureHint is the deterministic "where it likely failed" verdict for the newest run, ported
-// from rc_thread_debug.py's processor-side decision tree but built only from the safe projection the API
-// ships (status / outcome / category / health flags + decline_reason). It names the failure class AND
-// the fix direction, never a body. Blank for a healthy answered run (nothing to diagnose).
+// threadFailureHint is the deterministic "where it likely failed" verdict for the newest run, built only
+// from the safe projection the API ships (status / outcome / category / health flags + decline_reason).
+// It names the failure class AND the fix direction, never a body. Blank for a healthy answered run
+// (nothing to diagnose).
 //
-// Order matters: the most specific, actionable cause wins. The ReplyPen-side causes (webhook never sent,
-// callback rejected) are NOT diagnosable here — that's the pending stitch; the footer covers them.
+// Order matters: the most specific, actionable cause wins. The whole pipeline is in-process — the
+// channel plane assembles the thread and enqueues the run, and placement writes the draft/note to the
+// mailbox — so every failure class below is diagnosable here.
 func threadFailureHint(r *client.RunSummary) string {
 	// Egress block: a domain the agent needed wasn't on the allowlist — config fix, project-side.
 	if r.Health != nil && r.Health.BlockedEgress > 0 {
@@ -131,7 +129,12 @@ func threadFailureHint(r *client.RunSummary) string {
 
 	switch r.Outcome {
 	case "answered":
-		return "" // a real draft/note was produced on our side; if no reply landed, it's the ReplyPen side.
+		// A draft/note was produced. If no reply is visible in the mailbox, check placement rather than the
+		// run: the draft/note write to the mailbox is the last step (`rc run <id> --full` shows what was placed).
+		if !r.HasDraft && !r.HasNote {
+			return "the run answered but nothing is recorded as placed — check placement to the mailbox (`rc run <id> --full`)."
+		}
+		return ""
 	case "stuck":
 		return "the run is stuck (running past the timeout) — it was likely reaped at a guardrail; check the run trace (`rc run <id> --full`)."
 	case "error":

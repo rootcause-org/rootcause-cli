@@ -31,7 +31,7 @@ func TestProjectScopeRidesAsQueryParam(t *testing.T) {
 	})
 	mux.HandleFunc("GET /api/v1/threads/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
 		got["thread"] = r.URL.Query().Get("project")
-		_, _ = w.Write([]byte(`{"id":"t1","resolved_by":"none","runs":[],"replypen":null}`))
+		_, _ = w.Write([]byte(`{"id":"t1","resolved_by":"none","runs":[]}`))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

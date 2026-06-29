@@ -1,7 +1,5 @@
 Thread: unknown
 Resolved by: nothing (unknown id)
 
-No runs on the rootcause side for this id.
-Either we never received a webhook for it, or the id isn't a thread/session we ran.
-
-ReplyPen side pending (separate endpoint)
+No runs for this id.
+Either the channel plane never enqueued a run for it (no inbound assembled), or the id isn't a thread/session we ran.

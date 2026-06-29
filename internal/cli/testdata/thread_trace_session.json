@@ -5,7 +5,7 @@
     {
       "run_id": "cccccccc-3333-3333-3333-333333333333",
       "kind": "email",
-      "source": "ReplyPen",
+      "source": "Inbound",
       "status": "done",
       "outcome": "declined",
       "category": "ok",
@@ -27,6 +27,5 @@
         "no_journal": false
       }
     }
-  ],
-  "replypen": null
+  ]
 }

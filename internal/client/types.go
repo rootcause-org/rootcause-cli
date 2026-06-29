@@ -535,14 +535,32 @@ type BrainDiff struct {
 
 // ThreadTrace is GET /api/v1/threads/{id}/trace — every run for one thread (or session) id, newest-first,
 // each a full RunSummary (status + safe health), so `rc thread` can answer "why did this thread get no
-// draft". ResolvedBy is "thread" | "session" | "none". ReplyPen is the reserved extension point for the
-// SECOND half of the trace (ReplyPen's own signed thread-trace, stitched server-side); always null today.
-// Mirrors the server's threadTraceResponse field-for-field.
+// draft". ResolvedBy is "thread" | "session" | "none". Mirrors the server's threadTraceResponse
+// field-for-field.
 type ThreadTrace struct {
-	ID         string          `json:"id"`
-	ResolvedBy string          `json:"resolved_by"`
-	Runs       []RunSummary    `json:"runs"`
-	ReplyPen   json.RawMessage `json:"replypen"` // reserved; null until the ReplyPen-side stitch lands
+	ID         string       `json:"id"`
+	ResolvedBy string       `json:"resolved_by"`
+	Runs       []RunSummary `json:"runs"`
+}
+
+// WatchedMailbox is one row of GET /api/v1/mailboxes/watched — a connection-backed mailbox the channel
+// plane actively watches (NOT the legacy email-keyed routing table behind `rc mailbox route`). Field
+// names mirror the server verbatim. Tenant/SubscriptionExpiresAt/ErrorMessage are omitempty: absent for
+// a non-tenant mailbox / a provider without a renewable subscription / a healthy mailbox.
+type WatchedMailbox struct {
+	ID                    string `json:"id"`
+	Provider              string `json:"provider"`
+	EmailAddress          string `json:"email_address"`
+	Status                string `json:"status"` // active|paused|connected|needs_attention
+	Tenant                string `json:"tenant,omitempty"`
+	HasSyncCursor         bool   `json:"has_sync_cursor"`
+	SubscriptionExpiresAt string `json:"subscription_expires_at,omitempty"`
+	ErrorMessage          string `json:"error_message,omitempty"`
+}
+
+// WatchedMailboxList is GET /api/v1/mailboxes/watched — the watched-mailbox set under its envelope key.
+type WatchedMailboxList struct {
+	Mailboxes []WatchedMailbox `json:"mailboxes"`
 }
 
 // Project is one row of GET /api/v1/projects — a fleet handle (id + name). It's what `rc projects`

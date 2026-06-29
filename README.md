@@ -196,7 +196,10 @@ scope. `-o json|table` forces output.
 | `rc env set key=<K> [value=<V>] [--plane grounding\|action]` | upsert one env var — value read from **STDIN** by default, never echoed |
 | `rc env rm <K> [--plane grounding\|action]` | delete one env var |
 | `rc env reveal <K> [--plane grounding\|action]` | print one env var's value (sensitive, shown once) |
-| `rc mailbox ls\|add` | list / upsert a tenant's inbound mailboxes |
+| `rc mailbox ls` | list watched mailboxes (the channel plane's inbox watch): id, provider, email, status, tenant, subscription expiry, error |
+| `rc mailbox pause\|resume <id>` | pause / resume watching a mailbox (resume surfaces `needs_attention` + the error message on a subscribe failure) |
+| `rc mailbox connect --provider google\|microsoft\|intercom [--project …]` | print the dashboard **Connections** URL to open in a browser and complete the provider's OAuth (no API write) |
+| `rc mailbox route ls\|add` | **legacy** email-keyed routing table (which inbound address → which project/tenant); the generic `/api/v1/mailboxes` collection, kept for tenant onboarding |
 | `rc database ls\|get\|set` | list / read / update registered databases |
 | `rc database controls get\|set <dsn>` | read / change a database's access controls (JSON object or k=v) |
 | `rc branding logo set <file>\|clear` | upload (multipart) or remove the white-label logo |
@@ -208,6 +211,8 @@ scope. `-o json|table` forces output.
 | `rc bash list` | list cataloged brain scripts |
 | `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop |
 | `rc action list\|show\|preflight\|run` | inspect or execute vetted, human-scoped actions |
+| `rc provider detect <domain\|email> [more…]` | **local** (DNS only, no auth): classify a domain's email backend (google/microsoft/other) and whether rootcause can onboard it |
+| `rc id gmail\|outlook <id>` | **local** (no network): translate a provider message/thread id + build a clickable URL / DB-column lookup |
 | `rc upgrade [--check]` | self-update to the latest release (Linux/WSL/Windows); on a Homebrew install, defers to `brew upgrade rc` |
 | `rc --version` · `rc help` | |
 

@@ -2,10 +2,8 @@ Thread: thread-abc123
 Resolved by: thread id
 
 2 run(s), newest first:
-RUN       KIND   STATUS  OUTCOME   CATEGORY        HEALTH                       DRAFT  CREATED               TOPIC
-aaaaaaaa  email  error   error     egress_blocked  egress✗1,basherr1,nojournal  -      2026-06-22T10:05:00Z  refund not received
-bbbbbbbb  email  done    answered  ok              -                            draft  2026-06-22T09:30:00Z  refund not received
+RUN       KIND   STATUS  OUTCOME   CATEGORY        HEALTH                       PLACED  CREATED               TOPIC
+aaaaaaaa  email  error   error     egress_blocked  egress✗1,basherr1,nojournal  -       2026-06-22T10:05:00Z  refund not received
+bbbbbbbb  email  done    answered  ok              -                            draft   2026-06-22T09:30:00Z  refund not received
 
 Likely: a grounding step was egress-blocked — add the host to the project's egress allowlist (config).
-
-ReplyPen side pending (separate endpoint)

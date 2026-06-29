@@ -16,7 +16,7 @@
     {
       "run_id": "22222222-2222-2222-2222-222222222222",
       "kind": "email",
-      "source": "ReplyPen",
+      "source": "Inbound",
       "status": "error",
       "outcome": "error",
       "category": "timeout",
@@ -42,7 +42,7 @@
     "healthy": false,
     "counts_by_source": {
       "Prompt API": { "total": 12, "errors": 1 },
-      "ReplyPen": { "total": 4, "errors": 2 }
+      "Inbound": { "total": 4, "errors": 2 }
     },
     "last_success": {
       "run_id": "11111111-1111-1111-1111-111111111111",
@@ -51,7 +51,7 @@
     },
     "last_error": {
       "run_id": "22222222-2222-2222-2222-222222222222",
-      "source": "ReplyPen",
+      "source": "Inbound",
       "category": "timeout",
       "at": "2026-06-19T08:00:00Z"
     },
@@ -59,7 +59,7 @@
       {
         "kind": "run",
         "run_id": "22222222-2222-2222-2222-222222222222",
-        "source": "ReplyPen",
+        "source": "Inbound",
         "category": "timeout",
         "outcome": "error",
         "at": "2026-06-19T08:00:00Z"

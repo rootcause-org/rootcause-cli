@@ -98,6 +98,8 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newMemberCmd(e),
 		newTokenCmd(e),
 		newMailboxCmd(e),
+		newProviderCmd(e),
+		newIDCmd(e),
 		newDatabaseCmd(e),
 		newGitHubCmd(e),
 		newBrainCmd(e),

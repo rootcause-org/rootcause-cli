@@ -123,6 +123,7 @@ func Run(w io.Writer, r *client.RunDetail) {
 	}
 	_, _ = fmt.Fprintf(tw, "Draft?:\t%s\n", yesNo(r.HasDraft))
 	_, _ = fmt.Fprintf(tw, "Note?:\t%s\n", yesNo(r.HasNote))
+	_, _ = fmt.Fprintf(tw, "Placed:\t%s\n", placedLabel(r.HasDraft, r.HasNote, metaString(r.Metadata, "outcome")))
 	_, _ = fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
 		_, _ = fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
@@ -497,6 +498,24 @@ func yesNo(b bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+// placedLabel is the terse one-line summary of what a run placed back to the mailbox: draft / note /
+// draft+note, "declined" when a terminal run produced nothing on purpose, else "-". The same vocabulary
+// the thread-trace PLACED column uses, so the two views read consistently.
+func placedLabel(hasDraft, hasNote bool, outcome string) string {
+	switch {
+	case hasDraft && hasNote:
+		return "draft+note"
+	case hasDraft:
+		return "draft"
+	case hasNote:
+		return "note"
+	case outcome == "declined":
+		return "declined"
+	default:
+		return "-"
+	}
 }
 
 // runWhy is the index-level one-liner explaining a surprising outcome: a truncated decline_reason, the

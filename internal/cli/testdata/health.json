@@ -21,7 +21,7 @@
     {
       "run_id": "bbbbbbbb-0000-0000-0000-000000000001",
       "kind": "email",
-      "error": "DEAD_LETTERED: ReplyPen rejected the callback past retry cutoff",
+      "error": "DEAD_LETTERED: placement rejected past retry cutoff",
       "finished_at": "2026-06-22T03:00:00Z"
     }
   ]

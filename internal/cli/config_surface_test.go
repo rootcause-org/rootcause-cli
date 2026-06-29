@@ -12,34 +12,99 @@ import (
 // collections_test.go pattern: a stub server returns canned JSON, the test pins the rendered output (or
 // the load-bearing stdout/stderr split for secrets).
 
-// --- mailbox ---
+// --- watched mailboxes (rc mailbox ls/pause/resume/connect) ---
 
-func TestMailboxListTable(t *testing.T) {
+func TestMailboxWatchedListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
 	if err := run(t, e, "mailbox", "ls"); err != nil {
 		t.Fatalf("mailbox ls: %v", err)
 	}
-	assertGolden(t, "mailbox_ls.golden", out.String())
+	assertGolden(t, "mailbox_watched_ls.golden", out.String())
 }
 
-func TestMailboxListJSONPassthrough(t *testing.T) {
+func TestMailboxWatchedListJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
 	if err := run(t, e, "mailbox", "ls"); err != nil {
 		t.Fatalf("mailbox ls -o json: %v", err)
 	}
-	assertJSONEqual(t, fixture(t, "mailboxes.json"), out.Bytes())
+	assertJSONEqual(t, fixture(t, "watched_mailboxes.json"), out.Bytes())
 }
 
-func TestMailboxAddTable(t *testing.T) {
+func TestMailboxPauseTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "add", "mailbox=support@acme.test", "tenant=acme"); err != nil {
-		t.Fatalf("mailbox add: %v", err)
+	if err := run(t, e, "mailbox", "pause", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("mailbox pause: %v", err)
+	}
+	assertGolden(t, "mailbox_pause.golden", out.String())
+}
+
+// TestMailboxResumeNeedsAttention: a resume that hit a Subscribe failure is still a 200 — the item
+// carries status:needs_attention + error_message, and the CLI surfaces (not errors on) that message.
+func TestMailboxResumeNeedsAttention(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "resume", "needs-attn"); err != nil {
+		t.Fatalf("mailbox resume: %v", err)
+	}
+	assertGolden(t, "mailbox_resume_needs_attn.golden", out.String())
+	if !strings.Contains(errb.String(), "needs attention") {
+		t.Errorf("expected a needs-attention note on stderr, got: %q", errb.String())
+	}
+}
+
+// TestMailboxConnectURL: connect makes NO API call beyond whoami — it composes + prints the dashboard
+// Connections URL to stdout (with --project resolving the slug) and a one-line hint to stderr.
+func TestMailboxConnectURL(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "momentum-tools", "mailbox", "connect", "--provider", "google"); err != nil {
+		t.Fatalf("mailbox connect: %v", err)
+	}
+	got := strings.TrimSpace(out.String())
+	want := srv.URL + "/projects/momentum-tools/connections"
+	if got != want {
+		t.Errorf("connect URL = %q, want %q", got, want)
+	}
+	if !strings.Contains(errb.String(), "Connect google") {
+		t.Errorf("expected a connect hint on stderr, got: %q", errb.String())
+	}
+}
+
+func TestMailboxConnectInvalidProvider(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "connect", "--provider", "yahoo"); err == nil {
+		t.Fatalf("expected an error for an invalid provider")
+	}
+}
+
+// --- legacy routing table (rc mailbox route ls/add) ---
+
+func TestMailboxRouteListTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "route", "ls"); err != nil {
+		t.Fatalf("mailbox route ls: %v", err)
+	}
+	assertGolden(t, "mailbox_ls.golden", out.String())
+}
+
+func TestMailboxRouteAddTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "route", "add", "mailbox=support@acme.test", "tenant=acme"); err != nil {
+		t.Fatalf("mailbox route add: %v", err)
 	}
 	assertGolden(t, "mailbox_add.golden", out.String())
 }

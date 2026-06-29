@@ -45,6 +45,10 @@ func New(baseURL string, tokens TokenSource) *Client {
 	}
 }
 
+// BaseURL is the resolved API base URL (no trailing slash). Exposed so a command that composes a
+// dashboard URL for a human (e.g. `rc mailbox connect`) points at the same server the client talks to.
+func (c *Client) BaseURL() string { return c.baseURL }
+
 // RunsParams are the query filters for GET /api/v1/runs. Zero values are omitted (the server applies
 // its defaults), so `rc status` (no filters) and `rc runs --limit 10` share one path. Project is the
 // explicit scope an all-projects admin token names per request (the `--all` fan-out); a pinned token

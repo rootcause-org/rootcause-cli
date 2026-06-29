@@ -324,20 +324,16 @@ func TestRunDebug(t *testing.T) {
 	}
 }
 
-// TestThreadTraceTable pins the rootcause-side thread trace: how the id resolved, the newest-first runs
-// table with health flags, the "Likely:" hint on the newest (egress-blocked) run, and the pending-
-// ReplyPen footer. Also asserts the one-line pending-side note goes to STDERR (not stdout).
+// TestThreadTraceTable pins the thread trace: how the id resolved, the newest-first runs table with
+// health flags + placement, and the "Likely:" hint on the newest (egress-blocked) run.
 func TestThreadTraceTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
-	e, out, errb := newTestEnv(t, srv, "table")
+	e, out, _ := newTestEnv(t, srv, "table")
 	if err := run(t, e, "thread", "thread-abc123"); err != nil {
 		t.Fatalf("thread: %v", err)
 	}
 	assertGolden(t, "thread_trace.golden", out.String())
-	if !strings.Contains(errb.String(), "ReplyPen-side trace is pending") {
-		t.Errorf("expected the pending-ReplyPen note on stderr, got: %q", errb.String())
-	}
 }
 
 // TestThreadTraceSessionTable pins the session-fallback path (resolved_by:"session") and the declined-run
@@ -364,22 +360,8 @@ func TestThreadTraceUnknownTable(t *testing.T) {
 	assertGolden(t, "thread_trace_none.golden", out.String())
 }
 
-// TestThreadTraceNoReplyPenFlag: --no-replypen is accepted today (a no-op opt-out of the future stitch)
-// and suppresses the pending-side stderr note.
-func TestThreadTraceNoReplyPenFlag(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "thread", "thread-abc123", "--no-replypen"); err != nil {
-		t.Fatalf("thread --no-replypen: %v", err)
-	}
-	if strings.Contains(errb.String(), "ReplyPen-side trace is pending") {
-		t.Errorf("--no-replypen should suppress the pending note, got: %q", errb.String())
-	}
-}
-
-// TestThreadTraceJSONPassthrough confirms -o json emits the server body verbatim (incl the reserved
-// replypen:null field) — the CLI reshapes nothing.
+// TestThreadTraceJSONPassthrough confirms -o json emits the server body verbatim — the CLI reshapes
+// nothing.
 func TestThreadTraceJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

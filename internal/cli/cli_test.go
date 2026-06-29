@@ -175,7 +175,7 @@ func stubServer(t *testing.T) *httptest.Server {
 		case "session-fallback": // resolved via the session_id fallback path
 			_, _ = w.Write(fixture(t, "thread_trace_session.json"))
 		case "unknown": // an id matching nothing → clean empty (resolved_by:"none")
-			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","runs":[],"replypen":null}`))
+			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","runs":[]}`))
 		default:
 			_, _ = w.Write(fixture(t, "thread_trace.json"))
 		}
@@ -485,7 +485,30 @@ func stubServer(t *testing.T) *httptest.Server {
 func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	t.Helper()
 
-	// mailboxes: list + create (upsert). Create asserts the email arrives.
+	// watched mailboxes (the channel plane's inbox watch): list / pause / resume. resume on id
+	// "needs-attn" returns a 200 with status:needs_attention + error_message (a subscribe failure surfaced,
+	// NOT an error envelope).
+	mux.HandleFunc("GET /api/v1/mailboxes/watched", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "watched_mailboxes.json"))
+	})
+	mux.HandleFunc("POST /api/v1/mailboxes/{id}/pause", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"paused","has_sync_cursor":true}`))
+	})
+	mux.HandleFunc("POST /api/v1/mailboxes/{id}/resume", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		if r.PathValue("id") == "needs-attn" {
+			_, _ = w.Write([]byte(`{"id":"needs-attn","provider":"microsoft","email_address":"help@acme.test","status":"needs_attention","has_sync_cursor":false,"error_message":"Subscribe failed: token expired"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","has_sync_cursor":true}`))
+	})
+
+	// legacy routing table (rc mailbox route): list + create (upsert). Create asserts the email arrives.
 	mux.HandleFunc("GET /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
