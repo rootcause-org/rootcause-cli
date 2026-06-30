@@ -22,8 +22,38 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxLsCmd(e),
 		mailboxPauseCmd(e),
 		mailboxResumeCmd(e),
+		mailboxProcessCmd(e),
 		mailboxConnectCmd(e),
 		newMailboxRouteCmd(e),
+	)
+	return cmd
+}
+
+// mailboxProcessCmd toggles the silent-onboarding gate: `on` enqueues runs for inbound mail, `off` keeps
+// polling but produces no drafts. Orthogonal to pause/resume (the watch lifecycle) — a watching mailbox
+// can be held silent and flipped to processing when the operator is ready.
+func mailboxProcessCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{Use: "process", Short: "Toggle processing (silent onboarding) for a watched mailbox"}
+	run := func(enabled bool) func(*cobra.Command, []string) error {
+		return func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			m, raw, err := c.SetWatchedMailboxProcessing(e.ctx(), args[0], enabled, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.WatchedMailbox(e.out, m)
+			return nil
+		}
+	}
+	cmd.AddCommand(
+		&cobra.Command{Use: "on <id>", Short: "Start processing inbound mail (drafts replies)", Args: cobra.ExactArgs(1), RunE: run(true)},
+		&cobra.Command{Use: "off <id>", Short: "Hold silent — keep watching, stop drafting", Args: cobra.ExactArgs(1), RunE: run(false)},
 	)
 	return cmd
 }

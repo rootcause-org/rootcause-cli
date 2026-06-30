@@ -553,6 +553,7 @@ type WatchedMailbox struct {
 	EmailAddress          string `json:"email_address"`
 	Status                string `json:"status"` // active|paused|connected|needs_attention
 	Tenant                string `json:"tenant,omitempty"`
+	ProcessingEnabled     bool   `json:"processing_enabled"` // false = silent onboarding: polled, not processed
 	HasSyncCursor         bool   `json:"has_sync_cursor"`
 	SubscriptionExpiresAt string `json:"subscription_expires_at,omitempty"`
 	ErrorMessage          string `json:"error_message,omitempty"`

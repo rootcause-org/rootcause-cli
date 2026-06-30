@@ -59,6 +59,26 @@ func TestMailboxResumeNeedsAttention(t *testing.T) {
 	}
 }
 
+func TestMailboxProcessOn(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "process", "on", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("mailbox process on: %v", err)
+	}
+	assertGolden(t, "mailbox_process_on.golden", out.String())
+}
+
+func TestMailboxProcessOff(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "process", "off", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("mailbox process off: %v", err)
+	}
+	assertGolden(t, "mailbox_process_off.golden", out.String())
+}
+
 // TestMailboxConnectURL: connect makes NO API call beyond whoami — it composes + prints the dashboard
 // Connections URL to stdout (with --project resolving the slug) and a one-line hint to stderr.
 func TestMailboxConnectURL(t *testing.T) {

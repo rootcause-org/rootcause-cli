@@ -20,13 +20,21 @@ func WatchedMailboxes(w io.Writer, l *client.WatchedMailboxList) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ID\tPROVIDER\tEMAIL\tSTATUS\tTENANT\tSUB-EXPIRES\tERROR")
+	_, _ = fmt.Fprintln(tw, "ID\tPROVIDER\tEMAIL\tSTATUS\tPROCESSING\tTENANT\tSUB-EXPIRES\tERROR")
 	for _, m := range l.Mailboxes {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			m.ID, m.Provider, m.EmailAddress, m.Status,
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			m.ID, m.Provider, m.EmailAddress, m.Status, processingLabel(m.ProcessingEnabled),
 			strOrBlank(m.Tenant), strOrBlank(m.SubscriptionExpiresAt), strOrBlank(m.ErrorMessage))
 	}
 	_ = tw.Flush()
+}
+
+// processingLabel renders the silent-onboarding gate in plain words for the table/detail views.
+func processingLabel(on bool) string {
+	if on {
+		return "on"
+	}
+	return "silent"
 }
 
 // WatchedMailbox renders one updated mailbox (the pause/resume echo) as a key: value block. When the
@@ -42,6 +50,7 @@ func WatchedMailbox(w io.Writer, m *client.WatchedMailbox) {
 	_, _ = fmt.Fprintf(tw, "provider:\t%s\n", m.Provider)
 	_, _ = fmt.Fprintf(tw, "email:\t%s\n", m.EmailAddress)
 	_, _ = fmt.Fprintf(tw, "status:\t%s\n", m.Status)
+	_, _ = fmt.Fprintf(tw, "processing:\t%s\n", processingLabel(m.ProcessingEnabled))
 	if m.Tenant != "" {
 		_, _ = fmt.Fprintf(tw, "tenant:\t%s\n", m.Tenant)
 	}

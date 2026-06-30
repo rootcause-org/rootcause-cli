@@ -508,6 +508,19 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","has_sync_cursor":true}`))
 	})
 
+	// silent-onboarding processing gate (rc mailbox process on/off): echo the updated item with the
+	// flag reflecting the verb path.
+	mux.HandleFunc("POST /api/v1/mailboxes/{id}/processing/enable", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":true,"has_sync_cursor":true}`))
+	})
+	mux.HandleFunc("POST /api/v1/mailboxes/{id}/processing/disable", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":false,"has_sync_cursor":true}`))
+	})
+
 	// legacy routing table (rc mailbox route): list + create (upsert). Create asserts the email arrives.
 	mux.HandleFunc("GET /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

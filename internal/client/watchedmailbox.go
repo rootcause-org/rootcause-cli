@@ -48,6 +48,17 @@ func (c *Client) ResumeWatchedMailbox(ctx context.Context, id, project string) (
 	return c.watchedVerb(ctx, id, "resume", project)
 }
 
+// SetWatchedMailboxProcessing posts POST /api/v1/mailboxes/{id}/processing/{enable,disable} (no body) →
+// the updated item. This is the silent-onboarding gate, orthogonal to pause/resume (the watch
+// lifecycle): a watching mailbox can still be held silent.
+func (c *Client) SetWatchedMailboxProcessing(ctx context.Context, id string, enabled bool, project string) (*WatchedMailbox, json.RawMessage, error) {
+	verb := "processing/disable"
+	if enabled {
+		verb = "processing/enable"
+	}
+	return c.watchedVerb(ctx, id, verb, project)
+}
+
 func (c *Client) watchedVerb(ctx context.Context, id, verb, project string) (*WatchedMailbox, json.RawMessage, error) {
 	path := watchedScope("/api/v1/mailboxes/"+url.PathEscape(id)+"/"+verb, project)
 	var raw json.RawMessage
