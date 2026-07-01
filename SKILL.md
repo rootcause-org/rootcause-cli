@@ -42,7 +42,8 @@ but they keep the raw rows reachable via `-o json`.
 | `rc connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
 | `rc member ls/add/rm` | `GET/POST/DELETE /api/v1/members` | project members (no read/update server-side → 405) |
 | `rc token ls/mint/revoke` | `GET/POST/DELETE /api/v1/tokens` | API tokens; `mint` prints the `refresh_token` ONCE |
-| `rc env keys` / `pull` / `diff` | `GET /api/v1/env` | sync the project's PRODUCTION grounding `.env` to a local 0600 `./.env` — the self-serve, OAuth-authed twin of operator `scripts/rc_env.py --pull/--keys/--verify` |
+| `rc env keys` / `pull` / `diff` | `GET /api/v1/env` | sync the project's PRODUCTION grounding `.env` to a local 0600 `./.env` — values never print |
+| `rc env set` / `rm` / `reveal` | `/api/v1/env_grounding` or `/api/v1/env_action` | add/rotate/delete/reveal one sealed env key. `grounding` is the normal run-injected read-only plane; `action` is the operator-only write-plane (`.env.action`) |
 | `rc login` / `logout` / `whoami` | `/oauth/*` (+ local) | OAuth sign-in / revoke / local status (see Auth below) |
 
 `rc status` and `rc runs` are the **same endpoint** — status is the no-filter view (leads with the
@@ -71,11 +72,13 @@ ref (a test run); `--effort pro|max` sends `reasoning_effort` to force a stronge
 for this run (omitted/default keeps normal tier selection). On tenant-enabled projects, the login
 normally supplies the tenant; `--tenant <slug>` is an explicit override.
 
-`rc env` is the one place the CLI deliberately **does not** pass the server body through: `GET
-/api/v1/env` returns live secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and
-`pull` writes the values solely to the 0600 `./.env` (never stdout). It also writes a local file — the
-only filesystem write in the CLI — but performs **no server write** (it's a GET), so the read-only-API
-scope guard holds.
+`rc env` deliberately treats secret values differently from ordinary JSON. Bulk `GET /api/v1/env`
+returns live grounding secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and `pull`
+writes values solely to the 0600 `./.env` (never stdout). Per-key `set` reads the value from STDIN by
+default and calls the collection create/upsert; `rm` deletes one key; `reveal` is the one command that
+prints a value, with a stderr warning, for intentional copy/pipe use. `--plane grounding` targets the
+normal read-only run env (`env_grounding`); `--plane action` targets `.env.action` (`env_action`), an
+operator-only write-plane collection that is never mounted into normal runs.
 
 `rc brain status` and `rc brain sync` are the public brain-cache loop for project brain developers:
 `status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
@@ -257,10 +260,10 @@ verified by hand against a real release. Keep this the *only* command that reach
 
 No MCP in v1 (a future layer over the same endpoints). Client-side analysis/rendering is fine, but **no
 direct DB access** — data comes only through `/api/v1`, and the endpoints behind it stay thin (raw rows,
-not server-computed views), with `-o json` always exposing those rows. The only **server** write surfaces are `config set` (the settings whitelist IS the
-boundary) and `rc ask` (triggers a run via `POST /api/v1/runs` — the CLI still holds no run logic; the
-server owns the loop, and `ask` never sends actions/mail itself). `rc env pull` writes a LOCAL `./.env`
-only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`
+not server-computed views), with `-o json` always exposing those rows. Server writes are limited to
+public config/run surfaces: `config set` (settings whitelist), `rc env set/rm` (sealed per-key secret
+collections), and `rc ask` (triggers a run via `POST /api/v1/runs`; the CLI still holds no run logic).
+`rc env pull` writes a LOCAL `./.env` only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`
 endpoints + the static first-party CLI client — the CLI invents no auth of its own (no new grant types,
 no token minting beyond the standard flows). No interactive TUI/dashboard — scriptable, pipe-first,
 headless.

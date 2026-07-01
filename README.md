@@ -255,21 +255,31 @@ surfaced verbatim (`CODE: message`) with a non-zero exit.
 ### `rc env` — self-serve grounding-env sync
 
 A project's grounding scripts read their credentials (PG DSN, Stripe key, …) from a gitignored `.env`
-in the brain clone. `rc env` lets a **developer** sync that **production** env to their laptop over the
-same OAuth token — the self-serve equivalent of the operator-only `scripts/rc_env.py --pull` (which
-needs AWS/SSM access). Run it **from inside the brain clone** (it reads/writes `./.env`):
+in the brain clone. `rc env` lets a project admin or developer with secrets access sync that
+**production** env to their laptop over OAuth — the self-serve equivalent of the operator-only
+`scripts/rc_env.py --pull` (which needs AWS/SSM access). Run it **from inside the brain clone** (it
+reads/writes `./.env`):
 
 ```bash
 rc env keys                 # what keys exist (names only — safe to paste/log)
 rc env pull                 # write ./.env at 0600 — then `brain-dev --live` can run grounding locally
 rc env diff                 # has my local ./.env drifted from production? (names-only; exit≠0 on drift)
+printf %s "$SECRET_VALUE" | rc env set key=FOO_API_TOKEN
+rc env rm FOO_API_TOKEN
+rc env reveal FOO_API_TOKEN # prints the value once; sensitive
 ```
 
-> **Secret hygiene:** no `rc env` subcommand ever prints a secret **value** — `pull` writes values only
-> to the 0600 file and reports names + count; `keys`/`diff` are names-only in both table and JSON modes.
-> The pulled `.env` holds **real production secrets** on your laptop — treat it like a password file
-> (it's gitignored in every brain repo). A tenant-enabled project (e.g. dentai) uses the tenant bound to
-> your `rc login`.
+> **Secret hygiene:** `keys`/`diff` are names-only; `pull` writes values only to the 0600 file; `set`
+> reads from STDIN by default and never echoes. `reveal` is the deliberate exception: it prints one live
+> secret value for copy/pipe use and audits the key name. The pulled `.env` holds **real production
+> secrets** on your laptop — treat it like a password file (it's gitignored in every brain repo). A
+> tenant-enabled bulk pull uses the tenant bound to your `rc login` unless you pass `--tenant`.
+
+`rc env set/rm/reveal` targets the grounding plane by default (`/api/v1/env_grounding`), which is
+injected into normal read-only runs. Per-key commands target a tenant env only when the OAuth token
+itself is tenant-bound; `--tenant` does not retarget `set/rm/reveal`. `--plane action` targets
+`.env.action` (`/api/v1/env_action`), the operator-only write-plane for hosted actions; it is
+project-level and never enters normal runs.
 
 ## Releasing
 

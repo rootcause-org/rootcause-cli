@@ -38,6 +38,6 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 ## Scope guards (push back if asked to cross them)
 No MCP in v1, no direct DB access (data comes via `/api/v1`), no interactive TUI. Client-side analysis is
 fine; keep the server endpoints thin and raw. Auth is **OAuth only** against the
-server's existing `/oauth/*` (the CLI invents no auth of its own). The only **server** writes are `config
-set` (the settings whitelist is the boundary) and `rc ask` (`POST /api/v1/runs`); `rc env pull` writes a
-local `./.env` only and never prints secret values.
+server's existing `/oauth/*` (the CLI invents no auth of its own). Server writes are limited to public
+config/run surfaces: `config set`, `rc env set/rm`, and `rc ask`; `rc env pull` writes a local `./.env`
+only and never prints secret values.

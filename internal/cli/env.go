@@ -22,16 +22,13 @@ const localEnvPath = ".env"
 // secrets even though they arrived over TLS, so it must never be group/world-readable.
 const envFileMode = 0o600
 
-// newEnvCmd builds `rc env pull|diff|keys` — the developer's self-serve sync of a project's PRODUCTION
-// grounding .env over the Prompt API key (GET /api/v1/env). It is the external equivalent of the
-// operator-only `scripts/rc_env.py` (--pull/--verify/--keys). SECRET HYGIENE: no subcommand ever
-// prints a secret VALUE — pull writes them to the 0600 ./.env and reports NAMES + count; diff/keys
-// emit NAMES only, in both table and JSON modes (the one place the CLI must reshape rather than
-// pass-through, precisely because the response body carries live secrets).
+// newEnvCmd builds `rc env`: bulk pull/diff/keys for the grounding env plus per-key set/rm/reveal over
+// the sealed env collections. SECRET HYGIENE: pull writes values to the 0600 ./.env, diff/keys emit
+// names only, set reads from stdin by default, and reveal is the only command that prints a value.
 func newEnvCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "env",
-		Short: "Sync this project's production grounding .env (pull/diff/keys)",
+		Short: "Manage this project's sealed env secrets",
 	}
 	cmd.AddCommand(newEnvPullCmd(e), newEnvDiffCmd(e), newEnvKeysCmd(e),
 		newEnvSetCmd(e), newEnvRmCmd(e), newEnvRevealCmd(e))
