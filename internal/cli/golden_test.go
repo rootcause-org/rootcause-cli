@@ -176,6 +176,16 @@ func TestBashRunJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "bash_run.json"), out.Bytes())
 }
 
+func TestBashListTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "bash", "list"); err != nil {
+		t.Fatalf("bash list: %v", err)
+	}
+	assertGolden(t, "bash_list.golden", out.String())
+}
+
 // TestRunFullJSONL locks the cross-repo seam: `rc run <id> --full -o json` must emit a `type:run`
 // header line followed by one `type:event` line per event (JSONL), each carrying its fields verbatim.
 func TestRunFullJSONL(t *testing.T) {

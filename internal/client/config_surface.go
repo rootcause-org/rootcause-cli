@@ -81,7 +81,33 @@ func (c *Client) GitHubStatus(ctx context.Context, project string) (json.RawMess
 	return c.RawScoped(ctx, http.MethodGet, "/api/v1/github/status", nil, project, "")
 }
 
-// --- Brain edit / consolidate (POST /api/v1/brain/{edit,consolidate}) ---
+// --- Brain status / sync / edit / consolidate (/api/v1/brain/*) ---
+
+// BrainStatus fetches the on-box brain cache status relative to origin/main.
+func (c *Client) BrainStatus(ctx context.Context, project string) (*BrainStatusResponse, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, "/api/v1/brain/status"+collectionScope(project, ""), nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out BrainStatusResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
+// BrainSync fetches origin/main, fast-forwards when safe, and refreshes warm bash sessions.
+func (c *Client) BrainSync(ctx context.Context, project string) (*BrainSyncResponse, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, "/api/v1/brain/sync"+collectionScope(project, ""), map[string]any{}, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out BrainSyncResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
 
 // BrainEdit queues an out-of-band brain edit from an instruction; returns {queued, job_id}.
 func (c *Client) BrainEdit(ctx context.Context, instruction, project string) (json.RawMessage, error) {

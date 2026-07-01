@@ -233,6 +233,16 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "bash_run.json"))
 	})
+	mux.HandleFunc("GET /api/v1/console/bash", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "bash_list.json"))
+	})
+	mux.HandleFunc("GET /api/v1/console/capabilities", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_capabilities.json"))
+	})
 	mux.HandleFunc("GET /api/v1/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
@@ -660,6 +670,16 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	})
 
 	// brain edit / consolidate — both return {queued, job_id}.
+	mux.HandleFunc("GET /api/v1/brain/status", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "brain_status.json"))
+	})
+	mux.HandleFunc("POST /api/v1/brain/sync", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "brain_sync.json"))
+	})
 	mux.HandleFunc("POST /api/v1/brain/edit", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

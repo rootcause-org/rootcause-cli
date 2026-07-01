@@ -16,6 +16,10 @@ func Capabilities(w io.Writer, r *client.CapabilitiesResponse) {
 		_, _ = fmt.Fprintf(w, "Tenant:  %s\n", r.Tenant)
 	}
 	_, _ = fmt.Fprintf(w, "Egress:  %s\n", r.EgressMode)
+	if r.Brain.Ref != "" || r.Brain.State != "" {
+		_, _ = fmt.Fprintln(w, "\nBrain:")
+		BrainStatus(w, &client.BrainStatusResponse{Project: r.Project, Status: r.Brain})
+	}
 	if len(r.Databases) > 0 {
 		_, _ = fmt.Fprintln(w, "\nDatabases:")
 		DBList(w, &client.DBListResponse{Databases: r.Databases})
@@ -84,6 +88,10 @@ func DBQuery(w io.Writer, r *client.DBQueryResponse) {
 }
 
 func BashList(w io.Writer, r *client.BashListResponse) {
+	if r.Brain.Ref != "" || r.Brain.State != "" {
+		BrainStatus(w, &client.BrainStatusResponse{Project: r.Project, Status: r.Brain})
+		_, _ = fmt.Fprintln(w)
+	}
 	if len(r.Scripts) == 0 {
 		_, _ = fmt.Fprintln(w, "(no cataloged scripts)")
 		return
@@ -126,11 +134,68 @@ func BashRun(w io.Writer, r *client.BashRunResponse) {
 	if r.StderrTruncated {
 		flags = append(flags, "stderr truncated")
 	}
+	if r.BrainResolved != "" {
+		flags = append(flags, "brain "+r.BrainResolved)
+	}
 	suffix := ""
 	if len(flags) > 0 {
 		suffix = " (" + strings.Join(flags, ", ") + ")"
 	}
 	_, _ = fmt.Fprintf(w, "\nexit=%d (%dms) run=%s seq=%d%s\n", r.ExitCode, r.DurationMs, r.RunID, r.Seq, suffix)
+}
+
+func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
+	st := r.Status
+	if !st.Available {
+		msg := st.Message
+		if msg == "" {
+			msg = "not available"
+		}
+		_, _ = fmt.Fprintf(w, "Brain: %s (%s)\n", r.Project, msg)
+		return
+	}
+	state := st.State
+	if state == "" {
+		state = "unknown"
+	}
+	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
+	_, _ = fmt.Fprintf(w, "Ref:     %s\n", st.Ref)
+	_, _ = fmt.Fprintf(w, "Local:   %s\n", shortGit(st.LocalSHA))
+	if st.RemoteSHA != "" {
+		_, _ = fmt.Fprintf(w, "Origin:  %s\n", shortGit(st.RemoteSHA))
+	}
+	_, _ = fmt.Fprintf(w, "State:   %s", state)
+	if st.Ahead > 0 || st.Behind > 0 {
+		_, _ = fmt.Fprintf(w, " (ahead %d, behind %d)", st.Ahead, st.Behind)
+	}
+	if st.Stale {
+		_, _ = fmt.Fprint(w, " stale")
+	}
+	_, _ = fmt.Fprintln(w)
+	if st.SyncedAt != "" {
+		_, _ = fmt.Fprintf(w, "Synced:  %s\n", st.SyncedAt)
+	}
+	if st.Message != "" {
+		_, _ = fmt.Fprintf(w, "Note:    %s\n", st.Message)
+	}
+}
+
+func BrainSync(w io.Writer, r *client.BrainSyncResponse) {
+	st := r.Sync.After
+	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
+	_, _ = fmt.Fprintf(w, "Fetched: %s\n", yesNo(r.Sync.Fetched))
+	_, _ = fmt.Fprintf(w, "Updated: %s\n", yesNo(r.Sync.FastForwarded))
+	if r.Sync.RefreshedWorkspaces > 0 {
+		_, _ = fmt.Fprintf(w, "Refresh: %d workspace(s)\n", r.Sync.RefreshedWorkspaces)
+	}
+	if r.Sync.ManualReconcile {
+		_, _ = fmt.Fprintln(w, "Action:  manual reconcile required")
+	}
+	if r.Sync.Message != "" {
+		_, _ = fmt.Fprintf(w, "Note:    %s\n", r.Sync.Message)
+	}
+	_, _ = fmt.Fprintln(w)
+	BrainStatus(w, &client.BrainStatusResponse{Project: r.Project, Status: st})
 }
 
 func ActionList(w io.Writer, r *client.ActionListResponse) {
@@ -180,4 +245,11 @@ func scalar(v any) string {
 		}
 		return string(b)
 	}
+}
+
+func shortGit(s string) string {
+	if len(s) > 12 {
+		return s[:12]
+	}
+	return s
 }

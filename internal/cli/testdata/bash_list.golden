@@ -1,0 +1,10 @@
+Project: momentum-tools
+Ref:     main
+Local:   111111111111
+Origin:  222222222222
+State:   behind (ahead 0, behind 1) stale
+Synced:  2026-07-01T10:44:34Z
+Note:    origin/main has commits not deployed on this box
+
+NAME                PATH                                          ARGS             PURPOSE
+subscription_to_md  skills/support/scripts/subscription_to_md.py  --tenant <slug>  Render subscription context

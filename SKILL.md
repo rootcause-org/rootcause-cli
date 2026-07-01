@@ -37,6 +37,7 @@ but they keep the raw rows reachable via `-o json`.
 | `rc run <id> --full` | `GET /api/v1/runs/{id}/full` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
 | `rc run <id> --debug` | `GET /api/v1/runs/{id}/full` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
+| `rc brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
 | `rc repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
 | `rc connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
 | `rc member ls/add/rm` | `GET/POST/DELETE /api/v1/members` | project members (no read/update server-side → 405) |
@@ -75,6 +76,14 @@ normally supplies the tenant; `--tenant <slug>` is an explicit override.
 `pull` writes the values solely to the 0600 `./.env` (never stdout). It also writes a local file — the
 only filesystem write in the CLI — but performs **no server write** (it's a GET), so the read-only-API
 scope guard holds.
+
+`rc brain status` and `rc brain sync` are the public brain-cache loop for project brain developers:
+`status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
+state; `sync` fetches origin/main, fast-forwards local main only when safe, and refreshes warm
+Developer Console bash workspaces so the next `rc bash run` remounts `/brain`. If local main is
+ahead/diverged/dirty, the server refuses to reconcile and returns the current/deployed SHAs so an
+operator can handle it explicitly. `rc bash list`, `rc bash run`, and `rc capabilities` echo brain
+status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
 
 `rc run --full/--debug` treats historical snapshots as authoritative: `brain_resolved`,
 `tenant_settings`, and `grounding_sources` come from `/full`; current tenant/source state is only a drift
