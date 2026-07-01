@@ -88,6 +88,14 @@ ahead/diverged/dirty, the server refuses to reconcile and returns the current/de
 operator can handle it explicitly. `rc bash list`, `rc bash run`, and `rc capabilities` echo brain
 status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
 
+`rc brain status` and `rc brain sync` are the public brain-cache loop for project brain developers:
+`status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
+state; `sync` fetches origin/main, fast-forwards local main only when safe, and refreshes warm
+Developer Console bash workspaces so the next `rc bash run` remounts `/brain`. If local main is
+ahead/diverged/dirty, the server refuses to reconcile and returns the current/deployed SHAs so an
+operator can handle it explicitly. `rc bash list`, `rc bash run`, and `rc capabilities` echo brain
+status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
+
 `rc run --full/--debug` treats historical snapshots as authoritative: `brain_resolved`,
 `tenant_settings`, and `grounding_sources` come from `/full`; current tenant/source state is only a drift
 annotation. Debug JSONL preserves raw `grounding_sources` and adds `grounding_source_drift_count`; table
