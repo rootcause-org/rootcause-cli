@@ -204,12 +204,13 @@ scope. `-o json|table` forces output.
 | `rc database controls get\|set <dsn>` | read / change a database's access controls (JSON object or k=v) |
 | `rc branding logo set <file>\|clear` | upload (multipart) or remove the white-label logo |
 | `rc github status` | GitHub App install status (`installed` / `account` / `install_url`) |
+| `rc brain status` · `rc brain sync` | show / refresh the deployed on-box brain cache (`sync` fetches origin/main, fast-forwards when safe, and refreshes warm bash sessions) |
 | `rc brain edit <instruction…>` · `rc brain consolidate` | queue an out-of-band brain edit / the consolidation cron (both print `{queued, job_id}`) |
 | `rc admin user ls\|add\|set` · `rc admin project ls\|add` · `rc admin catalog ls\|upsert` | box-level administration (needs a **global-admin** token; no `--project` scope) |
 | `rc capabilities` | list direct console primitives available to this login |
 | `rc db list\|schema\|query` | guarded production DB reads through rootcause scoping |
-| `rc bash list` | list cataloged brain scripts |
-| `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop |
+| `rc bash list` | list cataloged brain scripts plus deployed brain cache status/staleness |
+| `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop; output names the mounted brain revision |
 | `rc action list\|show\|preflight\|run` | inspect or execute vetted, human-scoped actions |
 | `rc provider detect <domain\|email> [more…]` | **local** (DNS only, no auth): classify a domain's email backend (google/microsoft/other) and whether rootcause can onboard it |
 | `rc id gmail\|outlook <id>` | **local** (no network): translate a provider message/thread id + build a clickable URL / DB-column lookup |

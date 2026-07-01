@@ -29,9 +29,45 @@ type ConsoleActionSummary struct {
 	Preflight   bool   `json:"preflight"`
 }
 
+type BrainStatus struct {
+	Available bool   `json:"available"`
+	Dir       string `json:"dir,omitempty"`
+	Ref       string `json:"ref"`
+	LocalSHA  string `json:"local_sha,omitempty"`
+	RemoteSHA string `json:"remote_sha,omitempty"`
+	Ahead     int    `json:"ahead"`
+	Behind    int    `json:"behind"`
+	Dirty     bool   `json:"dirty"`
+	Stale     bool   `json:"stale"`
+	State     string `json:"state"`
+	SyncedAt  string `json:"synced_at,omitempty"`
+	Message   string `json:"message,omitempty"`
+}
+
+type BrainStatusResponse struct {
+	Project string      `json:"project"`
+	Status  BrainStatus `json:"status"`
+}
+
+type BrainSyncResult struct {
+	Before              BrainStatus `json:"before"`
+	After               BrainStatus `json:"after"`
+	Fetched             bool        `json:"fetched"`
+	FastForwarded       bool        `json:"fast_forwarded"`
+	ManualReconcile     bool        `json:"manual_reconcile"`
+	RefreshedWorkspaces int         `json:"refreshed_workspaces,omitempty"`
+	Message             string      `json:"message,omitempty"`
+}
+
+type BrainSyncResponse struct {
+	Project string          `json:"project"`
+	Sync    BrainSyncResult `json:"sync"`
+}
+
 type CapabilitiesResponse struct {
 	Project    string                 `json:"project"`
 	Tenant     string                 `json:"tenant,omitempty"`
+	Brain      BrainStatus            `json:"brain"`
 	Databases  []ConsoleDBInfo        `json:"databases"`
 	Scripts    []ConsoleScriptInfo    `json:"scripts"`
 	Actions    []ConsoleActionSummary `json:"actions"`
@@ -84,6 +120,7 @@ type DBQueryResponse struct {
 type BashListResponse struct {
 	Project string              `json:"project"`
 	Tenant  string              `json:"tenant,omitempty"`
+	Brain   BrainStatus         `json:"brain"`
 	Scripts []ConsoleScriptInfo `json:"scripts"`
 }
 
@@ -95,6 +132,7 @@ type BashRunRequest struct {
 type BashRunResponse struct {
 	Project         string `json:"project"`
 	Tenant          string `json:"tenant,omitempty"`
+	BrainResolved   string `json:"brain_resolved,omitempty"`
 	RunID           string `json:"run_id"`
 	Seq             int32  `json:"seq"`
 	ExitCode        int    `json:"exit_code"`

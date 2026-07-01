@@ -1,6 +1,7 @@
 {
   "project": "momentum-tools",
   "tenant": "acme",
+  "brain_resolved": "HEAD @ 222222222222",
   "run_id": "22222222-2222-2222-2222-222222222222",
   "seq": 3,
   "exit_code": 7,

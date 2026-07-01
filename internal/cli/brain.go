@@ -17,9 +17,56 @@ var errEmptyInstruction = errors.New("empty instruction — pass it as args or p
 // {queued, job_id}; the durable write lands later (the run is read-only to the brain). The instruction
 // is joined from the args, or read from STDIN when none are given (so a long instruction can be piped).
 func newBrainCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "brain", Short: "Queue out-of-band brain edits + consolidation"}
-	cmd.AddCommand(brainEditCmd(e), brainConsolidateCmd(e))
+	cmd := &cobra.Command{Use: "brain", Short: "Inspect, sync, and queue out-of-band brain work"}
+	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainEditCmd(e), brainConsolidateCmd(e))
 	return cmd
+}
+
+func brainStatusCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show deployed brain cache status",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			resp, raw, err := c.BrainStatus(e.ctx(), e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.BrainStatus(e.out, resp)
+			return nil
+		},
+	}
+}
+
+func brainSyncCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:     "sync",
+		Aliases: []string{"refresh"},
+		Short:   "Fetch origin/main and refresh deployed brain cache",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			resp, raw, err := c.BrainSync(e.ctx(), e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.BrainSync(e.out, resp)
+			return nil
+		},
+	}
 }
 
 func brainEditCmd(e *env) *cobra.Command {

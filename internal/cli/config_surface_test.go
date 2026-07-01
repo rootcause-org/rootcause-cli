@@ -345,7 +345,37 @@ func TestGitHubStatusJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "github_status.json"), out.Bytes())
 }
 
-// --- brain edit / consolidate ---
+// --- brain status / sync / edit / consolidate ---
+
+func TestBrainStatusTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "brain", "status"); err != nil {
+		t.Fatalf("brain status: %v", err)
+	}
+	assertGolden(t, "brain_status.golden", out.String())
+}
+
+func TestBrainStatusJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "brain", "status"); err != nil {
+		t.Fatalf("brain status -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "brain_status.json"), out.Bytes())
+}
+
+func TestBrainSyncTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "brain", "sync"); err != nil {
+		t.Fatalf("brain sync: %v", err)
+	}
+	assertGolden(t, "brain_sync.golden", out.String())
+}
 
 func TestBrainEditTable(t *testing.T) {
 	srv := stubServer(t)

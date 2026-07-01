@@ -1,0 +1,37 @@
+{
+  "project": "momentum-tools",
+  "sync": {
+    "before": {
+      "available": true,
+      "dir": "/srv/brain/projects/momentum-tools/brain",
+      "ref": "main",
+      "local_sha": "111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "remote_sha": "222222222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "ahead": 0,
+      "behind": 1,
+      "dirty": false,
+      "stale": true,
+      "state": "behind",
+      "synced_at": "2026-07-01T10:44:34Z",
+      "message": "origin/main has commits not deployed on this box"
+    },
+    "after": {
+      "available": true,
+      "dir": "/srv/brain/projects/momentum-tools/brain",
+      "ref": "main",
+      "local_sha": "222222222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "remote_sha": "222222222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "ahead": 0,
+      "behind": 0,
+      "dirty": false,
+      "stale": false,
+      "state": "current",
+      "synced_at": "2026-07-01T10:45:02Z"
+    },
+    "fetched": true,
+    "fast_forwarded": true,
+    "manual_reconcile": false,
+    "refreshed_workspaces": 1,
+    "message": "local brain cache fast-forwarded to origin/main"
+  }
+}

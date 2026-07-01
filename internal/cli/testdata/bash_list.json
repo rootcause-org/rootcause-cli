@@ -1,0 +1,27 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "brain": {
+    "available": true,
+    "dir": "/srv/brain/projects/momentum-tools/brain",
+    "ref": "main",
+    "local_sha": "111111111111aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "remote_sha": "222222222222bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "ahead": 0,
+    "behind": 1,
+    "dirty": false,
+    "stale": true,
+    "state": "behind",
+    "synced_at": "2026-07-01T10:44:34Z",
+    "message": "origin/main has commits not deployed on this box"
+  },
+  "scripts": [
+    {
+      "name": "subscription_to_md",
+      "path": "skills/support/scripts/subscription_to_md.py",
+      "purpose": "Render subscription context",
+      "args": "--tenant <slug>",
+      "required_env": ["DATABASE_URL"]
+    }
+  ]
+}
