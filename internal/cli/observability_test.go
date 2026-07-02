@@ -89,7 +89,7 @@ func TestBrainDefaultProfileFallbackAddsProjectScope(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
-		[]byte("project = \"pro-backup\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		[]byte("project = \"pro-backup\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -102,6 +102,7 @@ func TestBrainDefaultProfileFallbackAddsProjectScope(t *testing.T) {
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
+	t.Setenv("ROOTCAUSE_BASE_URL", srv.URL)
 	seedToken(t, "default", token.Token{
 		AccessToken: "test-key", RefreshToken: "rcor_x",
 		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,

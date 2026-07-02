@@ -12,8 +12,9 @@ emits clean JSON for the brain-side renderer to consume.
 Commands registered in [`internal/cli/root.go:47`](../internal/cli/root.go): `status`, `runs`, `run`,
 `config`. `rc run <id> --events` already calls `GET /api/v1/runs/{id}/events` and emits **NDJSON** in
 `-o json` ([`internal/cli/run.go:13`](../internal/cli/run.go), `Client.Events`
-[`internal/client/client.go:89`](../internal/client/client.go)). Auth: `ROOTCAUSE_API_KEY` +
-`ROOTCAUSE_BASE_URL` (or `~/.config/rootcause/config.toml`). **Read-only — there is no trigger verb.**
+[`internal/client/client.go:89`](../internal/client/client.go)). Historical note: the original design
+used env/config API keys; current auth is OAuth, and URL override is only `ROOTCAUSE_BASE_URL`.
+**Read-only — there is no trigger verb.**
 
 ## Change 1 — new verb `rc ask`
 

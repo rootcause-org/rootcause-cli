@@ -42,6 +42,7 @@ func newLoginCmd(e *env) *cobra.Command {
 			base := res.BaseURL
 			if e.baseURLOvr != "" {
 				base = e.baseURLOvr
+				res.BaseURLSource = "test override"
 			}
 
 			oc := oauth.NewClient(base)
@@ -149,6 +150,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			base := res.BaseURL
 			if e.baseURLOvr != "" {
 				base = e.baseURLOvr
+				res.BaseURLSource = "test override"
 			}
 
 			t, loggedIn, err := token.Load(res.Profile)
@@ -166,10 +168,6 @@ func newWhoamiCmd(e *env) *cobra.Command {
 					autoProject = res.Brain.Project
 				}
 			}
-			if loggedIn && t.BaseURL != "" && e.baseURLOvr == "" {
-				base = config.CanonicalBaseURL(t.BaseURL)
-			}
-
 			status, expiry := "not logged in — run `rc login`", ""
 			if loggedIn {
 				status = "logged in"
@@ -212,6 +210,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 					"login_all_projects": loginAllProjects,
 					"login_scope_error":  scopeErr,
 					"base_url":           base,
+					"base_url_source":    res.BaseURLSource,
 					"brain_dir":          brainDir(res),
 					"logged_in":          loggedIn,
 					"expires_at":         tokenExpiry(t, loggedIn),
@@ -246,7 +245,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 					_, _ = fmt.Fprintf(e.out, "tenant:    - (login has no tenant)\n")
 				}
 			}
-			_, _ = fmt.Fprintf(e.out, "base URL:  %s\n", base)
+			_, _ = fmt.Fprintf(e.out, "base URL:  %s (%s)\n", base, emptyDash(res.BaseURLSource))
 			if res.Brain != nil {
 				_, _ = fmt.Fprintf(e.out, "brain:     %s\n", res.Brain.Dir)
 			}

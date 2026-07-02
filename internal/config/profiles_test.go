@@ -40,7 +40,7 @@ func clearEnv(t *testing.T) {
 	t.Setenv(envBaseURL, "")
 }
 
-func TestLoad_NoBrain_DefaultProfile(t *testing.T) {
+func TestLoad_NoBrain_IgnoresConfigBaseURL(t *testing.T) {
 	clearEnv(t)
 	writeConfig(t, "[default]\nbase_url = \"https://default.example\"\n")
 
@@ -54,8 +54,8 @@ func TestLoad_NoBrain_DefaultProfile(t *testing.T) {
 	if res.Brain != nil || res.Project != "" {
 		t.Errorf("expected no brain binding outside a brain, got %+v", res)
 	}
-	if res.BaseURL != "https://default.example" || res.BaseURLFromDefault {
-		t.Errorf("base=%q fromDefault=%v, want default profile base", res.BaseURL, res.BaseURLFromDefault)
+	if res.BaseURL != DefaultBaseURL || !res.BaseURLFromDefault || res.BaseURLSource != "built-in production" {
+		t.Errorf("base=%q fromDefault=%v source=%q, want built-in production", res.BaseURL, res.BaseURLFromDefault, res.BaseURLSource)
 	}
 }
 
@@ -70,7 +70,7 @@ func TestLoad_NoBrain_NoConfig_BuiltInBase(t *testing.T) {
 	if res.Profile != DefaultProfile {
 		t.Errorf("profile=%q, want default", res.Profile)
 	}
-	if res.BaseURL != "https://app.replypen.com" || !res.BaseURLFromDefault {
+	if res.BaseURL != DefaultBaseURL || !res.BaseURLFromDefault || res.BaseURLSource != "built-in production" {
 		t.Errorf("base=%q fromDefault=%v, want production built-in default", res.BaseURL, res.BaseURLFromDefault)
 	}
 }
@@ -84,51 +84,22 @@ func TestLoad_EnvBaseURLWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.BaseURL != "https://env.example" || res.BaseURLFromDefault {
-		t.Errorf("base=%q, want env override", res.BaseURL)
+	if res.BaseURL != "https://env.example" || res.BaseURLFromDefault || res.BaseURLSource != envBaseURL {
+		t.Errorf("base=%q source=%q, want env override", res.BaseURL, res.BaseURLSource)
 	}
 }
 
-func TestLoad_LegacyProductionBaseURLCanonicalized(t *testing.T) {
-	tests := []struct {
-		name   string
-		env    string
-		config string
-		marker string
-	}{
-		{
-			name: "env",
-			env:  LegacyBaseURL,
-		},
-		{
-			name:   "global config",
-			config: "[default]\nbase_url = \"" + LegacyBaseURL + "\"\n",
-		},
-		{
-			name:   "brain marker",
-			marker: "project = \"momentum-tools\"\nbase_url = \"" + LegacyBaseURL + "\"\n",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			clearEnv(t)
-			writeConfig(t, tc.config)
-			if tc.env != "" {
-				t.Setenv(envBaseURL, tc.env)
-			}
-			cwd := t.TempDir()
-			if tc.marker != "" {
-				cwd = brainDirWith(t, tc.marker)
-			}
+func TestLoad_LegacyProductionEnvBaseURLCanonicalized(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	t.Setenv(envBaseURL, LegacyBaseURL)
 
-			res, err := load("", cwd)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if res.BaseURL != DefaultBaseURL {
-				t.Fatalf("base=%q, want canonical %q", res.BaseURL, DefaultBaseURL)
-			}
-		})
+	res, err := load("", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.BaseURL != DefaultBaseURL || res.BaseURLSource != envBaseURL {
+		t.Fatalf("base/source=%q/%q, want canonical env %q/%q", res.BaseURL, res.BaseURLSource, DefaultBaseURL, envBaseURL)
 	}
 }
 
@@ -153,23 +124,22 @@ func TestLoad_Brain_ProfileIsProject(t *testing.T) {
 	if res.Brain == nil || res.Brain.Dir != dir {
 		t.Errorf("brain binding wrong: %+v", res.Brain)
 	}
-	if res.BaseURL != "https://rc.example" {
-		t.Errorf("base=%q, want brain marker base", res.BaseURL)
+	if res.BaseURL != DefaultBaseURL {
+		t.Errorf("base=%q, want built-in production; brain marker base_url is ignored", res.BaseURL)
 	}
 }
 
-func TestLoad_Brain_BaseURLPrecedence(t *testing.T) {
+func TestLoad_Brain_IgnoresMarkerAndProfileBaseURL(t *testing.T) {
 	clearEnv(t)
-	// A [profiles.<project>] base_url is the fallback when the marker omits one; the marker wins when set.
 	writeConfig(t, "[profiles.momentum-tools]\nbase_url = \"https://profile.example\"\n")
-	dir := brainDirWith(t, "project = \"momentum-tools\"\n") // marker, no base_url
+	dir := brainDirWith(t, "project = \"momentum-tools\"\nbase_url = \"https://marker.example\"\n")
 
 	res, err := load("", dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.BaseURL != "https://profile.example" {
-		t.Errorf("base=%q, want matching profile base", res.BaseURL)
+	if res.BaseURL != DefaultBaseURL {
+		t.Errorf("base=%q, want built-in production", res.BaseURL)
 	}
 
 	// Env still wins over everything.
@@ -195,15 +165,15 @@ func TestLoad_ExplicitProfileBypassesBrain(t *testing.T) {
 	if res.Brain != nil || res.Project != "" {
 		t.Errorf("explicit profile must not carry a brain binding: %+v", res)
 	}
-	if res.BaseURL != "https://staging.example" {
-		t.Errorf("base=%q, want staging profile base", res.BaseURL)
+	if res.BaseURL != DefaultBaseURL {
+		t.Errorf("base=%q, want built-in production; profile base_url is ignored", res.BaseURL)
 	}
 }
 
 // --project is NO LONGER a profile/token selector — it's a server-side scope the command layer threads
 // into each read request. So config resolution ignores it entirely: inside a brain, the profile + base
-// URL still come from the brain marker regardless of any --project the user passed. (The scope itself is
-// carried on env.project and asserted in the cli package, not here.)
+// URL still comes from env-or-production regardless of any --project the user passed. (The scope itself
+// is carried on env.project and asserted in the cli package, not here.)
 func TestLoad_ProjectFlagIsNotAProfile(t *testing.T) {
 	clearEnv(t)
 	writeConfig(t, "[profiles.acme]\nbase_url = \"https://acme.example\"\n")
@@ -217,8 +187,8 @@ func TestLoad_ProjectFlagIsNotAProfile(t *testing.T) {
 	if res.Profile != "momentum-tools" || res.Project != "momentum-tools" {
 		t.Errorf("profile/project = %q/%q, want momentum-tools (brain binding, not a --project profile)", res.Profile, res.Project)
 	}
-	if res.BaseURL != "https://rc.example" {
-		t.Errorf("base=%q, want the brain marker's base — a stray --project must not select acme's profile", res.BaseURL)
+	if res.BaseURL != DefaultBaseURL {
+		t.Errorf("base=%q, want built-in production", res.BaseURL)
 	}
 }
 

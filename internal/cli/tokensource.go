@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rootcause-org/rootcause-cli/internal/config"
 	"github.com/rootcause-org/rootcause-cli/internal/oauth"
 	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
@@ -20,13 +19,14 @@ const refreshSkew = 60 * time.Second
 // next command starts fresh. All refresh policy lives here — the client stays oblivious to OAuth.
 type liveSource struct {
 	profile string
+	baseURL string
 	oauth   *oauth.Client
 	mu      sync.Mutex // serializes refresh so two goroutines don't double-rotate one refresh token
 }
 
 // newLiveSource builds the token source for a profile against the issuer at baseURL.
 func newLiveSource(profile, baseURL string) *liveSource {
-	return &liveSource{profile: profile, oauth: oauth.NewClient(baseURL)}
+	return &liveSource{profile: profile, baseURL: baseURL, oauth: oauth.NewClient(baseURL)}
 }
 
 // Token returns a valid access token, refreshing pre-emptively when it's within refreshSkew of expiry.
@@ -79,7 +79,7 @@ func (s *liveSource) refreshLocked(ctx context.Context, t token.Token) (string, 
 				AccessToken:  res.AccessToken,
 				RefreshToken: t.RefreshToken, // a non-rotating grant returns none → keep the one we have
 				ExpiresAt:    time.Now().Add(time.Duration(res.ExpiresIn) * time.Second),
-				BaseURL:      config.CanonicalBaseURL(t.BaseURL),
+				BaseURL:      s.baseURL,
 			}
 			if res.RefreshToken != "" {
 				next.RefreshToken = res.RefreshToken // rotating grant: store the new refresh

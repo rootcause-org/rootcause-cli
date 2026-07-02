@@ -149,6 +149,8 @@ func (e *env) newClient() (*client.Client, error) {
 	if e.baseURLOvr != "" {
 		baseURL = e.baseURLOvr
 		res.BaseURLFromDefault = false
+		res.BaseURLSource = "test override"
+		e.resolved = res
 	}
 
 	// Test seam: a fixed bearer bypasses the token store + refresh entirely.
@@ -156,16 +158,15 @@ func (e *env) newClient() (*client.Client, error) {
 		return client.New(baseURL, client.StaticToken(e.tokenOvr)), nil
 	}
 
-	tok, ok, err := token.Load(res.Profile)
+	_, ok, err := token.Load(res.Profile)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
 		if e.profile == "" && res.Brain != nil {
-			if fallback, fallbackOK, ferr := token.Load(config.DefaultProfile); ferr != nil {
+			if _, fallbackOK, ferr := token.Load(config.DefaultProfile); ferr != nil {
 				return nil, ferr
 			} else if fallbackOK {
-				tok = fallback
 				res.Profile = config.DefaultProfile
 				e.autoProject = res.Brain.Project
 				e.resolved = res
@@ -175,12 +176,6 @@ func (e *env) newClient() (*client.Client, error) {
 	}
 	if !ok {
 		return nil, notLoggedIn(res)
-	}
-	// A token is pinned to the issuer it was minted against — prefer that base URL so a command hits the
-	// same server even if the ambient base URL drifted (unless a test override is in play).
-	if e.baseURLOvr == "" && tok.BaseURL != "" {
-		baseURL = config.CanonicalBaseURL(tok.BaseURL)
-		res.BaseURLFromDefault = false
 	}
 	return client.New(baseURL, newLiveSource(res.Profile, baseURL)), nil
 }

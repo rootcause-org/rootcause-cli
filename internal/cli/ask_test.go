@@ -219,7 +219,7 @@ func TestAskUsesLocalTenantDefault(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
-		[]byte("project = \"dentai\"\nbase_url = \"https://rc.example\"\n"), 0o600); err != nil {
+		[]byte("project = \"dentai\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.MkdirAll(filepath.Join(dir, ".rootcause"), 0o755); err != nil {

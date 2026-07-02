@@ -115,7 +115,7 @@ internal/client/          the ONE http wrapper (client.go: refresh-on-401 retry)
 internal/oauth/           the OAuth protocol client: PKCE loopback (loopback.go) + device grant
                           (device.go) + refresh/revoke/token exchange (oauth.go) + browser opener.
 internal/token/           the token store: ~/.config/rootcause/tokens.json (0600), per-profile.
-internal/config/          resolution: brain marker (.rootcause.toml) + local overlay (.rootcause/local.toml) + env + config.toml → profile + base URL + tenant.
+internal/config/          resolution: env-or-production base URL + brain marker (.rootcause.toml) + local overlay (.rootcause/local.toml) → profile + project + tenant.
 internal/debugdump/       the rc-agent-debug decomposer: decorate + emit JSONL + render thin index.
 internal/render/          render.go (TTY-detect + JSON passthrough) + table.go (one renderer per view).
 ```
@@ -139,7 +139,9 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
   a code, poll `/oauth/token`). The **project/tenant scope is chosen on the browser consent screen**, not
   the CLI.
 - **Token store** (`internal/token`): `~/.config/rootcause/tokens.json` (0600), keyed by profile —
-  `{access_token, refresh_token, expires_at, base_url}`. `rc logout` revokes server-side + clears it.
+  `{access_token, refresh_token, expires_at, base_url}`. `base_url` is diagnostic/refresh metadata from
+  login or the latest refresh; it does not override normal command transport. `rc logout` revokes
+  server-side + clears it.
 - **Transparent refresh**: `client.Client` takes a `TokenSource`; `tokensource.go`'s `liveSource` reads
   the profile's token, refreshes pre-emptively within 60s of expiry (and on a 401, the client retries
   once after a forced refresh), and **persists the rotated pair**. A dead refresh (`invalid_grant`)
@@ -147,10 +149,10 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
   OAuth-oblivious. Tests inject `client.StaticToken` to bypass the store.
 
 ### Config & profile precedence
-In `internal/config` (`profiles.go`), resolution is **brain-aware** and picks a **profile name** (the
-token-store key) + a **base URL** + an optional local tenant override — no secret. `Load(profile)` (note:
-`--project` is **not** an input — it's a server-side scope the command layer threads onto each read
-request, never a token selector):
+In `internal/config` (`profiles.go`), resolution is **brain-aware** for project/profile context and
+deliberately boring for transport. It picks a **profile name** (the token-store key), a **base URL**, and
+an optional local tenant override — no secret. `Load(profile)` (note: `--project` is **not** an input —
+it's a server-side scope the command layer threads onto each read request, never a token selector):
 
 - **explicit `--profile <name>`** → that profile, no brain binding (the override escape hatch);
 - **inside a brain** → first try the brain marker's project as the profile; if no token exists for it,
@@ -183,16 +185,17 @@ lines carry the full triage tail. The fallback signal is the server's clean `run
 boolean (it bakes around the `runs.model_fallback_from` empty-string-vs-NULL trap — see the `support`
 skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in `-o json`.
 
-Base URL per field: `ROOTCAUSE_BASE_URL` > marker `base_url` > `[profiles.<name>] base_url` > built-in
-production default (`https://app.replypen.com`). A stored token also pins the issuer it was minted
-against, so commands hit the same server. The legacy production host `https://rootcause.probackup.io`
-is canonicalized to `https://app.replypen.com` when loaded from old config, markers, or token records.
-`Resolved` carries `Profile`/`Project`/`Brain` so `root.go`
-crafts the loud error, and `rc whoami` asks `/api/v1/whoami` for the login-bound project/tenant when a
+Base URL resolution is exactly `ROOTCAUSE_BASE_URL` > built-in production default
+(`https://app.replypen.com`). `ROOTCAUSE_BASE_URL` is the deliberate staging/dev escape hatch; otherwise
+normal commands and `rc login` hit production. Persisted `base_url` values in config profiles, brain
+markers, or token records do not override command transport. The legacy production host
+`https://rootcause.probackup.io` is canonicalized to `https://app.replypen.com` when an explicit env or
+stored token URL is normalized. `Resolved` carries `Profile`/`Project`/`Brain` and the URL source so
+`root.go` crafts the loud error and `rc whoami` can print whether the URL came from built-in production
+or `ROOTCAUSE_BASE_URL`. `rc whoami` asks `/api/v1/whoami` for the login-bound project/tenant when a
 token is present. Explicit `--tenant` and `.rootcause/local.toml` remain local override/debug paths. The
-local overlay only supports `tenant`, so profile/base URL still come from the documented
-global/marker/env paths. Honors `XDG_CONFIG_HOME`. The committed marker is non-secret; tokens live only
-in the 0600 token store.
+local overlay only supports `tenant`. Honors `XDG_CONFIG_HOME` for token storage. The committed marker
+is non-secret; tokens live only in the 0600 token store.
 
 ### The `--debug` decomposer (`internal/debugdump`)
 `rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/full` (cross-project for an

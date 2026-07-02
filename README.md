@@ -98,12 +98,12 @@ to a human immediately. If the local browser opener fails, the command keeps wai
 use `rc login --device` for true headless/SSH sessions where a browser cannot reach localhost.
 
 **Let the brain checkout select the profile.** A brain repo (`rootcause-brain-<project>`) commits a
-`.rootcause.toml` binding it to one project + base URL, so `rc` run anywhere inside it first looks for
+`.rootcause.toml` binding it to one project, so `rc` run anywhere inside it first looks for
 a local token profile with the same name. If that profile exists, it uses it; otherwise it uses the
 `default` profile and sends the brain project as the server-side `--project` scope where supported:
 
 ```bash
-cd rootcause-brain-acme   # committed .rootcause.toml: project = "acme", base_url = "…"
+cd rootcause-brain-acme   # committed .rootcause.toml: project = "acme"
 rc login                  # stores a token under the "acme" profile
 rc whoami                 # profile: acme · project: acme · tenant if bound · auth: logged in
 rc ask "…"                # just works
@@ -114,25 +114,15 @@ admin can keep one all-projects token in `default` and still have each brain che
 own project. Main intent: the checkout chooses the project context; the profile only chooses which
 local token to use.
 
-**Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
-built-in production default (`https://app.replypen.com`). A stored token also remembers the issuer it was minted
-against, so commands hit the same server you logged in to.
-The legacy production host `https://rootcause.probackup.io` is treated as an alias and canonicalized to
-`https://app.replypen.com` when found in old config, brain markers, or token records.
+**Base URL** is deliberately boring: production is hardcoded to `https://app.replypen.com`. The only
+runtime override is `ROOTCAUSE_BASE_URL`, for deliberate staging/dev work. `rc login` uses the same
+resolution, and `rc whoami` prints both the URL and its source (`built-in production` or
+`ROOTCAUSE_BASE_URL`). Old `base_url` values in `~/.config/rootcause/config.toml`, `.rootcause.toml`,
+or the token store do not steer normal commands. The legacy production host
+`https://rootcause.probackup.io` is treated as an alias when an explicit env/token URL is canonicalized.
 
 ```bash
-export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: https://app.replypen.com
-```
-
-Optional `~/.config/rootcause/config.toml` holds **base-URL-only** profiles (no secrets — tokens live
-in the token store):
-
-```toml
-[default]
-base_url = "https://your-rootcause-host"
-
-[profiles.staging]
-base_url = "https://staging.your-rootcause-host"
+export ROOTCAUSE_BASE_URL=https://staging.your-rootcause-host
 ```
 
 **Profiles** are the token-store keys. The profile is resolved as: explicit `--profile <name>` >

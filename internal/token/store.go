@@ -27,8 +27,8 @@ const storeMode = 0o600
 // Token is one profile's stored credential. ExpiresAt is the access token's absolute expiry (computed
 // at mint/refresh time from the server's expires_in). RefreshToken is empty for a non-rotating machine
 // credential that never returned one — but in practice the CLI always logs in with a rotating grant, so
-// it's set. BaseURL is the issuer this token was minted against (where it's valid), pinned so a later
-// command hits the same server even if the ambient base URL changed.
+// it's set. BaseURL records the issuer used at login/latest refresh for diagnostics and revocation; it
+// does not override normal command URL resolution.
 type Token struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`

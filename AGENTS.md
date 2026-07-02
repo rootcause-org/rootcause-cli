@@ -23,7 +23,7 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 - `internal/client/` — the one HTTP wrapper (`client.go`, refresh-on-401) + `TokenSource` (`auth.go`) + wire contract (`types.go`, field names match the server exactly) + `APIError`.
 - `internal/oauth/` — OAuth protocol client: PKCE loopback + device grant + refresh/revoke (first-party client `rcocl_cli`).
 - `internal/token/` — token store `~/.config/rootcause/tokens.json` (0600), per-profile.
-- `internal/config/` — brain-aware resolution (`.rootcause.toml` marker + `.rootcause/local.toml` + env + `config.toml`) → profile + base URL + tenant.
+- `internal/config/` — env-or-production URL resolution + brain-aware profile/project/tenant context (`.rootcause.toml` + `.rootcause/local.toml`).
 - `internal/debugdump/` — the `rc run <id> --debug` decomposer (JSONL + thin markdown index).
 - `internal/render/` — TTY-detect + JSON passthrough (`render.go`) + per-view table renderers (`table.go`).
 
