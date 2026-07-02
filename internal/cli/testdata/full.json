@@ -33,7 +33,7 @@
         "slug": "create_appointment",
         "label": "Create appointment",
         "description": "Book Sophie for the first available hygienist appointment.",
-        "url": "https://rootcause.probackup.io/actions/tok_create_appointment"
+        "url": "https://app.replypen.com/actions/tok_create_appointment"
       }
     ],
     "metadata": { "trace_url": "https://trace.example/abc123", "outcome": "ok" },

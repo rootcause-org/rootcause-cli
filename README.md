@@ -115,11 +115,11 @@ own project. Main intent: the checkout chooses the project context; the profile 
 local token to use.
 
 **Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
-built-in production default (`https://rootcause.probackup.io`). A stored token also remembers the issuer it was minted
+built-in production default (`https://app.replypen.com`). A stored token also remembers the issuer it was minted
 against, so commands hit the same server you logged in to.
 
 ```bash
-export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: https://rootcause.probackup.io
+export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: https://app.replypen.com
 ```
 
 Optional `~/.config/rootcause/config.toml` holds **base-URL-only** profiles (no secrets — tokens live

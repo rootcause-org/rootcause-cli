@@ -10,7 +10,7 @@ Duration:  1m30s
 Cost:      $1.08
 Turns:     12
 Bash:      34
-View run:  https://rootcause.probackup.io/runs/email-rich?t=abc123
+View run:  https://app.replypen.com/runs/email-rich?t=abc123
 
 Draft:
 Hi Sophie,
@@ -23,7 +23,7 @@ Checked Stripe customer cus_123 and found two unpaid invoices.
 Actions (1):
   ID       ACTION                 LABEL
   act_123  send_invoice_reminder  Send invoice reminder
-    url: https://rootcause.probackup.io/actions/tok_123
+    url: https://app.replypen.com/actions/tok_123
     Sends a reminder for the two unpaid invoices.
 
 PR:

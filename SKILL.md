@@ -1,6 +1,6 @@
 ---
 name: rootcause-cli
-description: The `rc` CLI — a scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with an OAuth access token (sign in via `rc login`; the CLI refreshes it). Use when working in this repo: adding/changing a command, the HTTP client, OAuth/token-store/config resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. Fat client, thin server: endpoints return raw token-scoped data, the CLI may digest/cluster/render it locally, and `-o json` always exposes the raw rows.
+description: "The `rc` CLI — a scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with an OAuth access token (sign in via `rc login`; the CLI refreshes it). Use when working in this repo: adding/changing a command, the HTTP client, OAuth/token-store/config resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. Fat client, thin server: endpoints return raw token-scoped data, the CLI may digest/cluster/render it locally, and `-o json` always exposes the raw rows."
 ---
 
 # rootcause-cli (`rc`) — a project's window into its own rootcause data
@@ -184,7 +184,7 @@ boolean (it bakes around the `runs.model_fallback_from` empty-string-vs-NULL tra
 skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in `-o json`.
 
 Base URL per field: `ROOTCAUSE_BASE_URL` > marker `base_url` > `[profiles.<name>] base_url` > built-in
-production default (`https://rootcause.probackup.io`). A stored token also pins the issuer it was minted
+production default (`https://app.replypen.com`). A stored token also pins the issuer it was minted
 against, so commands hit the same server. `Resolved` carries `Profile`/`Project`/`Brain` so `root.go`
 crafts the loud error, and `rc whoami` asks `/api/v1/whoami` for the login-bound project/tenant when a
 token is present. Explicit `--tenant` and `.rootcause/local.toml` remain local override/debug paths. The

@@ -10,7 +10,7 @@ Duration:  45.0s
 Cost:      $0.31
 Turns:     4
 Bash:      9
-View run:  https://rootcause.probackup.io/runs/raw-rich?t=def456
+View run:  https://app.replypen.com/runs/raw-rich?t=def456
 
 Answer:
 There are 17 active subscriptions and 2 past-due invoices.
@@ -18,7 +18,7 @@ There are 17 active subscriptions and 2 past-due invoices.
 Actions (1):
   ID       ACTION              LABEL
   act_456  sync_billing_cache  Sync billing cache
-    url: https://rootcause.probackup.io/actions/tok_456
+    url: https://app.replypen.com/actions/tok_456
     Refreshes the derived billing cache after the investigation.
 
 PR:

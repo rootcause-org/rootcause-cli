@@ -20,7 +20,7 @@
       "slug": "sync_billing_cache",
       "label": "Sync billing cache",
       "description": "Refreshes the derived billing cache after the investigation.",
-      "url": "https://rootcause.probackup.io/actions/tok_456"
+      "url": "https://app.replypen.com/actions/tok_456"
     }
   ],
   "source_pr": {
@@ -28,7 +28,7 @@
     "title": "Add missing billing index",
     "url": "https://github.com/acme/analytics/pull/9"
   },
-  "run_url": "https://rootcause.probackup.io/runs/raw-rich?t=def456",
+  "run_url": "https://app.replypen.com/runs/raw-rich?t=def456",
   "attachments": [],
-  "metadata": { "outcome": "ok", "query_ms": 148, "run_url": "https://rootcause.probackup.io/runs/raw-rich?t=def456" }
+  "metadata": { "outcome": "ok", "query_ms": 148, "run_url": "https://app.replypen.com/runs/raw-rich?t=def456" }
 }

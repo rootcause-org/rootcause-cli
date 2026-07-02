@@ -38,7 +38,7 @@ import (
 
 const (
 	// DefaultBaseURL is the built-in fallback when neither config, brain marker, nor env sets one.
-	DefaultBaseURL = "https://rootcause.probackup.io"
+	DefaultBaseURL = "https://app.replypen.com"
 
 	// MarkerFileName is the committed, non-secret per-brain marker binding the checkout to a project.
 	// It is KEPT under OAuth — it carries no secret, only the project binding + base URL.

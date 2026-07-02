@@ -18,7 +18,7 @@
         "slug": "send_invoice_reminder",
         "label": "Send invoice reminder",
         "description": "Sends a reminder for the two unpaid invoices.",
-        "url": "https://rootcause.probackup.io/actions/tok_123"
+        "url": "https://app.replypen.com/actions/tok_123"
       }
     ],
     "source_pr": {

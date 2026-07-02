@@ -11,7 +11,7 @@
   "turns": 5,
   "bash_total": 3,
   "cost_usd": 0.21,
-  "run_url": "https://rootcause.probackup.io/runs/c5f80889-901a-4563-94c6-a421db7d24c6?t=zzz",
+  "run_url": "https://app.replypen.com/runs/c5f80889-901a-4563-94c6-a421db7d24c6?t=zzz",
   "attachments": [],
   "debug": {
     "decline_reason": "Thread already resolved — the sender acknowledged closure, so there is no open question to answer.",

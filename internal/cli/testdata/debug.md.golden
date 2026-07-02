@@ -56,7 +56,7 @@ You have 2 open invoices totalling $480.
 **Proposed actions** (1):
 
 - `act_create_appointment_123` · `create_appointment` · Create appointment — Book Sophie for the first available hygienist appointment.
-  url: https://rootcause.probackup.io/actions/tok_create_appointment
+  url: https://app.replypen.com/actions/tok_create_appointment
 
 **Note `proposals`:**
 
