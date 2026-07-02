@@ -179,7 +179,7 @@ func (e *env) newClient() (*client.Client, error) {
 	// A token is pinned to the issuer it was minted against — prefer that base URL so a command hits the
 	// same server even if the ambient base URL drifted (unless a test override is in play).
 	if e.baseURLOvr == "" && tok.BaseURL != "" {
-		baseURL = tok.BaseURL
+		baseURL = config.CanonicalBaseURL(tok.BaseURL)
 		res.BaseURLFromDefault = false
 	}
 	return client.New(baseURL, newLiveSource(res.Profile, baseURL)), nil

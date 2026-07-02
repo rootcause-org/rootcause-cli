@@ -39,6 +39,7 @@ import (
 const (
 	// DefaultBaseURL is the built-in fallback when neither config, brain marker, nor env sets one.
 	DefaultBaseURL = "https://app.replypen.com"
+	LegacyBaseURL  = "https://rootcause.probackup.io"
 
 	// MarkerFileName is the committed, non-secret per-brain marker binding the checkout to a project.
 	// It is KEPT under OAuth — it carries no secret, only the project binding + base URL.
@@ -161,14 +162,23 @@ func load(profileName, cwd string) (Resolved, error) {
 // the built-in default (with the from-default flag set for diagnostics).
 func resolveBaseURL(candidates ...string) (string, bool) {
 	if v := os.Getenv(envBaseURL); v != "" {
-		return v, false
+		return CanonicalBaseURL(v), false
 	}
 	for _, u := range candidates {
 		if u != "" {
-			return u, false
+			return CanonicalBaseURL(u), false
 		}
 	}
 	return DefaultBaseURL, true
+}
+
+// CanonicalBaseURL maps the legacy production hostname onto the customer-facing ReplyPen app host.
+// Custom/staging hosts pass through unchanged.
+func CanonicalBaseURL(u string) string {
+	if u == LegacyBaseURL {
+		return DefaultBaseURL
+	}
+	return u
 }
 
 func resolveTenant(brain *Brain) (string, string, error) {

@@ -106,6 +106,8 @@ func newLogoutCmd(e *env) *cobra.Command {
 			base := t.BaseURL
 			if base == "" {
 				base = res.BaseURL
+			} else {
+				base = config.CanonicalBaseURL(base)
 			}
 			if e.baseURLOvr != "" {
 				base = e.baseURLOvr
@@ -165,7 +167,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 				}
 			}
 			if loggedIn && t.BaseURL != "" && e.baseURLOvr == "" {
-				base = t.BaseURL
+				base = config.CanonicalBaseURL(t.BaseURL)
 			}
 
 			status, expiry := "not logged in — run `rc login`", ""

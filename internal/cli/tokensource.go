@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rootcause-org/rootcause-cli/internal/config"
 	"github.com/rootcause-org/rootcause-cli/internal/oauth"
 	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
@@ -78,7 +79,7 @@ func (s *liveSource) refreshLocked(ctx context.Context, t token.Token) (string, 
 				AccessToken:  res.AccessToken,
 				RefreshToken: t.RefreshToken, // a non-rotating grant returns none → keep the one we have
 				ExpiresAt:    time.Now().Add(time.Duration(res.ExpiresIn) * time.Second),
-				BaseURL:      t.BaseURL,
+				BaseURL:      config.CanonicalBaseURL(t.BaseURL),
 			}
 			if res.RefreshToken != "" {
 				next.RefreshToken = res.RefreshToken // rotating grant: store the new refresh

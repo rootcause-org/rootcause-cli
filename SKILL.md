@@ -185,7 +185,9 @@ skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in
 
 Base URL per field: `ROOTCAUSE_BASE_URL` > marker `base_url` > `[profiles.<name>] base_url` > built-in
 production default (`https://app.replypen.com`). A stored token also pins the issuer it was minted
-against, so commands hit the same server. `Resolved` carries `Profile`/`Project`/`Brain` so `root.go`
+against, so commands hit the same server. The legacy production host `https://rootcause.probackup.io`
+is canonicalized to `https://app.replypen.com` when loaded from old config, markers, or token records.
+`Resolved` carries `Profile`/`Project`/`Brain` so `root.go`
 crafts the loud error, and `rc whoami` asks `/api/v1/whoami` for the login-bound project/tenant when a
 token is present. Explicit `--tenant` and `.rootcause/local.toml` remain local override/debug paths. The
 local overlay only supports `tenant`, so profile/base URL still come from the documented

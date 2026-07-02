@@ -89,6 +89,55 @@ func TestLoad_EnvBaseURLWins(t *testing.T) {
 	}
 }
 
+func TestLoad_LegacyProductionBaseURLCanonicalized(t *testing.T) {
+	tests := []struct {
+		name   string
+		env    string
+		config string
+		marker string
+	}{
+		{
+			name: "env",
+			env:  LegacyBaseURL,
+		},
+		{
+			name:   "global config",
+			config: "[default]\nbase_url = \"" + LegacyBaseURL + "\"\n",
+		},
+		{
+			name:   "brain marker",
+			marker: "project = \"momentum-tools\"\nbase_url = \"" + LegacyBaseURL + "\"\n",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearEnv(t)
+			writeConfig(t, tc.config)
+			if tc.env != "" {
+				t.Setenv(envBaseURL, tc.env)
+			}
+			cwd := t.TempDir()
+			if tc.marker != "" {
+				cwd = brainDirWith(t, tc.marker)
+			}
+
+			res, err := load("", cwd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.BaseURL != DefaultBaseURL {
+				t.Fatalf("base=%q, want canonical %q", res.BaseURL, DefaultBaseURL)
+			}
+		})
+	}
+}
+
+func TestCanonicalBaseURLLeavesCustomHost(t *testing.T) {
+	if got := CanonicalBaseURL("https://staging.example"); got != "https://staging.example" {
+		t.Fatalf("custom host canonicalized to %q", got)
+	}
+}
+
 func TestLoad_Brain_ProfileIsProject(t *testing.T) {
 	clearEnv(t)
 	writeConfig(t, "")

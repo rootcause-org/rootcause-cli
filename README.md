@@ -117,6 +117,8 @@ local token to use.
 **Base URL** comes from `ROOTCAUSE_BASE_URL`, the brain marker's `base_url`, a config profile, or the
 built-in production default (`https://app.replypen.com`). A stored token also remembers the issuer it was minted
 against, so commands hit the same server you logged in to.
+The legacy production host `https://rootcause.probackup.io` is treated as an alias and canonicalized to
+`https://app.replypen.com` when found in old config, brain markers, or token records.
 
 ```bash
 export ROOTCAUSE_BASE_URL=https://your-rootcause-host   # default: https://app.replypen.com
