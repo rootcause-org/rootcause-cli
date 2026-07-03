@@ -366,14 +366,20 @@ func TestAskBadScenario(t *testing.T) {
 // the JSON body. That lets an all-projects token trigger a selected project's prompt run.
 func TestAskProjectForwarded(t *testing.T) {
 	var gotProject, gotBody string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"dentai"}]}`))
+	})
+	mux.HandleFunc("POST /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		gotProject = r.URL.Query().Get("project")
 		buf := new(bytes.Buffer)
 		_, _ = buf.ReadFrom(r.Body)
 		gotBody = buf.String()
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
-	}))
+	})
+	srv := httptest.NewServer(mux)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "json")
 	if err := run(t, e, "--project", "dentai", "ask", "q", "--no-wait"); err != nil {

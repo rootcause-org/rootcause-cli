@@ -79,6 +79,16 @@ func newWhoamiStub(t *testing.T, body string) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(body))
 	})
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			t.Error("projects missing Authorization header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[` +
+			`{"id":"11111111-1111-1111-1111-111111111111","name":"momentum-tools"},` +
+			`{"id":"22222222-2222-2222-2222-222222222222","name":"pro-backup"},` +
+			`{"id":"33333333-3333-3333-3333-333333333333","name":"dentai"}]}`))
+	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	return srv
@@ -206,6 +216,49 @@ func TestWhoamiBrainFallsBackToDefaultProfile(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Errorf("whoami missing %q\n--- got ---\n%s", want, got)
 		}
+	}
+}
+
+func TestWhoamiUnknownProjectFailsWithProjectsHint(t *testing.T) {
+	isolatedConfig(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			t.Error("whoami missing Authorization header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"all_projects":true}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "" {
+			t.Error("projects missing Authorization header")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"pro-backup"}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Setenv("ROOTCAUSE_BASE_URL", srv.URL)
+	seedToken(t, "default", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
+	})
+
+	var out, errb bytes.Buffer
+	e := &env{output: "json", out: &out, err: &errb}
+	err := run(t, e, "--project", "pb-admin", "whoami")
+	if err == nil {
+		t.Fatal("expected unknown-project error, got nil")
+	}
+	printError(&errb, err)
+	got := errb.String()
+	for _, want := range []string{"UNKNOWN_PROJECT", "pb-admin", "rc projects"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(out.String(), `"project"`) {
+		t.Errorf("whoami should fail before rendering project JSON, got:\n%s", out.String())
 	}
 }
 

@@ -190,6 +190,13 @@ func newWhoamiCmd(e *env) *cobra.Command {
 			}
 			// --project is a server-side SCOPE (not a profile): when set it names the project each read
 			// request targets. A brain fallback to the default profile does the same automatically.
+			if loggedIn && (e.project != "" || autoProject != "") {
+				e.autoProject = autoProject
+				c := client.New(base, newLiveSource(res.Profile, base))
+				if err := e.validateProjectScope(c); err != nil {
+					return err
+				}
+			}
 			project := res.Project
 			if e.project != "" {
 				project = e.project

@@ -132,6 +132,8 @@ a command uses.
 token and names one project on supported endpoints (`?project=`), so an **all-projects admin token** can
 review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask --project
 momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
+When a project scope is set, the CLI validates it against `rc projects` first and fails typos with a
+hint to run `rc projects`.
 On tenant-enabled projects, the active `rc login` normally binds one tenant. Plain `rc ask "…"` uses
 that tenant automatically; `rc whoami` shows it. `--tenant <slug>` remains an explicit override/debug
 flag where an endpoint accepts it, but it is not needed in the normal path.
@@ -158,9 +160,9 @@ in the OAuth token store.
 ## Commands
 
 Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>` scopes supported
-requests to one project server-side (useful for all-projects tokens outside a brain checkout or as an
-override; inside a brain checkout the `.rootcause.toml` project is used automatically when falling back
-to `default`);
+requests to one project server-side and is validated against `rc projects` before use (useful for
+all-projects tokens outside a brain checkout or as an override; inside a brain checkout the
+`.rootcause.toml` project is used automatically when falling back to `default`);
 `--tenant <slug>` explicitly overrides a tenant where supported; normally the login supplies tenant
 scope. `-o json|table` forces output.
 

@@ -162,7 +162,9 @@ it's a server-side scope the command layer threads onto each read request, never
 `--project <id-or-name>` rides as `?project=` on supported per-project endpoints (run index, feeds,
 health, thread-trace, prompt submit, env, and settings); an all-projects admin token uses it to scope
 one project, a pinned token disregards it server-side. The brain→default fallback sets this scope
-implicitly from `.rootcause.toml`. See `env.scopeProject` in `internal/cli/root.go`.
+implicitly from `.rootcause.toml`. Before using a non-empty scope, the CLI checks `GET /api/v1/projects`
+and returns `UNKNOWN_PROJECT` with a `rc projects` hint when the id/name is not visible. See
+`env.scopeProject` / `env.validateProjectScope` in `internal/cli/root.go`.
 On tenant-enabled projects, the active OAuth login normally binds one tenant. Plain `rc ask` sends no
 tenant flag and the server uses that token-bound tenant; `rc whoami` calls `/api/v1/whoami` to show it.
 

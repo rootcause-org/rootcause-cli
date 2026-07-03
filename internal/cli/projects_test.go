@@ -92,3 +92,22 @@ func TestFleetAllScopedTokenErrors(t *testing.T) {
 		t.Errorf("error = %q, want it to name the project + an all-projects-token hint", err.Error())
 	}
 }
+
+// TestUnknownProjectScopeFailsBeforeCommand asserts the global --project guard rejects a typo before the
+// scoped command renders misleading local/client-side output.
+func TestUnknownProjectScopeFailsBeforeCommand(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, errb := newTestEnv(t, srv, "table")
+	err := run(t, e, "--project", "charlie", "status")
+	if err == nil {
+		t.Fatal("expected unknown-project error, got nil")
+	}
+	printError(errb, err)
+	got := errb.String()
+	for _, want := range []string{"UNKNOWN_PROJECT", "charlie", "rc projects"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+}

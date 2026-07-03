@@ -155,7 +155,11 @@ func (e *env) newClient() (*client.Client, error) {
 
 	// Test seam: a fixed bearer bypasses the token store + refresh entirely.
 	if e.tokenOvr != "" {
-		return client.New(baseURL, client.StaticToken(e.tokenOvr)), nil
+		c := client.New(baseURL, client.StaticToken(e.tokenOvr))
+		if err := e.validateProjectScope(c); err != nil {
+			return nil, err
+		}
+		return c, nil
 	}
 
 	_, ok, err := token.Load(res.Profile)
@@ -177,7 +181,11 @@ func (e *env) newClient() (*client.Client, error) {
 	if !ok {
 		return nil, notLoggedIn(res)
 	}
-	return client.New(baseURL, newLiveSource(res.Profile, baseURL)), nil
+	c := client.New(baseURL, newLiveSource(res.Profile, baseURL))
+	if err := e.validateProjectScope(c); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 // notLoggedIn is the clear "no token for this profile" error. Inside a brain this is reached only
@@ -214,6 +222,29 @@ func (e *env) scopeProject() string {
 		return e.project
 	}
 	return e.autoProject
+}
+
+// validateProjectScope checks an explicit/brain-derived project scope against the fleet handles the
+// token can see. It catches typos before a command renders local state or makes a scoped write.
+func (e *env) validateProjectScope(c *client.Client) error {
+	project := e.scopeProject()
+	if project == "" {
+		return nil
+	}
+	resp, err := c.Projects(e.ctx())
+	if err != nil {
+		return err
+	}
+	for _, p := range resp.Projects {
+		if project == p.ID || project == p.Name {
+			return nil
+		}
+	}
+	return &client.APIError{
+		Status:  http.StatusNotFound,
+		Code:    "UNKNOWN_PROJECT",
+		Message: fmt.Sprintf("unknown project %q (run `rc projects` to see available projects)", project),
+	}
 }
 
 // tenantSlug is the explicitly-addressed tenant for `rc tenant settings` — the persistent --tenant only

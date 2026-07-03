@@ -85,11 +85,11 @@ func TestMailboxConnectURL(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--project", "momentum-tools", "mailbox", "connect", "--provider", "google"); err != nil {
+	if err := run(t, e, "--project", "alpha", "mailbox", "connect", "--provider", "google"); err != nil {
 		t.Fatalf("mailbox connect: %v", err)
 	}
 	got := strings.TrimSpace(out.String())
-	want := srv.URL + "/projects/momentum-tools/connections"
+	want := srv.URL + "/projects/alpha/connections"
 	if got != want {
 		t.Errorf("connect URL = %q, want %q", got, want)
 	}

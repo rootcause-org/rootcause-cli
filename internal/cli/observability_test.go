@@ -21,6 +21,9 @@ import (
 func TestProjectScopeRidesAsQueryParam(t *testing.T) {
 	got := map[string]string{} // endpoint label → observed ?project=
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"momentum-tools"}]}`))
+	})
 	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		got["runs"] = r.URL.Query().Get("project")
 		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
@@ -95,6 +98,10 @@ func TestBrainDefaultProfileFallbackAddsProjectScope(t *testing.T) {
 
 	var sawProject string
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"pro-backup"}]}`))
+	})
 	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		sawProject = r.URL.Query().Get("project")
