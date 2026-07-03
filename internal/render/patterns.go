@@ -1,5 +1,5 @@
 // This file is the FAT side of `rc patterns`: it ports run_patterns.py's clustering over the THIN
-// /runs/events + /runs/egress feeds — the bash-failure signatures, the recurring stderr/error themes,
+// /run-events + /egress-log feeds — the bash-failure signatures, the recurring stderr/error themes,
 // and the blocked-egress host clusters, each ending in a `suggested fix:` stub for the reviewing LLM.
 // The server ships raw rows; ALL masking/grouping/ranking happens here (the doctrine). The command layer
 // pages the two feeds; this file turns the rows into ranked markdown an LLM can read whole.

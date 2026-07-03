@@ -47,8 +47,8 @@ Behavior:
 
 ## Change 2 — `rc run <id> --full` (the bundle, decomposed)
 
-The server returns one bundle (`GET /api/v1/runs/{id}/full`); **`rc` decomposes it for progressive
-disclosure** (decided). Add `Client.Full(ctx, id) (*FullResponse, error)` hitting `/full`, with
+The server returns one bundle (`GET /api/v1/runs/{id}/trace`); **`rc` decomposes it for progressive
+disclosure** (decided). Add `Client.Full(ctx, id) (*FullResponse, error)` hitting `/trace`, with
 `FullResponse{Run RunHeader; Events []EventItem}` in `types.go` (superset of today's `EventsResponse`:
 `EventItem` gains `cost_usd`, `total_tokens`, `model`, `args`; new `RunHeader` carries full
 draft/notes bodies, `system_prompt`, warm inputs, egress, `trace_url`).
@@ -59,7 +59,7 @@ Extend `internal/cli/run.go`:
 |---|---|---|
 | `rc run <id>` | `/runs/{id}` | high-level summary (today) |
 | `rc run <id> --events` | `/runs/{id}/events` | per-event trace (today; NDJSON in `-o json`) |
-| **`rc run <id> --full`** | `/runs/{id}/full` | **the whole bundle.** `-o json`: emit as the brain-renderer's input — header line first, then one NDJSON line per event (the JSONL shape). `-o table`: a compact decomposed view (header block + timeline). |
+| **`rc run <id> --full`** | `/runs/{id}/trace` | **the whole bundle.** `-o json`: emit as the brain-renderer's input — header line first, then one NDJSON line per event (the JSONL shape). `-o table`: a compact decomposed view (header block + timeline). |
 
 The `--full -o json` output is **the exact stdin contract** the brain-dev renderer reads to produce
 `<run8>-<proj>.{md,jsonl}`. Keep it stable; it is the cross-repo seam. Reuse `emitNDJSON`
@@ -83,7 +83,7 @@ identically to existing commands re: `-o`, exit codes, and the typed error envel
 
 New verbs ship via the normal `scripts/release.sh patch|minor|major` GoReleaser flow (Homebrew tap +
 prebuilt binaries). Bump the `rc-cli` version in [`rootcause-brain-skills/docs/rc-cli.md`](../../../rootcause-brain-skills/docs/rc-cli.md)
-once published. The `/full` JSON contract version must move in lockstep with the renderer (brain-skills spec).
+once published. The `/trace` JSON contract version must move in lockstep with the renderer (brain-skills spec).
 
 ## Out of scope
 

@@ -13,13 +13,10 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newTenantCmd builds `rc tenant settings get|set|schema` — the operator's edit surface for a dental
-// practice's onboarding record, now that rootcause is the source of truth. It mirrors `rc config`
-// (get / sparse-set k=v) over the /api/v1/tenants/{slug}/settings family, with the tenant addressed by
-// slug via a required --tenant flag (same flag name as `rc env --tenant`). The CLI stays thin: it
-// shapes a SPARSE PATCH (only the keys you pass), coerces values against the fetched schema for a fast
-// client-side error, and lets the SERVER be the final authority — a 400 validation_failed is surfaced
-// verbatim via the shared printError path.
+// newTenantCmd builds `rc tenant settings get|set|schema`. `settings get|set` edits the canonical
+// project-tree hierarchy settings for one tenant:
+// /api/v1/projects/{project}/tenants/{slug}/settings with nested persona/channel patch bodies. The
+// schema subcommand is kept for the legacy onboarding JSON schema while the server still exposes it.
 func newTenantCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tenant",
@@ -40,9 +37,20 @@ func newTenantCmd(e *env) *cobra.Command {
 func newTenantSettingsCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "settings",
-		Short: "Read or edit a tenant's onboarding settings (source of truth)",
+		Short: "Read or edit nested tenant settings (persona/channel)",
 	}
-	cmd.AddCommand(newTenantSettingsGetCmd(e), newTenantSettingsSetCmd(e), newTenantSettingsSchemaCmd(e))
+	idArg := func(_ *cobra.Command, _ []string) (string, error) {
+		tenant := e.tenantSlug()
+		if tenant == "" {
+			return "", errMissingTenant
+		}
+		return tenant, nil
+	}
+	cmd.AddCommand(
+		hierarchySettingsGetCmd(e, "tenant", idArg),
+		hierarchySettingsSetCmd(e, "tenant", idArg),
+		newTenantSettingsSchemaCmd(e),
+	)
 	return cmd
 }
 
@@ -129,19 +137,18 @@ func newTenantSettingsSetCmd(e *env) *cobra.Command {
 func newTenantSettingsSchemaCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "schema",
-		Short: "Dump the enriched settings JSON Schema (debug/reference)",
+		Short: "Dump the hierarchy settings schema (debug/reference)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			raw, err := c.GetTenantSettingsSchema(e.ctx())
+			raw, err := c.Raw(e.ctx(), "GET", "/api/v1/meta/schema", nil)
 			if err != nil {
 				return err
 			}
-			// The schema is always JSON; render.JSON pretty-prints it (table mode falls through to the
-			// same — there is no compact human view of a schema, the JSON IS the reference).
+			// The schema is always JSON; hierarchy_settings is the relevant section.
 			return render.JSON(e.out, raw)
 		},
 	}

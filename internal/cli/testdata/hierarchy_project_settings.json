@@ -1,0 +1,31 @@
+{
+  "scope": "project",
+  "project": "alpha",
+  "settings": {
+    "persona": {
+      "language": "Dutch",
+      "tone": "project warm"
+    },
+    "channel": {
+      "labeling_enabled": true
+    }
+  },
+  "resolved": {
+    "persona": {
+      "language": {
+        "value": "Dutch",
+        "source": "project"
+      },
+      "tone": {
+        "value": "project warm",
+        "source": "project"
+      }
+    },
+    "channel": {
+      "labeling_enabled": {
+        "value": true,
+        "source": "project"
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "scope": "tenant",
+  "project": "alpha",
+  "tenant": "de-kies",
+  "settings": {
+    "persona": {
+      "tone": "tenant crisp",
+      "signature": "The Acme Team"
+    },
+    "channel": {
+      "labeling_enabled": true
+    }
+  },
+  "resolved": {
+    "persona": {
+      "language": {
+        "value": "Dutch",
+        "source": "project"
+      },
+      "signature": {
+        "value": "The Acme Team",
+        "source": "tenant"
+      },
+      "tone": {
+        "value": "tenant crisp",
+        "source": "tenant"
+      }
+    },
+    "channel": {
+      "labeling_enabled": {
+        "value": true,
+        "source": "tenant"
+      }
+    }
+  }
+}

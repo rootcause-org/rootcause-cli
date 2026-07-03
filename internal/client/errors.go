@@ -13,14 +13,17 @@ import (
 // FieldError is one entry in an INVALID_SETTINGS envelope: which key failed and why.
 type FieldError struct {
 	Key     string `json:"key"`
+	Field   string `json:"field,omitempty"`
 	Message string `json:"message"`
 }
 
-// errorEnvelope is the decode target for a non-2xx body: {"error":{code,message,fields}}.
+// errorEnvelope is the decode target for a non-2xx body:
+// {"error":{code,message,details}}. fields is kept for released servers.
 type errorEnvelope struct {
 	Error struct {
 		Code    string       `json:"code"`
 		Message string       `json:"message"`
+		Details []FieldError `json:"details"`
 		Fields  []FieldError `json:"fields"`
 	} `json:"error"`
 }
@@ -58,7 +61,7 @@ func (e *APIError) Error() string {
 }
 
 // decodeAPIError turns a non-2xx (status + verbatim body) into a typed APIError. It tries the standard
-// {error:{code,message,fields}} envelope first, then the tenant-settings {error,field_errors} shape,
+// {error:{code,message,details}} envelope first, then the tenant-settings {error,field_errors} shape,
 // and finally falls back to a no-envelope error that still carries method/path/baseURL so a plain-text
 // 404/405 (proxy, or an older server missing the endpoint) is diagnosable rather than a bare "HTTP N".
 // Shared by the JSON path (do) and the multipart path (doRaw).
@@ -70,7 +73,10 @@ func decodeAPIError(status int, method, path, baseURL string, data []byte) *APIE
 	case json.Unmarshal(data, &env) == nil && env.Error.Code != "":
 		apiErr.Code = env.Error.Code
 		apiErr.Message = env.Error.Message
-		apiErr.Fields = env.Error.Fields
+		apiErr.Fields = normalizeFieldErrors(env.Error.Details)
+		if len(apiErr.Fields) == 0 {
+			apiErr.Fields = normalizeFieldErrors(env.Error.Fields)
+		}
 	case json.Unmarshal(data, &vfe) == nil && vfe.Error != "":
 		apiErr.Code = vfe.Error
 		apiErr.Message = "settings rejected"
@@ -81,6 +87,20 @@ func decodeAPIError(status int, method, path, baseURL string, data []byte) *APIE
 		apiErr.BaseURL = baseURL
 	}
 	return apiErr
+}
+
+func normalizeFieldErrors(in []FieldError) []FieldError {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]FieldError, 0, len(in))
+	for _, f := range in {
+		if f.Key == "" {
+			f.Key = f.Field
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // sortedFieldErrors flattens the tenant-settings field_errors map into the []FieldError the command

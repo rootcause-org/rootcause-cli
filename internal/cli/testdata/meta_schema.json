@@ -22,5 +22,16 @@
         { "key": "action_reverse_secret", "scope": "project", "group": "action", "type": "secret", "scopes": ["admin:box"], "sensitive": true, "help": "Reverse-channel HMAC secret (write-only)." }
       ]
     }
-  }
+  },
+  "hierarchy_settings": {
+    "channel": {
+      "settable_at": ["project", "tenant", "mailbox"],
+      "fields": ["labeling_enabled", "inbox_cleaning_enabled", "draft_font_css", "note_from_address"]
+    },
+    "persona": {
+      "settable_at": ["project", "tenant", "mailbox"],
+      "fields": ["signature", "tone", "language", "formality", "guidance"]
+    }
+  },
+  "error_codes": ["INVALID_SETTINGS", "UNKNOWN_PROJECT"]
 }

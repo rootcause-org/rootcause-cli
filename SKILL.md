@@ -34,9 +34,13 @@ but they keep the raw rows reachable via `-o json`.
 | `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
-| `rc run <id> --full` | `GET /api/v1/runs/{id}/full` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
-| `rc run <id> --debug` | `GET /api/v1/runs/{id}/full` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
+| `rc run <id> --full` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
+| `rc run <id> --debug` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
+| `rc config hierarchy get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
+| `rc tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
+| `rc mailbox settings get/set <id>` | `GET/PATCH /api/v1/projects/{project}/mailboxes/{id}/settings?resolved=true` | read/change mailbox hierarchy overrides |
+| `rc routes` / `rc openapi` | `GET /api/v1/meta/routes` / `GET /api/v1/meta/openapi.json` | canonical route manifest + generated OpenAPI |
 | `rc brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
 | `rc repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
 | `rc connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
@@ -59,7 +63,7 @@ run-control field (`session_id`, `brain_ref`, `reasoning_effort`) would be lost,
 legacy body `{prompt, tenant?}` so older Prompt API deployments still accept plain `rc ask`. `email`
 wraps the prompt as a synthetic inbound support message with `sender` from `--from` (default
 `rc-ask@example.test`) and `subject` from `--subject` or a compact first line, then table-renders draft,
-notes, actions, PR, and run metadata (using `/runs/{id}/full` when available). `raw` omits default email
+notes, actions, PR, and run metadata (using `/runs/{id}/trace` when available). `raw` omits default email
 fields and table-renders one direct answer plus actions, PR, and run metadata. `--project <id-or-name>`
 rides as `?project=` on submit,
 letting an all-projects admin token trigger a selected project while a pinned token keeps its own
@@ -98,7 +102,7 @@ operator can handle it explicitly. `rc bash list`, `rc bash run`, and `rc capabi
 status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
 
 `rc run --full/--debug` treats historical snapshots as authoritative: `brain_resolved`,
-`tenant_settings`, and `grounding_sources` come from `/full`; current tenant/source state is only a drift
+`tenant_settings`, and `grounding_sources` come from `/trace`; current tenant/source state is only a drift
 annotation. Debug JSONL preserves raw `grounding_sources` and adds `grounding_source_drift_count`; table
 and markdown render missing/drifted mirrors or KB first.
 
@@ -108,7 +112,7 @@ and markdown render missing/drifted mirrors or KB first.
 cmd/rc/main.go            → cli.Execute(version)
 internal/cli/             cobra commands; one file per command (root/status/runs/run/config/env/auth).
                           A command = parse flags → one client call → render. errors.go surfaces
-                          the API's {code,message,fields} VERBATIM to stderr, exit 1. tokensource.go is
+                          the API's {code,message,details} VERBATIM to stderr, exit 1. tokensource.go is
                           the live client.TokenSource (store + refresh policy).
 internal/client/          the ONE http wrapper (client.go: refresh-on-401 retry) + the TokenSource
                           interface (auth.go) + the wire contract (types.go) + APIError (errors.go).
@@ -203,7 +207,7 @@ local overlay only supports `tenant`. Honors `XDG_CONFIG_HOME` for token storage
 is non-secret; tokens live only in the 0600 token store.
 
 ### The `--debug` decomposer (`internal/debugdump`)
-`rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/full` (cross-project for an
+`rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/trace` (cross-project for an
 all-projects admin token) and writes two files to `--out-dir` (default `.rootcause/debug/`) — a **jq-able JSONL**
 event log and a **thin markdown index** — then prints both paths. It does NOT summarize the run into
 stdout: the calling agent reads the index, then drills into the JSONL with its own bash/jq. The JSONL
@@ -214,16 +218,16 @@ markdown outcome must preserve pull-plane `proposed_actions`, because the propos
 empty while the action proposal is real. `decorate` derives
 disp/grounding/label/command/gist; `emit.go` writes the JSONL + the index (timeline, projection inputs,
 flags, files read, egress, example jq calls). The run header preserves the production projection
-metadata from `/full`: `brain_resolved`, `tenant`, and the parsed `tenant_settings` snapshot
+metadata from `/trace`: `brain_resolved`, `tenant`, and the parsed `tenant_settings` snapshot
 (source/synced_at/version/settings; branch selector values summarized in the markdown index when
-parseable). When `/full` also returns `tenant_settings_current`, the CLI diffs `settings` locally and
+parseable). When `/trace` also returns `tenant_settings_current`, the CLI diffs `settings` locally and
 prints a drift warning only when values differ; `tenant_settings_drift` rides in the debug JSONL header.
 One shape note vs the operator dump: the JSONL `egress` carries the API's aggregated rollup
 (`{host, count, blocked}`), not the operator dump's per-row `{decision, port, …}` — the per-event
 drill-down keys are identical, only egress differs.
 
 ### Errors
-Any non-2xx → the client decodes `{"error":{code,message,fields?}}` into a typed `APIError` and the CLI
+Any non-2xx → the client decodes `{"error":{code,message,details?}}` into a typed `APIError` and the CLI
 prints `CODE: message` to stderr (exit 1); `INVALID_SETTINGS` field errors print one indented line each.
 A non-decodable body falls back to `error: HTTP <status>` — still a clean non-zero exit, never a panic.
 

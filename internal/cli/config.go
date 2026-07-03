@@ -22,6 +22,7 @@ func newConfigCmd(e *env) *cobra.Command {
 		Short: "Read or change project settings",
 	}
 	cmd.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"),
+		newProjectHierarchySettingsCmd(e),
 		newOpenRouterKeyCmd(e))
 	return cmd
 }

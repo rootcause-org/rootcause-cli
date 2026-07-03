@@ -1,0 +1,27 @@
+{
+  "scope": "mailbox",
+  "project": "alpha",
+  "tenant": "de-kies",
+  "mailbox": "11111111-1111-1111-1111-111111111111",
+  "settings": {
+    "persona": {
+      "tone": "mailbox direct"
+    }
+  },
+  "resolved": {
+    "persona": {
+      "language": {
+        "value": "Dutch",
+        "source": "project"
+      },
+      "signature": {
+        "value": "The Acme Team",
+        "source": "tenant"
+      },
+      "tone": {
+        "value": "mailbox direct",
+        "source": "mailbox"
+      }
+    }
+  }
+}

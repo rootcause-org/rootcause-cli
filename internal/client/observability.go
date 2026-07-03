@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-// FeedParams are the query filters for the windowed feed endpoints (/runs/events, /runs/egress). Zero
+// FeedParams are the query filters for the windowed feed endpoints (/run-events, /egress-log). Zero
 // values are omitted so the server applies its defaults. Before is the keyset cursor (a run id) — the
 // CLI loops on it internally; a caller never sets it. Project is the explicit scope an all-projects admin
 // token names per request (the `--all` fan-out); a pinned token ignores it server-side.
@@ -46,8 +46,8 @@ func (p FeedParams) query() string {
 
 // EventsPath / EgressPath / HealthPath build the request URL for the JSON-passthrough path — the same
 // URL the typed fetchers hit, so `-o json` and the table view can never diverge on what was requested.
-func EventsPath(p FeedParams) string { return "/api/v1/runs/events" + p.query() }
-func EgressPath(p FeedParams) string { return "/api/v1/runs/egress" + p.query() }
+func EventsPath(p FeedParams) string { return "/api/v1/run-events" + p.query() }
+func EgressPath(p FeedParams) string { return "/api/v1/egress-log" + p.query() }
 
 // HealthPath builds GET /api/v1/health?hours=&project= — project is the explicit scope an all-projects
 // admin token names (the `--all` fan-out); "" omits it (a pinned token's own scope).
@@ -70,7 +70,7 @@ func HealthPath(hours int, project string) string {
 // sane window; the cap is reported (never silent) so the caller can warn.
 const maxFeedPages = 500
 
-// EventsPage fetches ONE page of GET /api/v1/runs/events (the caller drives the cursor). Used by both
+// EventsPage fetches ONE page of GET /api/v1/run-events (the caller drives the cursor). Used by both
 // the paging loop and—via Raw in the command—the JSON passthrough.
 func (c *Client) EventsPage(ctx context.Context, p FeedParams) (*RunEventsResponse, error) {
 	var out RunEventsResponse
@@ -80,7 +80,7 @@ func (c *Client) EventsPage(ctx context.Context, p FeedParams) (*RunEventsRespon
 	return &out, nil
 }
 
-// EgressPage fetches ONE page of GET /api/v1/runs/egress.
+// EgressPage fetches ONE page of GET /api/v1/egress-log.
 func (c *Client) EgressPage(ctx context.Context, p FeedParams) (*EgressResponse, error) {
 	var out EgressResponse
 	if err := c.do(ctx, http.MethodGet, EgressPath(p), nil, &out); err != nil {
@@ -89,7 +89,7 @@ func (c *Client) EgressPage(ctx context.Context, p FeedParams) (*EgressResponse,
 	return &out, nil
 }
 
-// AllEvents pages /runs/events until the window is exhausted (no next_before) or the page cap trips. It
+// AllEvents pages /run-events until the window is exhausted (no next_before) or the page cap trips. It
 // returns the accumulated rows and capped=true when it stopped at the cap (the caller warns to stderr —
 // no silent truncation). The cursor threading is internal: a caller asks for the whole window.
 func (c *Client) AllEvents(ctx context.Context, p FeedParams) (rows []RunEvent, capped bool, err error) {
@@ -108,7 +108,7 @@ func (c *Client) AllEvents(ctx context.Context, p FeedParams) (rows []RunEvent, 
 	return rows, true, nil
 }
 
-// AllEgress pages /runs/egress until the window is exhausted or the page cap trips (same contract as
+// AllEgress pages /egress-log until the window is exhausted or the page cap trips (same contract as
 // AllEvents).
 func (c *Client) AllEgress(ctx context.Context, p FeedParams) (rows []EgressRow, capped bool, err error) {
 	p.Before = ""

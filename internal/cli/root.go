@@ -107,6 +107,8 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newSchemaCmd(e),
 		newExplainCmd(e),
 		newAccessCmd(e),
+		newRoutesCmd(e),
+		newOpenAPICmd(e),
 		newEnvCmd(e),
 		newTenantCmd(e),
 		newLoginCmd(e),

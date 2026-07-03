@@ -277,7 +277,7 @@ type RunsResponse struct {
 // sub-cause), whether the final answer was a FORCED submission under budget pressure (forced cause,
 // e.g. "budget"/"timeout"), whether the model fell back to a cheaper cascade rung (fallback_from = the
 // model it fell back FROM), and how many recoverable (transient) errors were retried in-loop. Surfaced
-// under a single optional "debug" object on GET /api/v1/runs/{id} and /full's run (progressive
+// under a single optional "debug" object on GET /api/v1/runs/{id} and /trace's run (progressive
 // disclosure) — the whole object is omitempty so a clean run carries nothing and the typed pointer
 // stays nil. Field names match the server verbatim.
 type RunDebug struct {
@@ -369,7 +369,7 @@ type SubmitResponse struct {
 	PollAfterMs int    `json:"poll_after_ms"`
 }
 
-// Note is one named note body on a run, returned in full by /full (vs. the has_note boolean on the
+// Note is one named note body on a run, returned in full by /trace (vs. the has_note boolean on the
 // lean run detail).
 type Note struct {
 	Key          string       `json:"key,omitempty"`
@@ -457,7 +457,7 @@ type GroundingSourceCurrent struct {
 	State     string `json:"state,omitempty"`
 }
 
-// RunHeader is the run-level half of GET /api/v1/runs/{id}/full — the superset of RunDetail the
+// RunHeader is the run-level half of GET /api/v1/runs/{id}/trace — the superset of RunDetail the
 // brain-renderer's JSONL run-header line needs: full draft/notes bodies (not booleans), the untrimmed
 // system_prompt, warm inputs (warm_start_digest/grounding_seed), run-level cost/tokens, egress, and
 // metadata.trace_url. Mirrors the server's `run` object field-for-field.
@@ -517,7 +517,7 @@ func (r *RunHeader) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// EventItem is one event in the /full bundle — the superset of Event: it adds the ai_usage join
+// EventItem is one event in the /trace bundle — the superset of Event: it adds the ai_usage join
 // (cost_usd/total_tokens/model), non-bash tool args, the agent's reasoning, and a human label, all of
 // which today's lean /events omits. Args is carried as raw JSON because its shape is tool-specific.
 type EventItem struct {
@@ -540,7 +540,7 @@ type EventItem struct {
 	Model       string          `json:"model,omitempty"`
 }
 
-// FullResponse is GET /api/v1/runs/{id}/full — the whole bundle. The CLI decomposes it for
+// FullResponse is GET /api/v1/runs/{id}/trace — the whole bundle. The CLI decomposes it for
 // progressive disclosure (a header block + timeline in table mode; a JSONL stream in -o json).
 type FullResponse struct {
 	Run    RunHeader   `json:"run"`
@@ -631,7 +631,7 @@ type WhoamiResponse struct {
 
 // --- observability feeds (rc fleet / patterns / health) ---
 
-// RunEvent is one raw run_events row from GET /api/v1/runs/events — the bulk feed `rc patterns`
+// RunEvent is one raw run_events row from GET /api/v1/run-events — the bulk feed `rc patterns`
 // clusters locally (bash-failure themes, recurring error signatures). Args is raw JSON (the bash
 // command lives at args.command). RunKind/RunCreatedAt are the parent run's, carried for the keyset
 // page + per-kind grouping. Field names match the server verbatim.
@@ -651,14 +651,14 @@ type RunEvent struct {
 	Reasoning    string          `json:"reasoning,omitempty"`
 }
 
-// RunEventsResponse is one page of GET /api/v1/runs/events. NextBefore is the cursor to the next
+// RunEventsResponse is one page of GET /api/v1/run-events. NextBefore is the cursor to the next
 // (older) page; empty on the last page.
 type RunEventsResponse struct {
 	Events     []RunEvent `json:"events"`
 	NextBefore string     `json:"next_before,omitempty"`
 }
 
-// EgressRow is one raw egress_log row from GET /api/v1/runs/egress — the bulk feed `rc patterns`
+// EgressRow is one raw egress_log row from GET /api/v1/egress-log — the bulk feed `rc patterns`
 // clusters into blocked-host signatures. Decision is "block" for a blocked attempt.
 type EgressRow struct {
 	RunID        string `json:"run_id"`
@@ -673,7 +673,7 @@ type EgressRow struct {
 	At           string `json:"at"`
 }
 
-// EgressResponse is one page of GET /api/v1/runs/egress.
+// EgressResponse is one page of GET /api/v1/egress-log.
 type EgressResponse struct {
 	Egress     []EgressRow `json:"egress"`
 	NextBefore string      `json:"next_before,omitempty"`
@@ -771,6 +771,18 @@ type Access struct {
 	WritableKeys []string       `json:"writable_keys"`
 	Resources    []string       `json:"resources"`
 	Console      ConsoleCapsSum `json:"console"`
+}
+
+// HierarchySettings is GET/PATCH /api/v1/projects/{project}/settings and its tenant/mailbox children.
+// Settings is the scope-local nested override bag ({persona:{...},channel:{...}}); Resolved is present
+// only when ?resolved=true and carries effective values plus provenance per field.
+type HierarchySettings struct {
+	Scope    string          `json:"scope"`
+	Project  string          `json:"project,omitempty"`
+	Tenant   string          `json:"tenant,omitempty"`
+	Mailbox  string          `json:"mailbox,omitempty"`
+	Settings json.RawMessage `json:"settings"`
+	Resolved json.RawMessage `json:"resolved,omitempty"`
 }
 
 // ScopeItem is a project/tenant identity in a capabilities response.

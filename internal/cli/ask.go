@@ -91,7 +91,7 @@ func newAskCmd(e *env) *cobra.Command {
 			}
 
 			// JSON remains a verbatim passthrough of /runs/{id}. Table mode is scenario-aware: email tries
-			// the richer /full bundle for draft/note bodies, raw stays the lean single-answer view.
+			// the richer /trace bundle for draft/note bodies, raw stays the lean single-answer view.
 			if jsonMode {
 				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(detail.RunID), nil)
 				if err != nil {

@@ -39,7 +39,7 @@ func newRunCmd(e *env) *cobra.Command {
 			}
 			jsonMode := render.IsJSON(e.mode(), e.out)
 
-			// --debug: decompose the /full bundle into a jq-able JSONL + a thin markdown index on disk, then
+			// --debug: decompose the /trace bundle into a jq-able JSONL + a thin markdown index on disk, then
 			// print the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
 			if debug {
 				return runDebug(e, c, id, outDir)
@@ -49,7 +49,7 @@ func newRunCmd(e *env) *cobra.Command {
 				// JSON mode is the renderer's input contract: emit the bundle as JSONL from the raw bytes so
 				// no server field is dropped on the cross-repo seam. Table mode decodes into the typed bundle.
 				if jsonMode {
-					raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(id)+"/full", nil)
+					raw, err := c.Raw(e.ctx(), "GET", client.RunTracePath(id), nil)
 					if err != nil {
 						return err
 					}
@@ -218,7 +218,7 @@ func cellOf(it client.Item, key string) string {
 // every subfolder); brains seed `/.rootcause/` so these dumps (real run data, PII) never get committed.
 const defaultDebugDir = ".rootcause/debug"
 
-// runDebug pulls the run's /full bundle (cross-project for an all-projects admin token) and writes the
+// runDebug pulls the run's /trace bundle (cross-project for an all-projects admin token) and writes the
 // raw jq-able JSONL event log + a thin markdown index, printing both paths. It does NOT render the run
 // into stdout — the whole point is to hand the agent primitives (the two files) it drills into itself.
 func runDebug(e *env, c *client.Client, id, outDir string) error {
@@ -280,7 +280,7 @@ func emitNDJSON(e *env, events []client.Event) error {
 	return nil
 }
 
-// emitFullJSONL turns the /full bundle into the brain-renderer's input contract: a `{"type":"run",…}`
+// emitFullJSONL turns the /trace bundle into the brain-renderer's input contract: a `{"type":"run",…}`
 // header line followed by one `{"type":"event",…}` line per event. It works from the RAW bundle bytes
 // (decomposing {run:{…},events:[…]}) so every server field rides through verbatim. The run header also
 // gets the derived grounding_source_drift_count for quick jq filters. This is the stable cross-repo

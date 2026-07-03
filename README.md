@@ -19,8 +19,12 @@ $ rc ask --scenario raw "How many active subscriptions are past due?"
 $ rc ask --effort pro "Retry this with a stronger model tier"
 $ rc runs --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run <id> --events        # full per-iteration trace (NDJSON when piped)
-$ rc run <id> --full          # the whole bundle (header + trace; JSONL when piped)
+$ rc run <id> --full          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
 $ rc config set max_run_usd=5 default_tier=pro
+$ rc config hierarchy set persona.tone=warm channel.labeling_enabled=true
+$ rc tenant settings get --tenant acme
+$ rc mailbox settings set <mailbox-id> persona.tone=direct
+$ rc routes | grep /trace
 $ rc env keys                  # key NAMES of the production grounding env (no values)
 $ rc env pull                  # sync that env to a local 0600 ./.env (for brain-dev --live)
 ```

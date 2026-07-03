@@ -23,6 +23,7 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxPauseCmd(e),
 		mailboxResumeCmd(e),
 		mailboxProcessCmd(e),
+		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
 		newMailboxRouteCmd(e),
 	)

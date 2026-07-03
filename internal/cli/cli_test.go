@@ -58,7 +58,7 @@ func stubServer(t *testing.T) *httptest.Server {
 
 	// Observability feeds (rc fleet / patterns / health). The events feed is paged: page 1 carries a
 	// next_before, page 2 (before set) is the last page — exercising the CLI's paging loop + accumulation.
-	mux.HandleFunc("GET /api/v1/runs/events", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/run-events", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		if r.URL.Query().Get("before") == "" {
@@ -67,7 +67,7 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write(fixture(t, "events_feed_p2.json"))
 	})
-	mux.HandleFunc("GET /api/v1/runs/egress", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/egress-log", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "egress_feed.json"))
@@ -143,7 +143,7 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write(fixture(t, "events.json"))
 	})
-	mux.HandleFunc("GET /api/v1/runs/{id}/full", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/runs/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		// id "declined" carries the run.debug bundle, exercising the full header's debug rows + the
@@ -243,6 +243,11 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "console_capabilities.json"))
 	})
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"email":"dev@example.test","project":{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha","slug":"alpha"}}`))
+	})
 	mux.HandleFunc("GET /api/v1/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
@@ -254,7 +259,7 @@ func stubServer(t *testing.T) *httptest.Server {
 		// "max_run_usd":"oops" (a non-number) drives the INVALID_SETTINGS error path.
 		if strings.Contains(body, `"max_run_usd":"oops"`) {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error":{"code":"INVALID_SETTINGS","message":"settings rejected","fields":[{"key":"max_run_usd","message":"must be a number"}]}}`))
+			_, _ = w.Write([]byte(`{"error":{"code":"INVALID_SETTINGS","message":"settings rejected","details":[{"field":"max_run_usd","message":"must be a number"}]}}`))
 			return
 		}
 		// A pr.triggers set must arrive as a JSON ARRAY, not a comma string — the list-coercion contract.
@@ -331,15 +336,36 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "meta_capabilities.json"))
 	})
+	mux.HandleFunc("GET /api/v1/meta/routes", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"routes":[{"method":"GET","path":"/api/v1/runs/{id}/trace","summary":"Read run trace bundle","auth":"bearer"},{"method":"GET","path":"/api/v1/runs/{id}/full","summary":"Read full run bundle","auth":"bearer","deprecated":true}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/meta/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"openapi":"3.1.0","paths":{"/api/v1/runs/{id}/trace":{"get":{"summary":"Read run trace bundle"}}}}`))
+	})
 
-	// Tenant settings editing surface (Wave 3). The schema is served verbatim from the embedded copy;
-	// GET returns a canned record; PATCH echoes the merge AND drives the validation_failed path.
+	// Hierarchy settings editing surface. The schema is served verbatim from the embedded legacy copy
+	// for the compatibility schema command; GET returns a nested record; PATCH echoes the nested patch.
 	mux.HandleFunc("GET /api/v1/tenants/settings/schema", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "tenant_schema.json"))
 	})
-	mux.HandleFunc("GET /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/projects/{project}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "hierarchy_project_settings.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/projects/{project}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"scope":"project","project":"%s","settings":%s,"resolved":{"persona":{"tone":{"value":"project crisp","source":"project"}}}}`, r.PathValue("project"), body)
+	})
+	mux.HandleFunc("GET /api/v1/projects/{project}/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		// An unknown tenant is a uniform 404 (existence not leaked), like the real server.
 		if r.PathValue("slug") == "ghost" {
@@ -348,26 +374,30 @@ func stubServer(t *testing.T) *httptest.Server {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(fixture(t, "tenant_settings.json"))
+		_, _ = w.Write(fixture(t, "hierarchy_tenant_settings.json"))
 	})
-	mux.HandleFunc("PATCH /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PATCH /api/v1/projects/{project}/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
 		// A bad enum value drives the 400 validation_failed / field_errors path (server is final word).
-		if strings.Contains(body, `"reschedule_method":"nope"`) {
+		if strings.Contains(body, `"tone":"nope"`) {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error":"validation_failed","field_errors":{"reschedule_method":"must be one of propose_one_book, propose_options_confirm, unset"}}`))
+			_, _ = w.Write([]byte(`{"error":{"code":"INVALID_SETTINGS","message":"1 setting failed validation","details":[{"field":"persona.tone","message":"bad tone"}]}}`))
 			return
 		}
-		// Echo the sent settings back as the merged record (the test asserts the exact body the CLI
-		// sent: sparse keys, source:"cli", explicit null for unset). We re-emit the request's settings so
-		// the golden/JSON assertions can see what was merged.
-		var req struct {
-			Settings json.RawMessage `json:"settings"`
-		}
-		_ = json.Unmarshal([]byte(body), &req)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"tenant_id":"de-kies","version":"sha256:patched","applied_at":"2026-06-22T10:00:00Z","settings":%s}`, req.Settings)
+		_, _ = fmt.Fprintf(w, `{"scope":"tenant","project":"%s","tenant":"%s","settings":%s,"resolved":{"persona":{"tone":{"value":"tenant crisp","source":"tenant"},"language":{"value":"Dutch","source":"project"}},"channel":{"labeling_enabled":{"value":true,"source":"tenant"}}}}`, r.PathValue("project"), r.PathValue("slug"), body)
+	})
+	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes/{id}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "hierarchy_mailbox_settings.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/projects/{project}/mailboxes/{id}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"scope":"mailbox","project":"%s","tenant":"acme","mailbox":"%s","settings":%s,"resolved":{"persona":{"tone":{"value":"mailbox direct","source":"mailbox"}}}}`, r.PathValue("project"), r.PathValue("id"), body)
 	})
 
 	// Collection resources (repos / connections / members / tokens). Each list GET echoes a canned

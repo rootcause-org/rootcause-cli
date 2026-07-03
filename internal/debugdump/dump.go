@@ -1,4 +1,4 @@
-// Package debugdump ports rootcause's rc-agent-debug decomposer to the CLI: it turns one run's /full
+// Package debugdump ports rootcause's rc-agent-debug decomposer to the CLI: it turns one run's /trace
 // bundle into TWO local files built for progressive disclosure — a JSONL event log (the drill-down
 // target) and a THIN markdown index (where to look). The calling agent reads the index, then jqs the
 // JSONL; the CLI never pre-summarizes a whole run into an LLM's context.

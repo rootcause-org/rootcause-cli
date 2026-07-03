@@ -1,6 +1,6 @@
 // Package client is the one thin HTTP wrapper over the rootcause JSON API: it sets the bearer
 // key + base URL, speaks JSON, and on any non-2xx decodes the error envelope into a typed APIError
-// (code+message+fields carried through verbatim). It holds NO business logic — every method is one
+// (code+message+details carried through verbatim). It holds NO business logic — every method is one
 // request mapping straight onto one endpoint, returning the wire struct for the render layer to show.
 package client
 
@@ -127,15 +127,19 @@ func (c *Client) Events(ctx context.Context, id string) (*EventsResponse, error)
 	return &out, nil
 }
 
-// Full fetches GET /api/v1/runs/{id}/full — the whole bundle (run header + per-event trace with the
+// Full fetches GET /api/v1/runs/{id}/trace — the whole bundle (run header + per-event trace with the
 // ai_usage join). Used by the table view of `rc run <id> --full`; the JSON path goes through Raw to
 // keep the renderer's JSONL seam byte-faithful.
 func (c *Client) Full(ctx context.Context, id string) (*FullResponse, error) {
 	var out FullResponse
-	if err := c.do(ctx, http.MethodGet, "/api/v1/runs/"+url.PathEscape(id)+"/full", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, RunTracePath(id), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+func RunTracePath(id string) string {
+	return "/api/v1/runs/" + url.PathEscape(id) + "/trace"
 }
 
 // BrainDiff fetches GET /api/v1/runs/{id}/brain-diff — the ONE journal commit the run wrote to its
@@ -289,6 +293,41 @@ func (c *Client) GetAccess(ctx context.Context, project string) (*Access, error)
 	return &out, nil
 }
 
+func hierarchySettingsPath(scope, project, id string, resolved bool) string {
+	path := "/api/v1/projects/" + url.PathEscape(project)
+	switch scope {
+	case "tenant":
+		path += "/tenants/" + url.PathEscape(id)
+	case "mailbox":
+		path += "/mailboxes/" + url.PathEscape(id)
+	}
+	path += "/settings"
+	if resolved {
+		path += "?resolved=true"
+	}
+	return path
+}
+
+func (c *Client) GetHierarchySettings(ctx context.Context, scope, project, id string, resolved bool) (*HierarchySettings, error) {
+	var out HierarchySettings
+	if err := c.do(ctx, http.MethodGet, hierarchySettingsPath(scope, project, id, resolved), nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) PatchHierarchySettings(ctx context.Context, scope, project, id string, patch map[string]any, resolved bool) (*HierarchySettings, error) {
+	var out HierarchySettings
+	if err := c.do(ctx, http.MethodPatch, hierarchySettingsPath(scope, project, id, resolved), patch, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *Client) RawHierarchySettings(ctx context.Context, method, scope, project, id string, body map[string]any, resolved bool) (json.RawMessage, error) {
+	return c.Raw(ctx, method, hierarchySettingsPath(scope, project, id, resolved), body)
+}
+
 // GetTenantSettings fetches GET /api/v1/tenants/{slug}/settings — one practice's current onboarding
 // record (settings + version + applied_at). slug is path-escaped; the project is the bearer key's.
 func (c *Client) GetTenantSettings(ctx context.Context, slug string) (*TenantSettings, error) {
@@ -364,7 +403,7 @@ func (c *Client) attempt(ctx context.Context, method, path string, reqBody []byt
 }
 
 // do issues one request: OAuth bearer auth, JSON body in/out, and on non-2xx decodes the error
-// envelope into a typed APIError (code/message/fields verbatim). out may be a *json.RawMessage to
+// envelope into a typed APIError (code/message/details verbatim). out may be a *json.RawMessage to
 // capture the body unparsed for passthrough. On a 401 (an access token that expired/was revoked
 // mid-flight) it forces a token refresh and retries ONCE — the body is buffered up front so the retry
 // can resend it.

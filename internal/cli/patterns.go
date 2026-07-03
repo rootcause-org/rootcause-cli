@@ -10,7 +10,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newPatternsCmd builds `rc patterns`: the failure/pattern miner over the THIN /runs/events + /runs/egress
+// newPatternsCmd builds `rc patterns`: the failure/pattern miner over the THIN /run-events + /egress-log
 // feeds (both paged), porting run_patterns.py's bash-failure + blocked-egress clustering with masked
 // signatures and a `suggested fix:` stub per cluster. The server ships raw rows; ALL masking/grouping/
 // ranking happens client-side. -o json is a raw passthrough of the paged event + egress rows.
@@ -26,7 +26,7 @@ func newPatternsCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "patterns",
 		Short: "Cluster recent failures into ranked patterns (bash + blocked egress)",
-		Long: "Page GET /api/v1/runs/events and /runs/egress and cluster them like run_patterns: bash-failure " +
+		Long: "Page GET /api/v1/run-events and /egress-log and cluster them like run_patterns: bash-failure " +
 			"signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix " +
 			"stub. --all fans out across every project (all-projects token), one clustered section per project. " +
 			"-o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).",

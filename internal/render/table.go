@@ -586,7 +586,7 @@ func Events(w io.Writer, resp *client.EventsResponse) {
 	}
 }
 
-// Full renders the decomposed bundle (GET /runs/{id}/full) for a human: a run-header block then the
+// Full renders the decomposed bundle (GET /runs/{id}/trace) for a human: a run-header block then the
 // per-event timeline. It's the table-mode counterpart to the JSONL seam — the same data, laid out to
 // skim. Optional rows print only when present so a lean run stays clean. Full bodies (draft, notes,
 // system prompt) are shown after the table since they can be long.
