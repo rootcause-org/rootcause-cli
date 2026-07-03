@@ -84,8 +84,9 @@ install …@latest` re-installs the latest for Go users.)
 `rc` authenticates with **OAuth**. Sign in once with `rc login`; it stores an access + refresh token in
 `~/.config/rootcause/tokens.json` (0600) and refreshes the short-lived access token transparently on
 every later command. The token's **scope is chosen on the browser consent screen** (a single project,
-one tenant under a project, or — for a global admin — all projects); there is no key to paste and no
-`--project`/`--tenant` is needed to prove scope, it's baked into the token.
+one tenant under a project, or — for a global admin — all projects); there is no key to paste.
+Tenant-enabled project logins can be project-scoped, then `--tenant <slug>` chooses the run scope per
+command.
 
 ```bash
 rc login            # opens your browser (PKCE loopback), catches the redirect, stores the token
@@ -134,9 +135,9 @@ review a single project (`rc fleet --project momentum-tools`) or trigger one (`r
 momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
 When a project scope is set, the CLI validates it against `rc projects` first and fails typos with a
 hint to run `rc projects`.
-On tenant-enabled projects, the active `rc login` normally binds one tenant. Plain `rc ask "…"` uses
-that tenant automatically; `rc whoami` shows it. `--tenant <slug>` remains an explicit override/debug
-flag where an endpoint accepts it, but it is not needed in the normal path.
+On tenant-enabled projects, the active `rc login` may bind one tenant or the whole project. Plain
+`rc ask "…"` works when the token is tenant-pinned; project-pinned logins pass `--tenant <slug>` per
+workspace-producing command. `rc whoami` shows the login-bound project and tenant, when one is pinned.
 
 For a whole-fleet review with an all-projects token, `rc fleet`/`patterns`/`health` take **`--all`**:
 the CLI lists the fleet (`rc projects`) and fans out per project — `fleet --all` groups the digest by
@@ -163,8 +164,8 @@ Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>
 requests to one project server-side and is validated against `rc projects` before use (useful for
 all-projects tokens outside a brain checkout or as an override; inside a brain checkout the
 `.rootcause.toml` project is used automatically when falling back to `default`);
-`--tenant <slug>` explicitly overrides a tenant where supported; normally the login supplies tenant
-scope. `-o json|table` forces output.
+`--tenant <slug>` explicitly selects a tenant where supported; it is required for workspace-producing
+commands when a tenant-enabled project login is project-pinned. `-o json|table` forces output.
 
 | Command | Does |
 |---|---|
@@ -267,7 +268,8 @@ rc env reveal FOO_API_TOKEN # prints the value once; sensitive
 > reads from STDIN by default and never echoes. `reveal` is the deliberate exception: it prints one live
 > secret value for copy/pipe use and audits the key name. The pulled `.env` holds **real production
 > secrets** on your laptop — treat it like a password file (it's gitignored in every brain repo). A
-> tenant-enabled bulk pull uses the tenant bound to your `rc login` unless you pass `--tenant`.
+> tenant-enabled bulk pull uses the tenant bound to your `rc login`, or requires `--tenant` when the
+> login is project-pinned.
 
 `rc env set/rm/reveal` targets the grounding plane by default (`/api/v1/env_grounding`), which is
 injected into normal read-only runs. Per-key commands target a tenant env only when the OAuth token

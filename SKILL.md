@@ -69,8 +69,9 @@ follow-up off the prior turns' command trail (see
 [multi_turn_warm_start.md](../rootcause/.agents/skills/features/multi_turn_warm_start.md) — the prior
 *answer* is not yet replayed for prompt/mcp). `--brain-ref dev/<branch>` runs against a non-main brain
 ref (a test run); `--effort pro|max` sends `reasoning_effort` to force a stronger rootcause model tier
-for this run (omitted/default keeps normal tier selection). On tenant-enabled projects, the login
-normally supplies the tenant; `--tenant <slug>` is an explicit override.
+for this run (omitted/default keeps normal tier selection). On tenant-enabled projects, `rc login` may
+be tenant-pinned or project-pinned. A tenant-pinned login works with plain `rc ask`; a project-pinned
+login must pass `--tenant <slug>` on each workspace-producing command.
 
 `rc env` deliberately treats secret values differently from ordinary JSON. Bulk `GET /api/v1/env`
 returns live grounding secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and `pull`
@@ -165,8 +166,10 @@ one project, a pinned token disregards it server-side. The brain→default fallb
 implicitly from `.rootcause.toml`. Before using a non-empty scope, the CLI checks `GET /api/v1/projects`
 and returns `UNKNOWN_PROJECT` with a `rc projects` hint when the id/name is not visible. See
 `env.scopeProject` / `env.validateProjectScope` in `internal/cli/root.go`.
-On tenant-enabled projects, the active OAuth login normally binds one tenant. Plain `rc ask` sends no
-tenant flag and the server uses that token-bound tenant; `rc whoami` calls `/api/v1/whoami` to show it.
+On tenant-enabled projects, the active OAuth login may bind one tenant or the whole project. Plain
+`rc ask` sends no tenant flag and works only when the token is tenant-pinned; project-pinned logins use
+`--tenant <slug>` per command. `rc whoami` calls `/api/v1/whoami` to show the login-bound project and
+tenant, when one is pinned.
 
 **Fleet-wide `--all`** (`rc fleet`/`patterns`/`health`) is the FAT-CLIENT fan-out that complements
 `--project`: it lists the fleet via `rc projects`, then calls the per-project read endpoint once per
