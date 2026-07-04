@@ -349,15 +349,27 @@ type EventsResponse struct {
 // for the default email simulation; sender/subject shape the synthetic inbound email for that scenario.
 // Project is the ?project= selector for all-projects admin tokens, never JSON.
 type SubmitRequest struct {
-	Prompt          string `json:"prompt"`
-	Scenario        string `json:"scenario"`
-	SessionID       string `json:"session_id,omitempty"`
-	Tenant          string `json:"tenant,omitempty"`
-	BrainRef        string `json:"brain_ref,omitempty"`
-	ReasoningEffort string `json:"reasoning_effort,omitempty"`
-	Sender          string `json:"sender,omitempty"`
-	Subject         string `json:"subject,omitempty"`
-	Project         string `json:"-"`
+	Prompt          string     `json:"prompt"`
+	Scenario        string     `json:"scenario"`
+	SessionID       string     `json:"session_id,omitempty"`
+	Tenant          string     `json:"tenant,omitempty"`
+	BrainRef        string     `json:"brain_ref,omitempty"`
+	ReasoningEffort string     `json:"reasoning_effort,omitempty"`
+	Sender          string     `json:"sender,omitempty"`
+	Subject         string     `json:"subject,omitempty"`
+	Principal       *Principal `json:"principal,omitempty"`
+	Project         string     `json:"-"`
+}
+
+// Principal is the optional structured identity assertion on a triggered run (data-scoping), mirroring
+// the server's webhook.ProjectPrincipal contract verbatim. Dormant unless the project declares
+// scope_claims; kind+external_id are the required pair, asserted_by/assurance are server-defaulted when
+// omitted. NO tenant_hint — tenant binding is the explicit --tenant slug, not part of the principal.
+type Principal struct {
+	Kind       string `json:"kind"`
+	ExternalID string `json:"external_id"`
+	AssertedBy string `json:"asserted_by,omitempty"`
+	Assurance  string `json:"assurance,omitempty"`
 }
 
 // SubmitResponse is the 202 body from POST /api/v1/runs: the run id + where/when to poll. PollAfterMs

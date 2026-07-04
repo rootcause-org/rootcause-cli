@@ -312,6 +312,149 @@ func TestAskDoesNotDropBrainRefForLegacyFallback(t *testing.T) {
 	}
 }
 
+// TestAskPrincipalForwarded asserts the --principal-kind/--principal-id pair (plus optional
+// --asserted-by/--assurance) rides through as a nested principal object in the POST body, verbatim.
+func TestAskPrincipalForwarded(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q",
+		"--principal-kind", "kampadmin_person", "--principal-id", "p-123",
+		"--asserted-by", "api", "--assurance", "bearer_operator", "--no-wait"); err != nil {
+		t.Fatalf("ask --principal-*: %v", err)
+	}
+	p, ok := got["principal"].(map[string]any)
+	if !ok {
+		t.Fatalf("principal missing/not an object; body=%v", got)
+	}
+	if p["kind"] != "kampadmin_person" || p["external_id"] != "p-123" {
+		t.Errorf("principal kind/external_id wrong: %v", p)
+	}
+	if p["asserted_by"] != "api" || p["assurance"] != "bearer_operator" {
+		t.Errorf("principal asserted_by/assurance wrong: %v", p)
+	}
+}
+
+// TestAskPrincipalMinimalPairOmitsDefaults: the bare kind+id pair sends no asserted_by/assurance keys
+// (omitempty), so the server defaults them.
+func TestAskPrincipalMinimalPairOmitsDefaults(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--principal-kind", "kampadmin_person", "--principal-id", "p-1", "--no-wait"); err != nil {
+		t.Fatalf("ask minimal principal: %v", err)
+	}
+	p, ok := got["principal"].(map[string]any)
+	if !ok {
+		t.Fatalf("principal missing; body=%v", got)
+	}
+	if _, ok := p["asserted_by"]; ok {
+		t.Errorf("asserted_by should be omitted, got %v", p)
+	}
+	if _, ok := p["assurance"]; ok {
+		t.Errorf("assurance should be omitted, got %v", p)
+	}
+}
+
+// TestAskNoPrincipalOmitsField: with no principal flags the POST body carries no principal at all
+// (dormant default).
+func TestAskNoPrincipalOmitsField(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--no-wait"); err != nil {
+		t.Fatalf("ask: %v", err)
+	}
+	if _, ok := got["principal"]; ok {
+		t.Errorf("principal should be omitted when no flags given; body=%v", got)
+	}
+}
+
+// TestAskPrincipalPairRequired: a lone half of the pair is a scoping mistake — error, don't submit.
+func TestAskPrincipalPairRequired(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{"kind-only", []string{"ask", "q", "--principal-kind", "kampadmin_person", "--no-wait"}},
+		{"id-only", []string{"ask", "q", "--principal-id", "p-1", "--no-wait"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e, _, _ := newTestEnv(t, srv, "table")
+			err := run(t, e, tc.args...)
+			if err == nil {
+				t.Fatal("expected pair-required error, got nil")
+			}
+			if !strings.Contains(err.Error(), "must be provided together") {
+				t.Errorf("expected pair-required error, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestAskAssertedByRequiresPair: --asserted-by/--assurance are meaningless without the identity pair.
+func TestAskAssertedByRequiresPair(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, flag := range [][]string{{"--asserted-by", "api"}, {"--assurance", "bearer_operator"}} {
+		t.Run(flag[0], func(t *testing.T) {
+			e, _, _ := newTestEnv(t, srv, "table")
+			err := run(t, e, append([]string{"ask", "q"}, append(flag, "--no-wait")...)...)
+			if err == nil {
+				t.Fatal("expected require-pair error, got nil")
+			}
+			if !strings.Contains(err.Error(), "require --principal-kind and --principal-id") {
+				t.Errorf("expected require-pair error, got: %v", err)
+			}
+		})
+	}
+}
+
+// TestAskPrincipalNeverFallsBackToLegacy is the security guard: a principal-bearing submit that gets a
+// BAD_BODY must surface the error, NEVER retry the bare {prompt,tenant} legacy body — a silently dropped
+// principal is a silent under-scope.
+func TestAskPrincipalNeverFallsBackToLegacy(t *testing.T) {
+	var attempts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"code":"BAD_BODY","message":"malformed request body"}}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "ask", "q", "--principal-kind", "kampadmin_person", "--principal-id", "p-1", "--no-wait")
+	if err == nil {
+		t.Fatal("expected BAD_BODY error, got nil")
+	}
+	if attempts != 1 {
+		t.Fatalf("attempts = %d, want 1 (no legacy retry for a principal-bearing request)", attempts)
+	}
+}
+
 // TestAskEffortForwarded asserts --effort rides through as reasoning_effort in the POST body.
 func TestAskEffortForwarded(t *testing.T) {
 	var gotBody string

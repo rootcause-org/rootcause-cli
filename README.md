@@ -179,7 +179,7 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc whoami` | the resolved profile/project/login tenant + sign-in status |
 | `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection |
+| `rc ask "<q>" [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--principal-kind K --principal-id ID [--asserted-by …] [--assurance …]] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection. `--principal-kind`+`--principal-id` (a pair) assert a data-scoping identity (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
@@ -231,6 +231,15 @@ compatibility alias for raw, but `raw` is the documented name.
 `rc ask --effort pro|max` is a per-run escalation knob. It maps to rootcause's model tiers, not raw
 provider effort values; use it when you explicitly want a stronger retry. Omit it, or pass
 `--effort default`, for normal behavior.
+
+`rc ask --principal-kind <K> --principal-id <ID>` asserts a **principal** on the run — a structured
+identity that scopes the run's read-only data access to that entity's rows (e.g.
+`--principal-kind kampadmin_person --principal-id <person-uuid>`). Both flags are a pair (supply both
+or neither); `--asserted-by`/`--assurance` optionally refine the assertion and require the pair. The
+principal is dormant unless the project declares `scope_claims`; without that config the server discards
+it. Tenant binding stays the explicit `--tenant` slug — it is not part of the principal. A
+principal-bearing submit never falls back to the legacy body, so a stale server rejects it rather than
+silently dropping the scope.
 
 #### `--session` — multi-turn threading
 

@@ -187,6 +187,13 @@ type legacySubmitRequest struct {
 }
 
 func shouldRetryLegacySubmit(err error, req SubmitRequest) bool {
+	// A principal-bearing request must NEVER fall back to the bare {prompt,tenant} legacy body: the
+	// legacy shape drops the principal silently, and a dropped principal is a silent under-scope (the run
+	// would answer with tenant-only scope instead of the asserted identity's). This guard is security,
+	// not parity — refuse the fallback and surface the original error instead.
+	if req.Principal != nil {
+		return false
+	}
 	if req.SessionID != "" || req.BrainRef != "" || req.ReasoningEffort != "" {
 		return false
 	}

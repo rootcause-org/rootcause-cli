@@ -16,14 +16,18 @@ import (
 // askFlags holds `rc ask`'s flags, bound per-command so each invocation is isolated. Tenant scope is
 // normally login-bound; the persistent --tenant remains an explicit override.
 type askFlags struct {
-	brainRef string
-	effort   string
-	scenario string
-	from     string
-	subject  string
-	session  string
-	noWait   bool
-	timeout  time.Duration
+	brainRef      string
+	effort        string
+	scenario      string
+	from          string
+	subject       string
+	session       string
+	principalKind string
+	principalID   string
+	assertedBy    string
+	assurance     string
+	noWait        bool
+	timeout       time.Duration
 }
 
 const defaultAskFrom = "rc-ask@example.test"
@@ -55,6 +59,10 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			principal, err := askPrincipal(f)
+			if err != nil {
+				return err
+			}
 
 			sender, subject := askEmailFields(scenario, args[0], f.from, f.subject, cmd.Flags().Changed("from"), cmd.Flags().Changed("subject"))
 
@@ -67,6 +75,7 @@ func newAskCmd(e *env) *cobra.Command {
 				ReasoningEffort: effort,
 				Sender:          sender,
 				Subject:         subject,
+				Principal:       principal,
 				Project:         e.scopeProject(),
 			})
 			if err != nil {
@@ -114,9 +123,41 @@ func newAskCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&f.effort, "effort", "", "reasoning effort override: default, pro, or max")
 	cmd.Flags().StringVar(&f.brainRef, "brain-ref", "", "run against a non-main brain ref (e.g. dev/refund-rework) — a test run")
 	cmd.Flags().StringVar(&f.session, "session", "", "session id to thread the run onto")
+	cmd.Flags().StringVar(&f.principalKind, "principal-kind", "", "principal kind to scope the run's data (e.g. kampadmin_person); requires --principal-id")
+	cmd.Flags().StringVar(&f.principalID, "principal-id", "", "principal external id (the asserted identity); requires --principal-kind")
+	cmd.Flags().StringVar(&f.assertedBy, "asserted-by", "", "who asserted the principal (default server-side); requires the --principal-kind/--principal-id pair")
+	cmd.Flags().StringVar(&f.assurance, "assurance", "", "assurance level of the principal assertion (default server-side); requires the --principal-kind/--principal-id pair")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")
 	return cmd
+}
+
+// askPrincipal validates the principal flag group and builds the optional principal. --principal-kind
+// and --principal-id are a pair (both or neither — a lone half is a scoping mistake, so error rather
+// than silently under- or over-scope). --asserted-by/--assurance are refinements meaningless without
+// the pair. Returns nil when no principal flags were given (the dormant default). asserted_by/assurance
+// stay omitempty so the server applies its own defaults.
+func askPrincipal(f askFlags) (*client.Principal, error) {
+	kind := strings.TrimSpace(f.principalKind)
+	id := strings.TrimSpace(f.principalID)
+	assertedBy := strings.TrimSpace(f.assertedBy)
+	assurance := strings.TrimSpace(f.assurance)
+
+	if (kind == "") != (id == "") {
+		return nil, fmt.Errorf("--principal-kind and --principal-id must be provided together (both or neither)")
+	}
+	if kind == "" {
+		if assertedBy != "" || assurance != "" {
+			return nil, fmt.Errorf("--asserted-by/--assurance require --principal-kind and --principal-id")
+		}
+		return nil, nil
+	}
+	return &client.Principal{
+		Kind:       kind,
+		ExternalID: id,
+		AssertedBy: assertedBy,
+		Assurance:  assurance,
+	}, nil
 }
 
 func normalizeAskEffort(v string, set bool) (string, error) {
