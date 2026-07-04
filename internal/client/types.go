@@ -372,6 +372,29 @@ type Principal struct {
 	Assurance  string `json:"assurance,omitempty"`
 }
 
+// ScopePreviewReport mirrors the server's manifestcheck.PreviewReport verbatim: the scoped view a real run
+// of (tenant, principal) would see — per-table counts + sample rows + the compiled predicate, plus the
+// resolved claim summary and tenant binding.
+type ScopePreviewReport struct {
+	Project         string              `json:"project"`
+	DSNEnv          string              `json:"dsn_env"`
+	Tenant          string              `json:"tenant,omitempty"`
+	TenantPredicate bool                `json:"tenant_predicate"`
+	ScopeValue      string              `json:"scope_value,omitempty"`
+	Principal       *Principal          `json:"principal,omitempty"`
+	Claims          map[string]string   `json:"claims,omitempty"`
+	Tables          []ScopePreviewTable `json:"tables"`
+}
+
+// ScopePreviewTable is one scoped view's evidence: the row count under the scoped predicate, up to a few
+// sample rows, and the compiled WHERE the view enforces.
+type ScopePreviewTable struct {
+	Name      string           `json:"name"`
+	Count     int64            `json:"count"`
+	Predicate string           `json:"predicate,omitempty"`
+	Rows      []map[string]any `json:"rows"`
+}
+
 // SubmitResponse is the 202 body from POST /api/v1/runs: the run id + where/when to poll. PollAfterMs
 // is the server's hint for the poll interval (ms); 0 → the caller picks a default.
 type SubmitResponse struct {

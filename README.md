@@ -202,6 +202,7 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc mailbox route ls\|add` | **legacy** email-keyed routing table (which inbound address → which project/tenant); the generic `/api/v1/mailboxes` collection, kept for tenant onboarding |
 | `rc database ls\|get\|set` | list / read / update registered databases |
 | `rc database controls get\|set <dsn>` | read / change a database's access controls (JSON object or k=v) |
+| `rc database preview <dsn> --tenant … --principal-kind … --principal-id … [--table …]` | preview the scoped rows a **(tenant, principal)** would see — per-table counts + sample rows + the compiled predicate (read-only; `-o json` for the raw report) |
 | `rc branding logo set <file>\|clear` | upload (multipart) or remove the white-label logo |
 | `rc github status` | GitHub App install status (`installed` / `account` / `install_url`) |
 | `rc brain status` · `rc brain sync` | show / refresh the deployed on-box brain cache (`sync` fetches origin/main, fast-forwards when safe, and refreshes warm bash sessions) |

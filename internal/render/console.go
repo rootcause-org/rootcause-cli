@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -85,6 +86,51 @@ func DBQuery(w io.Writer, r *client.DBQueryResponse) {
 		_, _ = fmt.Fprintf(w, "\n(truncated at %d rows)\n", r.RowCount)
 	}
 	_, _ = fmt.Fprintf(w, "\n%d rows (%d ms) run=%s\n", r.RowCount, r.DurationMs, r.RunID)
+}
+
+// ScopePreview renders a scope-preview report: the resolved scope header, then per-table counts + the
+// compiled predicate + sample rows. It is the table twin of the -o json PreviewReport.
+func ScopePreview(w io.Writer, r *client.ScopePreviewReport) {
+	_, _ = fmt.Fprintf(w, "Project: %s  DB: %s\n", r.Project, r.DSNEnv)
+	if r.TenantPredicate {
+		_, _ = fmt.Fprintf(w, "Tenant:  %s (scope_value=%s)\n", r.Tenant, r.ScopeValue)
+	} else {
+		_, _ = fmt.Fprintln(w, "Tenant:  (flat / cross-tenant)")
+	}
+	if r.Principal != nil {
+		_, _ = fmt.Fprintf(w, "Principal: %s=%s\n", r.Principal.Kind, r.Principal.ExternalID)
+	}
+	if len(r.Claims) > 0 {
+		parts := make([]string, 0, len(r.Claims))
+		for _, k := range sortedMapKeys(r.Claims) {
+			parts = append(parts, k+"="+r.Claims[k])
+		}
+		_, _ = fmt.Fprintf(w, "Claims:  %s\n", strings.Join(parts, " "))
+	}
+	if len(r.Tables) == 0 {
+		_, _ = fmt.Fprintln(w, "\n(no reachable tables)")
+		return
+	}
+	for _, tb := range r.Tables {
+		_, _ = fmt.Fprintf(w, "\n%s — %d row(s)\n", tb.Name, tb.Count)
+		if tb.Predicate != "" {
+			_, _ = fmt.Fprintf(w, "  where: %s\n", tb.Predicate)
+		}
+		if len(tb.Rows) == 0 {
+			continue
+		}
+		cols := sortedMapKeys(tb.Rows[0])
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "  "+strings.Join(cols, "\t"))
+		for _, row := range tb.Rows {
+			vals := make([]string, len(cols))
+			for i, c := range cols {
+				vals[i] = scalar(row[c])
+			}
+			_, _ = fmt.Fprintln(tw, "  "+strings.Join(vals, "\t"))
+		}
+		_ = tw.Flush()
+	}
 }
 
 func BashList(w io.Writer, r *client.BashListResponse) {
@@ -229,6 +275,16 @@ func ActionExec(w io.Writer, r *client.ActionExecResponse) {
 		_, _ = fmt.Fprintln(w, "\nResult:")
 		_ = JSON(w, r.Result)
 	}
+}
+
+// sortedMapKeys returns a map's keys in stable order — deterministic column/claim ordering for tables.
+func sortedMapKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func scalar(v any) string {

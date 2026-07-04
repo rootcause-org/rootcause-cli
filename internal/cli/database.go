@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/render"
@@ -17,7 +20,56 @@ func newDatabaseCmd(e *env) *cobra.Command {
 		getSubCmd(e, "databases", "dsn"),
 		setSubCmd(e, "databases", "dsn"),
 		newDatabaseControlsCmd(e),
+		newDatabasePreviewCmd(e),
 	)
+	return cmd
+}
+
+// newDatabasePreviewCmd: `rc database preview <dsn> --tenant … --principal-kind … --principal-id …
+// [--table …]` over POST /api/v1/databases/{dsn}/scope-preview — the ONE real per-principal preview. It
+// mints the scoped views a real run of (tenant, principal) would see and returns per-table counts + sample
+// rows + the compiled predicate. Preview-only (never writes); the principal pair validates together.
+func newDatabasePreviewCmd(e *env) *cobra.Command {
+	var tenant, principalKind, principalID, table string
+	cmd := &cobra.Command{
+		Use:   "preview <dsn>",
+		Short: "Preview the scoped rows a (tenant, principal) would see",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			kind := strings.TrimSpace(principalKind)
+			id := strings.TrimSpace(principalID)
+			if (kind == "") != (id == "") {
+				return fmt.Errorf("--principal-kind and --principal-id must be provided together (both or neither)")
+			}
+			body := map[string]any{}
+			if t := strings.TrimSpace(tenant); t != "" {
+				body["tenant"] = t
+			}
+			if kind != "" {
+				body["principal"] = map[string]any{"kind": kind, "external_id": id}
+			}
+			if tb := strings.TrimSpace(table); tb != "" {
+				body["tables"] = []string{tb}
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			report, raw, err := c.ScopePreview(e.ctx(), args[0], body, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.ScopePreview(e.out, report)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&tenant, "tenant", "", "tenant slug to bind the preview to (omit for a flat/cross-tenant preview)")
+	cmd.Flags().StringVar(&principalKind, "principal-kind", "", "principal kind to scope by (e.g. kampadmin_person); requires --principal-id")
+	cmd.Flags().StringVar(&principalID, "principal-id", "", "principal external id (the asserted identity); requires --principal-kind")
+	cmd.Flags().StringVar(&table, "table", "", "limit the preview to a single view")
 	return cmd
 }
 

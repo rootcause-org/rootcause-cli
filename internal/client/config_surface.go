@@ -143,6 +143,21 @@ func (c *Client) SetDatabaseControls(ctx context.Context, dsn string, body map[s
 	return c.RawScoped(ctx, http.MethodPatch, "/api/v1/databases/"+url.PathEscape(dsn)+"/controls", body, project, tenant)
 }
 
+// ScopePreview mints the scoped views a real run of (tenant, principal) would see and returns per-table
+// counts + sample rows + compiled predicates. The tenant + principal ride the BODY (the scoped identity),
+// not the query — only project resolution uses ?project=. Returns raw + typed for -o json / table.
+func (c *Client) ScopePreview(ctx context.Context, dsn string, body map[string]any, project string) (*ScopePreviewReport, json.RawMessage, error) {
+	raw, err := c.RawScoped(ctx, http.MethodPost, "/api/v1/databases/"+url.PathEscape(dsn)+"/scope-preview", body, project, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	var out ScopePreviewReport
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, raw, err
+	}
+	return &out, raw, nil
+}
+
 // --- Admin (box-level: /api/v1/admin/{users,projects,catalog}) ---
 // These bypass the generic collection routes and require a global-admin token. No project scope —
 // they're box-wide.
