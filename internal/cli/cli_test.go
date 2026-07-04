@@ -354,6 +354,22 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "tenant_schema.json"))
 	})
+	mux.HandleFunc("GET /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_settings.json"))
+	})
+	mux.HandleFunc("PATCH /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if strings.Contains(body, `"unknown_key"`) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"validation_failed","field_errors":{"unknown_key":"is not allowed"}}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_settings.json"))
+	})
 	mux.HandleFunc("GET /api/v1/projects/{project}/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

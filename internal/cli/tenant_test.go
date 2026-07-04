@@ -139,6 +139,67 @@ func TestTenantSettingsSchemaDump(t *testing.T) {
 	}
 }
 
+func TestTenantProfileGetJSON(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "tenant", "profile", "get", "--tenant", "de-kies"); err != nil {
+		t.Fatalf("profile get: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "tenant_settings.json"), out.Bytes())
+}
+
+func TestTenantProfileGetProjectScope(t *testing.T) {
+	var sawProject string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		_, _ = w.Write([]byte(`{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		sawProject = r.URL.Query().Get("project")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_settings.json"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "tenant", "profile", "get", "--tenant", "de-kies"); err != nil {
+		t.Fatalf("profile get: %v", err)
+	}
+	if sawProject != "alpha" {
+		t.Fatalf("profile request project = %q, want alpha", sawProject)
+	}
+}
+
+func TestTenantProfileSchemaDump(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "tenant", "profile", "schema"); err != nil {
+		t.Fatalf("profile schema: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "tenant_schema.json"), out.Bytes())
+}
+
+func TestTenantProfileSetLegacyFieldErrors(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "tenant", "profile", "set", "--tenant", "de-kies", "unknown_key=x")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	var errb bytes.Buffer
+	printError(&errb, err)
+	got := errb.String()
+	if !strings.Contains(got, "validation_failed") || !strings.Contains(got, "unknown_key") {
+		t.Fatalf("missing field_errors rendering: %q", got)
+	}
+}
+
 func TestProjectHierarchySettingsGetJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

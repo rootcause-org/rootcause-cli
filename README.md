@@ -23,6 +23,7 @@ $ rc run <id> --full          # GET /runs/{id}/trace bundle (header + trace; JSO
 $ rc config set max_run_usd=5 default_tier=pro
 $ rc config hierarchy set persona.tone=warm channel.labeling_enabled=true
 $ rc tenant settings get --tenant acme
+$ rc tenant profile get --tenant acme
 $ rc mailbox settings set <mailbox-id> persona.tone=direct
 $ rc routes | grep /trace
 $ rc env keys                  # key NAMES of the production grounding env (no values)

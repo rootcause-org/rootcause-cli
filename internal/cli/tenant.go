@@ -13,20 +13,19 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newTenantCmd builds `rc tenant settings get|set|schema`. `settings get|set` edits the canonical
-// project-tree hierarchy settings for one tenant:
-// /api/v1/projects/{project}/tenants/{slug}/settings with nested persona/channel patch bodies. The
-// schema subcommand is kept for the legacy onboarding JSON schema while the server still exposes it.
+// newTenantCmd builds tenant hierarchy settings plus the legacy profile/projection record. `settings`
+// edits the canonical project-tree hierarchy bag; `profile` talks to the still-shipped tenant profile
+// API until the server renames that route off "settings".
 func newTenantCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tenant",
 		Short: "Manage tenants (sub-scopes below a project) and their settings",
 	}
-	// `settings` edits a tenant's onboarding record; ls/add/set are the tenant COLLECTION over
-	// /api/v1/tenants (id = slug). No `rm`: the server has no delete verb — a tenant is archived via
-	// `set <slug> status=archived`.
+	// ls/add/set are the tenant COLLECTION over /api/v1/tenants (id = slug). No `rm`: the server has no
+	// delete verb — a tenant is archived via `set <slug> status=archived`.
 	cmd.AddCommand(
 		newTenantSettingsCmd(e),
+		newTenantProfileCmd(e),
 		listSubCmd(e, "tenants"),
 		addSubCmd(e, "tenants"),
 		setSubCmd(e, "tenants", "slug"),
@@ -54,10 +53,23 @@ func newTenantSettingsCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-func newTenantSettingsGetCmd(e *env) *cobra.Command {
+func newTenantProfileCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "profile",
+		Short: "Read or edit tenant projection/profile values",
+	}
+	cmd.AddCommand(
+		newTenantProfileGetCmd(e),
+		newTenantProfileSetCmd(e),
+		newTenantProfileSchemaCmd(e),
+	)
+	return cmd
+}
+
+func newTenantProfileGetCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get --tenant <slug>",
-		Short: "Show a tenant's current settings (grouped table, or -o json for the raw record)",
+		Short: "Show a tenant's projection/profile values",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			tenant := e.tenantSlug()
@@ -68,7 +80,8 @@ func newTenantSettingsGetCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ts, err := c.GetTenantSettings(e.ctx(), tenant)
+			project := e.scopeProject()
+			ts, err := c.GetTenantSettings(e.ctx(), tenant, project)
 			if err != nil {
 				return err
 			}
@@ -79,7 +92,7 @@ func newTenantSettingsGetCmd(e *env) *cobra.Command {
 			}
 			// Group/label using the schema when it's reachable; fall back to a plain sorted key=value
 			// list if the schema fetch fails (never block a read on the schema endpoint).
-			schema, _ := c.GetTenantSettingsSchema(e.ctx())
+			schema, _ := c.GetTenantSettingsSchema(e.ctx(), project)
 			renderTenantSettings(e, ts, parseSchema(schema))
 			return nil
 		},
@@ -87,11 +100,11 @@ func newTenantSettingsGetCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-func newTenantSettingsSetCmd(e *env) *cobra.Command {
+func newTenantProfileSetCmd(e *env) *cobra.Command {
 	var unset []string
 	cmd := &cobra.Command{
 		Use:   "set --tenant <slug> key=val [key=val …]",
-		Short: "Edit settings (sparse; key= or --unset key unconfigures via null; server validates)",
+		Short: "Edit tenant projection/profile values",
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			tenant := e.tenantSlug()
@@ -107,7 +120,8 @@ func newTenantSettingsSetCmd(e *env) *cobra.Command {
 			}
 			// Fetch the schema first for client-side coercion + a fast clear error. If it's unreachable,
 			// fall back to sending raw strings and let the server be the authority.
-			rawSchema, schemaErr := c.GetTenantSettingsSchema(e.ctx())
+			project := e.scopeProject()
+			rawSchema, schemaErr := c.GetTenantSettingsSchema(e.ctx(), project)
 			schema := parseSchema(rawSchema)
 			if schemaErr != nil {
 				schema = nil
@@ -116,7 +130,7 @@ func newTenantSettingsSetCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ts, err := c.PatchTenantSettings(e.ctx(), tenant, client.TenantSettingsPatchRequest{
+			ts, err := c.PatchTenantSettings(e.ctx(), tenant, project, client.TenantSettingsPatchRequest{
 				Settings: settings,
 				Source:   "cli",
 			})
@@ -149,6 +163,26 @@ func newTenantSettingsSchemaCmd(e *env) *cobra.Command {
 				return err
 			}
 			// The schema is always JSON; hierarchy_settings is the relevant section.
+			return render.JSON(e.out, raw)
+		},
+	}
+	return cmd
+}
+
+func newTenantProfileSchemaCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "schema",
+		Short: "Dump the tenant profile JSON schema",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			raw, err := c.GetTenantSettingsSchema(e.ctx(), e.scopeProject())
+			if err != nil {
+				return err
+			}
 			return render.JSON(e.out, raw)
 		},
 	}

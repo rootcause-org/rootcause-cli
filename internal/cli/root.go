@@ -249,7 +249,7 @@ func (e *env) validateProjectScope(c *client.Client) error {
 	}
 }
 
-// tenantSlug is the explicitly-addressed tenant for `rc tenant settings` — the persistent --tenant only
+// tenantSlug is the explicitly-addressed tenant for `rc tenant settings/profile` — the persistent --tenant only
 // (no brain fallback: editing a tenant's record is an explicit act, never inferred from the checkout).
 func (e *env) tenantSlug() string { return e.tenant }
 

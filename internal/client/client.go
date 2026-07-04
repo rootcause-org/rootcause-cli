@@ -328,34 +328,47 @@ func (c *Client) RawHierarchySettings(ctx context.Context, method, scope, projec
 	return c.Raw(ctx, method, hierarchySettingsPath(scope, project, id, resolved), body)
 }
 
-// GetTenantSettings fetches GET /api/v1/tenants/{slug}/settings — one practice's current onboarding
-// record (settings + version + applied_at). slug is path-escaped; the project is the bearer key's.
-func (c *Client) GetTenantSettings(ctx context.Context, slug string) (*TenantSettings, error) {
+// tenantProfileScope is the legacy profile endpoint's project selector. Pinned tokens ignore it
+// server-side; all-projects admin tokens need it to select one brain/project.
+func tenantProfileScope(project string) string {
+	if project == "" {
+		return ""
+	}
+	return "?project=" + url.QueryEscape(project)
+}
+
+// GetTenantSettings fetches GET /api/v1/tenants/{slug}/settings — one tenant's legacy
+// projection/profile record (settings + version + applied_at). slug is path-escaped; project is the
+// optional all-projects-token selector.
+func (c *Client) GetTenantSettings(ctx context.Context, slug, project string) (*TenantSettings, error) {
 	var out TenantSettings
-	if err := c.do(ctx, http.MethodGet, "/api/v1/tenants/"+url.PathEscape(slug)+"/settings", nil, &out); err != nil {
+	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/settings" + tenantProfileScope(project)
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
 // PatchTenantSettings sends a sparse PATCH /api/v1/tenants/{slug}/settings (only the keys in
-// req.Settings; an explicit nil value → JSON null = unconfigure) and returns the merged record. The
-// server owns the schema/merge/validation; a bad merged value comes back as a 400 validation_failed
-// the command layer surfaces verbatim.
-func (c *Client) PatchTenantSettings(ctx context.Context, slug string, req TenantSettingsPatchRequest) (*TenantSettings, error) {
+// req.Settings; an explicit nil value → JSON null = unconfigure) and returns the merged legacy profile
+// record. The server owns the schema/merge/validation; a bad merged value comes back as a 400
+// validation_failed the command layer surfaces verbatim.
+func (c *Client) PatchTenantSettings(ctx context.Context, slug, project string, req TenantSettingsPatchRequest) (*TenantSettings, error) {
 	var out TenantSettings
-	if err := c.do(ctx, http.MethodPatch, "/api/v1/tenants/"+url.PathEscape(slug)+"/settings", req, &out); err != nil {
+	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/settings" + tenantProfileScope(project)
+	if err := c.do(ctx, http.MethodPatch, path, req, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// GetTenantSettingsSchema fetches GET /api/v1/tenants/settings/schema — the enriched JSON Schema
-// (x-* render metadata included). Returned as raw bytes: `rc tenant settings schema` dumps it verbatim,
-// and `set` parses it for client-side type/enum coercion. Not project-specific, but bearer-gated.
-func (c *Client) GetTenantSettingsSchema(ctx context.Context) (json.RawMessage, error) {
+// GetTenantSettingsSchema fetches GET /api/v1/tenants/settings/schema — the enriched profile JSON
+// Schema (x-* render metadata included). Returned as raw bytes: `rc tenant profile schema` dumps it
+// verbatim, and `set` parses it for client-side type/enum coercion. Not project-specific, but
+// bearer-gated.
+func (c *Client) GetTenantSettingsSchema(ctx context.Context, project string) (json.RawMessage, error) {
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, "/api/v1/tenants/settings/schema", nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/api/v1/tenants/settings/schema"+tenantProfileScope(project), nil, &raw); err != nil {
 		return nil, err
 	}
 	return raw, nil

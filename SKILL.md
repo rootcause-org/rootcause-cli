@@ -39,6 +39,7 @@ but they keep the raw rows reachable via `-o json`.
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
 | `rc config hierarchy get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
 | `rc tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
+| `rc tenant profile get/set --tenant <slug>` | `GET/PATCH /api/v1/tenants/{slug}/settings` | read/change the legacy tenant projection/profile values record while the server still exposes it at the old path |
 | `rc mailbox settings get/set <id>` | `GET/PATCH /api/v1/projects/{project}/mailboxes/{id}/settings?resolved=true` | read/change mailbox hierarchy overrides |
 | `rc routes` / `rc openapi` | `GET /api/v1/meta/routes` / `GET /api/v1/meta/openapi.json` | canonical route manifest + generated OpenAPI |
 | `rc brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
