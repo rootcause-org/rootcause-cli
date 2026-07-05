@@ -430,7 +430,7 @@ func TestTriagePolicyAndRules(t *testing.T) {
 		t.Fatalf("triage rules ls: %v", err)
 	}
 	out.Reset()
-	if err := run(t, e, "triage", "rules", "add", "effect=exclude", "match_kind=subject_contains", "pattern=newsletter", "priority=10", "enabled=false"); err != nil {
+	if err := run(t, e, "triage", "rules", "add", "effect=skip", "match_kind=subject_contains", "pattern=newsletter", "priority=10", "enabled=false"); err != nil {
 		t.Fatalf("triage rules add: %v", err)
 	}
 	out.Reset()

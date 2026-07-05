@@ -89,7 +89,7 @@ func triageRulesListCmd(e *env) *cobra.Command {
 
 func triageRuleAddCmd(e *env) *cobra.Command {
 	return &cobra.Command{
-		Use:   "add effect=<include|exclude> match_kind=<...> pattern=<...> [header_name=...] [reason=...] [priority=N] [enabled=true|false]",
+		Use:   "add effect=<skip|force_process> match_kind=<...> pattern=<...> [header_name=...] [reason=...] [priority=N] [enabled=true|false]",
 		Short: "Create a triage hard rule",
 		Args:  cobra.MinimumNArgs(3),
 		RunE: func(_ *cobra.Command, args []string) error {

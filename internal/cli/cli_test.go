@@ -777,16 +777,16 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/triage/rules", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"rules":[{"id":"rule1","effect":"exclude","match_kind":"subject_contains","pattern":"newsletter","enabled":true}]}`))
+		_, _ = w.Write([]byte(`{"rules":[{"id":"rule1","effect":"skip","match_kind":"subject_contains","pattern":"newsletter","enabled":true}]}`))
 	})
 	mux.HandleFunc("POST /api/v1/triage/rules", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
-		if !strings.Contains(body, `"effect":"exclude"`) || !strings.Contains(body, `"priority":10`) || !strings.Contains(body, `"enabled":false`) {
+		if !strings.Contains(body, `"effect":"skip"`) || !strings.Contains(body, `"priority":10`) || !strings.Contains(body, `"enabled":false`) {
 			t.Fatalf("triage rule create body = %s", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"rule2","effect":"exclude","match_kind":"subject_contains","pattern":"newsletter","priority":10,"enabled":false}`))
+		_, _ = w.Write([]byte(`{"id":"rule2","effect":"skip","match_kind":"subject_contains","pattern":"newsletter","priority":10,"enabled":false}`))
 	})
 	mux.HandleFunc("PATCH /api/v1/triage/rules/{id}", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
