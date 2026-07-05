@@ -83,6 +83,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		newDreamCmd(e),
 		newThreadCmd(e),
 		newProjectsCmd(e),
+		newProjectCmd(e),
 		newFleetCmd(e),
 		newPatternsCmd(e),
 		newHealthCmd(e),

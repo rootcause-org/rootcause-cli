@@ -32,6 +32,12 @@ func Projects(w io.Writer, resp *client.ProjectsResponse) {
 	_ = tw.Flush()
 }
 
+// ProjectRename renders the success echo from `rc project rename <new-name>`.
+func ProjectRename(w io.Writer, resp *client.ProjectRenameResponse) {
+	_, _ = fmt.Fprintf(w, "renamed %s -> %s (brain %s; github %s; local %s)\n",
+		resp.PreviousName, resp.Name, resp.BrainRepo, yesNo(resp.GitHubRenamed), yesNo(resp.LocalDirRenamed))
+}
+
 // Status renders the health summary first (the point of `rc status`) then the recent-runs table.
 func Status(w io.Writer, resp *client.RunsResponse) {
 	writeSummary(w, &resp.Summary)

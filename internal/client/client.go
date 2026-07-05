@@ -100,6 +100,21 @@ func (c *Client) Projects(ctx context.Context) (*ProjectsResponse, error) {
 	return &out, nil
 }
 
+// RenameProject patches PATCH /api/v1/projects/{project}/rename with {"name":"new-slug"}, returning
+// both the typed result for table output and raw bytes for JSON passthrough.
+func (c *Client) RenameProject(ctx context.Context, project, name string) (*ProjectRenameResponse, json.RawMessage, error) {
+	var raw json.RawMessage
+	path := "/api/v1/projects/" + url.PathEscape(project) + "/rename"
+	if err := c.do(ctx, http.MethodPatch, path, ProjectRenameRequest{Name: name}, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out ProjectRenameResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, fmt.Errorf("decode project rename response: %w", err)
+	}
+	return &out, raw, nil
+}
+
 // Whoami fetches GET /api/v1/whoami — the OAuth token's bound project/tenant scope.
 func (c *Client) Whoami(ctx context.Context) (*WhoamiResponse, error) {
 	var out WhoamiResponse

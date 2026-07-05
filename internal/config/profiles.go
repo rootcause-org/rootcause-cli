@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -208,6 +209,44 @@ func DiscoverBrain(start string) (*Brain, error) {
 		}
 		dir = parent
 	}
+}
+
+// UpdateBrainProject rewrites the committed brain marker after the server has renamed a project. It
+// preserves the rest of the file and only updates a checkout that was bound to oldProject.
+func UpdateBrainProject(brain *Brain, oldProject, newProject string) (bool, error) {
+	if brain == nil || brain.Project != oldProject || oldProject == newProject {
+		return false, nil
+	}
+	path := filepath.Join(brain.Dir, MarkerFileName)
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", path, err)
+	}
+	lines := strings.SplitAfter(string(body), "\n")
+	changed := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "project") && strings.Contains(trimmed, "=") {
+			suffix := ""
+			if strings.HasSuffix(line, "\n") {
+				suffix = "\n"
+			}
+			lines[i] = fmt.Sprintf("project = %q%s", newProject, suffix)
+			changed = true
+			break
+		}
+	}
+	if !changed {
+		if len(lines) > 0 && !strings.HasSuffix(lines[len(lines)-1], "\n") {
+			lines[len(lines)-1] += "\n"
+		}
+		lines = append(lines, fmt.Sprintf("project = %q\n", newProject))
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "")), 0o644); err != nil {
+		return false, fmt.Errorf("write %s: %w", path, err)
+	}
+	brain.Project = newProject
+	return true, nil
 }
 
 // ConfigDir is the resolved ~/.config/rootcause directory (XDG-style; honors XDG_CONFIG_HOME). The

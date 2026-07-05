@@ -31,6 +31,7 @@ but they keep the raw rows reachable via `-o json`.
 |---|---|---|
 | `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--scenario email|raw`, repeatable `--attach`, `--project` for all-projects admin tokens, and `--effort default|pro|max`; see below) |
 | `rc projects` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
+| `rc project rename <new-name>` | `PATCH /api/v1/projects/{project}/rename` | rename the active project slug + brain repo; `--project` supplies `{project}`, otherwise the CLI requires exactly one visible project |
 | `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |

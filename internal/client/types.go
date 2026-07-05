@@ -660,6 +660,24 @@ type ProjectsResponse struct {
 	Projects []Project `json:"projects"`
 }
 
+// ProjectRenameRequest is PATCH /api/v1/projects/{project}/rename.
+type ProjectRenameRequest struct {
+	Name string `json:"name"`
+}
+
+// ProjectRenameResponse is PATCH /api/v1/projects/{project}/rename — the server-side project slug,
+// brain repo, GitHub repo, and deployed local-dir rename result.
+type ProjectRenameResponse struct {
+	ID                string `json:"id"`
+	PreviousName      string `json:"previous_name"`
+	Name              string `json:"name"`
+	PreviousBrainRepo string `json:"previous_brain_repo"`
+	BrainRepo         string `json:"brain_repo"`
+	GitHubRenamed     bool   `json:"github_renamed"`
+	LocalDirRenamed   bool   `json:"local_dir_renamed"`
+	URL               string `json:"url"`
+}
+
 type WhoamiScope struct {
 	ID   string `json:"id"`
 	Name string `json:"name,omitempty"`

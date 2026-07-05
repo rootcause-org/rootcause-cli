@@ -3,6 +3,8 @@ package cli
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,6 +41,117 @@ func TestProjectsJSONPassthrough(t *testing.T) {
 	if len(got.Projects) != 2 {
 		t.Fatalf("projects = %d, want 2; body=%s", len(got.Projects), out.String())
 	}
+}
+
+func TestProjectRenameExplicitScope(t *testing.T) {
+	var gotProject, gotBody string
+	srv := projectRenameServer(t, `{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`, &gotProject, &gotBody)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "project", "rename", "delta"); err != nil {
+		t.Fatalf("project rename --project: %v", err)
+	}
+	if gotProject != "alpha" {
+		t.Fatalf("rename path project = %q, want alpha", gotProject)
+	}
+	if gotBody != `{"name":"delta"}` {
+		t.Fatalf("rename body = %s, want name-only body", gotBody)
+	}
+	want := "renamed alpha -> delta (brain rootcause-brain-delta; github yes; local yes)\n"
+	if out.String() != want {
+		t.Fatalf("rename output = %q, want %q", out.String(), want)
+	}
+}
+
+func TestProjectRenamePinnedScopeFromSingleVisibleProject(t *testing.T) {
+	var gotProject, gotBody string
+	srv := projectRenameServer(t, `{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`, &gotProject, &gotBody)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "rename", "delta"); err != nil {
+		t.Fatalf("project rename pinned scope: %v", err)
+	}
+	if gotProject != "alpha" {
+		t.Fatalf("rename path project = %q, want alpha", gotProject)
+	}
+	if gotBody != `{"name":"delta"}` {
+		t.Fatalf("rename body = %s, want name-only body", gotBody)
+	}
+}
+
+func TestProjectRenameUpdatesBrainMarker(t *testing.T) {
+	var gotProject, gotBody string
+	srv := projectRenameServer(t, `{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`, &gotProject, &gotBody)
+	defer srv.Close()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"), []byte("project = \"alpha\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "rename", "delta"); err != nil {
+		t.Fatalf("project rename: %v", err)
+	}
+	body, err := os.ReadFile(filepath.Join(dir, ".rootcause.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(body), "project = \"delta\"\n"; got != want {
+		t.Fatalf("marker = %q, want %q", got, want)
+	}
+}
+
+func TestProjectRenameJSONPassthrough(t *testing.T) {
+	var gotProject, gotBody string
+	srv := projectRenameServer(t, `{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`, &gotProject, &gotBody)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "project", "rename", "delta"); err != nil {
+		t.Fatalf("project rename -o json: %v", err)
+	}
+	for _, want := range []string{`"previous_name": "alpha"`, `"name": "delta"`, `"extra": "kept"`} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("JSON passthrough missing %q:\n%s", want, out.String())
+		}
+	}
+	if gotProject != "alpha" || gotBody != `{"name":"delta"}` {
+		t.Fatalf("request = project %q body %s, want alpha/name-only", gotProject, gotBody)
+	}
+}
+
+func TestProjectRenameAmbiguousVisibleProjects(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "project", "rename", "delta")
+	if err == nil {
+		t.Fatal("expected ambiguous-project error")
+	}
+	if !strings.Contains(err.Error(), "one visible project") || !strings.Contains(err.Error(), "--project") {
+		t.Fatalf("error = %q, want single-project + --project hint", err.Error())
+	}
+}
+
+func projectRenameServer(t *testing.T, projects string, gotProject, gotBody *string) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(projects))
+	})
+	mux.HandleFunc("PATCH /api/v1/projects/{project}/rename", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		*gotProject = r.PathValue("project")
+		*gotBody = readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"aaaaaaaa-0000-0000-0000-000000000001","previous_name":"alpha","name":"delta","previous_brain_repo":"rootcause-brain-alpha","brain_repo":"rootcause-brain-delta","github_renamed":true,"local_dir_renamed":true,"url":"/projects/delta","extra":"kept"}`))
+	})
+	return httptest.NewServer(mux)
 }
 
 // TestFleetAllJSON: `rc fleet --all` fans out across every project and emits the merged structure

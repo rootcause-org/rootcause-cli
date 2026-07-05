@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/config"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -37,5 +41,74 @@ func newProjectsCmd(e *env) *cobra.Command {
 			render.Projects(e.out, resp)
 			return nil
 		},
+	}
+}
+
+// newProjectCmd builds the singular project-management surface. `rc projects` remains the read-only
+// fleet list; singular verbs act on one active project.
+func newProjectCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "project",
+		Short: "Manage the active project",
+	}
+	cmd.AddCommand(projectRenameCmd(e))
+	return cmd
+}
+
+func projectRenameCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "rename <new-name>",
+		Short: "Rename the active project slug and brain repo",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			project, err := projectForRename(e, c)
+			if err != nil {
+				return err
+			}
+			resp, raw, err := c.RenameProject(e.ctx(), project, args[0])
+			if err != nil {
+				return err
+			}
+			warnBrainMarkerRename(e, resp)
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.ProjectRename(e.out, resp)
+			return nil
+		},
+	}
+}
+
+func warnBrainMarkerRename(e *env, resp *client.ProjectRenameResponse) {
+	if resp == nil || e.resolved.Brain == nil {
+		return
+	}
+	if _, err := config.UpdateBrainProject(e.resolved.Brain, resp.PreviousName, resp.Name); err != nil {
+		fmt.Fprintf(e.err, "warning: project renamed on server, but updating %s failed: %v\n", config.MarkerFileName, err)
+	}
+}
+
+func projectForRename(e *env, c *client.Client) (string, error) {
+	if e.project != "" {
+		return e.project, nil
+	}
+	resp, err := c.Projects(e.ctx())
+	if err != nil {
+		return "", err
+	}
+	switch len(resp.Projects) {
+	case 1:
+		if resp.Projects[0].Name != "" {
+			return resp.Projects[0].Name, nil
+		}
+		return resp.Projects[0].ID, nil
+	case 0:
+		return "", fmt.Errorf("project rename needs one visible project; this token sees none")
+	default:
+		return "", fmt.Errorf("project rename needs one visible project; this token sees %d (pass --project <project>)", len(resp.Projects))
 	}
 }
