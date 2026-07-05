@@ -741,6 +741,62 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_consolidate_001"}`))
 	})
 
+	// dream evidence: query-scoped public consolidation corpus.
+	mux.HandleFunc("GET /api/v1/dream/evidence", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if got := r.URL.Query().Get("limit"); got != "7" {
+			t.Fatalf("dream evidence limit = %q, want 7", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"project":"acme","feedback":[{"run_id":"run1","score":2,"comment":"missed policy"}],"deltas":[{"id":"delta1","related_run_id":"run2","similarity":0.41,"changed_chars":120}]}`))
+	})
+
+	// triage policy/rules.
+	mux.HandleFunc("GET /api/v1/triage/policy", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"scope":{"level":"project"},"guidance":"Draft customer questions only"}`))
+	})
+	mux.HandleFunc("PATCH /api/v1/triage/policy", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"guidance":"Only answer support requests"`) {
+			t.Fatalf("triage policy body = %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"scope":{"level":"project"},"guidance":"Only answer support requests"}`))
+	})
+	mux.HandleFunc("GET /api/v1/triage/rules", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"rules":[{"id":"rule1","effect":"exclude","match_kind":"subject_contains","pattern":"newsletter","enabled":true}]}`))
+	})
+	mux.HandleFunc("POST /api/v1/triage/rules", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"effect":"exclude"`) || !strings.Contains(body, `"priority":10`) || !strings.Contains(body, `"enabled":false`) {
+			t.Fatalf("triage rule create body = %s", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"rule2","effect":"exclude","match_kind":"subject_contains","pattern":"newsletter","priority":10,"enabled":false}`))
+	})
+	mux.HandleFunc("PATCH /api/v1/triage/rules/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if r.PathValue("id") != "rule2" || !strings.Contains(body, `"enabled":true`) {
+			t.Fatalf("triage rule patch id/body = %s/%s", r.PathValue("id"), body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"rule2","enabled":true}`))
+	})
+	mux.HandleFunc("DELETE /api/v1/triage/rules/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("id") != "rule2" {
+			t.Fatalf("triage delete id = %q, want rule2", r.PathValue("id"))
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// run feedback / retry.
 	mux.HandleFunc("POST /api/v1/runs/{id}/feedback", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

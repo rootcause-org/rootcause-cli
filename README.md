@@ -20,8 +20,11 @@ $ rc ask --effort pro "Retry this with a stronger model tier"
 $ rc runs --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run <id> --events        # full per-iteration trace (NDJSON when piped)
 $ rc run <id> --full          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
+$ rc dream evidence --limit 50 -o json
 $ rc config set max_run_usd=5 default_tier=pro
 $ rc config hierarchy set persona.tone=warm channel.labeling_enabled=true
+$ rc triage policy get -o json
+$ rc triage rules ls -o json
 $ rc tenant settings get --tenant acme
 $ rc tenant profile get --tenant acme
 $ rc mailbox settings set <mailbox-id> persona.tone=direct
@@ -187,8 +190,10 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc run <id> --debug [--out-dir <dir>]` | decompose the run into a jq-able JSONL event log + a thin markdown index on disk; prints both paths (the cross-project debug path for an all-projects admin token) |
 | `rc run feedback <id> [--score N] [--comment TEXT]` | record score/comment feedback on a run's trace (feeds consolidation) |
 | `rc run retry <id> [--tier standard\|pro\|max]` | re-run a run (optionally at a different tier); prints the new run id |
+| `rc dream evidence [--limit N]` | list feedback and sent-edit evidence for a local dream-cycle pass |
 | `rc config get` | effective settings + box defaults |
 | `rc config set k=v [k=v…]` | change settings (validated server-side) |
+| `rc triage policy get\|set` / `rc triage rules ls\|add\|set\|rm` | read/change draft/no-draft guidance and deterministic hard rules |
 | `rc config openrouter-key set\|clear\|reveal` | manage the OpenRouter API key (`set` reads from **STDIN** by default; `reveal` prints it once) |
 | `rc env keys` | key NAMES of the project's production grounding env (log-safe, no values) |
 | `rc env pull` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |

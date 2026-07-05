@@ -397,6 +397,55 @@ func TestBrainConsolidateTable(t *testing.T) {
 	assertGolden(t, "brain_consolidate.golden", out.String())
 }
 
+// --- dream evidence / triage ---
+
+func TestDreamEvidenceJSON(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "dream", "evidence", "--limit", "7"); err != nil {
+		t.Fatalf("dream evidence: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, `"feedback"`) || !strings.Contains(got, `"deltas"`) {
+		t.Fatalf("dream evidence output missing planes: %s", got)
+	}
+}
+
+func TestTriagePolicyAndRules(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "triage", "policy", "get"); err != nil {
+		t.Fatalf("triage policy get: %v", err)
+	}
+	if !strings.Contains(out.String(), `"guidance"`) {
+		t.Fatalf("triage policy get output = %s", out.String())
+	}
+	out.Reset()
+	if err := run(t, e, "triage", "policy", "set", "Only answer support requests"); err != nil {
+		t.Fatalf("triage policy set: %v", err)
+	}
+	out.Reset()
+	if err := run(t, e, "triage", "rules", "ls"); err != nil {
+		t.Fatalf("triage rules ls: %v", err)
+	}
+	out.Reset()
+	if err := run(t, e, "triage", "rules", "add", "effect=exclude", "match_kind=subject_contains", "pattern=newsletter", "priority=10", "enabled=false"); err != nil {
+		t.Fatalf("triage rules add: %v", err)
+	}
+	out.Reset()
+	if err := run(t, e, "triage", "rules", "set", "rule2", "enabled=true"); err != nil {
+		t.Fatalf("triage rules set: %v", err)
+	}
+	out.Reset()
+	if err := run(t, e, "triage", "rules", "rm", "rule2"); err != nil {
+		t.Fatalf("triage rules rm: %v", err)
+	}
+	if !strings.Contains(out.String(), `"deleted": "rule2"`) {
+		t.Fatalf("triage rules rm output = %s", out.String())
+	}
+}
+
 // --- run feedback / retry ---
 
 func TestRunFeedbackTable(t *testing.T) {

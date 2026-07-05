@@ -36,8 +36,10 @@ but they keep the raw rows reachable via `-o json`.
 | `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
 | `rc run <id> --full` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
 | `rc run <id> --debug` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
+| `rc dream evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit evidence for local dream-cycle passes; JSON is the primary surface |
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
 | `rc config hierarchy get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
+| `rc triage policy get/set`, `rc triage rules ls/add/set/rm` | `/api/v1/triage/*` | read/change mail draft/no-draft guidance and deterministic include/exclude rules |
 | `rc tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
 | `rc tenant profile get/set --tenant <slug>` | `GET/PATCH /api/v1/tenants/{slug}/settings` | read/change the legacy tenant projection/profile values record while the server still exposes it at the old path |
 | `rc mailbox settings get/set <id>` | `GET/PATCH /api/v1/projects/{project}/mailboxes/{id}/settings?resolved=true` | read/change mailbox hierarchy overrides |
