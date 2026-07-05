@@ -46,6 +46,7 @@ but they keep the raw rows reachable via `-o json`.
 | `rc routes` / `rc openapi` | `GET /api/v1/meta/routes` / `GET /api/v1/meta/openapi.json` | canonical route manifest + generated OpenAPI |
 | `rc brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
 | `rc repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
+| `rc tenant ls/add/get/set` | `GET/POST/GET/PATCH /api/v1/tenants[/{slug}]` | manage project tenant rows; archive with `set <slug> status=archived` |
 | `rc connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
 | `rc member ls/add/rm` | `GET/POST/DELETE /api/v1/members` | project members (no read/update server-side → 405) |
 | `rc token ls/mint/revoke` | `GET/POST/DELETE /api/v1/tokens` | API tokens; `mint` prints the `refresh_token` ONCE |

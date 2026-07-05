@@ -81,6 +81,26 @@ func TestTenantAddTable(t *testing.T) {
 	assertGolden(t, "tenant_add.golden", out.String())
 }
 
+func TestTenantGetTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "tenant", "get", "acme"); err != nil {
+		t.Fatalf("tenant get: %v", err)
+	}
+	assertGolden(t, "tenant_add.golden", out.String())
+}
+
+func TestTenantGetJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "tenant", "get", "acme"); err != nil {
+		t.Fatalf("tenant get -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "tenant_item.json"), out.Bytes())
+}
+
 func TestConnectionListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

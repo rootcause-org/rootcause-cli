@@ -441,6 +441,14 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "tenant_item.json"))
 	})
+	mux.HandleFunc("GET /api/v1/tenants/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("slug") != "acme" {
+			t.Fatalf("tenant get slug = %q, want acme", r.PathValue("slug"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "tenant_item.json"))
+	})
 	mux.HandleFunc("POST /api/v1/repos", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

@@ -28,6 +28,7 @@ func newTenantCmd(e *env) *cobra.Command {
 		newTenantProfileCmd(e),
 		listSubCmd(e, "tenants"),
 		addSubCmd(e, "tenants"),
+		getSubCmd(e, "tenants", "slug"),
 		setSubCmd(e, "tenants", "slug"),
 	)
 	return cmd
