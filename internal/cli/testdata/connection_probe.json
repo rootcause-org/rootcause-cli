@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "capability": {
+    "key": "notion.write",
+    "name": "Notion (write)",
+    "platform": "notion",
+    "tier": "write",
+    "scopes": []
+  },
+  "grant": {
+    "found": true,
+    "label": "",
+    "ok": true
+  },
+  "action_plane": {
+    "enabled": false,
+    "mode": "embassy",
+    "status": "disabled",
+    "runner_url_configured": false,
+    "reverse_secret_configured": false
+  },
+  "provider": {
+    "name": "notion",
+    "write": true,
+    "read_back": true,
+    "cleanup": true,
+    "object_id": "block-456"
+  },
+  "steps": [
+    { "name": "grant", "ok": true, "detail": "oauth grant covers capability" },
+    { "name": "provider.write", "ok": true, "detail": "block-456" },
+    { "name": "provider.read_back", "ok": true, "detail": "block-456" },
+    { "name": "provider.cleanup", "ok": true, "detail": "block-456" }
+  ]
+}

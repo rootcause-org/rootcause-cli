@@ -1,0 +1,9 @@
+ok:            yes
+capability:    notion.write (notion/write)
+grant:         yes
+action plane:  disabled mode=embassy runner=false reverse_secret=false
+provider:      notion write=true read_back=true cleanup=true object=block-456
+step:          grant yes oauth grant covers capability
+step:          provider.write yes block-456
+step:          provider.read_back yes block-456
+step:          provider.cleanup yes block-456

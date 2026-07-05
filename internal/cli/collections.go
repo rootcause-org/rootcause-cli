@@ -208,10 +208,49 @@ func newConnectionCmd(e *env) *cobra.Command {
 	cmd.AddCommand(
 		listSubCmd(e, "connections"),
 		addSubCmd(e, "connections"),
+		connectionProbeCmd(e),
 		connectionRevealCmd(e),
 		verbSubCmd(e, "connections", "id", "rotate", "Rotate a connection's secret"),
 		connectionRmCmd(e),
 	)
+	return cmd
+}
+
+func connectionProbeCmd(e *env) *cobra.Command {
+	var write bool
+	var notionPage string
+	var cleanup bool
+	var label string
+	cmd := &cobra.Command{
+		Use:   "probe <capability>",
+		Short: "Probe an integration capability grant",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			res, raw, err := c.ConnectionProbe(e.ctx(), client.ConnectionProbeRequest{
+				Capability: args[0],
+				Label:      label,
+				Write:      write,
+				NotionPage: notionPage,
+				Cleanup:    cleanup,
+			}, e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.ConnectionProbe(e.out, res)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&write, "write", false, "perform the provider write/read-back probe")
+	cmd.Flags().StringVar(&notionPage, "notion-page", "", "Notion page id for notion.write --write")
+	cmd.Flags().BoolVar(&cleanup, "cleanup", false, "delete/archive the probe artifact when supported")
+	cmd.Flags().StringVar(&label, "label", "", "OAuth grant label (default account when empty)")
 	return cmd
 }
 

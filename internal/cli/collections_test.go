@@ -131,6 +131,26 @@ func TestConnectionAddTable(t *testing.T) {
 	assertGolden(t, "connection_add.golden", out.String())
 }
 
+func TestConnectionProbeTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "connection", "probe", "notion.write", "--write", "--notion-page", "page-123", "--cleanup"); err != nil {
+		t.Fatalf("connection probe: %v", err)
+	}
+	assertGolden(t, "connection_probe.golden", out.String())
+}
+
+func TestConnectionProbeJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "connection", "probe", "notion.write"); err != nil {
+		t.Fatalf("connection probe -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "connection_probe.json"), out.Bytes())
+}
+
 // TestConnectionRevealSecret: reveal prints the secret VALUE alone to stdout (captureable) and warns on
 // stderr that it's sensitive and shown once.
 func TestConnectionRevealSecret(t *testing.T) {

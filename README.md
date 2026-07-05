@@ -205,6 +205,7 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc mailbox ls` | list watched mailboxes (the channel plane's inbox watch): id, provider, email, status, tenant, subscription expiry, error |
 | `rc mailbox pause\|resume <id>` | pause / resume watching a mailbox (resume surfaces `needs_attention` + the error message on a subscribe failure) |
 | `rc mailbox connect --provider google\|microsoft\|intercom [--project …]` | print the dashboard **Connections** URL to open in a browser and complete the provider's OAuth (no API write) |
+| `rc connection probe <capability> [--write --notion-page <id> --cleanup] [--label <label>]` | validate an integration capability grant without a brain sync or agent run. Read-only checks grant/capability/action-plane diagnostics; `notion.write --write` appends a tiny Notion block to the supplied page, rereads it, and archives it when `--cleanup` is set |
 | `rc mailbox route ls\|add` | **legacy** email-keyed routing table (which inbound address → which project/tenant); the generic `/api/v1/mailboxes` collection, kept for tenant onboarding |
 | `rc database ls\|get\|set` | list / read / update registered databases |
 | `rc database controls get\|set <dsn>` | read / change a database's access controls (JSON object or k=v) |

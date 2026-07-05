@@ -67,6 +67,49 @@ func Secret(w io.Writer, it client.Item) {
 	Item(w, it)
 }
 
+// ConnectionProbe renders `rc connection probe`: concise diagnostics, while -o json keeps the full raw
+// response for scripts.
+func ConnectionProbe(w io.Writer, p *client.ConnectionProbeResult) {
+	if p == nil {
+		_, _ = fmt.Fprintln(w, "(no probe result)")
+		return
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintf(tw, "ok:\t%s\n", yesNo(p.OK))
+	_, _ = fmt.Fprintf(tw, "capability:\t%s (%s/%s)\n", p.Capability.Key, p.Capability.Platform, p.Capability.Tier)
+	_, _ = fmt.Fprintf(tw, "grant:\t%s", yesNo(p.Grant.OK))
+	if p.Grant.Label != "" {
+		_, _ = fmt.Fprintf(tw, " label=%s", p.Grant.Label)
+	}
+	if p.Grant.Error != "" {
+		_, _ = fmt.Fprintf(tw, " error=%s", p.Grant.Error)
+	}
+	_, _ = fmt.Fprintln(tw)
+	_, _ = fmt.Fprintf(tw, "action plane:\t%s mode=%s runner=%t reverse_secret=%t\n",
+		p.Action.Status, p.Action.Mode, p.Action.RunnerURLConfigured, p.Action.ReverseSecretConfigured)
+	if p.Provider != nil {
+		_, _ = fmt.Fprintf(tw, "provider:\t%s write=%t read_back=%t cleanup=%t", p.Provider.Name, p.Provider.Write, p.Provider.ReadBack, p.Provider.Cleanup)
+		if p.Provider.ObjectID != "" {
+			_, _ = fmt.Fprintf(tw, " object=%s", p.Provider.ObjectID)
+		}
+		if p.Provider.Error != "" {
+			_, _ = fmt.Fprintf(tw, " error=%s", p.Provider.Error)
+		}
+		_, _ = fmt.Fprintln(tw)
+	}
+	for _, step := range p.Steps {
+		_, _ = fmt.Fprintf(tw, "step:\t%s %s", step.Name, yesNo(step.OK))
+		if step.Detail != "" {
+			_, _ = fmt.Fprintf(tw, " %s", step.Detail)
+		}
+		_, _ = fmt.Fprintln(tw)
+	}
+	for _, warning := range p.Warnings {
+		_, _ = fmt.Fprintf(tw, "warning:\t%s\n", warning)
+	}
+	_ = tw.Flush()
+}
+
 // itemColumns is the union of all field keys across the items, "id" pinned first then the rest sorted —
 // a stable column order so the table is deterministic regardless of map iteration.
 func itemColumns(items []client.Item) []string {

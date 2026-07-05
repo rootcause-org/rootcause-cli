@@ -483,6 +483,18 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "connection_item.json"))
 	})
+	mux.HandleFunc("POST /api/v1/connections/probe", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		if !strings.Contains(body, `"capability":"notion.write"`) {
+			t.Fatalf("connection probe body missing capability: %s", body)
+		}
+		if strings.Contains(r.URL.RawQuery, "project=") && r.URL.Query().Get("project") == "" {
+			t.Fatalf("bad project query: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "connection_probe.json"))
+	})
 	mux.HandleFunc("POST /api/v1/connections/{id}/reveal", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
