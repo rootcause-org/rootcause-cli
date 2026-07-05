@@ -182,7 +182,7 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc whoami` | the resolved profile/project/login tenant + sign-in status |
 | `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
 | `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--principal-kind K --principal-id ID [--asserted-by …] [--assurance …]] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection. `--principal-kind`+`--principal-id` (a pair) assert a data-scoping identity (see below) |
+| `rc ask "<q>" [--attach path]... [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--principal-kind K --principal-id ID [--asserted-by …] [--assurance …]] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). `--attach` is repeatable and uploads local files as synthetic inbound attachments (`--path` is an alias; hidden `--pod` accepts the common typo). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection. `--principal-kind`+`--principal-id` (a pair) assert a data-scoping identity (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
 | `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
@@ -234,6 +234,12 @@ first line). Use this for high-fidelity brain-dev checks: tone, notes, actions, 
 declines are rendered like a reviewable support result. Use `--scenario raw` for direct investigations;
 the CLI sends `scenario=raw` and prints one Markdown answer. `--scenario mcp` is accepted as a
 compatibility alias for raw, but `raw` is the documented name.
+
+`rc ask --attach path/to/file.pdf` uploads a local file as an inbound attachment on the synthetic
+message. Repeat it for multiple files; relative paths are resolved from the current working directory.
+The backend gives each file a real `attachment_id`, so hosted actions with `type: attachment` params can
+be proposed against the same ID shape as production email. Action proposal/execution still depends on
+the project's action plane and catalog being enabled.
 
 `rc ask --effort pro|max` is a per-run escalation knob. It maps to rootcause's model tiers, not raw
 provider effort values; use it when you explicitly want a stronger retry. Omit it, or pass

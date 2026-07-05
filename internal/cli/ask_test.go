@@ -215,6 +215,67 @@ func TestAskFromSubjectForwarded(t *testing.T) {
 	}
 }
 
+func TestAskAttachReadsLocalFiles(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, "invoice.pdf"), []byte("%PDF-1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "note.unknownext"), []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--attach", "invoice.pdf", "--path", filepath.Join(dir, "note.unknownext"), "--no-wait"); err != nil {
+		t.Fatalf("ask --attach: %v", err)
+	}
+	atts, ok := got["attachments"].([]any)
+	if !ok || len(atts) != 2 {
+		t.Fatalf("attachments = %#v, want 2", got["attachments"])
+	}
+	first := atts[0].(map[string]any)
+	if first["filename"] != "invoice.pdf" || first["mime_type"] != "application/pdf" || first["size_bytes"] != float64(7) || first["content_base64"] != "JVBERi0xCg==" {
+		t.Fatalf("first attachment = %#v", first)
+	}
+	second := atts[1].(map[string]any)
+	if second["filename"] != "note.unknownext" || second["mime_type"] != "text/plain; charset=utf-8" || second["content_base64"] != "aGVsbG8=" {
+		t.Fatalf("second attachment = %#v", second)
+	}
+}
+
+func TestAskPodAliasReadsAttachmentPath(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "note.txt")
+	if err := os.WriteFile(p, []byte("hi"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--pod", p, "--no-wait"); err != nil {
+		t.Fatalf("ask --pod: %v", err)
+	}
+	atts := got["attachments"].([]any)
+	if len(atts) != 1 || atts[0].(map[string]any)["filename"] != "note.txt" {
+		t.Fatalf("attachments = %#v", got["attachments"])
+	}
+}
+
 func TestAskUsesLocalTenantDefault(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

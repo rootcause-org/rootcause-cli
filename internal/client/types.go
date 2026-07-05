@@ -349,16 +349,25 @@ type EventsResponse struct {
 // for the default email simulation; sender/subject shape the synthetic inbound email for that scenario.
 // Project is the ?project= selector for all-projects admin tokens, never JSON.
 type SubmitRequest struct {
-	Prompt          string     `json:"prompt"`
-	Scenario        string     `json:"scenario"`
-	SessionID       string     `json:"session_id,omitempty"`
-	Tenant          string     `json:"tenant,omitempty"`
-	BrainRef        string     `json:"brain_ref,omitempty"`
-	ReasoningEffort string     `json:"reasoning_effort,omitempty"`
-	Sender          string     `json:"sender,omitempty"`
-	Subject         string     `json:"subject,omitempty"`
-	Principal       *Principal `json:"principal,omitempty"`
-	Project         string     `json:"-"`
+	Prompt          string       `json:"prompt"`
+	Scenario        string       `json:"scenario"`
+	SessionID       string       `json:"session_id,omitempty"`
+	Tenant          string       `json:"tenant,omitempty"`
+	BrainRef        string       `json:"brain_ref,omitempty"`
+	ReasoningEffort string       `json:"reasoning_effort,omitempty"`
+	Sender          string       `json:"sender,omitempty"`
+	Subject         string       `json:"subject,omitempty"`
+	Principal       *Principal   `json:"principal,omitempty"`
+	Attachments     []Attachment `json:"attachments,omitempty"`
+	Project         string       `json:"-"`
+}
+
+// Attachment is one local file uploaded by rc ask for a synthetic Prompt API run.
+type Attachment struct {
+	Filename      string `json:"filename"`
+	MimeType      string `json:"mime_type,omitempty"`
+	SizeBytes     int64  `json:"size_bytes"`
+	ContentBase64 string `json:"content_base64"`
 }
 
 // Principal is the optional structured identity assertion on a triggered run (data-scoping), mirroring

@@ -2,8 +2,13 @@ package cli
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"mime"
+	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,6 +31,9 @@ type askFlags struct {
 	principalID   string
 	assertedBy    string
 	assurance     string
+	attachPaths   []string
+	pathPaths     []string
+	podPaths      []string
 	noWait        bool
 	timeout       time.Duration
 }
@@ -63,6 +71,10 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			attachments, err := readAskAttachments(append(append(f.attachPaths, f.pathPaths...), f.podPaths...))
+			if err != nil {
+				return err
+			}
 
 			sender, subject := askEmailFields(scenario, args[0], f.from, f.subject, cmd.Flags().Changed("from"), cmd.Flags().Changed("subject"))
 
@@ -76,6 +88,7 @@ func newAskCmd(e *env) *cobra.Command {
 				Sender:          sender,
 				Subject:         subject,
 				Principal:       principal,
+				Attachments:     attachments,
 				Project:         e.scopeProject(),
 			})
 			if err != nil {
@@ -127,6 +140,10 @@ func newAskCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&f.principalID, "principal-id", "", "principal external id (the asserted identity); requires --principal-kind")
 	cmd.Flags().StringVar(&f.assertedBy, "asserted-by", "", "who asserted the principal (default server-side); requires the --principal-kind/--principal-id pair")
 	cmd.Flags().StringVar(&f.assurance, "assurance", "", "assurance level of the principal assertion (default server-side); requires the --principal-kind/--principal-id pair")
+	cmd.Flags().StringArrayVar(&f.attachPaths, "attach", nil, "attach a local file to the synthetic run (repeatable)")
+	cmd.Flags().StringArrayVar(&f.pathPaths, "path", nil, "alias for --attach")
+	cmd.Flags().StringArrayVar(&f.podPaths, "pod", nil, "alias for --attach")
+	_ = cmd.Flags().MarkHidden("pod")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")
 	return cmd
@@ -222,6 +239,56 @@ func compactAskSubject(prompt string) string {
 		line = strings.TrimRight(string(r[:80]), " ") + "..."
 	}
 	return line
+}
+
+func readAskAttachments(paths []string) ([]client.Attachment, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	out := make([]client.Attachment, 0, len(paths))
+	for _, raw := range paths {
+		p := strings.TrimSpace(raw)
+		if p == "" {
+			return nil, fmt.Errorf("--attach path is empty")
+		}
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return nil, fmt.Errorf("resolve attachment path %q: %w", p, err)
+		}
+		info, err := os.Stat(abs)
+		if err != nil {
+			return nil, fmt.Errorf("read attachment %q: %w", p, err)
+		}
+		if info.IsDir() {
+			return nil, fmt.Errorf("attachment %q is a directory", p)
+		}
+		data, err := os.ReadFile(abs)
+		if err != nil {
+			return nil, fmt.Errorf("read attachment %q: %w", p, err)
+		}
+		out = append(out, client.Attachment{
+			Filename:      filepath.Base(abs),
+			MimeType:      detectAskAttachmentType(abs, data),
+			SizeBytes:     int64(len(data)),
+			ContentBase64: base64.StdEncoding.EncodeToString(data),
+		})
+	}
+	return out, nil
+}
+
+func detectAskAttachmentType(path string, data []byte) string {
+	if ext := strings.ToLower(filepath.Ext(path)); ext != "" {
+		if typ := mime.TypeByExtension(ext); typ != "" {
+			return typ
+		}
+	}
+	if len(data) > 0 {
+		if len(data) > 512 {
+			data = data[:512]
+		}
+		return http.DetectContentType(data)
+	}
+	return "application/octet-stream"
 }
 
 // waitForRun polls /runs/{id} until the run reaches a terminal status or the timeout elapses, printing

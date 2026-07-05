@@ -29,7 +29,7 @@ but they keep the raw rows reachable via `-o json`.
 
 | Command | Endpoint | What |
 |---|---|---|
-| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--scenario email|raw`, `--project` for all-projects admin tokens, and `--effort default|pro|max`; see below) |
+| `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--scenario email|raw`, repeatable `--attach`, `--project` for all-projects admin tokens, and `--effort default|pro|max`; see below) |
 | `rc projects` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
 | `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
@@ -62,8 +62,12 @@ then by default polls `/runs/{id}` to a terminal status and renders by scenario 
 `run_id` and returns; JSON echoes the verbatim 202 body so `jq -r .run_id` works). It stays thin —
 submit + poll + render; all run logic is server-side. The CLI first sends the rich contract: explicit
 `scenario` (`email` by default, or `raw`; `mcp` accepted as a raw alias), `sender`/`subject` for email,
-and any run-control fields. If a deployed server rejects that body as schema-malformed, and no
-run-control field (`session_id`, `brain_ref`, `reasoning_effort`) would be lost — **nor a `principal`**
+and any run-control fields. `--attach <path>` is repeatable (`--path` alias; hidden `--pod` typo alias):
+the CLI resolves relative/absolute local paths, reads bytes, detects a MIME type, and sends
+`attachments[]` `{filename,mime_type,size_bytes,content_base64}` so the server can mint real inbound
+attachment IDs for action params. If a deployed server rejects that body as schema-malformed, and no
+run-control field (`session_id`, `brain_ref`, `reasoning_effort`) would be lost — **nor a `principal` or
+attachments** would be dropped
 (a dropped principal is a silent data under-scope, so the guard is security, not parity) — the client
 retries the legacy body `{prompt, tenant?}` so older Prompt API deployments still accept plain `rc ask`.
 `email`
