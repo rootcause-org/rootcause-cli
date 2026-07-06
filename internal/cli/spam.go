@@ -31,7 +31,8 @@ func newSpamCmd(e *env) *cobra.Command {
 // emits the raw allow+block bodies as a {"allows":…,"blocks":…} envelope so a consumer sees exactly
 // what each endpoint returned.
 func spamListCmd(e *env) *cobra.Command {
-	return &cobra.Command{
+	var mailbox string
+	cmd := &cobra.Command{
 		Use:     "ls",
 		Aliases: []string{"list"},
 		Short:   "List the spam allow and block rules",
@@ -57,16 +58,35 @@ func spamListCmd(e *env) *cobra.Command {
 				env := fmt.Sprintf(`{"allows":%s,"blocks":%s}`, rawOrNull(allowRaw), rawOrNull(blockRaw))
 				return render.JSON(e.out, []byte(env))
 			}
-			render.SpamRules(e.out, append(append([]client.SpamRule{}, allows...), blocks...))
+			rules := append(append([]client.SpamRule{}, allows...), blocks...)
+			render.SpamRules(e.out, filterSpamByMailbox(rules, mailbox))
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&mailbox, "mailbox", "", "show only rules scoped to this mailbox uuid (client-side filter)")
+	return cmd
+}
+
+// filterSpamByMailbox keeps only rules whose mailbox scope matches (client-side filter for `rc spam ls
+// --mailbox`). An empty filter is a no-op — every rule passes. The server's GET returns all scopes below
+// the resolved one; this narrows the table to one mailbox without a second round-trip.
+func filterSpamByMailbox(rules []client.SpamRule, mailbox string) []client.SpamRule {
+	if mailbox == "" {
+		return rules
+	}
+	out := rules[:0:0]
+	for _, r := range rules {
+		if r.Mailbox == mailbox {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // spamCreateCmd builds `rc spam allow|block <pattern> [--reason …]` over POST on the matching list. The
 // server infers match_type from the pattern shape, so the CLI sends only {pattern, reason}.
 func spamCreateCmd(e *env, verb, list, short string) *cobra.Command {
-	var reason string
+	var reason, mailbox string
 	cmd := &cobra.Command{
 		Use:   verb + " <pattern>",
 		Short: short,
@@ -80,7 +100,7 @@ func spamCreateCmd(e *env, verb, list, short string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rule, raw, err := c.SpamCreate(e.ctx(), project, e.scopeTenant(), list, args[0], reason)
+			rule, raw, err := c.SpamCreate(e.ctx(), project, e.scopeTenant(), list, args[0], reason, mailbox)
 			if err != nil {
 				return err
 			}
@@ -92,6 +112,7 @@ func spamCreateCmd(e *env, verb, list, short string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "why this rule exists (shown in the list)")
+	cmd.Flags().StringVar(&mailbox, "mailbox", "", "scope the rule to this mailbox uuid (else project/tenant scope)")
 	return cmd
 }
 

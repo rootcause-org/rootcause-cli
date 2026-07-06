@@ -19,6 +19,7 @@ type SpamRule struct {
 	Reason    string `json:"reason,omitempty"`
 	Source    string `json:"source,omitempty"`
 	Tenant    string `json:"tenant,omitempty"`
+	Mailbox   string `json:"mailbox,omitempty"` // mailbox UUID when the rule is mailbox-scoped; empty at project/tenant scope
 	CreatedAt string `json:"created_at,omitempty"`
 }
 
@@ -47,12 +48,16 @@ func (c *Client) SpamList(ctx context.Context, project, tenant, list string) ([]
 	return decodeSpamRules(raw), raw, nil
 }
 
-// SpamCreate posts a {pattern, reason} body to one spam list; the server infers match_type from the
-// pattern shape. Returns the echoed rule + raw body.
-func (c *Client) SpamCreate(ctx context.Context, project, tenant, list, pattern, reason string) (*SpamRule, json.RawMessage, error) {
+// SpamCreate posts a {pattern, reason[, mailbox_id]} body to one spam list; the server infers match_type
+// from the pattern shape. A non-empty mailboxID scopes the rule to that mailbox (else project/tenant
+// scope). Returns the echoed rule + raw body.
+func (c *Client) SpamCreate(ctx context.Context, project, tenant, list, pattern, reason, mailboxID string) (*SpamRule, json.RawMessage, error) {
 	body := map[string]any{"pattern": pattern}
 	if reason != "" {
 		body["reason"] = reason
+	}
+	if mailboxID != "" {
+		body["mailbox_id"] = mailboxID
 	}
 	var raw json.RawMessage
 	if err := c.do(ctx, http.MethodPost, spamPath(project, tenant, list, ""), body, &raw); err != nil {

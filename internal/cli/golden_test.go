@@ -710,6 +710,31 @@ func TestSpamAllowTable(t *testing.T) {
 	assertGolden(t, "spam_allow.golden", out.String())
 }
 
+// TestSpamAllowMailboxTable pins `rc spam allow <pattern> --mailbox <uuid>`: the mailbox_id rides in the
+// POST body (asserted server-side by echoing it back as "mailbox"), and the echoed rule renders with the
+// MAILBOX column populated.
+func TestSpamAllowMailboxTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "spam", "allow", "@partner.example", "--mailbox", "mbx11111-0000-0000-0000-000000000009"); err != nil {
+		t.Fatalf("spam allow --mailbox: %v", err)
+	}
+	assertGolden(t, "spam_allow_mailbox.golden", out.String())
+}
+
+// TestSpamListMailboxFilter pins `rc spam ls --mailbox <uuid>`: the client-side filter narrows the table
+// to the two rules (one allow, one block) scoped to that mailbox, dropping the project-scoped rows.
+func TestSpamListMailboxFilter(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "spam", "ls", "--mailbox", "mbx11111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("spam ls --mailbox: %v", err)
+	}
+	assertGolden(t, "spam_ls_mailbox.golden", out.String())
+}
+
 // TestSpamBlockTable pins `rc spam block <pattern>` (no reason).
 func TestSpamBlockTable(t *testing.T) {
 	srv := stubServer(t)

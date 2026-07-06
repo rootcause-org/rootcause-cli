@@ -994,34 +994,41 @@ func Access(w io.Writer, a *client.Access) {
 }
 
 // SpamRules renders a project's spam allow+block lists (`rc spam ls`) as one table: verdict, pattern,
-// match type, source, and — only when the server included it on any row — the created date. The rows
-// are shown in the order the server sent them (the CLI never reorders; -o json carries the raw body).
+// match type, source, and — each only when the server populated it on any row — the mailbox scope and
+// created date. The rows are shown in the order the server sent them (the CLI never reorders; -o json
+// carries the raw body).
 func SpamRules(w io.Writer, rules []client.SpamRule) {
 	if len(rules) == 0 {
 		_, _ = fmt.Fprintln(w, "(no spam rules)")
 		return
 	}
-	showCreated := false
+	showMailbox, showCreated := false, false
 	for _, r := range rules {
+		if r.Mailbox != "" {
+			showMailbox = true
+		}
 		if r.CreatedAt != "" {
 			showCreated = true
-			break
 		}
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	if showCreated {
-		_, _ = fmt.Fprintln(tw, "VERDICT\tPATTERN\tTYPE\tSOURCE\tCREATED")
-	} else {
-		_, _ = fmt.Fprintln(tw, "VERDICT\tPATTERN\tTYPE\tSOURCE")
+	header := "VERDICT\tPATTERN\tTYPE\tSOURCE"
+	if showMailbox {
+		header += "\tMAILBOX"
 	}
+	if showCreated {
+		header += "\tCREATED"
+	}
+	_, _ = fmt.Fprintln(tw, header)
 	for _, r := range rules {
-		if showCreated {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
-				r.Verdict, r.Pattern, strOrBlank(r.MatchType), strOrBlank(r.Source), strOrBlank(r.CreatedAt))
-		} else {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
-				r.Verdict, r.Pattern, strOrBlank(r.MatchType), strOrBlank(r.Source))
+		row := fmt.Sprintf("%s\t%s\t%s\t%s", r.Verdict, r.Pattern, strOrBlank(r.MatchType), strOrBlank(r.Source))
+		if showMailbox {
+			row += "\t" + strOrBlank(r.Mailbox)
 		}
+		if showCreated {
+			row += "\t" + strOrBlank(r.CreatedAt)
+		}
+		_, _ = fmt.Fprintln(tw, row)
 	}
 	_ = tw.Flush()
 }

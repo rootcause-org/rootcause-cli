@@ -1,5 +1,5 @@
-VERDICT  PATTERN            TYPE            SOURCE    CREATED
-allow    @acme.com          sender_domain   operator  2026-06-30T09:00:00Z
-allow    ceo@bigco.example  sender_address  button    2026-07-02T14:30:00Z
-block    newsletter         sender_prefix   operator  2026-06-28T08:15:00Z
-block    @spammy.example    sender_domain   button    2026-07-05T18:45:00Z
+VERDICT  PATTERN            TYPE            SOURCE    MAILBOX                               CREATED
+allow    @acme.com          sender_domain   operator  -                                     2026-06-30T09:00:00Z
+allow    ceo@bigco.example  sender_address  button    mbx11111-0000-0000-0000-000000000001  2026-07-02T14:30:00Z
+block    newsletter         sender_prefix   operator  -                                     2026-06-28T08:15:00Z
+block    @spammy.example    sender_domain   button    mbx11111-0000-0000-0000-000000000001  2026-07-05T18:45:00Z

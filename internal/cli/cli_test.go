@@ -442,9 +442,11 @@ func stubServer(t *testing.T) *httptest.Server {
 		if _, ok := body["match_type"]; ok {
 			t.Fatalf("spam create must not send match_type (server infers it): %v", body)
 		}
+		// A mailbox_id (when the caller passed --mailbox) rides in the BODY and echoes back as "mailbox".
+		mailbox, _ := body["mailbox_id"].(string)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"id":"a1111111-0000-0000-0000-000000000001","verdict":"allow","match_type":"sender_domain","pattern":%q,"reason":%q,"source":"operator","created_at":"2026-07-01T10:00:00Z"}`,
-			body["pattern"], reasonOrEmpty(body))
+		_, _ = fmt.Fprintf(w, `{"id":"a1111111-0000-0000-0000-000000000001","verdict":"allow","match_type":"sender_domain","pattern":%q,"reason":%q,"source":"operator","mailbox":%q,"created_at":"2026-07-01T10:00:00Z"}`,
+			body["pattern"], reasonOrEmpty(body), mailbox)
 	})
 	mux.HandleFunc("POST /api/v1/projects/{project}/spam/blocks", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

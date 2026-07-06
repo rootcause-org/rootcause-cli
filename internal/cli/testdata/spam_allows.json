@@ -1,4 +1,4 @@
 [
-  {"id":"a1111111-0000-0000-0000-000000000001","verdict":"allow","match_type":"sender_domain","pattern":"@acme.com","reason":"trusted partner","source":"operator","created_at":"2026-06-30T09:00:00Z"},
-  {"id":"a2222222-0000-0000-0000-000000000002","verdict":"allow","match_type":"sender_address","pattern":"ceo@bigco.example","reason":"","source":"button","created_at":"2026-07-02T14:30:00Z"}
+  {"id":"a1111111-0000-0000-0000-000000000001","verdict":"allow","match_type":"sender_domain","pattern":"@acme.com","reason":"trusted partner","source":"operator","mailbox":"","created_at":"2026-06-30T09:00:00Z"},
+  {"id":"a2222222-0000-0000-0000-000000000002","verdict":"allow","match_type":"sender_address","pattern":"ceo@bigco.example","reason":"","source":"button","mailbox":"mbx11111-0000-0000-0000-000000000001","created_at":"2026-07-02T14:30:00Z"}
 ]
