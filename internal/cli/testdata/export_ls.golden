@@ -1,0 +1,4 @@
+ID                                    KIND     STATUS   THREADS  TRUNCATED  CREATED               COMPLETED
+eeee1111-0000-0000-0000-000000000001  harvest  done     42       no         2026-07-06T10:00:00Z  2026-07-06T10:02:00Z
+eeee2222-0000-0000-0000-000000000002  harvest  running  -        no         2026-07-06T11:00:00Z  -
+eeee3333-0000-0000-0000-000000000003  survey   error    -        yes        2026-07-05T09:00:00Z  -

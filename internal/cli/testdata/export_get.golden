@@ -1,0 +1,10 @@
+id:         eeee1111-0000-0000-0000-000000000001
+kind:       harvest
+status:     done
+mailbox:    11111111-1111-1111-1111-111111111111
+cleaned:    yes
+threads:    42
+truncated:  no
+created:    2026-07-06T10:00:00Z
+completed:  2026-07-06T10:02:00Z
+consumed:   2026-07-06T10:05:00Z

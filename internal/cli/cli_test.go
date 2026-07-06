@@ -597,6 +597,71 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":false,"has_sync_cursor":true}`))
 	})
 
+	// local-synthesis harvest/export (rc mailbox harvest, rc export ls/get/download). Harvest asserts the
+	// clean/max_threads body shape; a mailbox id "busy" drives the 409 HARVEST_IN_PROGRESS path. The export
+	// list/get echo canned fixtures; download returns raw Markdown (id "missing" → 404 BODY_UNAVAILABLE).
+	// id "running-then-done" flips its export status once so the --wait poll loop terminates on the 2nd read.
+	mux.HandleFunc("POST /api/v1/mailboxes/{id}/harvest", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("id") == "busy" {
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":{"code":"HARVEST_IN_PROGRESS","message":"a harvest is already in progress for this mailbox"}}`))
+			return
+		}
+		body := readBody(t, r)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode harvest body: %v\n%s", err, body)
+		}
+		// clean omitted unless set; max_threads omitted at 0. When the wait id is asked, the body carries
+		// max_threads:5 + clean:false to prove flag plumbing.
+		exportID := "eeee1111-0000-0000-0000-000000000001"
+		if r.PathValue("id") == "wait" {
+			exportID = "wait-export"
+			if got["max_threads"] != float64(5) || got["clean"] != false {
+				t.Fatalf("harvest wait body = %v, want max_threads=5 clean=false", got)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"export_id":"` + exportID + `","status":"pending"}`))
+	})
+	// exportWaitCalls counts GETs for the wait-export so the first read is "running", the second "done".
+	exportWaitCalls := 0
+	mux.HandleFunc("GET /api/v1/exports", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "exports.json"))
+	})
+	mux.HandleFunc("GET /api/v1/exports/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		if r.PathValue("id") == "wait-export" {
+			exportWaitCalls++
+			status := "running"
+			if exportWaitCalls >= 2 {
+				status = "done"
+			}
+			_, _ = fmt.Fprintf(w, `{"id":"wait-export","kind":"harvest","status":%q,"mailbox_id":"wait","thread_count":3,"truncated":false,"created_at":"2026-07-06T10:00:00Z"}`, status)
+			return
+		}
+		_, _ = w.Write(fixture(t, "export_item.json"))
+	})
+	mux.HandleFunc("GET /api/v1/exports/{id}/download", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("id") == "missing" {
+			w.WriteHeader(http.StatusNotFound)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"error":{"code":"BODY_UNAVAILABLE","message":"export body not ready or evicted"}}`))
+			return
+		}
+		if got := r.Header.Get("Accept"); got != "text/markdown" {
+			t.Fatalf("download Accept = %q, want text/markdown", got)
+		}
+		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+		_, _ = w.Write(fixture(t, "harvest_corpus.md"))
+	})
+
 	// legacy routing table (rc mailbox route): list + create (upsert). Create asserts the email arrives.
 	mux.HandleFunc("GET /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
@@ -943,9 +1008,19 @@ func readBody(t *testing.T, r *http.Request) string {
 	return buf.String()
 }
 
+// testdataDir is the absolute path to the fixtures dir, resolved once at package init so a test that
+// os.Chdir's (e.g. the .rootcause default-split-dir test) doesn't break a stub handler's fixture read.
+var testdataDir = func() string {
+	abs, err := filepath.Abs("testdata")
+	if err != nil {
+		panic(err)
+	}
+	return abs
+}()
+
 func fixture(t *testing.T, name string) []byte {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("testdata", name))
+	b, err := os.ReadFile(filepath.Join(testdataDir, name))
 	if err != nil {
 		t.Fatalf("read fixture %s: %v", name, err)
 	}
@@ -956,7 +1031,7 @@ func fixture(t *testing.T, name string) []byte {
 // stable: fixtures use canned timestamps, never time.Now.
 func assertGolden(t *testing.T, name, got string) {
 	t.Helper()
-	path := filepath.Join("testdata", name)
+	path := filepath.Join(testdataDir, name)
 	if *update {
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 			t.Fatalf("write golden %s: %v", name, err)

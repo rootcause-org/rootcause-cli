@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -23,11 +26,123 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxPauseCmd(e),
 		mailboxResumeCmd(e),
 		mailboxProcessCmd(e),
+		mailboxHarvestCmd(e),
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
 		newMailboxRouteCmd(e),
 	)
 	return cmd
+}
+
+// mailboxHarvestCmd starts a local-synthesis harvest of a mailbox (POST /mailboxes/{id}/harvest → a
+// queued export). By default it prints the accepted {export_id, status}; --wait polls the export to a
+// terminal status (done|error|failed) and prints the finished row. --clean (default true) requests the
+// cleaned corpus; --max-threads caps the harvest (0 = server default). A 409 (HARVEST_IN_PROGRESS)
+// surfaces verbatim through the error path. -o json passes the server body through.
+func mailboxHarvestCmd(e *env) *cobra.Command {
+	var clean bool
+	var maxThreads int
+	var wait bool
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:   "harvest <mailbox-id>",
+		Short: "Start a local-synthesis harvest of a mailbox (optionally wait for the export)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			// --clean is a pointer to the server: omit it (nil) unless the user set it, so the server default
+			// (true) is authoritative and this CLI never hard-codes it.
+			var cleanPtr *bool
+			if cmd.Flags().Changed("clean") {
+				cleanPtr = &clean
+			}
+			acc, raw, err := c.StartHarvest(e.ctx(), args[0], cleanPtr, maxThreads, e.scopeProject())
+			if err != nil {
+				return err
+			}
+
+			if !wait {
+				if e.jsonOut() {
+					return render.JSON(e.out, raw)
+				}
+				_, _ = fmt.Fprintf(e.out, "export_id: %s\nstatus: %s\n", acc.ExportID, acc.Status)
+				_, _ = fmt.Fprintf(e.err, "queued — poll with: rc export get %s\n", acc.ExportID)
+				return nil
+			}
+
+			x, xraw, err := waitForExport(e, c, acc.ExportID, timeout)
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, xraw)
+			}
+			render.Export(e.out, x)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&clean, "clean", true, "request the cleaned corpus (server default true)")
+	cmd.Flags().IntVar(&maxThreads, "max-threads", 0, "cap the harvest to N threads (0 = server default)")
+	cmd.Flags().BoolVar(&wait, "wait", false, "poll the export until it reaches a terminal status")
+	cmd.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "max time to wait under --wait")
+	return cmd
+}
+
+// waitForExport polls GET /exports/{id} until the export reaches a terminal status (done|error|failed)
+// or the timeout elapses, printing a terse live status line to stderr on a TTY (never stdout, so a
+// piped/JSON path stays clean). Mirrors ask.go's waitForRun — no fixed sleep in tests: the interval is
+// a small fixed poll floored for the loop, and the context timeout bounds it. It returns the terminal
+// export AND its raw body so the JSON caller passes the verbatim server bytes through without a second
+// GET (avoiding a redundant round-trip + TOCTOU).
+func waitForExport(e *env, c *client.Client, id string, timeout time.Duration) (*client.ExportItem, json.RawMessage, error) {
+	const interval = time.Second
+	ctx, cancel := context.WithTimeout(e.ctx(), timeout)
+	defer cancel()
+
+	showProgress := render.IsTerminal(e.err)
+	for {
+		x, raw, err := c.Export(ctx, id, e.scopeProject())
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return nil, nil, fmt.Errorf("timed out after %s waiting for export %s", timeout, id)
+			}
+			return nil, nil, err
+		}
+		if isTerminalExportStatus(x.Status) {
+			if showProgress {
+				_, _ = fmt.Fprintf(e.err, "\r\033[K")
+			}
+			return x, raw, nil
+		}
+		if showProgress {
+			_, _ = fmt.Fprintf(e.err, "\r\033[K%s … %s", id, x.Status)
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if showProgress {
+				_, _ = fmt.Fprintf(e.err, "\r\033[K")
+			}
+			return nil, nil, fmt.Errorf("timed out after %s waiting for export %s (last status: %s)", timeout, id, x.Status)
+		case <-timer.C:
+		}
+	}
+}
+
+// isTerminalExportStatus reports whether an export status is final. The in-progress states are
+// pending/running; everything else non-empty (done|error|failed, or a new terminal state) ends the wait
+// rather than hanging to the timeout.
+func isTerminalExportStatus(s string) bool {
+	switch s {
+	case "", "pending", "running", "queued":
+		return false
+	default:
+		return true
+	}
 }
 
 // mailboxProcessCmd toggles the silent-onboarding gate: `on` enqueues runs for inbound mail, `off` keeps

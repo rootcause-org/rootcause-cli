@@ -646,6 +646,39 @@ type WatchedMailboxList struct {
 	Mailboxes []WatchedMailbox `json:"mailboxes"`
 }
 
+// HarvestAccepted is the 202 body of POST /api/v1/mailboxes/{id}/harvest — the queued export handle.
+type HarvestAccepted struct {
+	ExportID string `json:"export_id"`
+	Status   string `json:"status"`
+}
+
+// ExportItem is one row of GET /api/v1/exports (and the whole of GET /api/v1/exports/{id}) — a
+// local-synthesis corpus export (a harvest or a survey). Field names mirror the server verbatim; most
+// counts/timestamps are omitempty (absent until the export runs/completes/is consumed). Truncated is
+// always present (a harvest either hit its thread cap or didn't).
+type ExportItem struct {
+	ID          string `json:"id"`
+	Kind        string `json:"kind"`   // harvest|survey
+	Status      string `json:"status"` // pending|running|done|error|failed
+	MailboxID   string `json:"mailbox_id"`
+	Tenant      string `json:"tenant,omitempty"`
+	Cleaned     *bool  `json:"cleaned,omitempty"`
+	ThreadCount *int   `json:"thread_count,omitempty"`
+	Truncated   bool   `json:"truncated"`
+	CreatedAt   string `json:"created_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+	ConsumedAt  string `json:"consumed_at,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
+
+// Export aliases ExportItem for the single-item GET, matching the WatchedMailbox naming split.
+type Export = ExportItem
+
+// ExportList is GET /api/v1/exports — the exports (newest-first) under their envelope key.
+type ExportList struct {
+	Exports []ExportItem `json:"exports"`
+}
+
 // Project is one row of GET /api/v1/projects — a fleet handle (id + name). It's what `rc projects`
 // renders and the seed the `--all` fan-out lists before hitting each project's read surface with
 // ?project=<id>. Mirrors the server's projectItem field-for-field.
