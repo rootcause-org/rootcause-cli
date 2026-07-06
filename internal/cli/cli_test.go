@@ -416,6 +416,59 @@ func stubServer(t *testing.T) *httptest.Server {
 		_, _ = fmt.Fprintf(w, `{"scope":"mailbox","project":"%s","tenant":"acme","mailbox":"%s","settings":%s,"resolved":{"persona":{"tone":{"value":"mailbox direct","source":"mailbox"}}}}`, r.PathValue("project"), r.PathValue("id"), body)
 	})
 
+	// Spam allow/block lists — path-scoped by project (/api/v1/projects/{project}/spam/…). GET each
+	// list echoes a canned fixture; POST asserts the {pattern,reason} body and echoes back one rule with
+	// the server-inferred match_type; DELETE 404s an unknown id on the block list so `rm` falls through
+	// to the allow list (the try-both UX). The "created" field is present so the CREATED column shows.
+	mux.HandleFunc("GET /api/v1/projects/{project}/spam/allows", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "spam_allows.json"))
+	})
+	mux.HandleFunc("GET /api/v1/projects/{project}/spam/blocks", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "spam_blocks.json"))
+	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/spam/allows", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body map[string]any
+		if err := json.Unmarshal([]byte(readBody(t, r)), &body); err != nil {
+			t.Fatalf("decode spam create body: %v", err)
+		}
+		if _, ok := body["pattern"]; !ok {
+			t.Fatalf("spam create body missing pattern: %v", body)
+		}
+		if _, ok := body["match_type"]; ok {
+			t.Fatalf("spam create must not send match_type (server infers it): %v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"id":"a1111111-0000-0000-0000-000000000001","verdict":"allow","match_type":"sender_domain","pattern":%q,"reason":%q,"source":"operator","created_at":"2026-07-01T10:00:00Z"}`,
+			body["pattern"], reasonOrEmpty(body))
+	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/spam/blocks", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body map[string]any
+		if err := json.Unmarshal([]byte(readBody(t, r)), &body); err != nil {
+			t.Fatalf("decode spam create body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"id":"b1111111-0000-0000-0000-000000000001","verdict":"block","match_type":"sender_address","pattern":%q,"reason":%q,"source":"operator","created_at":"2026-07-01T10:05:00Z"}`,
+			body["pattern"], reasonOrEmpty(body))
+	})
+	mux.HandleFunc("DELETE /api/v1/projects/{project}/spam/allows/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("DELETE /api/v1/projects/{project}/spam/blocks/{id}", func(w http.ResponseWriter, r *http.Request) {
+		// id "allow-only" is not on the block list → 404, so `rm` falls through to the allow list.
+		if r.PathValue("id") == "allow-only" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_SPAM_RULE","message":"unknown spam rule"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
 	// Collection resources (repos / connections / members / tokens). Each list GET echoes a canned
 	// fixture; create/patch echo a single item; the connection/token item-verbs return their canned
 	// shapes. Handlers assert the auth header (via requireAuth) and, where load-bearing, the request body.
@@ -997,6 +1050,15 @@ func requireAuth(t *testing.T, r *http.Request) {
 	if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
 		t.Fatalf("missing/wrong auth header: %q", got)
 	}
+}
+
+// reasonOrEmpty reads the optional "reason" from a decoded spam-create body ("" when absent) so the
+// stub echo mirrors what the CLI sent.
+func reasonOrEmpty(body map[string]any) string {
+	if s, ok := body["reason"].(string); ok {
+		return s
+	}
+	return ""
 }
 
 func readBody(t *testing.T, r *http.Request) string {

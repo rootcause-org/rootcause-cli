@@ -662,6 +662,79 @@ func TestEventsRenumbered(t *testing.T) {
 	}
 }
 
+// TestSpamListTable pins `rc spam ls`: both lists rendered as one VERDICT/PATTERN/TYPE/SOURCE/CREATED
+// table (allows first, then blocks), in server order.
+func TestSpamListTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "spam", "ls"); err != nil {
+		t.Fatalf("spam ls: %v", err)
+	}
+	assertGolden(t, "spam_ls.golden", out.String())
+}
+
+// TestSpamListJSON confirms -o json carries both raw list bodies through verbatim under an
+// {allows,blocks} envelope — the CLI reshapes nothing inside each.
+func TestSpamListJSON(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "spam", "ls"); err != nil {
+		t.Fatalf("spam ls -o json: %v", err)
+	}
+	var got struct {
+		Allows []client.SpamRule `json:"allows"`
+		Blocks []client.SpamRule `json:"blocks"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode spam ls json: %v\n%s", err, out.String())
+	}
+	if len(got.Allows) != 2 || len(got.Blocks) != 2 {
+		t.Fatalf("want 2 allows + 2 blocks, got %d + %d", len(got.Allows), len(got.Blocks))
+	}
+	if got.Allows[0].Pattern != "@acme.com" || got.Blocks[0].Verdict != "block" {
+		t.Errorf("raw list bodies not carried through: %+v / %+v", got.Allows[0], got.Blocks[0])
+	}
+}
+
+// TestSpamAllowTable pins `rc spam allow <pattern> --reason …`: the echoed rule with the
+// server-inferred match_type renders as a one-row table.
+func TestSpamAllowTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "spam", "allow", "@partner.example", "--reason", "trusted"); err != nil {
+		t.Fatalf("spam allow: %v", err)
+	}
+	assertGolden(t, "spam_allow.golden", out.String())
+}
+
+// TestSpamBlockTable pins `rc spam block <pattern>` (no reason).
+func TestSpamBlockTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "spam", "block", "junk@spammy.example"); err != nil {
+		t.Fatalf("spam block: %v", err)
+	}
+	assertGolden(t, "spam_block.golden", out.String())
+}
+
+// TestSpamRmTryBoth locks the `rm <id>` UX: an id absent from the block list (404) falls through to the
+// allow list, which deletes it — a clean "deleted" with no verdict flag from the caller.
+func TestSpamRmTryBoth(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "spam", "rm", "allow-only"); err != nil {
+		t.Fatalf("spam rm: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "deleted spam rule allow-only") {
+		t.Errorf("want deleted confirmation, got %q", got)
+	}
+}
+
 // TestErrorIsTyped confirms the client returns a typed *APIError carrying code+message+fields, the
 // load-bearing contract for verbatim surfacing.
 func TestErrorIsTyped(t *testing.T) {

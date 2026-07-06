@@ -993,6 +993,39 @@ func Access(w io.Writer, a *client.Access) {
 	_ = tw.Flush()
 }
 
+// SpamRules renders a project's spam allow+block lists (`rc spam ls`) as one table: verdict, pattern,
+// match type, source, and — only when the server included it on any row — the created date. The rows
+// are shown in the order the server sent them (the CLI never reorders; -o json carries the raw body).
+func SpamRules(w io.Writer, rules []client.SpamRule) {
+	if len(rules) == 0 {
+		_, _ = fmt.Fprintln(w, "(no spam rules)")
+		return
+	}
+	showCreated := false
+	for _, r := range rules {
+		if r.CreatedAt != "" {
+			showCreated = true
+			break
+		}
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	if showCreated {
+		_, _ = fmt.Fprintln(tw, "VERDICT\tPATTERN\tTYPE\tSOURCE\tCREATED")
+	} else {
+		_, _ = fmt.Fprintln(tw, "VERDICT\tPATTERN\tTYPE\tSOURCE")
+	}
+	for _, r := range rules {
+		if showCreated {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n",
+				r.Verdict, r.Pattern, strOrBlank(r.MatchType), strOrBlank(r.Source), strOrBlank(r.CreatedAt))
+		} else {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n",
+				r.Verdict, r.Pattern, strOrBlank(r.MatchType), strOrBlank(r.Source))
+		}
+	}
+	_ = tw.Flush()
+}
+
 // sortedKeys returns a settings map's keys in stable order for deterministic table output.
 func settingKeys(s client.Settings) []string {
 	keys := make([]string, 0, len(s))

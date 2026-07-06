@@ -1,0 +1,2 @@
+VERDICT  PATTERN              TYPE            SOURCE    CREATED
+block    junk@spammy.example  sender_address  operator  2026-07-01T10:05:00Z
