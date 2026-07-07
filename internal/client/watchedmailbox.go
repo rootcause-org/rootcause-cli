@@ -59,6 +59,41 @@ func (c *Client) SetWatchedMailboxProcessing(ctx context.Context, id string, ena
 	return c.watchedVerb(ctx, id, verb, project)
 }
 
+// IMAPConnectRequest is the POST /api/v1/mailboxes/imap/connect body. Field names mirror the server's
+// imapConnectRequest verbatim. Ports are omitempty so 0 lets the server apply its defaults (993/implicit
+// IMAP, 587/starttls SMTP); optional SMTP overrides fall back server-side to the IMAP username/password.
+type IMAPConnectRequest struct {
+	Tenant       string `json:"tenant,omitempty"`
+	EmailAddress string `json:"email_address"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	IMAPHost     string `json:"imap_host"`
+	IMAPPort     int    `json:"imap_port,omitempty"`
+	IMAPTLS      string `json:"imap_tls,omitempty"`
+	SMTPHost     string `json:"smtp_host,omitempty"`
+	SMTPPort     int    `json:"smtp_port,omitempty"`
+	SMTPTLS      string `json:"smtp_tls,omitempty"`
+	SMTPUsername string `json:"smtp_username,omitempty"`
+	SMTPPassword string `json:"smtp_password,omitempty"`
+}
+
+// ConnectIMAPMailbox posts POST /api/v1/mailboxes/imap/connect — the server live-probes IMAP login +
+// SELECT INBOX + SMTP AUTH before persisting, so a bad config returns an error envelope
+// (IMAP_PROBE_FAILED / BAD_IMAP_CONFIG) and nothing is saved; a duplicate is a 409 MAILBOX_IN_USE. On
+// success it returns the created watched-mailbox item. The tenant (if any) rides in the body; `project`
+// rides as ?project= for an all-projects admin token.
+func (c *Client) ConnectIMAPMailbox(ctx context.Context, req IMAPConnectRequest, project string) (*WatchedMailbox, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, watchedScope("/api/v1/mailboxes/imap/connect", project), req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out WatchedMailbox
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
 func (c *Client) watchedVerb(ctx context.Context, id, verb, project string) (*WatchedMailbox, json.RawMessage, error) {
 	path := watchedScope("/api/v1/mailboxes/"+url.PathEscape(id)+"/"+verb, project)
 	var raw json.RawMessage

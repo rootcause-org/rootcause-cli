@@ -639,6 +639,32 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","has_sync_cursor":true}`))
 	})
 
+	// generic IMAP/SMTP connect (rc mailbox connect-imap): assert the password rode in the BODY (never
+	// argv) and that the client applied the username→email / smtp-host→imap-host defaults, then echo a
+	// created watched-mailbox item. A duplicate email ("dupe@acme.test") drives the 409 MAILBOX_IN_USE path.
+	mux.HandleFunc("POST /api/v1/mailboxes/imap/connect", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode imap connect body: %v\n%s", err, body)
+		}
+		if got["email_address"] == "dupe@acme.test" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":{"code":"MAILBOX_IN_USE","message":"that IMAP mailbox is already connected to another project or tenant"}}`))
+			return
+		}
+		if got["password"] != "s3cr3t-from-env" {
+			t.Fatalf("imap connect password = %v, want s3cr3t-from-env (from env, not argv)", got["password"])
+		}
+		if got["username"] != "info@acme.test" || got["smtp_host"] != "imap.acme.test" {
+			t.Fatalf("imap connect defaults = %v, want username=info@acme.test smtp_host=imap.acme.test", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"mb-imap-1","provider":"imap","email_address":"info@acme.test","status":"connected","processing_enabled":false,"has_sync_cursor":false}`))
+	})
+
 	// silent-onboarding processing gate (rc mailbox process on/off): echo the updated item with the
 	// flag reflecting the verb path.
 	mux.HandleFunc("POST /api/v1/mailboxes/{id}/processing/enable", func(w http.ResponseWriter, r *http.Request) {

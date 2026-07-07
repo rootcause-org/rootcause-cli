@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxHarvestCmd(e),
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
+		mailboxConnectIMAPCmd(e),
 		newMailboxRouteCmd(e),
 	)
 	return cmd
@@ -296,6 +298,107 @@ func mailboxConnectCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&provider, "provider", "", "channel provider to connect: google|microsoft|intercom")
+	return cmd
+}
+
+// mailboxPasswordEnv is the env var the IMAP connect command reads the mailbox password from so it
+// never lands in argv / the process table / shell history. Absent → interactive stdin prompt.
+const mailboxPasswordEnv = "RC_MAILBOX_PASSWORD"
+
+// validTLSModes is the set `--imap-tls` / `--smtp-tls` accept, mirroring the server's channel.TLSMode.
+var validTLSModes = map[string]bool{"none": true, "starttls": true, "implicit": true}
+
+// mailboxConnectIMAPCmd connects a generic IMAP/SMTP mailbox (POST /mailboxes/imap/connect). Unlike
+// `mailbox connect` (browser OAuth), this is a direct state-changing API call: the server live-probes
+// IMAP login + SELECT INBOX + SMTP AUTH before persisting, so a bad config fails loud (IMAP_PROBE_FAILED
+// / BAD_IMAP_CONFIG) and saves nothing; a duplicate is a 409. The password NEVER rides in argv — it comes
+// from $RC_MAILBOX_PASSWORD or an interactive stdin prompt. Defaults mirror the server (username→email,
+// smtp-host→imap-host; ports/TLS left 0/"" so the server applies 993/implicit + 587/starttls). On success
+// it prints the mailbox id + status and a one-line hint for turning it on with `rc mailbox process on`.
+func mailboxConnectIMAPCmd(e *env) *cobra.Command {
+	var email, username, imapHost, imapTLS, smtpHost, smtpTLS, smtpUsername string
+	var imapPort, smtpPort int
+	cmd := &cobra.Command{
+		Use:   "connect-imap --email <addr> --imap-host <host> [flags]",
+		Short: "Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)",
+		Long: "Link a generic IMAP/SMTP mailbox to a project (or tenant with --tenant). The server logs in over " +
+			"IMAP, selects INBOX, and authenticates SMTP before persisting anything — a failure saves nothing.\n\n" +
+			"The password is read from $" + mailboxPasswordEnv + " or, if unset, prompted on stdin — never passed " +
+			"as an argument. Defaults mirror the server: --username defaults to --email, --smtp-host to --imap-host, " +
+			"and ports/TLS default to 993/implicit (IMAP) and 587/starttls (SMTP).",
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			email = strings.TrimSpace(email)
+			if email == "" {
+				return fmt.Errorf("--email is required")
+			}
+			imapHost = strings.TrimSpace(imapHost)
+			if imapHost == "" {
+				return fmt.Errorf("--imap-host is required")
+			}
+			if imapTLS != "" && !validTLSModes[imapTLS] {
+				return fmt.Errorf("invalid --imap-tls %q (one of: none, starttls, implicit)", imapTLS)
+			}
+			if smtpTLS != "" && !validTLSModes[smtpTLS] {
+				return fmt.Errorf("invalid --smtp-tls %q (one of: none, starttls, implicit)", smtpTLS)
+			}
+
+			password := os.Getenv(mailboxPasswordEnv)
+			if password == "" {
+				p, err := readSecretStdin(e, "mailbox password")
+				if err != nil {
+					return err
+				}
+				password = p
+			}
+
+			if username == "" {
+				username = email
+			}
+			if smtpHost == "" {
+				smtpHost = imapHost
+			}
+
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			req := client.IMAPConnectRequest{
+				Tenant:       e.scopeTenant(),
+				EmailAddress: email,
+				Username:     username,
+				Password:     password,
+				IMAPHost:     imapHost,
+				IMAPPort:     imapPort,
+				IMAPTLS:      imapTLS,
+				SMTPHost:     smtpHost,
+				SMTPPort:     smtpPort,
+				SMTPTLS:      smtpTLS,
+				SMTPUsername: smtpUsername,
+			}
+			m, raw, err := c.ConnectIMAPMailbox(e.ctx(), req, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.WatchedMailbox(e.out, m)
+			if m != nil {
+				_, _ = fmt.Fprintf(e.err, "connected — start processing with: rc mailbox process on %s\n", m.ID)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&email, "email", "", "mailbox email address (required)")
+	cmd.Flags().StringVar(&username, "username", "", "IMAP/SMTP login username (default: --email)")
+	cmd.Flags().StringVar(&imapHost, "imap-host", "", "IMAP server host (required)")
+	cmd.Flags().IntVar(&imapPort, "imap-port", 0, "IMAP server port (default: server 993)")
+	cmd.Flags().StringVar(&imapTLS, "imap-tls", "", "IMAP TLS mode: none|starttls|implicit (default: server implicit)")
+	cmd.Flags().StringVar(&smtpHost, "smtp-host", "", "SMTP server host (default: --imap-host)")
+	cmd.Flags().IntVar(&smtpPort, "smtp-port", 0, "SMTP server port (default: server 587)")
+	cmd.Flags().StringVar(&smtpTLS, "smtp-tls", "", "SMTP TLS mode: none|starttls|implicit (default: server starttls)")
+	cmd.Flags().StringVar(&smtpUsername, "smtp-username", "", "SMTP username override (default: --username)")
 	return cmd
 }
 

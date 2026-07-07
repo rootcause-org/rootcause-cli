@@ -1,0 +1,5 @@
+id:          mb-imap-1
+provider:    imap
+email:       info@acme.test
+status:      connected
+processing:  silent

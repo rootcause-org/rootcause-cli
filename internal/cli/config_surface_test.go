@@ -107,6 +107,35 @@ func TestMailboxConnectInvalidProvider(t *testing.T) {
 	}
 }
 
+// TestMailboxConnectIMAP: the password comes from $RC_MAILBOX_PASSWORD (never argv), the client applies
+// the username→email / smtp-host→imap-host defaults (asserted server-side), and success prints the
+// created item + a one-line "process on" hint to stderr.
+func TestMailboxConnectIMAP(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	t.Setenv("RC_MAILBOX_PASSWORD", "s3cr3t-from-env")
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "mailbox", "connect-imap", "--email", "info@acme.test", "--imap-host", "imap.acme.test"); err != nil {
+		t.Fatalf("mailbox connect-imap: %v", err)
+	}
+	assertGolden(t, "mailbox_connect_imap.golden", out.String())
+	if !strings.Contains(errb.String(), "process on mb-imap-1") {
+		t.Errorf("expected a process-on hint on stderr, got: %q", errb.String())
+	}
+}
+
+// TestMailboxConnectIMAPInUse: a duplicate mailbox surfaces the server's 409 MAILBOX_IN_USE verbatim.
+func TestMailboxConnectIMAPInUse(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	t.Setenv("RC_MAILBOX_PASSWORD", "s3cr3t-from-env")
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "mailbox", "connect-imap", "--email", "dupe@acme.test", "--imap-host", "imap.acme.test")
+	if err == nil || !strings.Contains(err.Error(), "MAILBOX_IN_USE") {
+		t.Fatalf("expected a MAILBOX_IN_USE error, got: %v", err)
+	}
+}
+
 // --- legacy routing table (rc mailbox route ls/add) ---
 
 func TestMailboxRouteListTable(t *testing.T) {
