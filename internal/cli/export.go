@@ -21,8 +21,35 @@ func newExportCmd(e *env) *cobra.Command {
 		exportLsCmd(e),
 		exportGetCmd(e),
 		exportDownloadCmd(e),
+		exportMineSettingsCmd(e),
 	)
 	return cmd
+}
+
+// exportMineSettingsCmd: POST /api/v1/exports/{id}/mine-settings → enqueue a shallow-mining pass over a
+// completed harvest's corpus, proposing persona/triage settings (reviewed on the operator page). Prints
+// the queued export handle (or -o json passthrough).
+func exportMineSettingsCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "mine-settings <export-id>",
+		Short: "Mine a completed harvest for persona/triage setting proposals",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			acc, raw, err := c.MineSettings(e.ctx(), args[0], e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			_, _ = fmt.Fprintf(e.out, "queued %s (%s)\n", acc.ExportID, acc.Status)
+			return nil
+		},
+	}
 }
 
 // exportLsCmd: GET /api/v1/exports → the exports table (or -o json passthrough).

@@ -38,6 +38,23 @@ func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool
 	return &out, raw, nil
 }
 
+// MineSettings posts POST /api/v1/exports/{id}/mine-settings → the 202 accept body {export_id, status}:
+// it enqueues a shallow-mining pass over the completed harvest's corpus (→ proposed persona/triage
+// settings). Reuses HarvestAccepted (same {export_id,status} shape). A non-harvest / not-done / evicted
+// body surfaces as a typed APIError through the command layer.
+func (c *Client) MineSettings(ctx context.Context, id, project string) (*HarvestAccepted, json.RawMessage, error) {
+	path := watchedScope("/api/v1/exports/"+url.PathEscape(id)+"/mine-settings", project)
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, path, nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out HarvestAccepted
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, fmt.Errorf("decode mine-settings accept: %w", err)
+	}
+	return &out, raw, nil
+}
+
 // Exports fetches GET /api/v1/exports → the export list (newest-first). Returns the typed list and the
 // raw body for -o json passthrough.
 func (c *Client) Exports(ctx context.Context, project string) (*ExportList, json.RawMessage, error) {
