@@ -4,7 +4,10 @@
 // distinguishable from "zero", e.g. last_success / kb_enrich_model).
 package client
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 type ConsoleDBInfo struct {
 	Name        string `json:"name"`
@@ -24,9 +27,51 @@ type ConsoleScriptInfo struct {
 
 type ConsoleActionSummary struct {
 	ID          string `json:"id"`
+	DisplayName string `json:"display_name,omitempty"`
 	Description string `json:"description,omitempty"`
 	Risk        string `json:"risk,omitempty"`
 	Preflight   bool   `json:"preflight"`
+
+	// Enriched catalog fields (additive; absent from the legacy /capabilities projection).
+	HasPreflight bool                    `json:"has_preflight"`
+	HasPolicy    bool                    `json:"has_policy"`
+	Autonomy     ActionAutonomyGauge     `json:"autonomy"`
+	Connections  []ActionConnectionState `json:"connections,omitempty"`
+	Params       []ActionParamSpec       `json:"params,omitempty"`
+	Stats        ActionStats             `json:"stats"`
+	Digest       string                  `json:"digest,omitempty"`
+}
+
+type ActionAutonomyGauge struct {
+	Manifest  string   `json:"manifest"`
+	Cap       string   `json:"cap"`
+	Effective string   `json:"effective"`
+	Floors    []string `json:"floors,omitempty"`
+}
+
+type ActionConnectionState struct {
+	Key       string `json:"key"`
+	Satisfied bool   `json:"satisfied"`
+}
+
+type ActionParamSpec struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Required    bool   `json:"required"`
+	Description string `json:"description,omitempty"`
+}
+
+type ActionStats struct {
+	Total          int64      `json:"total"`
+	Succeeded      int64      `json:"succeeded"`
+	Failed         int64      `json:"failed"`
+	Proposed       int64      `json:"proposed"`
+	Executing      int64      `json:"executing"`
+	Canceled       int64      `json:"canceled"`
+	SuccessRate    *float64   `json:"success_rate,omitempty"`
+	P50DurationMs  float64    `json:"p50_duration_ms"`
+	LastProposedAt *time.Time `json:"last_proposed_at,omitempty"`
+	LastExecutedAt *time.Time `json:"last_executed_at,omitempty"`
 }
 
 type BrainStatus struct {
@@ -152,12 +197,13 @@ type ActionListResponse struct {
 }
 
 type ActionShowResponse struct {
-	Project   string          `json:"project"`
-	Tenant    string          `json:"tenant,omitempty"`
-	ID        string          `json:"id"`
-	Manifest  json.RawMessage `json:"manifest"`
-	Digest    string          `json:"digest"`
-	Preflight bool            `json:"preflight"`
+	Project   string               `json:"project"`
+	Tenant    string               `json:"tenant,omitempty"`
+	ID        string               `json:"id"`
+	Manifest  json.RawMessage      `json:"manifest"`
+	Digest    string               `json:"digest"`
+	Preflight bool                 `json:"preflight"`
+	Catalog   ConsoleActionSummary `json:"catalog"`
 }
 
 type ActionExecRequest struct {

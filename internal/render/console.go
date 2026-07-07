@@ -250,19 +250,110 @@ func ActionList(w io.Writer, r *client.ActionListResponse) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ID\tPREFLIGHT\tRISK\tDESCRIPTION")
+	_, _ = fmt.Fprintln(tw, "ID\tDISPLAY NAME\tRISK\tPREFLIGHT\tAUTONOMY\tSUCCESS\tLAST RUN")
 	for _, a := range r.Actions {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", a.ID, yesNo(a.Preflight), a.Risk, a.Description)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			a.ID, dash(a.DisplayName), dash(a.Risk), yesNo(a.Preflight || a.HasPreflight),
+			dash(a.Autonomy.Effective), actionSuccessCell(a.Stats), actionLastRunCell(a.Stats))
 	}
 	_ = tw.Flush()
 }
 
 func ActionShow(w io.Writer, r *client.ActionShowResponse) {
-	_, _ = fmt.Fprintf(w, "Action:    %s\nDigest:    %s\nPreflight: %s\n", r.ID, r.Digest, yesNo(r.Preflight))
+	c := r.Catalog
+	_, _ = fmt.Fprintf(w, "Action:      %s\n", r.ID)
+	if c.DisplayName != "" {
+		_, _ = fmt.Fprintf(w, "Name:        %s\n", c.DisplayName)
+	}
+	if c.Description != "" {
+		_, _ = fmt.Fprintf(w, "Description: %s\n", c.Description)
+	}
+	if c.Risk != "" {
+		_, _ = fmt.Fprintf(w, "Risk:        %s\n", c.Risk)
+	}
+	_, _ = fmt.Fprintf(w, "Preflight:   %s\n", yesNo(r.Preflight || c.HasPreflight))
+	_, _ = fmt.Fprintf(w, "Policy:      %s\n", yesNo(c.HasPolicy))
+	_, _ = fmt.Fprintf(w, "Digest:      %s\n", r.Digest)
+
+	if c.Autonomy.Manifest != "" || c.Autonomy.Cap != "" || c.Autonomy.Effective != "" {
+		_, _ = fmt.Fprintf(w, "\nAutonomy:    manifest %s -> cap %s -> effective %s\n",
+			dash(c.Autonomy.Manifest), dash(c.Autonomy.Cap), dash(c.Autonomy.Effective))
+		for _, f := range c.Autonomy.Floors {
+			_, _ = fmt.Fprintf(w, "  - %s\n", f)
+		}
+	}
+
+	if len(c.Connections) > 0 {
+		_, _ = fmt.Fprintln(w, "\nConnections:")
+		ctw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		for _, conn := range c.Connections {
+			state := "missing"
+			if conn.Satisfied {
+				state = "granted"
+			}
+			_, _ = fmt.Fprintf(ctw, "  %s\t%s\n", conn.Key, state)
+		}
+		_ = ctw.Flush()
+	}
+
+	if len(c.Params) > 0 {
+		_, _ = fmt.Fprintln(w, "\nParams:")
+		ptw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(ptw, "  NAME\tTYPE\tREQUIRED\tDESCRIPTION")
+		for _, p := range c.Params {
+			_, _ = fmt.Fprintf(ptw, "  %s\t%s\t%s\t%s\n", p.Name, dash(p.Type), yesNo(p.Required), p.Description)
+		}
+		_ = ptw.Flush()
+	}
+
+	s := c.Stats
+	if s.Total > 0 || s.Proposed > 0 || s.Executing > 0 {
+		_, _ = fmt.Fprintln(w, "\nStats (window):")
+		_, _ = fmt.Fprintf(w, "  runs:       %d (succeeded %d, failed %d, proposed %d, executing %d, canceled %d)\n",
+			s.Total, s.Succeeded, s.Failed, s.Proposed, s.Executing, s.Canceled)
+		_, _ = fmt.Fprintf(w, "  success:    %s\n", actionSuccessCell(s))
+		if s.P50DurationMs > 0 {
+			_, _ = fmt.Fprintf(w, "  p50:        %.0f ms\n", s.P50DurationMs)
+		}
+		if s.LastProposedAt != nil {
+			_, _ = fmt.Fprintf(w, "  proposed:   %s\n", s.LastProposedAt.Format("2006-01-02 15:04"))
+		}
+		if s.LastExecutedAt != nil {
+			_, _ = fmt.Fprintf(w, "  executed:   %s\n", s.LastExecutedAt.Format("2006-01-02 15:04"))
+		}
+	}
+
 	if len(r.Manifest) > 0 {
 		_, _ = fmt.Fprintln(w, "\nManifest:")
 		_ = JSON(w, r.Manifest)
 	}
+}
+
+func dash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return s
+}
+
+// actionSuccessCell renders "8/10 80%" over settled runs, or "—" when no run has settled (SuccessRate nil).
+func actionSuccessCell(s client.ActionStats) string {
+	if s.SuccessRate == nil {
+		return "—"
+	}
+	settled := s.Succeeded + s.Failed
+	return fmt.Sprintf("%d/%d %.0f%%", s.Succeeded, settled, *s.SuccessRate*100)
+}
+
+func actionLastRunCell(s client.ActionStats) string {
+	t := s.LastExecutedAt
+	if t == nil {
+		t = s.LastProposedAt
+	}
+	if t == nil {
+		return "—"
+	}
+	return t.Format("2006-01-02 15:04")
 }
 
 func ActionExec(w io.Writer, r *client.ActionExecResponse) {
