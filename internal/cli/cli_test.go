@@ -664,6 +664,11 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"mb-imap-1","provider":"imap","email_address":"info@acme.test","status":"connected","processing_enabled":false,"has_sync_cursor":false}`))
 	})
+	mux.HandleFunc("GET /api/v1/mailboxes/{id}/imap-env", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"mailbox_id":"` + r.PathValue("id") + `","email_address":"info@acme.test","env":{"RC_MAILBOX_ID":"` + r.PathValue("id") + `","RC_IMAP_EMAIL":"info@acme.test","RC_IMAP_USERNAME":"imap-user","RC_IMAP_PASSWORD":"imap-secret","RC_IMAP_HOST":"imap.acme.test","RC_IMAP_PORT":"993","RC_IMAP_TLS":"implicit","RC_SMTP_HOST":"smtp.acme.test","RC_SMTP_PORT":"587","RC_SMTP_TLS":"starttls","RC_SMTP_USERNAME":"smtp-user","RC_SMTP_PASSWORD":"smtp-secret","RC_UNEXPECTED_SECRET":"do-not-print-me"}}`))
+	})
 
 	// silent-onboarding processing gate (rc mailbox process on/off): echo the updated item with the
 	// flag reflecting the verb path.

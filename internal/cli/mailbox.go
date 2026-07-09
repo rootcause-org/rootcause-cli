@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -28,11 +29,55 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxResumeCmd(e),
 		mailboxProcessCmd(e),
 		mailboxHarvestCmd(e),
+		mailboxIMAPEnvCmd(e),
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
 		mailboxConnectIMAPCmd(e),
 		newMailboxRouteCmd(e),
 	)
+	return cmd
+}
+
+// mailboxIMAPEnvCmd fetches one IMAP mailbox's protocol material and writes it to a local 0600 env file
+// for scripts/local_imap_harvest.py. Secret values never go to stdout/stderr; stdout is only the path so
+// callers can script it.
+func mailboxIMAPEnvCmd(e *env) *cobra.Command {
+	var out string
+	cmd := &cobra.Command{
+		Use:   "imap-env <mailbox-id> --out .rootcause/imap/<mailbox-id>.env",
+		Short: "Write an IMAP mailbox env file for local deep harvest (0600; values never printed)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			mailboxID := strings.TrimSpace(args[0])
+			if out == "" {
+				out = filepath.Join(".rootcause", "imap", mailboxID+".env")
+			}
+			if err := ensureRootcauseGitignore(out); err != nil {
+				return err
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			resp, _, err := c.IMAPMailboxEnv(e.ctx(), mailboxID, e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+				return fmt.Errorf("create %s: %w", filepath.Dir(out), err)
+			}
+			if err := writeEnvFile(out, resp.Env); err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return writeJSON(e, map[string]any{"path": out, "mailbox_id": resp.MailboxID, "email_address": resp.EmailAddress})
+			}
+			_, _ = fmt.Fprintln(e.out, out)
+			_, _ = fmt.Fprintf(e.err, "wrote IMAP env for %s → %s (0600)\n", resp.EmailAddress, out)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&out, "out", "", "write env file to this path (default .rootcause/imap/<mailbox-id>.env)")
 	return cmd
 }
 

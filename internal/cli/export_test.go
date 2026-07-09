@@ -101,6 +101,78 @@ func TestMailboxHarvestWait(t *testing.T) {
 	}
 }
 
+func TestMailboxIMAPEnvWritesSecretFile0600(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	tmp := t.TempDir()
+	cwd, _ := os.Getwd()
+	t.Cleanup(func() { _ = os.Chdir(cwd) })
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	e, out, errb := newTestEnv(t, srv, "table")
+	id := "720c2741-dda4-4ecc-bcb3-5561a818e84b"
+	if err := run(t, e, "mailbox", "imap-env", id); err != nil {
+		t.Fatalf("mailbox imap-env: %v", err)
+	}
+	wantPath := filepath.Join(".rootcause", "imap", id+".env")
+	if strings.TrimSpace(out.String()) != wantPath {
+		t.Fatalf("stdout = %q, want path %q", out.String(), wantPath)
+	}
+	if strings.Contains(out.String(), "imap-secret") || strings.Contains(errb.String(), "imap-secret") ||
+		strings.Contains(out.String(), "do-not-print-me") || strings.Contains(errb.String(), "do-not-print-me") {
+		t.Fatalf("secret leaked in command output: stdout=%q stderr=%q", out.String(), errb.String())
+	}
+	body, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("read env file: %v", err)
+	}
+	text := string(body)
+	for _, want := range []string{
+		"RC_MAILBOX_ID=" + id,
+		"RC_IMAP_PASSWORD=imap-secret",
+		"RC_SMTP_PASSWORD=smtp-secret",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("env file missing %q:\n%s", want, text)
+		}
+	}
+	info, err := os.Stat(wantPath)
+	if err != nil {
+		t.Fatalf("stat env file: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("env mode = %o, want 600", got)
+	}
+	gi, err := os.ReadFile(filepath.Join(".rootcause", ".gitignore"))
+	if err != nil {
+		t.Fatalf("read .rootcause/.gitignore: %v", err)
+	}
+	if strings.TrimSpace(string(gi)) != "*" {
+		t.Fatalf(".rootcause/.gitignore = %q, want *", string(gi))
+	}
+}
+
+func TestMailboxIMAPEnvJSONOmitsSecretValues(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	tmp := t.TempDir()
+	outFile := filepath.Join(tmp, "imap.env")
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "mailbox", "imap-env", "mb1", "--out", outFile); err != nil {
+		t.Fatalf("mailbox imap-env -o json: %v", err)
+	}
+	if strings.Contains(out.String(), "imap-secret") || strings.Contains(out.String(), "smtp-secret") || strings.Contains(out.String(), "do-not-print-me") {
+		t.Fatalf("secret leaked in json output: %q", out.String())
+	}
+	if !strings.Contains(out.String(), `"path": "`+outFile+`"`) {
+		t.Fatalf("json output missing path: %q", out.String())
+	}
+	if _, err := os.Stat(outFile); err != nil {
+		t.Fatalf("env file was not written: %v", err)
+	}
+}
+
 // --- rc export download ---
 
 func TestExportDownloadStdout(t *testing.T) {

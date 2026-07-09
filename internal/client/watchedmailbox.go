@@ -22,6 +22,13 @@ func watchedScope(path, project string) string {
 	return path
 }
 
+func watchedProjectPath(project, suffix string) string {
+	if project != "" {
+		return "/api/v1/projects/" + url.PathEscape(project) + suffix
+	}
+	return ""
+}
+
 // WatchedMailboxes fetches GET /api/v1/mailboxes/watched — every connection-backed mailbox the channel
 // plane watches. Returns the parsed list (for the table) and the raw body (for -o json passthrough).
 func (c *Client) WatchedMailboxes(ctx context.Context, project string) (*WatchedMailboxList, json.RawMessage, error) {
@@ -77,6 +84,12 @@ type IMAPConnectRequest struct {
 	SMTPPassword string `json:"smtp_password,omitempty"`
 }
 
+type IMAPEnvResponse struct {
+	MailboxID    string            `json:"mailbox_id"`
+	EmailAddress string            `json:"email_address"`
+	Env          map[string]string `json:"env"`
+}
+
 // ConnectIMAPMailbox posts POST /api/v1/mailboxes/imap/connect — the server live-probes IMAP login +
 // SELECT INBOX + SMTP AUTH before persisting, so a bad config returns an error envelope
 // (IMAP_PROBE_FAILED / BAD_IMAP_CONFIG) and nothing is saved; a duplicate is a 409 MAILBOX_IN_USE. On
@@ -88,6 +101,25 @@ func (c *Client) ConnectIMAPMailbox(ctx context.Context, req IMAPConnectRequest,
 		return nil, nil, err
 	}
 	var out WatchedMailbox
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
+// IMAPMailboxEnv fetches the scoped local-harvest env projection for one IMAP mailbox. Prefer the
+// canonical project-tree route when project is known; fall back to the deprecated flat alias for
+// project-pinned tokens that do not need an explicit scope.
+func (c *Client) IMAPMailboxEnv(ctx context.Context, id, project string) (*IMAPEnvResponse, json.RawMessage, error) {
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(id)+"/imap-env")
+	if path == "" {
+		path = "/api/v1/mailboxes/" + url.PathEscape(id) + "/imap-env"
+	}
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out IMAPEnvResponse
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, nil, err
 	}
