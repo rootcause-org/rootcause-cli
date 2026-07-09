@@ -88,6 +88,25 @@ func TestNoProjectScopeOmitsQueryParam(t *testing.T) {
 	}
 }
 
+func TestFleetDaysRidesAsQueryParam(t *testing.T) {
+	var sawDays []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		sawDays = append(sawDays, r.URL.Query().Get("days"))
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "--days", "3"); err != nil {
+		t.Fatalf("fleet --days: %v", err)
+	}
+	if len(sawDays) != 1 || sawDays[0] != "3" {
+		t.Fatalf("server saw days=%v, want [3]", sawDays)
+	}
+}
+
 func TestBrainDefaultProfileFallbackAddsProjectScope(t *testing.T) {
 	isolatedConfig(t)
 	dir := t.TempDir()

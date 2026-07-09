@@ -55,6 +55,7 @@ func (c *Client) BaseURL() string { return c.baseURL }
 // ignores it server-side.
 type RunsParams struct {
 	Limit    int
+	Days     int
 	Kind     string
 	Category string
 	Before   string
@@ -66,6 +67,9 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 	q := url.Values{}
 	if p.Limit > 0 {
 		q.Set("limit", fmt.Sprintf("%d", p.Limit))
+	}
+	if p.Days > 0 {
+		q.Set("days", fmt.Sprintf("%d", p.Days))
 	}
 	if p.Kind != "" {
 		q.Set("kind", p.Kind)

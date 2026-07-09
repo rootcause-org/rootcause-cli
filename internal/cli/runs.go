@@ -64,6 +64,9 @@ func queryString(p client.RunsParams) string {
 	if p.Limit > 0 {
 		q.Set("limit", strconv.Itoa(p.Limit))
 	}
+	if p.Days > 0 {
+		q.Set("days", strconv.Itoa(p.Days))
+	}
 	if p.Kind != "" {
 		q.Set("kind", p.Kind)
 	}

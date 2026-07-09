@@ -46,10 +46,10 @@ func newFleetCmd(e *env) *cobra.Command {
 				return runFleetAll(e, c, kind, opt)
 			}
 
-			// The run index has no days filter (it's keyset-paged), so --days is a header label here — the
-			// digest window is the recent runs the index returns. kind IS a server-side filter; --project
-			// scopes an all-projects token to one project (disregarded for a pinned token).
-			p := client.RunsParams{Kind: kind, Project: e.scopeProject()}
+			// `days` is server-side so paging stops at the requested window instead of walking old history.
+			// kind IS a server-side filter; --project scopes an all-projects token to one project
+			// (disregarded for a pinned token).
+			p := client.RunsParams{Days: days, Kind: kind, Project: e.scopeProject()}
 
 			runs, capped, err := c.AllRuns(e.ctx(), p)
 			if err != nil {
@@ -88,7 +88,7 @@ func runFleetAll(e *env, c *client.Client, kind string, opt render.FleetOptions)
 
 	groups := make([]render.FleetGroup, 0, len(projects))
 	for _, proj := range projects {
-		runs, capped, ferr := c.AllRuns(e.ctx(), client.RunsParams{Kind: kind, Project: proj.ID})
+		runs, capped, ferr := c.AllRuns(e.ctx(), client.RunsParams{Days: opt.Days, Kind: kind, Project: proj.ID})
 		if ferr != nil {
 			return fmt.Errorf("fleet --all: project %s: %w", proj.Name, ferr)
 		}
