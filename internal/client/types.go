@@ -831,6 +831,19 @@ type HealthMirror struct {
 	HoursSinceOK        *float64 `json:"hours_since_ok"`
 }
 
+// HealthMailbox is one watched mailbox row from GET /api/v1/health whose watch needs attention.
+type HealthMailbox struct {
+	ID                        string `json:"id"`
+	Provider                  string `json:"provider"`
+	EmailAddress              string `json:"email_address"`
+	Status                    string `json:"status"`
+	Tenant                    string `json:"tenant,omitempty"`
+	SubscriptionExpiresAt     string `json:"subscription_expires_at,omitempty"`
+	SpamSubscriptionExpiresAt string `json:"spam_subscription_expires_at,omitempty"`
+	ErrorMessage              string `json:"error_message,omitempty"`
+	UpdatedAt                 string `json:"updated_at,omitempty"`
+}
+
 // HealthDeadLetter is one terminally dead-lettered run from GET /api/v1/health.
 type HealthDeadLetter struct {
 	RunID      string `json:"run_id"`
@@ -843,6 +856,7 @@ type HealthDeadLetter struct {
 type HealthResponse struct {
 	WindowHours  int                `json:"window_hours"`
 	Mirrors      []HealthMirror     `json:"mirrors"`
+	Mailboxes    []HealthMailbox    `json:"mailboxes"`
 	DeadLettered []HealthDeadLetter `json:"dead_lettered"`
 }
 

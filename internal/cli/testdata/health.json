@@ -17,6 +17,50 @@
       "hours_since_ok": 144.5
     }
   ],
+  "mailboxes": [
+    {
+      "id": "cccccccc-0000-0000-0000-000000000001",
+      "provider": "microsoft",
+      "email_address": "support@dentai.test",
+      "status": "active",
+      "tenant": "de-kies",
+      "subscription_expires_at": "2026-06-21T09:30:00Z",
+      "updated_at": "2026-06-22T09:00:00Z"
+    },
+    {
+      "id": "cccccccc-0000-0000-0000-000000000002",
+      "provider": "google",
+      "email_address": "help@acme.test",
+      "status": "error",
+      "error_message": "watch renewal failed: invalid_grant",
+      "updated_at": "2026-06-22T08:00:00Z"
+    },
+    {
+      "id": "cccccccc-0000-0000-0000-000000000003",
+      "provider": "google",
+      "email_address": "healthy@acme.test",
+      "status": "active",
+      "subscription_expires_at": "2026-08-01T09:30:00Z",
+      "updated_at": "2026-06-22T07:00:00Z"
+    },
+    {
+      "id": "cccccccc-0000-0000-0000-000000000004",
+      "provider": "microsoft",
+      "email_address": "paused@acme.test",
+      "status": "paused",
+      "subscription_expires_at": "2026-06-21T09:30:00Z",
+      "updated_at": "2026-06-22T06:00:00Z"
+    },
+    {
+      "id": "cccccccc-0000-0000-0000-000000000005",
+      "provider": "microsoft",
+      "email_address": "spam@acme.test",
+      "status": "active",
+      "subscription_expires_at": "2026-08-01T09:30:00Z",
+      "spam_subscription_expires_at": "2026-06-21T09:30:00Z",
+      "updated_at": "2026-06-22T05:00:00Z"
+    }
+  ],
   "dead_lettered": [
     {
       "run_id": "bbbbbbbb-0000-0000-0000-000000000001",

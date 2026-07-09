@@ -1,6 +1,11 @@
 Mirrors — 1/2 healthy
   ! acme/private: state=access_lost fails=9 last_ok=144.5h ago — 401 Unauthorized cloning git@github.com:acme/private
 
+Watched mailboxes — 2/5 healthy
+  ! microsoft support@dentai.test (de-kies) status=active expires=2026-06-21T09:30:00Z
+  ! google help@acme.test (project) status=error expires=- — watch renewal failed: invalid_grant
+  ! microsoft spam@acme.test (project) status=active expires=spam 2026-06-21T09:30:00Z
+
 Dead-lettered runs (last 24h) — 1 total
   ! email bbbbbbbb — DEAD_LETTERED: placement rejected past retry cutoff
 

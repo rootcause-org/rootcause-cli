@@ -228,6 +228,11 @@ named error rather than silently running just that one. The per-project endpoint
 the fan-out + grouping live entirely in the CLI (`runFleetAll`/`runPatternsAll`/`runHealthAll`,
 `fanOutProjects` in `internal/cli`).
 
+`rc health` renders the raw `/api/v1/health` inputs: mirror rows (state/staleness), watched-mailbox
+watch facts, and dead-lettered runs in the chosen window. The CLI marks mailbox rows unhealthy only when
+they are parked (`error`/`needs_attention`) or active with an expired main/spam subscription; JSON mode
+still passes the raw shape through unchanged.
+
 **`rc fleet` aggregates** (all computed fat-client in `internal/render/fleet.go`, pure functions of
 the `/api/v1/runs` rows): the default human digest is the per-run flag table + rates + worst
 offenders; **`--by-model`** adds the model×cost×**fallback** breakdown (the highest-value view — which
