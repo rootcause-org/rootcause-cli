@@ -28,6 +28,9 @@ type env struct {
 	project    string // --project: select a project's token (and scope) without a brain
 	tenant     string // --tenant: explicit tenant override where an endpoint accepts it
 	output     string // "", "json", or "table" (from -o/--output)
+	outDir     string // --out-dir: local artifact directory for large stdout/JSON payloads
+	noPreview  bool   // --no-preview: suppress head/tail previews in spill manifests
+	rawOutput  bool   // --raw-output: exact legacy stdout, disabling spill manifests
 	baseURLOvr string // test-only override of the resolved base URL; empty in normal use
 	tokenOvr   string // test-only static bearer; bypasses the token store + refresh
 
@@ -75,6 +78,9 @@ func newRootCmd(e *env, version string) *cobra.Command {
 	root.PersistentFlags().StringVar(&e.project, "project", "", "scope the request to one project by name or id (requires an all-projects token)")
 	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "override the login tenant where supported")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
+	root.PersistentFlags().StringVar(&e.outDir, "out-dir", "", "directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)")
+	root.PersistentFlags().BoolVar(&e.noPreview, "no-preview", false, "write large output artifacts but omit head/tail previews")
+	root.PersistentFlags().BoolVar(&e.rawOutput, "raw-output", false, "disable progressive output spill and print full payloads to stdout")
 
 	root.AddCommand(
 		newStatusCmd(e),

@@ -3,4 +3,4 @@ hello
 stderr:
 warn
 
-exit=7 (42ms) run=22222222-2222-2222-2222-222222222222 seq=3 (stderr truncated, brain HEAD @ 222222222222)
+exit=7 (42ms) run=22222222-2222-2222-2222-222222222222 seq=3 (brain HEAD @ 222222222222)

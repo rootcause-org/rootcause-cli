@@ -8,7 +8,7 @@
   "stdout": "hello\n",
   "stderr": "warn\n",
   "stdout_truncated": false,
-  "stderr_truncated": true,
+  "stderr_truncated": false,
   "timed_out": false,
   "duration_ms": 42,
   "egress_blocked": false

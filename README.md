@@ -173,7 +173,9 @@ requests to one project server-side and is validated against `rc projects` befor
 all-projects tokens outside a brain checkout or as an override; inside a brain checkout the
 `.rootcause.toml` project is used automatically when falling back to `default`);
 `--tenant <slug>` explicitly selects a tenant where supported; it is required for workspace-producing
-commands when a tenant-enabled project login is project-pinned. `-o json|table` forces output.
+commands when a tenant-enabled project login is project-pinned. `-o json|table` forces output. Large
+output spills to `.rootcause/output/` by default; use `--out-dir <dir>` or `RC_OUTPUT_DIR` to change
+that, `--no-preview` to print paths/metadata only, and `--raw-output` to preserve exact legacy stdout.
 
 | Command | Does |
 |---|---|
@@ -186,9 +188,9 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc ask "<q>" [--attach path]... [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--principal-kind K --principal-id ID [--asserted-by …] [--assurance …]] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). `--attach` is repeatable and uploads local files as synthetic inbound attachments (`--path` is an alias; hidden `--pod` accepts the common typo). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection. `--principal-kind`+`--principal-id` (a pair) assert a data-scoping identity (see below) |
 | `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
 | `rc run <id>` | one run, high level |
-| `rc run <id> --events` | full per-event trace (NDJSON in JSON mode) |
-| `rc run <id> --full` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line) |
-| `rc run <id> --debug [--out-dir <dir>]` | decompose the run into a jq-able JSONL event log + a thin markdown index on disk; prints both paths (the cross-project debug path for an all-projects admin token) |
+| `rc run <id> --events [--stream]` | full per-event trace (NDJSON in JSON mode; large streams spill to a manifest unless `--stream`/`--raw-output`) |
+| `rc run <id> --full [--stream]` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line); large streams spill unless `--stream`/`--raw-output` |
+| `rc run <id> --debug [--out-dir <dir>]` | decompose the run into a jq-able JSONL event log + a thin markdown index on disk; table mode prints both paths, JSON mode prints a manifest (the cross-project debug path for an all-projects admin token) |
 | `rc run feedback <id> [--score N] [--comment TEXT]` | record score/comment feedback on a run's trace (feeds consolidation) |
 | `rc run retry <id> [--tier standard\|pro\|max]` | re-run a run (optionally at a different tier); prints the new run id |
 | `rc dream evidence [--limit N]` | list feedback and sent-edit evidence for a local dream-cycle pass |
@@ -220,7 +222,7 @@ commands when a tenant-enabled project login is project-pinned. `-o json|table` 
 | `rc capabilities` | list direct console primitives available to this login |
 | `rc db list\|schema\|query` | guarded production DB reads through rootcause scoping |
 | `rc bash list` | list cataloged brain scripts plus deployed brain cache status/staleness |
-| `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop; output names the mounted brain revision |
+| `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop; large stdout/stderr spills to local artifacts with preview + hints; output names the mounted brain revision |
 | `rc action list\|show\|preflight\|run` | inspect or execute vetted, human-scoped actions |
 | `rc provider detect <domain\|email> [more…]` | **local** (DNS only, no auth): classify a domain's email backend (google/microsoft/other) and whether rootcause can onboard it |
 | `rc id gmail\|outlook <id>` | **local** (no network): translate a provider message/thread id + build a clickable URL / DB-column lookup |

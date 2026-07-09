@@ -176,6 +176,108 @@ func TestBashRunJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "bash_run.json"), out.Bytes())
 }
 
+func TestBashRunLargeTableSpills(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--out-dir", outDir, "bash", "run", "large-output"); err != nil {
+		t.Fatalf("bash run large: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "[output too large:") || !strings.Contains(got, "full output saved to") || !strings.Contains(got, "Hints:") {
+		t.Fatalf("large table output missing spill block:\n%s", got)
+	}
+	if strings.Contains(got, "MIDDLE-SENTINEL") {
+		t.Fatalf("large table output printed omitted middle:\n%s", got)
+	}
+	stdoutPath := filepath.Join(outDir, "bash-run-33333333-seq-9", "stdout.txt")
+	b, err := os.ReadFile(stdoutPath)
+	if err != nil {
+		t.Fatalf("read spilled stdout: %v", err)
+	}
+	if !strings.Contains(string(b), "MIDDLE-SENTINEL") {
+		t.Fatalf("spilled stdout missing full content")
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "bash-run-33333333-seq-9", "response.json")); err != nil {
+		t.Fatalf("response.json missing: %v", err)
+	}
+}
+
+func TestBashRunSmallServerTruncatedSpills(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--out-dir", outDir, "bash", "run", "small-truncated"); err != nil {
+		t.Fatalf("bash run small truncated: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "full output saved to") || !strings.Contains(got, "stderr truncated") {
+		t.Fatalf("small truncated table did not spill:\n%s", got)
+	}
+	stderrPath := filepath.Join(outDir, "bash-run-44444444-seq-4", "stderr.txt")
+	b, err := os.ReadFile(stderrPath)
+	if err != nil {
+		t.Fatalf("read spilled stderr: %v", err)
+	}
+	if string(b) != "warn\n" {
+		t.Fatalf("spilled stderr = %q", b)
+	}
+
+	eJSON, outJSON, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eJSON, "--out-dir", outDir, "--no-preview", "bash", "run", "small-truncated"); err != nil {
+		t.Fatalf("bash run small truncated -o json: %v", err)
+	}
+	var manifest struct {
+		Artifacts map[string]struct {
+			ServerTruncated bool `json:"server_truncated"`
+		} `json:"artifacts"`
+	}
+	if err := json.Unmarshal(outJSON.Bytes(), &manifest); err != nil {
+		t.Fatalf("manifest not JSON: %v\n%s", err, outJSON.String())
+	}
+	if !manifest.Artifacts["stderr"].ServerTruncated {
+		t.Fatalf("stderr artifact did not mark server_truncated: %s", outJSON.String())
+	}
+}
+
+func TestBashRunLargeJSONManifestAndRawOutput(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--out-dir", outDir, "--no-preview", "bash", "run", "large-output"); err != nil {
+		t.Fatalf("bash run large -o json: %v", err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(out.Bytes(), &manifest); err != nil {
+		t.Fatalf("manifest not JSON: %v\n%s", err, out.String())
+	}
+	if manifest["spilled"] != true || strings.Contains(out.String(), "MIDDLE-SENTINEL") {
+		t.Fatalf("bad manifest output:\n%s", out.String())
+	}
+	artifacts, ok := manifest["artifacts"].(map[string]any)
+	if !ok || artifacts["stdout"] == nil || artifacts["response"] == nil {
+		t.Fatalf("manifest artifacts missing: %#v", manifest["artifacts"])
+	}
+
+	rawDir := t.TempDir()
+	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "bash", "run", "large-output"); err != nil {
+		t.Fatalf("bash run large --raw-output: %v", err)
+	}
+	if !strings.Contains(rawOut.String(), "MIDDLE-SENTINEL") || strings.Contains(rawOut.String(), `"spilled": true`) {
+		t.Fatalf("raw output not preserved:\n%s", rawOut.String())
+	}
+	if entries, err := os.ReadDir(rawDir); err != nil {
+		t.Fatalf("read raw output dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("raw output wrote artifacts: %v", entries)
+	}
+}
+
 func TestBashListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -330,6 +432,41 @@ func TestRunDebug(t *testing.T) {
 	for _, d := range []string{"P1", "1", "2"} {
 		if !disps[d] {
 			t.Errorf("missing disp %q in JSONL", d)
+		}
+	}
+}
+
+func TestRunDebugJSONManifest(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	outDir := filepath.Join(t.TempDir(), "debug out")
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--debug", "--out-dir", outDir); err != nil {
+		t.Fatalf("run --debug -o json: %v", err)
+	}
+	var manifest struct {
+		Spilled   bool `json:"spilled"`
+		Artifacts map[string]struct {
+			Path string `json:"path"`
+		} `json:"artifacts"`
+		Hints []string `json:"hints"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &manifest); err != nil {
+		t.Fatalf("manifest not JSON: %v\n%s", err, out.String())
+	}
+	if !manifest.Spilled || manifest.Artifacts["index"].Path == "" || manifest.Artifacts["trace"].Path == "" {
+		t.Fatalf("bad debug manifest: %s", out.String())
+	}
+	if len(manifest.Hints) == 0 || !strings.Contains(manifest.Hints[0], "'") {
+		t.Fatalf("debug hints not shell-quoted for spaced path: %#v", manifest.Hints)
+	}
+	for name, art := range manifest.Artifacts {
+		info, err := os.Stat(art.Path)
+		if err != nil {
+			t.Fatalf("stat %s: %v", name, err)
+		}
+		if got := info.Mode().Perm(); got != 0o600 {
+			t.Fatalf("%s perms = %o, want 600", name, got)
 		}
 	}
 }
@@ -575,6 +712,63 @@ func TestEventsNDJSON(t *testing.T) {
 	// First line should carry the bash event's command, verbatim.
 	if !strings.Contains(lines[0], `"command":"psql`) {
 		t.Errorf("first NDJSON line missing command: %q", lines[0])
+	}
+}
+
+func TestEventsLargeNDJSONSpills(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--out-dir", outDir, "run", "large-events", "--events"); err != nil {
+		t.Fatalf("run large-events --events: %v", err)
+	}
+	var manifest map[string]any
+	if err := json.Unmarshal(out.Bytes(), &manifest); err != nil {
+		t.Fatalf("manifest not JSON: %v\n%s", err, out.String())
+	}
+	if manifest["spilled"] != true || manifest["format"] != "jsonl" {
+		t.Fatalf("bad events manifest: %#v", manifest)
+	}
+	path, _ := manifest["path"].(string)
+	if path == "" {
+		t.Fatalf("manifest path missing: %#v", manifest)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read spilled events: %v", err)
+	}
+	if lines := strings.Split(strings.TrimSpace(string(b)), "\n"); len(lines) != 260 {
+		t.Fatalf("spilled events lines = %d, want 260", len(lines))
+	}
+
+	streamDir := t.TempDir()
+	eStream, streamOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eStream, "--out-dir", streamDir, "run", "large-events", "--events", "--stream"); err != nil {
+		t.Fatalf("run large-events --events --stream: %v", err)
+	}
+	if strings.Contains(streamOut.String(), `"spilled": true`) {
+		t.Fatalf("--stream emitted manifest:\n%s", streamOut.String())
+	}
+	if lines := strings.Split(strings.TrimSpace(streamOut.String()), "\n"); len(lines) != 260 {
+		t.Fatalf("--stream lines = %d, want 260", len(lines))
+	}
+	if entries, err := os.ReadDir(streamDir); err != nil {
+		t.Fatalf("read stream dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("--stream wrote artifacts: %v", entries)
+	}
+
+	rawDir := t.TempDir()
+	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "run", "large-events", "--events"); err != nil {
+		t.Fatalf("run large-events --events --raw-output: %v", err)
+	}
+	if strings.Contains(rawOut.String(), `"spilled": true`) {
+		t.Fatalf("--raw-output emitted manifest:\n%s", rawOut.String())
+	}
+	if lines := strings.Split(strings.TrimSpace(rawOut.String()), "\n"); len(lines) != 260 {
+		t.Fatalf("--raw-output lines = %d, want 260", len(lines))
 	}
 }
 

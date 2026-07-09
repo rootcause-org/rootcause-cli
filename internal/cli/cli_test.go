@@ -141,6 +141,10 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "events_declined.json"))
 			return
 		}
+		if r.PathValue("id") == "large-events" {
+			_, _ = w.Write(largeEventsJSON())
+			return
+		}
 		_, _ = w.Write(fixture(t, "events.json"))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
@@ -223,6 +227,16 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		if err := json.Unmarshal([]byte(body), &req); err != nil {
 			t.Fatalf("decode bash run body: %v\n%s", err, body)
+		}
+		if req.Command == "large-output" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(largeBashRunJSON())
+			return
+		}
+		if req.Command == "small-truncated" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(smallTruncatedBashRunJSON())
+			return
 		}
 		if req.Command != "printf hello && >&2 echo warn && exit 7" {
 			t.Fatalf("bash command = %q", req.Command)
@@ -607,6 +621,74 @@ func stubServer(t *testing.T) *httptest.Server {
 
 	registerConfigSurfaceStubs(t, mux)
 	return httptest.NewServer(mux)
+}
+
+func largeBashRunJSON() []byte {
+	stdout := "HEAD\n" + strings.Repeat("alpha line\n", 350) + "MIDDLE-SENTINEL\n" + strings.Repeat("omega line\n", 350) + "TAIL\n"
+	body := map[string]any{
+		"project":          "momentum-tools",
+		"tenant":           "acme",
+		"brain_resolved":   "HEAD @ 333333333333",
+		"run_id":           "33333333-3333-3333-3333-333333333333",
+		"seq":              9,
+		"exit_code":        0,
+		"stdout":           stdout,
+		"stderr":           "small warning\n",
+		"stdout_truncated": true,
+		"stderr_truncated": false,
+		"timed_out":        false,
+		"duration_ms":      99,
+		"egress_blocked":   false,
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func smallTruncatedBashRunJSON() []byte {
+	body := map[string]any{
+		"project":          "momentum-tools",
+		"tenant":           "acme",
+		"brain_resolved":   "HEAD @ 444444444444",
+		"run_id":           "44444444-4444-4444-4444-444444444444",
+		"seq":              4,
+		"exit_code":        0,
+		"stdout":           "",
+		"stderr":           "warn\n",
+		"stdout_truncated": false,
+		"stderr_truncated": true,
+		"timed_out":        false,
+		"duration_ms":      12,
+		"egress_blocked":   false,
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func largeEventsJSON() []byte {
+	events := make([]map[string]any, 0, 260)
+	for i := 0; i < 260; i++ {
+		events = append(events, map[string]any{
+			"seq":         i + 1,
+			"tool":        "bash",
+			"status":      "ok",
+			"exit_code":   0,
+			"duration_ms": 5,
+			"at":          "2026-06-19T08:10:10Z",
+			"command":     "printf event",
+			"stdout":      strings.Repeat("event payload ", 8),
+		})
+	}
+	b, err := json.Marshal(map[string]any{"run_id": "large-events", "events": events})
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 // registerConfigSurfaceStubs wires the config-surface endpoints (mailboxes / env per-key / databases +

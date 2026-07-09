@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/debugdump"
+	"github.com/rootcause-org/rootcause-cli/internal/outputspill"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -23,7 +25,7 @@ func newRunCmd(e *env) *cobra.Command {
 	var full bool
 	var debug bool
 	var brainDiff bool
-	var outDir string
+	var stream bool
 	cmd := &cobra.Command{
 		Use:   "run <id>",
 		Short: "Show one run (--events for the trace, --full for the bundle, --brain-diff for the brain commit, --debug to decompose it offline)",
@@ -42,6 +44,10 @@ func newRunCmd(e *env) *cobra.Command {
 			// --debug: decompose the /trace bundle into a jq-able JSONL + a thin markdown index on disk, then
 			// print the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
 			if debug {
+				outDir := e.outDir
+				if outDir == "" {
+					outDir = defaultDebugDir
+				}
 				return runDebug(e, c, id, outDir)
 			}
 
@@ -53,7 +59,7 @@ func newRunCmd(e *env) *cobra.Command {
 					if err != nil {
 						return err
 					}
-					return emitFullJSONL(e, raw)
+					return emitFullJSONL(e, id, raw, stream)
 				}
 				resp, err := c.Full(e.ctx(), id)
 				if err != nil {
@@ -69,7 +75,7 @@ func newRunCmd(e *env) *cobra.Command {
 					return err
 				}
 				if jsonMode {
-					return emitNDJSON(e, resp.Events)
+					return emitNDJSON(e, id, resp.Events, stream)
 				}
 				render.Events(e.out, resp)
 				return nil
@@ -83,7 +89,7 @@ func newRunCmd(e *env) *cobra.Command {
 					if err != nil {
 						return err
 					}
-					return render.JSON(e.out, raw)
+					return e.renderJSON("run-brain-diff-"+id, raw)
 				}
 				resp, err := c.BrainDiff(e.ctx(), id)
 				if err != nil {
@@ -98,7 +104,7 @@ func newRunCmd(e *env) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				return render.JSON(e.out, raw)
+				return e.renderJSON("run-"+id, raw)
 			}
 			detail, err := c.Run(e.ctx(), id)
 			if err != nil {
@@ -112,7 +118,7 @@ func newRunCmd(e *env) *cobra.Command {
 	cmd.Flags().BoolVar(&full, "full", false, "show the whole bundle (header + trace; JSONL in -o json)")
 	cmd.Flags().BoolVar(&debug, "debug", false, "decompose the run into a jq-able JSONL + thin markdown index on disk")
 	cmd.Flags().BoolVar(&brainDiff, "brain-diff", false, "show the journal commit this run wrote to the brain")
-	cmd.Flags().StringVar(&outDir, "out-dir", defaultDebugDir, "directory for --debug output files")
+	cmd.Flags().BoolVar(&stream, "stream", false, "stream JSONL to stdout even when it is large")
 	cmd.AddCommand(runFeedbackCmd(e), runRetryCmd(e))
 	return cmd
 }
@@ -232,7 +238,7 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 	jsonlPath := filepath.Join(outDir, debugdump.JSONLName(full))
 	indexPath := filepath.Join(outDir, debugdump.IndexName(full))
 
-	jf, err := os.Create(jsonlPath)
+	jf, err := os.OpenFile(jsonlPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("create %s: %w", jsonlPath, err)
 	}
@@ -243,8 +249,33 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 	if err := jf.Close(); err != nil {
 		return fmt.Errorf("close %s: %w", jsonlPath, err)
 	}
-	if err := os.WriteFile(indexPath, []byte(debugdump.RenderIndex(full)), 0o644); err != nil {
+	if err := os.WriteFile(indexPath, []byte(debugdump.RenderIndex(full)), 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", indexPath, err)
+	}
+
+	if e.jsonOut() && !e.rawOutput {
+		cfg := e.spillConfig()
+		indexArt, err := outputspill.ArtifactForFile(cfg, indexPath, "text", false)
+		if err != nil {
+			return err
+		}
+		jsonlArt, err := outputspill.ArtifactForFile(cfg, jsonlPath, "jsonl", false)
+		if err != nil {
+			return err
+		}
+		return outputspill.WriteManifest(e.out, outputspill.Manifest{
+			Spilled: true,
+			Artifacts: map[string]outputspill.Artifact{
+				"index": indexArt,
+				"trace": jsonlArt,
+			},
+			Hints: []string{
+				"sed -n '1,160p' " + outputspill.ShellQuote(indexArt.Path),
+				"jq -r 'select(.type==\"event\")' " + outputspill.ShellQuote(jsonlArt.Path),
+				"jq -r 'select(.disp==\"1\")' " + outputspill.ShellQuote(jsonlArt.Path),
+			},
+			RawModeHint: "rerun with --raw-output to print legacy debug paths to stdout",
+		})
 	}
 
 	// Two paths + a one-line summary on stdout so the calling agent can relay them without re-fetching.
@@ -269,15 +300,16 @@ func boolsSet(flags ...bool) int {
 // emitNDJSON writes one compact JSON object per event line. We re-marshal the typed events (rather
 // than passing the server's wrapping {run_id,events:[...]} through) precisely to get the NDJSON shape
 // the spec asks for: `| jq` over a stream, no enclosing array.
-func emitNDJSON(e *env, events []client.Event) error {
-	enc := json.NewEncoder(e.out)
+func emitNDJSON(e *env, id string, events []client.Event, stream bool) error {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	for _, ev := range events {
 		if err := enc.Encode(ev); err != nil {
 			return err
 		}
 	}
-	return nil
+	return emitMaybeSpilledJSONL(e, "run-"+shortID(id), "events.jsonl", buf.Bytes(), stream)
 }
 
 // emitFullJSONL turns the /trace bundle into the brain-renderer's input contract: a `{"type":"run",…}`
@@ -285,7 +317,7 @@ func emitNDJSON(e *env, events []client.Event) error {
 // (decomposing {run:{…},events:[…]}) so every server field rides through verbatim. The run header also
 // gets the derived grounding_source_drift_count for quick jq filters. This is the stable cross-repo
 // seam; keep its shape pinned by the golden test.
-func emitFullJSONL(e *env, raw json.RawMessage) error {
+func emitFullJSONL(e *env, id string, raw json.RawMessage, stream bool) error {
 	var bundle struct {
 		Run    json.RawMessage   `json:"run"`
 		Events []json.RawMessage `json:"events"`
@@ -293,27 +325,41 @@ func emitFullJSONL(e *env, raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &bundle); err != nil {
 		return fmt.Errorf("decode full bundle: %w", err)
 	}
+	var buf bytes.Buffer
 	if len(bundle.Run) > 0 {
-		if err := emitTyped(e, bundle.Run, "run"); err != nil {
+		if err := emitTyped(&buf, bundle.Run, "run"); err != nil {
 			return err
 		}
 	}
 	for _, ev := range bundle.Events {
-		if err := emitTyped(e, ev, "event"); err != nil {
+		if err := emitTyped(&buf, ev, "event"); err != nil {
 			return err
 		}
 	}
-	return nil
+	return emitMaybeSpilledJSONL(e, "run-"+shortID(id), "trace.jsonl", buf.Bytes(), stream)
+}
+
+func emitMaybeSpilledJSONL(e *env, label, name string, b []byte, stream bool) error {
+	cfg := e.spillConfig()
+	if cfg.Raw || stream || !cfg.ShouldSpillInline(b) {
+		_, err := e.out.Write(b)
+		return err
+	}
+	art, err := outputspill.WriteArtifact(cfg, cfg.DirFor(label), name, b, "jsonl", false)
+	if err != nil {
+		return err
+	}
+	return outputspill.WriteManifest(e.out, outputspill.ManifestForArtifact(art))
 }
 
 // emitTyped writes one JSONL line: the raw JSON object with a `"type"` key injected, value bytes
 // preserved exactly (a map[string]RawMessage keeps each field's bytes; Go sorts the keys, giving a
 // deterministic line). A non-object value is passed through unchanged so we never swallow the body.
-func emitTyped(e *env, obj json.RawMessage, typ string) error {
+func emitTyped(w interface{ Write([]byte) (int, error) }, obj json.RawMessage, typ string) error {
 	fields := map[string]json.RawMessage{}
 	if err := json.Unmarshal(obj, &fields); err != nil {
 		// Not a JSON object — emit verbatim rather than dropping it.
-		_, werr := e.out.Write(append(append([]byte{}, obj...), '\n'))
+		_, werr := w.Write(append(append([]byte{}, obj...), '\n'))
 		return werr
 	}
 	fields["type"] = json.RawMessage(`"` + typ + `"`)
@@ -326,9 +372,19 @@ func emitTyped(e *env, obj json.RawMessage, typ string) error {
 			fields["grounding_source_drift_count"] = b
 		}
 	}
-	enc := json.NewEncoder(e.out)
+	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(fields)
+}
+
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	if id == "" {
+		return "unknown"
+	}
+	return id
 }
 
 func groundingSourceDriftCount(raw json.RawMessage) (int, bool) {

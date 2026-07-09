@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/outputspill"
 )
 
 func Capabilities(w io.Writer, r *client.CapabilitiesResponse) {
@@ -150,22 +151,16 @@ func BashList(w io.Writer, r *client.BashListResponse) {
 	_ = tw.Flush()
 }
 
-func BashRun(w io.Writer, r *client.BashRunResponse) {
+func BashRun(w io.Writer, r *client.BashRunResponse, artifacts map[string]outputspill.Artifact) {
 	if r.Stdout != "" {
-		_, _ = fmt.Fprint(w, r.Stdout)
-		if !strings.HasSuffix(r.Stdout, "\n") {
-			_, _ = fmt.Fprintln(w)
-		}
+		renderBashStream(w, r.Stdout, artifacts["stdout"])
 	}
 	if r.Stderr != "" {
 		if r.Stdout != "" {
 			_, _ = fmt.Fprintln(w)
 		}
 		_, _ = fmt.Fprintln(w, "stderr:")
-		_, _ = fmt.Fprint(w, r.Stderr)
-		if !strings.HasSuffix(r.Stderr, "\n") {
-			_, _ = fmt.Fprintln(w)
-		}
+		renderBashStream(w, r.Stderr, artifacts["stderr"])
 	}
 	var flags []string
 	if r.TimedOut {
@@ -188,6 +183,38 @@ func BashRun(w io.Writer, r *client.BashRunResponse) {
 		suffix = " (" + strings.Join(flags, ", ") + ")"
 	}
 	_, _ = fmt.Fprintf(w, "\nexit=%d (%dms) run=%s seq=%d%s\n", r.ExitCode, r.DurationMs, r.RunID, r.Seq, suffix)
+}
+
+func renderBashStream(w io.Writer, value string, art outputspill.Artifact) {
+	if art.Path == "" {
+		_, _ = fmt.Fprint(w, value)
+		if !strings.HasSuffix(value, "\n") {
+			_, _ = fmt.Fprintln(w)
+		}
+		return
+	}
+	_, _ = fmt.Fprintf(w, "[output too large: %d bytes, %d lines - full output saved to %s]\n", art.Bytes, art.Lines, art.Path)
+	if art.Preview != nil {
+		if art.Preview.Head != "" {
+			_, _ = fmt.Fprint(w, art.Preview.Head)
+			if !strings.HasSuffix(art.Preview.Head, "\n") {
+				_, _ = fmt.Fprintln(w)
+			}
+		}
+		if art.Preview.Tail != "" {
+			_, _ = fmt.Fprintln(w, "...[middle omitted]...")
+			_, _ = fmt.Fprint(w, art.Preview.Tail)
+			if !strings.HasSuffix(art.Preview.Tail, "\n") {
+				_, _ = fmt.Fprintln(w)
+			}
+		}
+	}
+	if len(art.Hints) > 0 {
+		_, _ = fmt.Fprintln(w, "\nHints:")
+		for _, h := range art.Hints {
+			_, _ = fmt.Fprintf(w, "  %s\n", h)
+		}
+	}
 }
 
 func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {

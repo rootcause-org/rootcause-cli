@@ -141,6 +141,8 @@ internal/oauth/           the OAuth protocol client: PKCE loopback (loopback.go)
 internal/token/           the token store: ~/.config/rootcause/tokens.json (0600), per-profile.
 internal/config/          resolution: env-or-production base URL + brain marker (.rootcause.toml) + local overlay (.rootcause/local.toml) → profile + project + tenant.
 internal/debugdump/       the rc-agent-debug decomposer: decorate + emit JSONL + render thin index.
+internal/outputspill/     progressive disclosure for large stdout/JSON/JSONL: full bytes to `.rootcause/output/`
+                          (or --out-dir / RC_OUTPUT_DIR), stdout gets a preview/manifest + sed/rg/jq hints.
 internal/render/          render.go (TTY-detect + JSON passthrough) + table.go (one renderer per view).
 ```
 
@@ -149,6 +151,14 @@ internal/render/          render.go (TTY-detect + JSON passthrough) + table.go (
 TTY gets a table; a pipe/redirect gets JSON (`rc runs | jq …` always works). JSON mode is a **verbatim
 pretty-print of the server body** (re-indent only), so jq sees the true response shape — the CLI can't
 invent or drop a field. `rc run --events -o json` emits **NDJSON** (one event per line), not an array.
+
+Progressive disclosure lives in `internal/outputspill`: large payloads are still fetched fully, but the
+CLI writes full artifacts under `.rootcause/output/` by default and prints a small table preview or JSON
+manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir`, `RC_OUTPUT_DIR`,
+`RC_OUTPUT_SPILL_THRESHOLD` (per field/stream, default 6000 bytes), `RC_OUTPUT_INLINE_MAX` (whole JSONL
+or JSON response, default 20000 bytes), `--no-preview`, and `--raw-output` for exact legacy stdout.
+Phase-1 wiring covers `internal/cli/console.go` JSON passthrough, `rc bash run` stdout/stderr, and
+`rc run --events|--full|--debug`; large NDJSON manifests unless `--stream` or `--raw-output` is passed.
 
 ### Auth (OAuth) — login, token store, transparent refresh
 OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_KEY`, and
