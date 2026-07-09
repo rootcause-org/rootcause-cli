@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -283,4 +284,56 @@ func TestHealthJSONPassthrough(t *testing.T) {
 		t.Fatalf("health -o json on unhealthy fleet: err = %v, want errUnhealthy", err)
 	}
 	assertJSONEqual(t, fixture(t, "health.json"), out.Bytes())
+}
+
+func TestFleetPatternsHealthAllLargeJSONSpills(t *testing.T) {
+	t.Setenv("RC_OUTPUT_INLINE_MAX", "200")
+	srv := stubServer(t)
+	defer srv.Close()
+
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "fleet", args: []string{"fleet", "--all", "--kind", "fleet"}, want: `"total_runs"`},
+		{name: "patterns", args: []string{"patterns", "--all"}, want: `"egress"`},
+		{name: "health", args: []string{"health", "--all", "--hours", "999"}, want: `"health"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			outDir := t.TempDir()
+			e, out, _ := newTestEnv(t, srv, "json")
+			args := append([]string{"--out-dir", outDir}, tc.args...)
+			if err := run(t, e, args...); err != nil {
+				t.Fatalf("%s spill: %v", tc.name, err)
+			}
+			m := requireSpillManifest(t, out.Bytes())
+			art := m.Artifacts["response"]
+			if art.Path == "" {
+				t.Fatalf("%s manifest missing response artifact: %s", tc.name, out.String())
+			}
+			b, err := os.ReadFile(art.Path)
+			if err != nil {
+				t.Fatalf("read %s spill: %v", tc.name, err)
+			}
+			if !bytes.Contains(b, []byte(tc.want)) {
+				t.Fatalf("%s spill missing %s:\n%s", tc.name, tc.want, b)
+			}
+
+			rawDir := t.TempDir()
+			eRaw, rawOut, _ := newTestEnv(t, srv, "json")
+			rawArgs := append([]string{"--out-dir", rawDir, "--raw-output"}, tc.args...)
+			if err := run(t, eRaw, rawArgs...); err != nil {
+				t.Fatalf("%s --raw-output: %v", tc.name, err)
+			}
+			if strings.Contains(rawOut.String(), `"spilled": true`) || !strings.Contains(rawOut.String(), tc.want) {
+				t.Fatalf("%s raw output not preserved:\n%s", tc.name, rawOut.String())
+			}
+			if entries, err := os.ReadDir(rawDir); err != nil {
+				t.Fatalf("read %s raw dir: %v", tc.name, err)
+			} else if len(entries) != 0 {
+				t.Fatalf("%s --raw-output wrote artifacts: %v", tc.name, entries)
+			}
+		})
+	}
 }

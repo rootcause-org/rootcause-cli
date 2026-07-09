@@ -42,7 +42,7 @@ func listSubCmd(e *env, resource string) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON(resource+"-ls", raw)
 			}
 			render.ItemList(e.out, l)
 			return nil
@@ -72,7 +72,7 @@ func addSubCmd(e *env, resource string) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON(resource+"-add", raw)
 			}
 			render.Item(e.out, item)
 			return nil
@@ -97,7 +97,7 @@ func getSubCmd(e *env, resource, idHelp string) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON(resource+"-get-"+args[0], raw)
 			}
 			render.Item(e.out, item)
 			return nil
@@ -125,7 +125,7 @@ func setSubCmd(e *env, resource, idHelp string) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON(resource+"-set-"+args[0], raw)
 			}
 			render.Item(e.out, item)
 			return nil
@@ -151,9 +151,9 @@ func rmSubCmd(e *env, resource, idHelp string) *cobra.Command {
 			}
 			if e.jsonOut() {
 				if len(raw) > 0 {
-					return render.JSON(e.out, raw)
+					return e.renderJSON(resource+"-rm-"+args[0], raw)
 				}
-				return render.JSON(e.out, []byte(`{"deleted":"`+args[0]+`"}`))
+				return e.renderJSON(resource+"-rm-"+args[0], []byte(`{"deleted":"`+args[0]+`"}`))
 			}
 			_, _ = fmt.Fprintf(e.out, "deleted %s %s\n", resource, args[0])
 			return nil
@@ -177,7 +177,7 @@ func verbSubCmd(e *env, resource, idHelp, verb, short string) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON(resource+"-"+verb+"-"+args[0], raw)
 			}
 			if len(item) == 0 {
 				_, _ = fmt.Fprintf(e.out, "%s %s: %s ok\n", resource, args[0], verb)
@@ -241,7 +241,7 @@ func connectionProbeCmd(e *env) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON("connection-probe-"+args[0], raw)
 			}
 			render.ConnectionProbe(e.out, res)
 			return nil
@@ -301,9 +301,9 @@ func connectionRmCmd(e *env) *cobra.Command {
 			}
 			if e.jsonOut() {
 				if len(raw) > 0 {
-					return render.JSON(e.out, raw)
+					return e.renderJSON("connections-rm-"+args[0], raw)
 				}
-				return render.JSON(e.out, []byte(`{"revoked":"`+args[0]+`","deleted":"`+args[0]+`"}`))
+				return e.renderJSON("connections-rm-"+args[0], []byte(`{"revoked":"`+args[0]+`","deleted":"`+args[0]+`"}`))
 			}
 			_, _ = fmt.Fprintf(e.out, "revoked and deleted connection %s\n", args[0])
 			return nil
@@ -381,9 +381,9 @@ func tokenRevokeCmd(e *env) *cobra.Command {
 			}
 			if e.jsonOut() {
 				if len(raw) > 0 {
-					return render.JSON(e.out, raw)
+					return e.renderJSON("tokens-revoke-"+args[0], raw)
 				}
-				return render.JSON(e.out, []byte(`{"revoked":"`+args[0]+`"}`))
+				return e.renderJSON("tokens-revoke-"+args[0], []byte(`{"revoked":"`+args[0]+`"}`))
 			}
 			_, _ = fmt.Fprintf(e.out, "revoked token %s\n", args[0])
 			return nil

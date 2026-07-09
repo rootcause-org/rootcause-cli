@@ -5,8 +5,6 @@ import (
 	"net/http"
 
 	"github.com/spf13/cobra"
-
-	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 type routeManifest struct {
@@ -39,7 +37,7 @@ func newRoutesCmd(e *env) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON("routes", raw)
 			}
 			var manifest routeManifest
 			if err := json.Unmarshal(raw, &manifest); err != nil {
@@ -71,7 +69,7 @@ func newOpenAPICmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return render.JSON(e.out, raw)
+			return e.renderJSON("openapi", raw)
 		},
 	}
 }

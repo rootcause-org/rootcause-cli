@@ -205,6 +205,59 @@ func TestExportDownloadOut(t *testing.T) {
 	}
 }
 
+func TestExportDownloadLargeStdoutSpillsUnlessOutOrRaw(t *testing.T) {
+	t.Setenv("RC_OUTPUT_SPILL_THRESHOLD", "80")
+	srv := stubServer(t)
+	defer srv.Close()
+
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--out-dir", outDir, "--no-preview", "export", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("export download spill: %v", err)
+	}
+	if !strings.Contains(out.String(), "[output too large:") || !strings.Contains(out.String(), "body.md") {
+		t.Fatalf("download did not print spill preview:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "Where is my invoice?") {
+		t.Fatalf("download printed omitted corpus body:\n%s", out.String())
+	}
+	spilled := filepath.Join(outDir, "export-download-eeee1111-0000-0000-0000-000000000001", "body.md")
+	b, err := os.ReadFile(spilled)
+	if err != nil {
+		t.Fatalf("read spilled export body: %v", err)
+	}
+	if !strings.Contains(string(b), "Where is my invoice?") {
+		t.Fatalf("spilled export body missing full corpus")
+	}
+
+	fileDir := t.TempDir()
+	outFile := filepath.Join(fileDir, "corpus.md")
+	eFile, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, eFile, "--out-dir", fileDir, "export", "download", "eeee1111-0000-0000-0000-000000000001", "--out", outFile); err != nil {
+		t.Fatalf("export download --out: %v", err)
+	}
+	if _, err := os.Stat(outFile); err != nil {
+		t.Fatalf("--out file missing: %v", err)
+	}
+	if entries, err := os.ReadDir(filepath.Join(fileDir, "export-download-eeee1111-0000-0000-0000-000000000001")); err == nil && len(entries) > 0 {
+		t.Fatalf("--out wrote spill artifacts: %v", entries)
+	}
+
+	rawDir := t.TempDir()
+	eRaw, rawOut, _ := newTestEnv(t, srv, "table")
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "export", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("export download --raw-output: %v", err)
+	}
+	if !strings.Contains(rawOut.String(), "Where is my invoice?") || strings.Contains(rawOut.String(), "[output too large:") {
+		t.Fatalf("raw export body not preserved:\n%s", rawOut.String())
+	}
+	if entries, err := os.ReadDir(rawDir); err != nil {
+		t.Fatalf("read raw dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("--raw-output wrote artifacts: %v", entries)
+	}
+}
+
 // TestExportDownloadOutSplitExclusive: --out and --split can't combine (--out would be silently
 // ignored otherwise).
 func TestExportDownloadOutSplitExclusive(t *testing.T) {

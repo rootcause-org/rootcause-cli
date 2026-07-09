@@ -44,7 +44,7 @@ func exportMineSettingsCmd(e *env) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON("export-mine-settings-"+args[0], raw)
 			}
 			_, _ = fmt.Fprintf(e.out, "queued %s (%s)\n", acc.ExportID, acc.Status)
 			return nil
@@ -68,7 +68,7 @@ func exportLsCmd(e *env) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON("export-ls", raw)
 			}
 			render.Exports(e.out, l)
 			return nil
@@ -92,7 +92,7 @@ func exportGetCmd(e *env) *cobra.Command {
 				return err
 			}
 			if e.jsonOut() {
-				return render.JSON(e.out, raw)
+				return e.renderJSON("export-get-"+args[0], raw)
 			}
 			render.Export(e.out, x)
 			return nil
@@ -147,8 +147,7 @@ func exportDownloadCmd(e *env) *cobra.Command {
 				_, _ = fmt.Fprintf(e.err, "wrote %d bytes → %s\n", len(body), out)
 				return nil
 			}
-			_, err = e.out.Write(body)
-			return err
+			return e.renderBytes("export-download-"+args[0], "body.md", body, "text")
 		},
 	}
 	cmd.Flags().StringVar(&out, "out", "", "write the corpus to this file instead of stdout")

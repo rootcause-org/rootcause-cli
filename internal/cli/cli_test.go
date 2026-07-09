@@ -540,6 +540,11 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("POST /api/v1/repos", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
+		if strings.Contains(body, `"id":"large-output"`) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"large-output","git_url":"https://github.com/acme/large-output.git","description":"` + strings.Repeat("large collection value ", 40) + `"}`))
+			return
+		}
 		if !strings.Contains(body, `"id":"momentum-web"`) {
 			t.Fatalf("repo create body missing id: %s", body)
 		}
@@ -1275,4 +1280,27 @@ func assertJSONEqual(t *testing.T, want, got []byte) {
 	if !reflect.DeepEqual(wv, gv) {
 		t.Errorf("JSON not equal\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
+}
+
+type testSpillArtifact struct {
+	Path   string `json:"path"`
+	Format string `json:"format"`
+	Bytes  int    `json:"bytes"`
+}
+
+type testSpillManifest struct {
+	Spilled   bool                         `json:"spilled"`
+	Path      string                       `json:"path"`
+	Format    string                       `json:"format"`
+	Artifacts map[string]testSpillArtifact `json:"artifacts"`
+}
+
+func requireSpillManifest(t *testing.T, body []byte) testSpillManifest {
+	t.Helper()
+	var m testSpillManifest
+	decodeJSON(t, body, &m)
+	if !m.Spilled {
+		t.Fatalf("not a spill manifest: %s", body)
+	}
+	return m
 }

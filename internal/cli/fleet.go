@@ -127,7 +127,7 @@ func emitFleetAllJSON(e *env, groups []render.FleetGroup) error {
 	if err != nil {
 		return err
 	}
-	return render.JSON(e.out, b)
+	return e.renderJSON("fleet-all", b)
 }
 
 // emitRunsJSON emits the paged run rows as a single JSON object {runs:[…]} — the raw passthrough contract
@@ -141,5 +141,5 @@ func emitRunsJSON(e *env, runs []client.RunSummary) error {
 	if err != nil {
 		return err
 	}
-	return render.JSON(e.out, b)
+	return e.renderJSON("fleet", b)
 }

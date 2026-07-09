@@ -120,7 +120,7 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error 
 		if merr != nil {
 			return merr
 		}
-		return render.JSON(e.out, b)
+		return e.renderJSON("patterns-all", b)
 	}
 	return nil
 }
@@ -138,5 +138,5 @@ func emitPatternsJSON(e *env, events []client.RunEvent, egress []client.EgressRo
 	if err != nil {
 		return err
 	}
-	return render.JSON(e.out, b)
+	return e.renderJSON("patterns", b)
 }

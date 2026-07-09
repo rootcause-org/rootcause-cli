@@ -168,6 +168,11 @@ manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir`, `RC_OUT
 or JSON response, default 20000 bytes), `--no-preview`, and `--raw-output` for exact legacy stdout.
 Phase-1 wiring covers `internal/cli/console.go` JSON passthrough, `rc bash run` stdout/stderr, and
 `rc run --events|--full|--debug`; large NDJSON manifests unless `--stream` or `--raw-output` is passed.
+Phase-2 wiring extends the same `env.renderJSON` / `env.renderBytes` path to high-volume API metadata
+(`rc routes`, `rc openapi`), observability fan-outs (`fleet`/`patterns`/`health`, including `--all`),
+collection CRUD JSON responses with large values, and `rc export download` stdout bodies. Intentional
+one-time secret reveal surfaces (`connection reveal`, `token mint`) stay raw so capture/copy behavior is
+unchanged.
 
 ### Auth (OAuth) — login, token store, transparent refresh
 OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_KEY`, and

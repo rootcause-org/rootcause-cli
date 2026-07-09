@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -37,6 +38,89 @@ func TestRepoAddTable(t *testing.T) {
 		t.Fatalf("repo add: %v", err)
 	}
 	assertGolden(t, "repo_add.golden", out.String())
+}
+
+func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
+	t.Setenv("RC_OUTPUT_SPILL_THRESHOLD", "80")
+	srv := stubServer(t)
+	defer srv.Close()
+
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--out-dir", outDir, "--no-preview", "repo", "add", "id=large-output", "git_url=https://github.com/acme/large-output.git"); err != nil {
+		t.Fatalf("repo add large -o json: %v", err)
+	}
+	m := requireSpillManifest(t, out.Bytes())
+	if m.Artifacts["response"].Path == "" || m.Artifacts["description"].Path == "" {
+		t.Fatalf("collection manifest missing response/description artifacts: %s", out.String())
+	}
+	b, err := os.ReadFile(m.Artifacts["description"].Path)
+	if err != nil {
+		t.Fatalf("read description artifact: %v", err)
+	}
+	if !strings.Contains(string(b), "large collection value") {
+		t.Fatalf("description artifact missing large value: %q", string(b))
+	}
+
+	rawDir := t.TempDir()
+	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "repo", "add", "id=large-output", "git_url=https://github.com/acme/large-output.git"); err != nil {
+		t.Fatalf("repo add large --raw-output: %v", err)
+	}
+	if strings.Contains(rawOut.String(), `"spilled": true`) || !strings.Contains(rawOut.String(), "large collection value") {
+		t.Fatalf("collection raw output not preserved:\n%s", rawOut.String())
+	}
+	if entries, err := os.ReadDir(rawDir); err != nil {
+		t.Fatalf("read raw dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("--raw-output wrote artifacts: %v", entries)
+	}
+
+	eReveal, revealOut, revealErr := newTestEnv(t, srv, "table")
+	if err := run(t, eReveal, "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("connection reveal under spill threshold: %v", err)
+	}
+	if got := revealOut.String(); got != "sk_live_REVEALED_ONCE\n" || strings.Contains(got, "output too large") {
+		t.Fatalf("reveal stdout changed: %q", got)
+	}
+	if !strings.Contains(revealErr.String(), "live secret") {
+		t.Fatalf("reveal warning missing: %q", revealErr.String())
+	}
+
+	revealJSONDir := t.TempDir()
+	eRevealJSON, revealJSONOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eRevealJSON, "--out-dir", revealJSONDir, "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("connection reveal -o json under spill threshold: %v", err)
+	}
+	assertJSONEqual(t, []byte(`{"secret":"sk_live_REVEALED_ONCE"}`), revealJSONOut.Bytes())
+	if entries, err := os.ReadDir(revealJSONDir); err != nil {
+		t.Fatalf("read reveal json dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("reveal -o json wrote artifacts: %v", entries)
+	}
+
+	eMint, mintOut, mintErr := newTestEnv(t, srv, "table")
+	if err := run(t, eMint, "token", "mint", "scope=config:read"); err != nil {
+		t.Fatalf("token mint under spill threshold: %v", err)
+	}
+	if !strings.Contains(mintOut.String(), "rc_refresh_MINTED_ONCE") || strings.Contains(mintOut.String(), "output too large") {
+		t.Fatalf("mint stdout changed: %q", mintOut.String())
+	}
+	if !strings.Contains(mintErr.String(), "shown once") {
+		t.Fatalf("mint warning missing: %q", mintErr.String())
+	}
+
+	mintJSONDir := t.TempDir()
+	eMintJSON, mintJSONOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eMintJSON, "--out-dir", mintJSONDir, "token", "mint", "scope=config:read"); err != nil {
+		t.Fatalf("token mint -o json under spill threshold: %v", err)
+	}
+	assertJSONEqual(t, []byte(`{"refresh_token":"rc_refresh_MINTED_ONCE","scope":"config:read","status":"active"}`), mintJSONOut.Bytes())
+	if entries, err := os.ReadDir(mintJSONDir); err != nil {
+		t.Fatalf("read mint json dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("mint -o json wrote artifacts: %v", entries)
+	}
 }
 
 func TestRepoSetTable(t *testing.T) {

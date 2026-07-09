@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -243,6 +244,53 @@ func TestOpenAPIJSON(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), `"openapi": "3.1.0"`) || !strings.Contains(out.String(), `/api/v1/runs/{id}/trace`) {
 		t.Fatalf("openapi output missing expected contract:\n%s", out.String())
+	}
+}
+
+func TestRoutesAndOpenAPILargeJSONSpillUnlessRaw(t *testing.T) {
+	t.Setenv("RC_OUTPUT_INLINE_MAX", "80")
+	srv := stubServer(t)
+	defer srv.Close()
+
+	outDir := t.TempDir()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--out-dir", outDir, "routes"); err != nil {
+		t.Fatalf("routes -o json spill: %v", err)
+	}
+	m := requireSpillManifest(t, out.Bytes())
+	if m.Artifacts["response"].Path == "" {
+		t.Fatalf("routes manifest missing response artifact: %s", out.String())
+	}
+	b, err := os.ReadFile(m.Artifacts["response"].Path)
+	if err != nil {
+		t.Fatalf("read routes spill: %v", err)
+	}
+	if !strings.Contains(string(b), `/api/v1/runs/{id}/trace`) {
+		t.Fatalf("routes spill missing full response: %s", b)
+	}
+
+	openOutDir := t.TempDir()
+	eOpen, openOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eOpen, "--out-dir", openOutDir, "openapi"); err != nil {
+		t.Fatalf("openapi -o json spill: %v", err)
+	}
+	openM := requireSpillManifest(t, openOut.Bytes())
+	if openM.Artifacts["response"].Path == "" {
+		t.Fatalf("openapi manifest missing response artifact: %s", openOut.String())
+	}
+
+	rawDir := t.TempDir()
+	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "openapi"); err != nil {
+		t.Fatalf("openapi --raw-output: %v", err)
+	}
+	if strings.Contains(rawOut.String(), `"spilled": true`) || !strings.Contains(rawOut.String(), `"openapi": "3.1.0"`) {
+		t.Fatalf("raw openapi not preserved:\n%s", rawOut.String())
+	}
+	if entries, err := os.ReadDir(rawDir); err != nil {
+		t.Fatalf("read raw dir: %v", err)
+	} else if len(entries) != 0 {
+		t.Fatalf("--raw-output wrote artifacts: %v", entries)
 	}
 }
 

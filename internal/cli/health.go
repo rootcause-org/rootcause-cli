@@ -46,7 +46,7 @@ func newHealthCmd(e *env) *cobra.Command {
 				if rerr != nil {
 					return rerr
 				}
-				if rerr := render.JSON(e.out, raw); rerr != nil {
+				if rerr := e.renderJSON("health", raw); rerr != nil {
 					return rerr
 				}
 				if !healthVerdict(resp) {
@@ -106,7 +106,7 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 		if merr != nil {
 			return merr
 		}
-		if rerr := render.JSON(e.out, b); rerr != nil {
+		if rerr := e.renderJSON("health-all", b); rerr != nil {
 			return rerr
 		}
 	} else {
