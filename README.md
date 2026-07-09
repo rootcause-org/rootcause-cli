@@ -196,6 +196,10 @@ that, `--no-preview` to print paths/metadata only, and `--raw-output` to preserv
 | `rc dream evidence [--limit N]` | list feedback and sent-edit evidence for a local dream-cycle pass |
 | `rc config get` | effective settings + box defaults |
 | `rc config set k=v [k=v…]` | change settings (validated server-side) |
+| `rc kb list [--provider intercom] [--collection <name>] [--limit N]` | inventory KB collections/counts without article bodies |
+| `rc kb search <query> [--provider intercom] [--limit N] [--out <dir>] [--no-materialize]` | search KB articles remotely, print compact hits, and write `manifest.json`, `hits.md`, and matched markdown articles under `.rootcause/tmp/kb-searches/...` |
+| `rc kb export (--query <query> \| --article <id-or-path> \| --all) [--provider intercom] [--out <dir>]` | materialize selected KB articles to a fresh local artifact directory for `rg`/scripts |
+| `rc kb get` / `set k=v [k=v…]` | read/change KB sync config (provider/base_url/…) |
 | `rc triage policy get\|set` / `rc triage rules ls\|add\|set\|rm` | read/change draft/no-draft guidance and deterministic hard rules |
 | `rc config openrouter-key set\|clear\|reveal` | manage the OpenRouter API key (`set` reads from **STDIN** by default; `reveal` prints it once) |
 | `rc env keys` | key NAMES of the project's production grounding env (log-safe, no values) |

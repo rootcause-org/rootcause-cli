@@ -39,6 +39,7 @@ but they keep the raw rows reachable via `-o json`.
 | `rc run <id> --debug` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
 | `rc dream evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit evidence for local dream-cycle passes; JSON is the primary surface |
 | `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
+| `rc kb list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc kb get/set` still owns KB sync config over `/api/v1/kb` |
 | `rc config hierarchy get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
 | `rc triage policy get/set`, `rc triage rules ls/add/set/rm` | `/api/v1/triage/*` | read/change mail draft/no-draft guidance and deterministic skip/force-process rules |
 | `rc tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
@@ -124,6 +125,14 @@ status/resolution so a pushed brain commit cannot fail silently behind an old ca
 `tenant_settings`, and `grounding_sources` come from `/trace`; current tenant/source state is only a drift
 annotation. Debug JSONL preserves raw `grounding_sources` and adds `grounding_source_drift_count`; table
 and markdown render missing/drifted mirrors or KB first.
+
+`rc kb search` is progressive-disclosure glue over the guarded bash workspace, not a giant markdown
+dump: it searches `/kb/<provider>` remotely, prints only ranked metadata/snippets, then fetches each
+matched article individually and writes a fresh local artifact folder. Agents should treat the printed
+artifact path as the handle, then use local `rg`/`sed`/scripts over `articles/`. JSON mode exposes the
+same `artifact_dir`, counts, truncation flag, and ranked article metadata. `rc kb export` uses the same
+writer for `--query`, `--article`, or `--all`; every output directory must be new to avoid stale
+cross-search contamination.
 
 ## Architecture — four thin layers, no logic
 

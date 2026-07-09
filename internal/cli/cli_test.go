@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
 // update regenerates the golden files instead of comparing. Run: go test ./internal/cli -update
@@ -236,6 +239,22 @@ func stubServer(t *testing.T) *httptest.Server {
 		if req.Command == "small-truncated" {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(smallTruncatedBashRunJSON())
+			return
+		}
+		if strings.Contains(req.Command, "# rc-kb:list") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(bashRunResponseJSON("alpha", `{"provider":"intercom","root":"/kb/intercom","revision":"abc123","collections":[{"name":"restore-amp-recovery","article_count":2}],"truncated":false}`, "", false, false))
+			return
+		}
+		if strings.Contains(req.Command, "# rc-kb:search") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(bashRunResponseJSON("alpha", `{"provider":"intercom","query":"restore as new","revision":"abc123","article_count":1,"hit_count":2,"truncated":false,"articles":[{"id":"9286853","title":"How to recover deleted data","url":"https://support.probackup.io/en/articles/9286853-how-to-recover-deleted-data","collection":"restore-amp-recovery","path":"restore-amp-recovery/9286853-how-to-recover-deleted-data.md","score":9,"hits":[{"line":51,"snippet":"Choose Restore as new to avoid overwriting live data."},{"line":52,"snippet":"Overwrite only when you are sure."}]}]}`, "", false, false))
+			return
+		}
+		if strings.Contains(req.Command, "# rc-kb:cat") {
+			w.Header().Set("Content-Type", "application/json")
+			article := "---\ntitle: How to recover deleted data\narticle_id: 9286853\nurl: \"https://support.probackup.io/en/articles/9286853-how-to-recover-deleted-data\"\n---\n# How to recover deleted data\nChoose Restore as new to avoid overwriting live data.\nOverwrite only when you are sure.\n"
+			_, _ = w.Write(bashRunResponseJSON("alpha", base64.StdEncoding.EncodeToString([]byte(article)), "", false, false))
 			return
 		}
 		if req.Command != "printf hello && >&2 echo warn && exit 7" {
@@ -662,6 +681,24 @@ func smallTruncatedBashRunJSON() []byte {
 		"timed_out":        false,
 		"duration_ms":      12,
 		"egress_blocked":   false,
+	}
+	b, err := json.Marshal(body)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
+func bashRunResponseJSON(project, stdout, stderr string, stdoutTruncated, stderrTruncated bool) []byte {
+	body := client.BashRunResponse{
+		Project:         project,
+		RunID:           "run-kb",
+		Seq:             1,
+		ExitCode:        0,
+		Stdout:          stdout,
+		Stderr:          stderr,
+		StdoutTruncated: stdoutTruncated,
+		StderrTruncated: stderrTruncated,
 	}
 	b, err := json.Marshal(body)
 	if err != nil {
