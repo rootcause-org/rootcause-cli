@@ -5,7 +5,7 @@ the two docs below and in the code.
 
 ## What this is (one line)
 `rc` is a **scriptable Go client**: it talks to rootcause's public `/api/v1` authed with an **OAuth
-access token** (`rc login`; refreshed transparently), rendered as a table on a TTY or **JSON when piped**.
+access token** (`rc auth login`; refreshed transparently), rendered as a table on a TTY or **JSON when piped**.
 **Fat client, thin server:** endpoints stay simple and return **raw, token-scoped data**; presentation
 and analysis logic (digests, clustering, health roll-ups, diagnosis) is allowed to live **in the CLI**.
 Every such command MUST still expose the raw rows via `-o json`, so a consumer can skip our rendering and
@@ -19,12 +19,12 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 
 ## Code map (detail in SKILL.md)
 - `cmd/rc/main.go` — entrypoint → `cli.Execute(version)`.
-- `internal/cli/` — one cobra file per command (`status`/`runs`/`run`/`ask`/`config`/`env`/`tenant`/`auth`); `tokensource.go` is the live token source; `errors.go` surfaces API errors verbatim.
+- `internal/cli/` — `surface.go` owns the nine roots; command files implement their grouped endpoint adapters. `tokensource.go` is the live token source; `errors.go` surfaces API errors verbatim.
 - `internal/client/` — the one HTTP wrapper (`client.go`, refresh-on-401) + `TokenSource` (`auth.go`) + wire contract (`types.go`, field names match the server exactly) + `APIError`.
 - `internal/oauth/` — OAuth protocol client: PKCE loopback + device grant + refresh/revoke (first-party client `rcocl_cli`).
 - `internal/token/` — token store `~/.config/rootcause/tokens.json` (0600), per-profile.
 - `internal/config/` — env-or-production URL resolution + brain-aware profile/project/tenant context (`.rootcause.toml` + `.rootcause/local.toml`).
-- `internal/debugdump/` — the `rc run <id> --debug` decomposer (JSONL + thin markdown index).
+- `internal/debugdump/` — the `rc run debug <id>` decomposer (JSONL + thin markdown index).
 - `internal/render/` — TTY-detect + JSON passthrough (`render.go`) + per-view table renderers (`table.go`).
 
 ## Working on it
@@ -39,5 +39,5 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 No MCP in v1, no direct DB access (data comes via `/api/v1`), no interactive TUI. Client-side analysis is
 fine; keep the server endpoints thin and raw. Auth is **OAuth only** against the
 server's existing `/oauth/*` (the CLI invents no auth of its own). Server writes are limited to public
-config/run surfaces: `config set`, `rc env set/rm`, and `rc ask`; `rc env pull` writes a local `./.env`
+config/run surfaces: `rc project settings runtime set`, `rc project env set/rm`, and `rc ask`; `rc project env pull` writes a local `./.env`
 only and never prints secret values.

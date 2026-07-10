@@ -7,7 +7,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newThreadCmd builds `rc thread <id>`: the trace of one thread (or session) id — every run for it,
+// newThreadCmd builds `rc run thread <id>`: the trace of one thread (or session) id — every run for it,
 // newest-first, with status/health, placement (draft/note), and a deterministic "where it likely
 // failed" hint. The whole pipeline is in-process: the channel plane assembles the thread from local rows
 // and enqueues a run; placement writes a draft/note back to the mailbox. There is no separate system to

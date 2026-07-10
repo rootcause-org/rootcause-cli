@@ -26,12 +26,12 @@ import (
 // real token store.
 type env struct {
 	profile    string // --profile: an explicit token-store profile (AWS-style override)
-	project    string // --project: select a project's token (and scope) without a brain
+	project    string // --project: server-side project scope; it never selects a token profile
 	tenant     string // --tenant: explicit tenant override where an endpoint accepts it
 	output     string // "", "json", or "table" (from -o/--output)
 	outDir     string // --out-dir: local artifact directory for large stdout/JSON payloads
 	noPreview  bool   // --no-preview: suppress head/tail previews in spill manifests
-	rawOutput  bool   // --raw-output: exact legacy stdout, disabling spill manifests
+	rawOutput  bool   // --raw-output: exact full stdout, disabling spill manifests
 	baseURLOvr string // test-only override of the resolved base URL; empty in normal use
 	tokenOvr   string // test-only static bearer; bypasses the token store + refresh
 
@@ -111,8 +111,27 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		}
 	}
 	root.SetUsageTemplate(strings.ReplaceAll(root.UsageTemplate(), `(or .IsAvailableCommand (eq .Name "help"))`, `.IsAvailableCommand`))
+	makeGroupsStrict(root)
 	annotateCommandScopes(root)
 	return root
+}
+
+// makeGroupsStrict preserves help for a bare group while rejecting stray positional tokens. Cobra's
+// default for a non-runnable group is to print help and succeed even when the token is an unknown child;
+// that would make removed command paths look live after the clean break.
+func makeGroupsStrict(root *cobra.Command) {
+	var walk func(*cobra.Command)
+	walk = func(cmd *cobra.Command) {
+		for _, child := range cmd.Commands() {
+			walk(child)
+		}
+		if cmd == root || len(cmd.Commands()) == 0 || cmd.Run != nil || cmd.RunE != nil {
+			return
+		}
+		cmd.Args = cobra.NoArgs
+		cmd.RunE = func(cmd *cobra.Command, _ []string) error { return cmd.Help() }
+	}
+	walk(root)
 }
 
 // jsonOut reports whether output should be JSON for the current mode + destination.
@@ -131,7 +150,7 @@ func (e *env) mode() render.Mode {
 }
 
 // newClient resolves config for the selected profile and builds an OAuth-authenticated client. The
-// bearer comes from the token store (refreshed transparently); it errors clearly with a "run `rc login`"
+// bearer comes from the token store (refreshed transparently); it errors clearly with a "run `rc auth login`"
 // prompt when there's no stored token. --project is NOT resolved here — it's a server-side scope the
 // commands thread into each read request (see scopeProject). The base URL and token can be overridden in
 // tests.

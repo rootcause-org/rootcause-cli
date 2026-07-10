@@ -46,11 +46,11 @@ func New(baseURL string, tokens TokenSource) *Client {
 }
 
 // BaseURL is the resolved API base URL (no trailing slash). Exposed so a command that composes a
-// dashboard URL for a human (e.g. `rc mailbox connect`) points at the same server the client talks to.
+// dashboard URL for a human (e.g. `rc project mailbox connect`) points at the same server the client talks to.
 func (c *Client) BaseURL() string { return c.baseURL }
 
 // RunsParams are the query filters for GET /api/v1/runs. Zero values are omitted (the server applies
-// its defaults), so `rc status` (no filters) and `rc runs --limit 10` share one path. Project is the
+// its defaults), so `rc status` (no filters) and `rc run list --limit 10` share one path. Project is the
 // explicit scope an all-projects admin token names per request (the `--all` fan-out); a pinned token
 // ignores it server-side.
 type RunsParams struct {
@@ -63,7 +63,7 @@ type RunsParams struct {
 	Tenant   string
 }
 
-// Runs fetches GET /api/v1/runs — the shared endpoint behind both `rc status` and `rc runs`.
+// Runs fetches GET /api/v1/runs — the shared endpoint behind both `rc status` and `rc run list`.
 func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) {
 	q := url.Values{}
 	if p.Limit > 0 {
@@ -99,7 +99,7 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 }
 
 // Projects fetches GET /api/v1/projects — the fleet handles an all-projects admin token may see. Used by
-// `rc projects` and the seed of every `--all` fan-out.
+// `rc project list` and the seed of every `--all` fan-out.
 func (c *Client) Projects(ctx context.Context) (*ProjectsResponse, error) {
 	var out ProjectsResponse
 	if err := c.do(ctx, http.MethodGet, "/api/v1/projects", nil, &out); err != nil {
@@ -155,7 +155,7 @@ func (c *Client) Events(ctx context.Context, id, project, tenant string) (*Event
 }
 
 // Full fetches GET /api/v1/runs/{id}/trace — the whole bundle (run header + per-event trace with the
-// ai_usage join). Used by the table view of `rc run <id> --full`; the JSON path goes through Raw to
+// ai_usage join). Used by the table view of `rc run trace <id>`; the JSON path goes through Raw to
 // keep the renderer's JSONL seam byte-faithful.
 func (c *Client) Full(ctx context.Context, id, project, tenant string) (*FullResponse, error) {
 	var out FullResponse
@@ -170,7 +170,7 @@ func RunTracePath(id, project, tenant string) string {
 }
 
 // BrainDiff fetches GET /api/v1/runs/{id}/brain-diff — the ONE journal commit the run wrote to its
-// brain. Used by the table view of `rc run <id> --brain-diff`; the JSON path goes through Raw to keep
+// brain. Used by the table view of `rc run brain-diff <id>`; the JSON path goes through Raw to keep
 // the passthrough byte-faithful (render, don't reshape).
 func (c *Client) BrainDiff(ctx context.Context, id, project, tenant string) (*BrainDiff, error) {
 	var out BrainDiff

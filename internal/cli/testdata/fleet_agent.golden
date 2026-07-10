@@ -9,4 +9,4 @@ all runs (newest first):
   aaaaaaaa-0000-0000-0000-000000000003  analysis  done  $0.0400  c9k  
   aaaaaaaa-0000-0000-0000-000000000004  analysis  done  $0.0300  c8k  
 
-drill: rc run <id> --debug
+drill: rc run debug <id>

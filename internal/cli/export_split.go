@@ -59,7 +59,7 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 		if v == "" {
 			return nil, fmt.Errorf("corpus front-matter missing harvest_format (expected %s) — refusing to parse a possibly-drifted format", harvestFormatVersion)
 		}
-		return nil, fmt.Errorf("unsupported harvest_format %q (this CLI understands %s) — the server render changed; upgrade rc", v, harvestFormatVersion)
+		return nil, fmt.Errorf("unsupported harvest_format %q (this CLI understands %s) — the server render changed; run `rc self update`", v, harvestFormatVersion)
 	}
 
 	out := &splitCorpus{

@@ -12,7 +12,7 @@ Hosted agent bash already has good progressive disclosure: large stdout/stderr i
 `/tmp/rc-bash/<seq>.<stream>.txt`, while the model receives a head/tail preview, a path, and concrete
 `sed`/`rg`/`jq` hints.
 
-`rc bash run` and other CLI commands do not have an equivalent client-side layer:
+`rc dev console bash run` and other CLI commands do not have an equivalent client-side layer:
 
 - table output can print large blobs inline;
 - `-o json` pretty-prints whatever the server returned;
@@ -24,7 +24,7 @@ Hosted agent bash already has good progressive disclosure: large stdout/stderr i
 
 - Keep server APIs raw and complete. No new server summarization requirement.
 - Make `rc` safe to use from an LLM/coding-agent loop without dumping huge blobs into context.
-- Apply to table, JSON, NDJSON, and plain/text-ish outputs, not only `rc bash run`.
+- Apply to table, JSON, NDJSON, and plain/text-ish outputs, not only `rc dev console bash run`.
 - Preserve full data locally whenever stdout is suppressed or previewed.
 - Print concise, copyable drill-down hints.
 - Keep pipe-first scripting usable.
@@ -60,7 +60,7 @@ Default local directory:
 .rootcause/output/
 ```
 
-Rationale: existing `rc run --debug` already writes local artifacts under `.rootcause/debug/`, and brain
+Rationale: existing `rc run debug` already writes local artifacts under `.rootcause/debug/`, and brain
 repos wholesale-ignore `.rootcause/`. This keeps sensitive run/customer data out of git.
 
 Flags/env:
@@ -159,22 +159,22 @@ when applicable.
 
 Phase 1:
 
-- `rc bash run`
+- `rc dev console bash run`
 - raw JSON passthrough in `internal/cli/console.go`
-- `rc run --events`
-- `rc run --full`
-- `rc run --debug` alignment: keep current files, but emit the same manifest shape when `-o json`
+- `rc run events`
+- `rc run trace`
+- `rc run debug` alignment: keep current files, but emit the same manifest shape when `-o json`
 
 Phase 2:
 
-- `rc fleet`, `rc patterns`, `rc health` when `--all` produces huge merged JSON
-- `rc export download` when stdout target is omitted and body is large
-- `rc routes` / `rc openapi`
+- `rc fleet runs`, `rc fleet patterns`, `rc fleet health` when `--all` produces huge merged JSON
+- `rc project corpus download` when stdout target is omitted and body is large
+- `rc dev api routes` / `rc dev api openapi`
 - collection commands with large values
 
 ## Bash-Specific Behavior
 
-For `rc bash run`:
+For `rc dev console bash run`:
 
 - server still returns its current response body;
 - CLI writes the response JSON to `response.json`;
@@ -205,13 +205,13 @@ not return. It should still spill the captured stream to disk and mark:
 That is a separate concern from client-side progressive disclosure. A later server/console change may
 increase or remove the capture cap; this spec does not require it.
 
-## Raw Compatibility
+## Full-output mode
 
 Because `rc` is pipe-first, callers need an escape hatch:
 
 ```bash
-rc bash run '...' -o json --raw-output
-rc run <id> --full -o json --raw-output
+rc dev console bash run '...' -o json --raw-output
+rc run trace <id> -o json --raw-output
 ```
 
 `--raw-output` means exactly current behavior: write the complete response to stdout and no spill
@@ -230,13 +230,13 @@ manifest. It is intentionally loud in docs because it can flood LLM context.
    - `--out-dir`
    - `--no-preview`
 
-3. Wire `rc bash run` first:
+3. Wire `rc dev console bash run` first:
    - typed response path and raw JSON path both call outputspill;
    - table renderer receives artifact metadata;
    - JSON mode writes manifest.
 
 4. Wire run trace paths:
-   - `--events`, `--full`, `--debug`;
+   - `rc run events`, `rc run trace`, `rc run debug`;
    - normalize debug's current path printing into the manifest shape in JSON mode.
 
 5. Extend high-volume commands.
@@ -255,7 +255,7 @@ Golden/unit tests:
 - no secrets are copied into filenames.
 
 Use existing `internal/cli/golden_test.go` style. For file paths, golden file contents rather than full
-temp paths where possible, like `rc run --debug` tests already do.
+temp paths where possible, like `rc run debug` tests already do.
 
 ## Release / Docs
 

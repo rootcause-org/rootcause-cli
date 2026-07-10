@@ -5,4 +5,4 @@ Resolved by: session id (thread id matched nothing)
 RUN       KIND   STATUS  OUTCOME   CATEGORY  HEALTH  PLACED  CREATED               TOPIC
 cccccccc  email  done    declined  ok        -       note    2026-06-22T11:00:00Z  thanks message
 
-Likely: the agent declined to draft — The sender only said thank you; there is nothing to action, so no draft is warranted. (its own words; full text in `rc run <id> --full`).
+Likely: the agent declined to draft — The sender only said thank you; there is nothing to action, so no draft is warranted. (its own words; full text in `rc run trace <id>`).

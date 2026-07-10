@@ -10,7 +10,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// runsFlags holds the `rc runs` filter flags, bound per-command so each invocation is isolated.
+// runsFlags holds the `rc run list` filter flags, bound per-command so each invocation is isolated.
 type runsFlags struct {
 	limit    int
 	kind     string
@@ -18,14 +18,14 @@ type runsFlags struct {
 	before   string
 }
 
-// newRunsCmd builds `rc runs`: the filterable list view of GET /api/v1/runs, leading with the run
+// newRunListCmd builds `rc run list`: the filterable list view of GET /api/v1/runs, leading with the run
 // table. Filters (limit/kind/category/before) are passed straight to the server as query params; the
 // server owns validation (BAD_LIMIT/BAD_KIND/BAD_CATEGORY/BAD_CURSOR), and the CLI surfaces those
 // codes verbatim rather than second-guessing them.
-func newRunsCmd(e *env) *cobra.Command {
+func newRunListCmd(e *env) *cobra.Command {
 	var f runsFlags
 	cmd := &cobra.Command{
-		Use:   "runs",
+		Use:   "list",
 		Short: "List recent runs (filterable)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {

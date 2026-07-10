@@ -20,7 +20,7 @@ Daily timeline:
   DAY         RUNS  ERR  COST
   2026-06-22  4     1    $1.0400
 
-Worst offenders (full ids — `rc run <id> --debug`):
+Worst offenders (full ids — `rc run debug <id>`):
   Top cost:
     aaaaaaaa-0000-0000-0000-000000000001 $0.9200 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
     aaaaaaaa-0000-0000-0000-000000000002 $0.0500 — analysis, done · $0.0500 · 40s · 5t · ctx 12k

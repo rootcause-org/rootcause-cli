@@ -41,8 +41,8 @@ func newCapabilitiesCmd(e *env) *cobra.Command {
 	}
 }
 
-func newDBCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "db", Short: "Run guarded production database reads"}
+func newConsoleDatabaseCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{Use: "database", Short: "Run guarded production database reads"}
 	cmd.AddCommand(
 		&cobra.Command{
 			Use:   "list",

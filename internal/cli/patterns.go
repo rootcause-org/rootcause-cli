@@ -10,7 +10,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newPatternsCmd builds `rc patterns`: the failure/pattern miner over the THIN /run-events + /egress-log
+// newPatternsCmd builds `rc fleet patterns`: the failure/pattern miner over the THIN /run-events + /egress-log
 // feeds (both paged), porting run_patterns.py's bash-failure + blocked-egress clustering with masked
 // signatures and a `suggested fix:` stub per cluster. The server ships raw rows; ALL masking/grouping/
 // ranking happens client-side. -o json is a raw passthrough of the paged event + egress rows.

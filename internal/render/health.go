@@ -1,4 +1,4 @@
-// This file is the FAT side of `rc health`: it rolls up the THIN /api/v1/health raw rows into the
+// This file is the FAT side of `rc fleet health`: it rolls up the THIN /api/v1/health raw rows into the
 // healthy/unhealthy sections health.py renders, and reports the overall verdict so the command can exit
 // non-zero (CI/cron usable). The server ships raw mirror_health + watched-mailbox + dead-lettered rows
 // with NO verdict; the staleness rule (a mirror that hasn't synced in >STALE_HOURS is stale even if its

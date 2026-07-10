@@ -29,25 +29,20 @@ func newTopLevelCommands(e *env, root *cobra.Command, version string) []*cobra.C
 	return []*cobra.Command{status, ask, run, project, dev, fleet, admin, auth, self}
 }
 
-func commandNamed(cmd *cobra.Command, use string) *cobra.Command {
-	cmd.Use = use
-	return cmd
-}
-
 func newProjectSurfaceCmd(e *env, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "project", Short: "Manage project configuration and resources"}
 	cmd.AddCommand(
-		commandNamed(newProjectsCmd(e), "list"),
+		newProjectListCmd(e),
 		projectRenameCmd(e),
 		newProjectSettingsSurfaceCmd(e),
 		newTenantCmd(e),
 		newMailboxCmd(e),
 		newTriageCmd(e),
-		commandNamed(newSpamCmd(e), "senders"),
+		newSpamCmd(e),
 		newModelKeyCmd(e),
 		newConnectionCmd(e),
 		newKnowledgeCmd(e, version),
-		commandNamed(newExportCmd(e), "corpus"),
+		newCorpusCmd(e),
 		newDatabaseCmd(e),
 		newRepoCmd(e),
 		newMemberCmd(e),
@@ -55,7 +50,7 @@ func newProjectSurfaceCmd(e *env, version string) *cobra.Command {
 		newBrandingCmd(e),
 		newEnvCmd(e),
 		newGitHubCmd(e),
-		commandNamed(newActionConfigCmd(e), "action-settings"),
+		newActionConfigCmd(e),
 	)
 	return cmd
 }
@@ -64,14 +59,13 @@ func newProjectSettingsSurfaceCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "settings", Short: "Read, change, and describe project settings"}
 	runtime := &cobra.Command{Use: "runtime", Short: "Manage flat runtime settings"}
 	runtime.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"))
-	behavior := commandNamed(newProjectHierarchySettingsCmd(e), "behavior")
-	cmd.AddCommand(runtime, behavior, commandNamed(newExplainCmd(e), "describe <key>"), newSchemaCmd(e))
+	cmd.AddCommand(runtime, newProjectHierarchySettingsCmd(e), newExplainCmd(e), newSchemaCmd(e))
 	return cmd
 }
 
 func newModelKeyCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "model-key", Short: "Manage model-provider credentials"}
-	cmd.AddCommand(commandNamed(newOpenRouterKeyCmd(e), "openrouter"))
+	cmd.AddCommand(newOpenRouterKeyCmd(e))
 	return cmd
 }
 
@@ -88,7 +82,7 @@ func newKnowledgeCmd(e *env, version string) *cobra.Command {
 func newDevCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "dev", Short: "Develop and inspect project behavior"}
 	console := &cobra.Command{Use: "console", Short: "Use guarded production consoles"}
-	console.AddCommand(commandNamed(newDBCmd(e), "database"), newBashCmd(e), newActionCmd(e), newCapabilitiesCmd(e))
+	console.AddCommand(newConsoleDatabaseCmd(e), newBashCmd(e), newActionCmd(e), newCapabilitiesCmd(e))
 	learning := &cobra.Command{Use: "learning", Short: "Inspect learning and consolidation inputs"}
 	learning.AddCommand(dreamEvidenceCmd(e))
 	api := &cobra.Command{Use: "api", Short: "Inspect the public API contract"}
@@ -101,19 +95,19 @@ func newDevCmd(e *env) *cobra.Command {
 
 func newFleetSurfaceCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "fleet", Short: "Operate and inspect project health"}
-	cmd.AddCommand(commandNamed(newFleetCmd(e), "runs"), newHealthCmd(e), newPatternsCmd(e))
+	cmd.AddCommand(newFleetRunsCmd(e), newHealthCmd(e), newPatternsCmd(e))
 	return cmd
 }
 
 func newAuthCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "auth", Short: "Manage local authentication and inspect access"}
-	cmd.AddCommand(newLoginCmd(e), newLogoutCmd(e), commandNamed(newWhoamiCmd(e), "status"), newAccessCmd(e))
+	cmd.AddCommand(newLoginCmd(e), newLogoutCmd(e), newAuthStatusCmd(e), newAccessCmd(e))
 	return cmd
 }
 
 func newSelfCmd(e *env, root *cobra.Command, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "self", Short: "Manage the rc installation and shell integration"}
-	cmd.AddCommand(commandNamed(newUpgradeCmd(e, version), "update"), newCompletionCmd(root))
+	cmd.AddCommand(newSelfUpdateCmd(e, version), newCompletionCmd(root))
 	return cmd
 }
 

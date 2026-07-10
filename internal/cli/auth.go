@@ -17,7 +17,7 @@ import (
 // up (a generous window — the device flow's own expiry usually fires first).
 const loginTimeout = 10 * time.Minute
 
-// newLoginCmd builds `rc login` — the OAuth sign-in. By default it runs the PKCE loopback flow (opens a
+// newLoginCmd builds `rc auth login` — the OAuth sign-in. By default it runs the PKCE loopback flow (opens a
 // browser, catches the redirect on a localhost port); --device runs the RFC 8628 device flow for an
 // SSH/headless box (print a code, approve it in a browser anywhere). The resulting access + refresh
 // tokens are stored under the resolved profile in the 0600 token store; every later `rc` refreshes the
@@ -82,8 +82,8 @@ func newLoginCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// newLogoutCmd builds `rc logout` — revoke the profile's tokens server-side (best-effort) and clear them
-// from the local store. After this the profile is signed out; `rc login` signs back in.
+// newLogoutCmd builds `rc auth logout` — revoke the profile's tokens server-side (best-effort) and clear them
+// from the local store. After this the profile is signed out; `rc auth login` signs back in.
 func newLogoutCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "logout",
@@ -134,12 +134,12 @@ func newLogoutCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// newWhoamiCmd builds `rc whoami` — answer "which profile/project will rc hit from here, am I signed
+// newAuthStatusCmd builds `rc auth status` — answer "which profile/project will rc hit from here, am I signed
 // in, and which project/tenant is the login bound to?" Local config supplies the checkout/profile view;
 // /api/v1/whoami supplies the token-bound scope when a token is present.
-func newWhoamiCmd(e *env) *cobra.Command {
+func newAuthStatusCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "whoami",
+		Use:   "status",
 		Short: "Show the resolved profile/project/login tenant + sign-in status",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -168,7 +168,7 @@ func newWhoamiCmd(e *env) *cobra.Command {
 					autoProject = res.Brain.Project
 				}
 			}
-			status, expiry := "not logged in — run `rc login`", ""
+			status, expiry := "not logged in — run `rc auth login`", ""
 			if loggedIn {
 				status = "logged in"
 				if !t.ExpiresAt.IsZero() {

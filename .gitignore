@@ -2,6 +2,6 @@
 /rc
 /dist/
 
-# `rc run <id> --debug` default output dir
+# `rc run debug <id>` default output dir
 /rc-debug/
 /.rootcause/

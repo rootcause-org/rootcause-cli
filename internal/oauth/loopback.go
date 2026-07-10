@@ -69,7 +69,7 @@ func (c *Client) LoginPKCE(ctx context.Context, opener func(string) error, out i
 		// A failed open is non-fatal: the URL is already printed for a manual paste.
 		if err := opener(authURL); err != nil {
 			_, _ = fmt.Fprintf(out, "Browser open failed: %v\n", err)
-			_, _ = fmt.Fprintln(out, "Use the sign-in URL above, or cancel and run `rc login --device` on headless/SSH.")
+			_, _ = fmt.Fprintln(out, "Use the sign-in URL above, or cancel and run `rc auth login --device` on headless/SSH.")
 		}
 	}
 

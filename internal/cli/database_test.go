@@ -53,7 +53,7 @@ func TestDatabasePreviewForwardsTenantAndPrincipal(t *testing.T) {
 	srv := httptest.NewServer(previewMux(t, &gotPath, &gotBody))
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "kampadmin", "database", "preview", "PREVIEW_DSN",
+	if err := run(t, e, "--project", "kampadmin", "project", "database", "preview", "PREVIEW_DSN",
 		"--tenant", "lbv", "--principal-kind", "kampadmin_person", "--principal-id", "p-1"); err != nil {
 		t.Fatalf("database preview: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestDatabasePreviewTableRender(t *testing.T) {
 	srv := httptest.NewServer(previewMux(t, nil, nil))
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--project", "kampadmin", "database", "preview", "PREVIEW_DSN", "--tenant", "lbv",
+	if err := run(t, e, "--project", "kampadmin", "project", "database", "preview", "PREVIEW_DSN", "--tenant", "lbv",
 		"--principal-kind", "kampadmin_person", "--principal-id", "p-1"); err != nil {
 		t.Fatalf("database preview table: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestDatabasePreviewPrincipalPairValidated(t *testing.T) {
 	srv := httptest.NewServer(previewMux(t, nil, nil))
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "json")
-	err := run(t, e, "--project", "kampadmin", "database", "preview", "PREVIEW_DSN", "--principal-kind", "kampadmin_person")
+	err := run(t, e, "--project", "kampadmin", "project", "database", "preview", "PREVIEW_DSN", "--principal-kind", "kampadmin_person")
 	if err == nil || !strings.Contains(err.Error(), "must be provided together") {
 		t.Fatalf("lone principal-kind = %v, want a pair error", err)
 	}

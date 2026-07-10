@@ -1,6 +1,5 @@
-// This file renders the connection-backed WATCHED-mailbox views (`rc project mailbox ls|mode`): the live
-// inbox watch with its subscription/sync-cursor lifecycle. The legacy email-keyed routing table
-// (`rc mailbox route`) renders through the generic collection views instead.
+// This file renders the connection-backed watched-mailbox views under `rc project mailbox`: the live
+// inbox watch with its subscription/sync-cursor lifecycle.
 package render
 
 import (

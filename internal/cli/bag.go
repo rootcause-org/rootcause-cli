@@ -13,8 +13,8 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// This file factors the config-bag command shape shared by `rc config` (settings), `rc kb`, `rc
-// branding`, and `rc action config`. Every bag is GET/PATCH /api/v1/<bag> returning the same generic
+// This file factors the config-bag command shape shared by project runtime settings, knowledge sync,
+// branding, and action settings. Every bag is GET/PATCH /api/v1/<bag> returning the same generic
 // {key:{value,effective,default,source}} map, so ONE pair of get/set builders — parameterized by the
 // bag's base path — serves them all. The server owns the whitelist + validation; the CLI shapes the
 // sparse PATCH (schema-aware value coercion) and renders the result, JSON passthrough included.
@@ -181,11 +181,10 @@ func logoContentType(path string, data []byte) string {
 	}
 }
 
-// newActionConfigCmd builds `rc action config get|set` over GET/PATCH /api/v1/action — the operator-tier
-// action-plane wiring (enabled/mode/runner_url/result_url + the write-only reverse secret). Added under
-// the existing `rc action` command.
+// newActionConfigCmd builds `rc project action-settings get|set` over GET/PATCH /api/v1/action — the
+// operator-tier action-plane wiring (enabled/mode/runner_url/result_url + the write-only reverse secret).
 func newActionConfigCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "config", Short: "Read or change action-plane config (operator-tier)"}
+	cmd := &cobra.Command{Use: "action-settings", Short: "Read or change action-plane config (operator-tier)"}
 	cmd.AddCommand(newBagGetCmd(e, "/api/v1/action"), newBagSetCmd(e, "/api/v1/action"))
 	return cmd
 }

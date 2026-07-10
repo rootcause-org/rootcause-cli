@@ -33,10 +33,44 @@ func TestCommandSurface(t *testing.T) {
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("visible roots = %v, want %v", got, want)
 	}
-	for _, retired := range []string{"runs", "projects", "login", "config", "mailbox", "brain", "routes", "upgrade"} {
+	retiredRoots := []string{
+		"access", "action", "bash", "brain", "branding", "capabilities", "config", "connection",
+		"database", "db", "dream", "env", "explain", "export", "github", "health", "id", "kb",
+		"login", "logout", "mailbox", "member", "openapi", "patterns", "projects", "provider", "repo",
+		"routes", "runs", "schema", "spam", "tenant", "thread", "token", "triage", "upgrade", "whoami",
+	}
+	for _, retired := range retiredRoots {
 		if cmd, _, err := root.Find([]string{retired}); err == nil && cmd.Name() == retired {
 			t.Errorf("retired root %q is still registered", retired)
 		}
+		t.Run("retired root "+retired, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			retiredRoot := newRootCmd(&env{out: &out, err: &errOut}, "test")
+			retiredRoot.SetOut(&out)
+			retiredRoot.SetErr(&errOut)
+			retiredRoot.SetArgs([]string{retired})
+			if err := retiredRoot.Execute(); err == nil {
+				t.Fatalf("retired root succeeded: rc %s", retired)
+			}
+		})
+	}
+	for _, retired := range []string{
+		"run fake-id",
+		"dev brain refresh",
+		"project senders list",
+		"project triage rules list",
+		"project mailbox route",
+	} {
+		t.Run("retired path "+retired, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+			retiredRoot := newRootCmd(&env{out: &out, err: &errOut}, "test")
+			retiredRoot.SetOut(&out)
+			retiredRoot.SetErr(&errOut)
+			retiredRoot.SetArgs(strings.Fields(retired))
+			if err := retiredRoot.Execute(); err == nil {
+				t.Fatalf("retired path succeeded: rc %s", retired)
+			}
+		})
 	}
 	if cmd, _, err := root.Find([]string{"self", "completion"}); err != nil || cmd.Name() != "completion" {
 		t.Fatalf("self completion missing: cmd=%v err=%v", cmd, err)

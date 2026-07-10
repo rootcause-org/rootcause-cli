@@ -1,7 +1,6 @@
 // Package token is the on-disk OAuth credential store: ~/.config/rootcause/tokens.json (0600), a
-// per-profile record of {access_token, refresh_token, expiry, base_url}. It replaces the legacy
-// per-brain .rootcause.secret.toml and the ROOTCAUSE_API_KEY path — under the OAuth-only cutover the
-// CLI holds no static key, only short-lived access tokens it refreshes from a stored refresh token.
+// per-profile record of {access_token, refresh_token, expiry, base_url}. The CLI is OAuth-only: it
+// holds no static API key, only short-lived access tokens refreshed from a stored refresh token.
 //
 // The store is intentionally dumb: it persists and returns what it's given. WHO refreshes (and the
 // pre-expiry/401 policy) lives one layer up, in the CLI's token source — this package only owns the
@@ -85,7 +84,7 @@ func Save(profile string, t Token) error {
 	return write(sf)
 }
 
-// Delete removes the token for profile (a no-op if absent). Used by `rc logout`.
+// Delete removes the token for profile (a no-op if absent). Used by `rc auth logout`.
 func Delete(profile string) error {
 	sf, err := read()
 	if err != nil {
@@ -122,7 +121,7 @@ func read() (storeFile, error) {
 	}
 	var sf storeFile
 	if err := json.Unmarshal(data, &sf); err != nil {
-		return storeFile{}, fmt.Errorf("parse %s: %w (delete it and `rc login` again)", path, err)
+		return storeFile{}, fmt.Errorf("parse %s: %w (delete it and `rc auth login` again)", path, err)
 	}
 	if sf.Profiles == nil {
 		sf.Profiles = map[string]Token{}

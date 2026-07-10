@@ -31,8 +31,6 @@ type askFlags struct {
 	assertedBy    string
 	assurance     string
 	attachPaths   []string
-	pathPaths     []string
-	podPaths      []string
 	noWait        bool
 	timeout       time.Duration
 }
@@ -41,7 +39,7 @@ const defaultAskFrom = "rc-ask@example.test"
 
 // newAskCmd builds `rc ask "<question>"` — the trigger verb. It POSTs the prompt to /api/v1/runs
 // (OAuth-authed, optionally ?project=-scoped), then by DEFAULT waits, polling /runs/{id} until the run
-// reaches a terminal status, and prints the same summary as `rc run <id>`. --no-wait returns the run_id
+// reaches a terminal status, and prints the same summary as `rc run show <id>`. --no-wait returns the run_id
 // immediately. --brain-ref runs the question against a non-main brain ref (a dev/* branch) — the project
 // dev's "test without pushing main" loop. The CLI stays thin: it triggers + polls + renders; all run
 // logic lives server-side.
@@ -70,7 +68,7 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			attachments, err := readAskAttachments(append(append(f.attachPaths, f.pathPaths...), f.podPaths...))
+			attachments, err := readAskAttachments(f.attachPaths)
 			if err != nil {
 				return err
 			}
@@ -102,7 +100,7 @@ func newAskCmd(e *env) *cobra.Command {
 					return render.JSON(e.out, raw)
 				}
 				_, _ = fmt.Fprintln(e.out, sub.RunID)
-				_, _ = fmt.Fprintf(e.err, "submitted — poll with: rc run %s\n", sub.RunID)
+				_, _ = fmt.Fprintf(e.err, "submitted — poll with: rc run show %s\n", sub.RunID)
 				return nil
 			}
 
@@ -129,7 +127,7 @@ func newAskCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&f.scenario, "scenario", "email", "answer shape: email or raw (alias: mcp)")
+	cmd.Flags().StringVar(&f.scenario, "scenario", "email", "answer shape: email or raw")
 	cmd.Flags().StringVar(&f.from, "from", defaultAskFrom, "sender address for --scenario email")
 	cmd.Flags().StringVar(&f.subject, "subject", "", "subject for --scenario email (default: compact prompt first line)")
 	cmd.Flags().StringVar(&f.effort, "effort", "", "reasoning effort override: default, pro, or max")
@@ -140,9 +138,6 @@ func newAskCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&f.assertedBy, "asserted-by", "", "who asserted the principal (default server-side); requires the --principal-kind/--principal-id pair")
 	cmd.Flags().StringVar(&f.assurance, "assurance", "", "assurance level of the principal assertion (default server-side); requires the --principal-kind/--principal-id pair")
 	cmd.Flags().StringArrayVar(&f.attachPaths, "attach", nil, "attach a local file to the synthetic run (repeatable)")
-	cmd.Flags().StringArrayVar(&f.pathPaths, "path", nil, "alias for --attach")
-	cmd.Flags().StringArrayVar(&f.podPaths, "pod", nil, "alias for --attach")
-	_ = cmd.Flags().MarkHidden("pod")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")
 	return cmd
@@ -192,7 +187,7 @@ func normalizeAskScenario(v string) (string, error) {
 	switch scenario := strings.TrimSpace(strings.ToLower(v)); scenario {
 	case "", "email":
 		return "email", nil
-	case "raw", "mcp":
+	case "raw":
 		return "raw", nil
 	default:
 		return "", fmt.Errorf("invalid --scenario %q (want email or raw)", scenario)

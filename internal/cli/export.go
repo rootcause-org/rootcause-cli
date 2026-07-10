@@ -11,12 +11,12 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newExportCmd builds the `rc export` group over the local-synthesis export API: `ls`/`get` read the
+// newCorpusCmd builds the `rc project corpus` group over the local-synthesis export API: `ls`/`get` read the
 // harvest/survey corpus exports, and `download` fetches the Markdown corpus — to stdout, to a file, or
 // split into a per-thread tree the local dream-cycle can grep. All endpoints need a connections:manage
 // token; an all-projects token scopes with --project.
-func newExportCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "export", Short: "Read local-synthesis corpus exports (harvest/survey)"}
+func newCorpusCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{Use: "corpus", Short: "Read local-synthesis corpus exports (harvest/survey)"}
 	cmd.AddCommand(
 		exportLsCmd(e),
 		exportGetCmd(e),

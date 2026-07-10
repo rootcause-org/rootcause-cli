@@ -101,7 +101,7 @@ func isolatedConfig(t *testing.T) {
 	t.Setenv("ROOTCAUSE_BASE_URL", "")
 }
 
-// TestLoginDeviceStoresToken: `rc login --device` runs the device flow and persists the token under the
+// TestLoginDeviceStoresToken: `rc auth login --device` runs the device flow and persists the token under the
 // resolved profile at 0600.
 func TestLoginDeviceStoresToken(t *testing.T) {
 	isolatedConfig(t)
@@ -109,8 +109,8 @@ func TestLoginDeviceStoresToken(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{profile: "default", baseURLOvr: stub.srv.URL, out: &out, err: &errb}
-	if err := run(t, e, "login", "--device"); err != nil {
-		t.Fatalf("login --device: %v (stderr=%s)", err, errb.String())
+	if err := run(t, e, "auth", "login", "--device"); err != nil {
+		t.Fatalf("auth login --device: %v (stderr=%s)", err, errb.String())
 	}
 	if stub.polls.Load() < 2 {
 		t.Errorf("expected the poll loop to run at least twice, got %d", stub.polls.Load())
@@ -140,7 +140,7 @@ func TestLoginDeviceStoresToken(t *testing.T) {
 	}
 }
 
-// TestLogoutRevokesAndClears: `rc logout` revokes server-side and clears the local store.
+// TestLogoutRevokesAndClears: `rc auth logout` revokes server-side and clears the local store.
 func TestLogoutRevokesAndClears(t *testing.T) {
 	isolatedConfig(t)
 	stub := newOAuthStub(t)
@@ -151,7 +151,7 @@ func TestLogoutRevokesAndClears(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{profile: "default", baseURLOvr: stub.srv.URL, out: &out, err: &errb}
-	if err := run(t, e, "logout"); err != nil {
+	if err := run(t, e, "auth", "logout"); err != nil {
 		t.Fatalf("logout: %v", err)
 	}
 	if stub.revoked.Load() == 0 {
@@ -162,7 +162,7 @@ func TestLogoutRevokesAndClears(t *testing.T) {
 	}
 }
 
-// TestWhoamiLocal: `rc whoami` reports the brain project, login scope, and logged-in status.
+// TestWhoamiLocal: `rc auth status` reports the brain project, login scope, and logged-in status.
 func TestWhoamiLocal(t *testing.T) {
 	isolatedConfig(t)
 	srv := newWhoamiStub(t, `{"all_projects":false,"project":{"id":"11111111-1111-1111-1111-111111111111","name":"momentum-tools"}}`)
@@ -180,7 +180,7 @@ func TestWhoamiLocal(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{output: "table", out: &out, err: &errb}
-	if err := run(t, e, "whoami"); err != nil {
+	if err := run(t, e, "auth", "status"); err != nil {
 		t.Fatalf("whoami: %v", err)
 	}
 	got := out.String()
@@ -208,7 +208,7 @@ func TestWhoamiBrainFallsBackToDefaultProfile(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{output: "table", out: &out, err: &errb}
-	if err := run(t, e, "whoami"); err != nil {
+	if err := run(t, e, "auth", "status"); err != nil {
 		t.Fatalf("whoami: %v", err)
 	}
 	got := out.String()
@@ -246,7 +246,7 @@ func TestWhoamiUnknownProjectFailsWithProjectsHint(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{output: "json", out: &out, err: &errb}
-	err := run(t, e, "--project", "pb-admin", "whoami")
+	err := run(t, e, "--project", "pb-admin", "auth", "status")
 	if err == nil {
 		t.Fatal("expected unknown-project error, got nil")
 	}
@@ -258,7 +258,7 @@ func TestWhoamiUnknownProjectFailsWithProjectsHint(t *testing.T) {
 		}
 	}
 	if strings.Contains(out.String(), `"project"`) {
-		t.Errorf("whoami should fail before rendering project JSON, got:\n%s", out.String())
+		t.Errorf("auth status should fail before rendering project JSON, got:\n%s", out.String())
 	}
 }
 
@@ -286,7 +286,7 @@ func TestWhoamiShowsLocalTenantSource(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{output: "table", out: &out, err: &errb}
-	if err := run(t, e, "whoami"); err != nil {
+	if err := run(t, e, "auth", "status"); err != nil {
 		t.Fatalf("whoami: %v", err)
 	}
 	got := out.String()
@@ -314,7 +314,7 @@ func TestWhoamiJSONIncludesTenantSource(t *testing.T) {
 
 	var out, errb bytes.Buffer
 	e := &env{output: "json", out: &out, err: &errb}
-	if err := run(t, e, "--tenant", "other", "whoami"); err != nil {
+	if err := run(t, e, "--tenant", "other", "auth", "status"); err != nil {
 		t.Fatalf("whoami: %v", err)
 	}
 	var got map[string]any
@@ -396,7 +396,7 @@ func TestRefreshConcurrentRotation(t *testing.T) {
 	}
 }
 
-// TestRefreshDeadTokenPromptsReauth: a dead refresh token surfaces a "run `rc login`" error.
+// TestRefreshDeadTokenPromptsReauth: a dead refresh token surfaces a "run `rc auth login`" error.
 func TestRefreshDeadTokenPromptsReauth(t *testing.T) {
 	isolatedConfig(t)
 	stub := newOAuthStub(t)

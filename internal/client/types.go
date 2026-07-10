@@ -223,7 +223,7 @@ type ActionExecResponse struct {
 
 // RunSummary is one row of GET /api/v1/runs. FinishedAt/DurationMs are absent on an unfinished run.
 // Topic/DeclinedReason and the Health block are operator-tier extras the server attaches for a
-// developer/admin bearer — `rc fleet` reads them for the digest's flags + cost. They're absent (zero/nil)
+// developer/admin bearer — `rc fleet runs` reads them for the digest's flags + cost. They're absent (zero/nil)
 // for a baseline bearer, so the digest degrades to the safe columns rather than erroring.
 type RunSummary struct {
 	RunID          string     `json:"run_id"`
@@ -682,7 +682,7 @@ type BrainDiff struct {
 }
 
 // ThreadTrace is GET /api/v1/threads/{id}/trace — every run for one thread (or session) id, newest-first,
-// each a full RunSummary (status + safe health), so `rc thread` can answer "why did this thread get no
+// each a full RunSummary (status + safe health), so `rc run thread` can answer "why did this thread get no
 // draft". ResolvedBy is "thread" | "session" | "none". Mirrors the server's threadTraceResponse
 // field-for-field.
 type ThreadTrace struct {
@@ -692,7 +692,7 @@ type ThreadTrace struct {
 }
 
 // WatchedMailbox is one row of GET /api/v1/mailboxes/watched — a connection-backed mailbox the channel
-// plane actively watches (NOT the legacy email-keyed routing table behind `rc mailbox route`). Field
+// plane actively watches. Field
 // names mirror the server verbatim. Tenant/SubscriptionExpiresAt/ErrorMessage are omitempty: absent for
 // a non-tenant mailbox / a provider without a renewable subscription / a healthy mailbox.
 type WatchedMailbox struct {
@@ -745,7 +745,7 @@ type ExportList struct {
 	Exports []ExportItem `json:"exports"`
 }
 
-// Project is one row of GET /api/v1/projects — a fleet handle (id + name). It's what `rc projects`
+// Project is one row of GET /api/v1/projects — a fleet handle (id + name). It's what `rc project list`
 // renders and the seed the `--all` fan-out lists before hitting each project's read surface with
 // ?project=<id>. Mirrors the server's projectItem field-for-field.
 type Project struct {
@@ -792,7 +792,7 @@ type WhoamiResponse struct {
 
 // --- observability feeds (rc fleet / patterns / health) ---
 
-// RunEvent is one raw run_events row from GET /api/v1/run-events — the bulk feed `rc patterns`
+// RunEvent is one raw run_events row from GET /api/v1/run-events — the bulk feed `rc fleet patterns`
 // clusters locally (bash-failure themes, recurring error signatures). Args is raw JSON (the bash
 // command lives at args.command). RunKind/RunCreatedAt are the parent run's, carried for the keyset
 // page + per-kind grouping. Field names match the server verbatim.
@@ -839,7 +839,7 @@ type RunEventsResponse struct {
 	NextBefore string     `json:"next_before,omitempty"`
 }
 
-// EgressRow is one raw egress_log row from GET /api/v1/egress-log — the bulk feed `rc patterns`
+// EgressRow is one raw egress_log row from GET /api/v1/egress-log — the bulk feed `rc fleet patterns`
 // clusters into blocked-host signatures. Decision is "block" for a blocked attempt.
 type EgressRow struct {
 	RunID        string `json:"run_id"`
@@ -880,7 +880,7 @@ type EgressResponse struct {
 	NextBefore string      `json:"next_before,omitempty"`
 }
 
-// HealthMirror is one raw mirror_health row from GET /api/v1/health — the input `rc health` applies its
+// HealthMirror is one raw mirror_health row from GET /api/v1/health — the input `rc fleet health` applies its
 // staleness/state rule to. HoursSinceOK is nil when the mirror never succeeded (the CLI renders "never").
 type HealthMirror struct {
 	Repo                string   `json:"repo"`
@@ -921,7 +921,7 @@ type HealthResponse struct {
 }
 
 // EnvResponse is GET /api/v1/env — the resolved grounding env. Keys holds live secret VALUES (the
-// whole point: `rc env pull` writes them to ./.env). The CLI NEVER prints a value: it renders key
+// whole point: `rc project env pull` writes them to ./.env). The CLI NEVER prints a value: it renders key
 // NAMES only and writes values solely to the 0600 file.
 type EnvResponse struct {
 	Project string            `json:"project"`

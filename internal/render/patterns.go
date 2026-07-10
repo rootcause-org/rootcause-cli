@@ -1,4 +1,4 @@
-// This file is the FAT side of `rc patterns`: it ports run_patterns.py's clustering over the THIN
+// This file is the FAT side of `rc fleet patterns`: it ports run_patterns.py's clustering over the THIN
 // /run-events + /egress-log feeds — the bash-failure signatures, the recurring stderr/error themes,
 // and the blocked-egress host clusters, each ending in a `suggested fix:` stub for the reviewing LLM.
 // The server ships raw rows; ALL masking/grouping/ranking happens here (the doctrine). The command layer
@@ -219,7 +219,7 @@ func excerpt(e client.RunEvent) []string {
 }
 
 // egressCluster is one (host) blocked-egress signature, ranked by count (run_patterns.py cluster_egress,
-// minus the project axis — `rc patterns` is already one project).
+// minus the project axis — `rc fleet patterns` is already one project).
 type egressCluster struct {
 	host  string
 	count int

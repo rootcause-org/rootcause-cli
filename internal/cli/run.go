@@ -25,18 +25,22 @@ const (
 	runViewBrainDiff
 )
 
-// newRunCmd keeps `rc run <id>` as the terse show shorthand and puts every other view under an
-// explicit verb, so scripts never depend on mutually-exclusive presentation flags.
+// newRunCmd owns the explicit run lifecycle verbs. The group itself accepts no positional shorthand;
+// scripts use one stable view command (`show`, `events`, `trace`, `debug`, or `brain-diff`).
 func newRunCmd(e *env) *cobra.Command {
-	cmd := newRunViewCmd(e, "run <id>", "Inspect and manage the run lifecycle", runViewShow)
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Inspect and manage the run lifecycle",
+		Args:  cobra.NoArgs,
+	}
 	cmd.AddCommand(
-		commandNamed(newRunsCmd(e), "list"),
+		newRunListCmd(e),
 		newRunViewCmd(e, "show <id>", "Show one run", runViewShow),
 		newRunViewCmd(e, "events <id>", "Show the full per-event trace", runViewEvents),
 		newRunViewCmd(e, "trace <id>", "Show the whole run bundle", runViewTrace),
 		newRunViewCmd(e, "debug <id>", "Decompose a run into local debug artifacts", runViewDebug),
 		newRunViewCmd(e, "brain-diff <id>", "Show the brain commit written by a run", runViewBrainDiff),
-		commandNamed(newThreadCmd(e), "thread <id>"),
+		newThreadCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),
 	)
@@ -57,7 +61,7 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 			}
 			jsonMode := render.IsJSON(e.mode(), e.out)
 
-			// --debug: decompose the /trace bundle into a jq-able JSONL + a thin markdown index on disk, then
+			// Debug view: decompose the /trace bundle into a jq-able JSONL + a thin markdown index on disk, then
 			// print the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
 			if view == runViewDebug {
 				outDir := e.outDir
@@ -233,7 +237,7 @@ func cellOf(it client.Item, key string) string {
 	return ""
 }
 
-// defaultDebugDir is where `rc run <id> --debug` writes its two files unless --out-dir overrides it.
+// defaultDebugDir is where `rc run debug <id>` writes its two files unless --out-dir overrides it.
 // All rc local artifacts live under the wholesale-gitignored `.rootcause/` dir (one ignore rule covers
 // every subfolder); brains seed `/.rootcause/` so these dumps (real run data, PII) never get committed.
 const defaultDebugDir = ".rootcause/debug"
@@ -288,7 +292,7 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 				"jq -r 'select(.type==\"event\")' " + outputspill.ShellQuote(jsonlArt.Path),
 				"jq -r 'select(.disp==\"1\")' " + outputspill.ShellQuote(jsonlArt.Path),
 			},
-			RawModeHint: "rerun with --raw-output to print legacy debug paths to stdout",
+			RawModeHint: "rerun with --raw-output to print the debug paths to stdout",
 		})
 	}
 

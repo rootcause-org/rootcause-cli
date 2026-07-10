@@ -1,4 +1,4 @@
-// This file renders `rc thread <id>` — the trace of one thread/session: how the id resolved, a
+// This file renders `rc run thread <id>` — the trace of one thread/session: how the id resolved, a
 // newest-first table of its runs with health flags + placement (draft/note), and a deterministic "where
 // it likely failed" hint when the newest run errored/declined. The whole pipeline is in-process: the
 // channel plane assembles the thread and enqueues a run, then placement writes a draft/note back to the
@@ -85,7 +85,7 @@ func placement(r client.RunSummary) string {
 
 // healthFlags compresses the safe per-run health counts/flags into a terse triage cell — only the
 // signals that are ON show, so a clean run reads "-". These are the same fields the run index ships and
-// `rc fleet` flags on; the customer-safe subset (no spend) so this stays useful for a customer in their
+// `rc fleet runs` flags on; the customer-safe subset (no spend) so this stays useful for a customer in their
 // brain. nil health (the server omitted the block) → "-".
 func healthFlags(h *client.RunHealth) string {
 	if h == nil {
@@ -130,21 +130,21 @@ func threadFailureHint(r *client.RunSummary) string {
 	switch r.Outcome {
 	case "answered":
 		// A draft/note was produced. If no reply is visible in the mailbox, check placement rather than the
-		// run: the draft/note write to the mailbox is the last step (`rc run <id> --full` shows what was placed).
+		// run: the draft/note write to the mailbox is the last step (`rc run trace <id>` shows what was placed).
 		if !r.HasDraft && !r.HasNote {
-			return "the run answered but nothing is recorded as placed — check placement to the mailbox (`rc run <id> --full`)."
+			return "the run answered but nothing is recorded as placed — check placement to the mailbox (`rc run trace <id>`)."
 		}
 		return ""
 	case "stuck":
-		return "the run is stuck (running past the timeout) — it was likely reaped at a guardrail; check the run trace (`rc run <id> --full`)."
+		return "the run is stuck (running past the timeout) — it was likely reaped at a guardrail; check the run trace (`rc run trace <id>`)."
 	case "error":
-		return "the run errored on our side — read it with `rc run <id> --full`; runs.error names the cause."
+		return "the run errored on our side — read it with `rc run trace <id>`; runs.error names the cause."
 	case "declined":
 		why := strings.TrimSpace(r.DeclinedReason)
 		if why != "" {
-			return "the agent declined to draft — " + truncate(why, 120) + " (its own words; full text in `rc run <id> --full`)."
+			return "the agent declined to draft — " + truncate(why, 120) + " (its own words; full text in `rc run trace <id>`)."
 		}
-		return "the agent declined to draft a reply — see `rc run <id> --full` for its reasoning."
+		return "the agent declined to draft a reply — see `rc run trace <id>` for its reasoning."
 	case "failed":
 		// A guardrail fallback note (no real answer). The two guardrail classes need OPPOSITE fixes, so
 		// distinguish them from the run's own words when present (mirrors rc_thread_debug.py).
@@ -155,13 +155,13 @@ func threadFailureHint(r *client.RunSummary) string {
 		case strings.Contains(why, "cost budget") || strings.Contains(why, "wall-clock") || strings.Contains(why, "budget"):
 			return "the run hit its budget (a guardrail fallback note) — raise the run's cost/time cap or tighten the brain skill so it answers in fewer steps."
 		default:
-			return "the run produced a guardrail fallback note, not a real answer — read `rc run <id> --full` to see which guardrail tripped."
+			return "the run produced a guardrail fallback note, not a real answer — read `rc run trace <id>` to see which guardrail tripped."
 		}
 	}
 
 	// running (not yet stuck) or any other non-terminal status: nothing failed yet.
 	if r.Status == "running" {
-		return "the newest run is still running — check back, or trace it with `rc run <id> --full`."
+		return "the newest run is still running — check back, or trace it with `rc run trace <id>`."
 	}
 	return ""
 }

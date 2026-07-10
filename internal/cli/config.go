@@ -11,12 +11,12 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newOpenRouterKeyCmd builds `rc config openrouter-key set|clear|reveal` over the bespoke
+// newOpenRouterKeyCmd builds `rc project model-key openrouter set|clear|reveal` over the bespoke
 // /api/v1/settings/openrouter-key endpoint (PUT/DELETE/POST .../reveal). The key is box-wide. `set`
 // reads the key from STDIN by default (secret hygiene); an explicit arg is accepted but lands in shell
 // history. `reveal` is the only command that prints the value.
 func newOpenRouterKeyCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "openrouter-key", Short: "Manage the OpenRouter API key (set/clear/reveal)"}
+	cmd := &cobra.Command{Use: "openrouter", Short: "Manage the OpenRouter API key (set/clear/reveal)"}
 	cmd.AddCommand(openRouterKeySetCmd(e), openRouterKeyClearCmd(e), openRouterKeyRevealCmd(e))
 	return cmd
 }

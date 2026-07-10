@@ -63,10 +63,9 @@ Flags:
       --effort string           reasoning effort override: default, pro, or max
       --from string             sender address for --scenario email (default "rc-ask@example.test")
       --no-wait                 submit and print the run_id immediately, without waiting
-      --path stringArray        alias for --attach
       --principal-id string     principal external id (the asserted identity); requires --principal-kind
       --principal-kind string   principal kind to scope the run's data (e.g. kampadmin_person); requires --principal-id
-      --scenario string         answer shape: email or raw (alias: mcp) (default "email")
+      --scenario string         answer shape: email or raw (default "email")
       --session string          session id to thread the run onto
       --subject string          subject for --scenario email (default: compact prompt first line)
       --timeout duration        max time to wait for a terminal status (default 5m0s)
@@ -84,7 +83,7 @@ $ rc run --help
 Inspect and manage the run lifecycle
 
 Usage:
-  rc run <id> [flags]
+  rc run [flags]
   rc run [command]
 
 Available Commands:
@@ -269,6 +268,7 @@ $ rc project --help
 Manage project configuration and resources
 
 Usage:
+  rc project [flags]
   rc project [command]
 
 Available Commands:
@@ -337,6 +337,7 @@ $ rc project settings --help
 Read, change, and describe project settings
 
 Usage:
+  rc project settings [flags]
   rc project settings [command]
 
 Available Commands:
@@ -360,6 +361,7 @@ $ rc project settings runtime --help
 Manage flat runtime settings
 
 Usage:
+  rc project settings runtime [flags]
   rc project settings runtime [command]
 
 Available Commands:
@@ -411,6 +413,7 @@ $ rc project settings behavior --help
 Read or edit nested project settings (persona/channel)
 
 Usage:
+  rc project settings behavior [flags]
   rc project settings behavior [command]
 
 Available Commands:
@@ -495,6 +498,7 @@ $ rc project tenant --help
 Manage tenants (sub-scopes below a project) and their settings
 
 Usage:
+  rc project tenant [flags]
   rc project tenant [command]
 
 Available Commands:
@@ -520,6 +524,7 @@ $ rc project tenant settings --help
 Read or edit nested tenant settings (persona/channel)
 
 Usage:
+  rc project tenant settings [flags]
   rc project tenant settings [command]
 
 Available Commands:
@@ -590,6 +595,7 @@ $ rc project tenant profile --help
 Read or edit tenant projection/profile values
 
 Usage:
+  rc project tenant profile [flags]
   rc project tenant profile [command]
 
 Available Commands:
@@ -720,6 +726,7 @@ $ rc project mailbox --help
 Manage watched mailboxes (the channel plane's inbox watch)
 
 Usage:
+  rc project mailbox [flags]
   rc project mailbox [command]
 
 Available Commands:
@@ -730,7 +737,6 @@ Available Commands:
   settings     Read or edit nested mailbox settings (persona/channel)
   connect      Print the dashboard Connections URL to start a provider's browser OAuth
   connect-imap Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)
-  route        Legacy inbound routing table (email→project/tenant); NOT the watched mailboxes
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -816,6 +822,7 @@ $ rc project mailbox settings --help
 Read or edit nested mailbox settings (persona/channel)
 
 Usage:
+  rc project mailbox settings [flags]
   rc project mailbox settings [command]
 
 Available Commands:
@@ -912,61 +919,11 @@ Global Flags:
       --raw-output       disable progressive output spill and print full payloads to stdout
       --tenant string    override the login tenant where supported
 
-$ rc project mailbox route --help
-Manage the legacy email-keyed routing table (tenant_mailboxes): which inbound address routes to which project/tenant. This is the generic /api/v1/mailboxes collection, distinct from the connection-backed watched mailboxes shown by `rc mailbox ls`. Kept for tenant onboarding.
-
-Usage:
-  rc project mailbox route [command]
-
-Available Commands:
-  ls          List mailboxes
-  add         Create a mailboxe
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
-Use "rc project mailbox route [command] --help" for more information about a command.
-
-$ rc project mailbox route ls --help
-List mailboxes
-
-Usage:
-  rc project mailbox route ls [flags]
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
-$ rc project mailbox route add --help
-Create a mailboxe
-
-Usage:
-  rc project mailbox route add k=v [k=v…] [flags]
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
 $ rc project triage --help
 Read or change mail triage policy and hard rules
 
 Usage:
+  rc project triage [flags]
   rc project triage [command]
 
 Available Commands:
@@ -988,6 +945,7 @@ $ rc project triage policy --help
 Read or edit free-form triage guidance
 
 Usage:
+  rc project triage policy [flags]
   rc project triage policy [command]
 
 Available Commands:
@@ -1039,6 +997,7 @@ $ rc project triage rules --help
 Read or edit deterministic triage rules
 
 Usage:
+  rc project triage rules [flags]
   rc project triage rules [command]
 
 Available Commands:
@@ -1063,9 +1022,6 @@ List triage hard rules
 
 Usage:
   rc project triage rules ls [flags]
-
-Aliases:
-  ls, list
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -1125,6 +1081,7 @@ $ rc project senders --help
 Manage the spam allow/block lists (never-spam / always-spam)
 
 Usage:
+  rc project senders [flags]
   rc project senders [command]
 
 Available Commands:
@@ -1149,9 +1106,6 @@ List the spam allow and block rules
 
 Usage:
   rc project senders ls [flags]
-
-Aliases:
-  ls, list
 
 Flags:
       --mailbox string   show only rules scoped to this mailbox uuid (client-side filter)
@@ -1225,6 +1179,7 @@ $ rc project model-key --help
 Manage model-provider credentials
 
 Usage:
+  rc project model-key [flags]
   rc project model-key [command]
 
 Available Commands:
@@ -1245,6 +1200,7 @@ $ rc project model-key openrouter --help
 Manage the OpenRouter API key (set/clear/reveal)
 
 Usage:
+  rc project model-key openrouter [flags]
   rc project model-key openrouter [command]
 
 Available Commands:
@@ -1312,6 +1268,7 @@ $ rc project connection --help
 Manage outbound integration connections
 
 Usage:
+  rc project connection [flags]
   rc project connection [command]
 
 Available Commands:
@@ -1433,6 +1390,7 @@ $ rc project knowledge --help
 Search knowledge content and configure synchronization
 
 Usage:
+  rc project knowledge [flags]
   rc project knowledge [command]
 
 Available Commands:
@@ -1454,6 +1412,7 @@ $ rc project knowledge content --help
 List, search, and export knowledge articles
 
 Usage:
+  rc project knowledge content [flags]
   rc project knowledge content [command]
 
 Available Commands:
@@ -1539,6 +1498,7 @@ $ rc project knowledge sync --help
 Manage knowledge synchronization settings
 
 Usage:
+  rc project knowledge sync [flags]
   rc project knowledge sync [command]
 
 Available Commands:
@@ -1590,6 +1550,7 @@ $ rc project corpus --help
 Read local-synthesis corpus exports (harvest/survey)
 
 Usage:
+  rc project corpus [flags]
   rc project corpus [command]
 
 Available Commands:
@@ -1677,6 +1638,7 @@ $ rc project database --help
 Manage registered databases (list/read/update + access controls)
 
 Usage:
+  rc project database [flags]
   rc project database [command]
 
 Available Commands:
@@ -1746,6 +1708,7 @@ $ rc project database controls --help
 Read or change a database's access controls
 
 Usage:
+  rc project database controls [flags]
   rc project database controls [command]
 
 Available Commands:
@@ -1817,6 +1780,7 @@ $ rc project repo --help
 Manage source repos (mirrors + per-repo PR config)
 
 Usage:
+  rc project repo [flags]
   rc project repo [command]
 
 Available Commands:
@@ -1900,6 +1864,7 @@ $ rc project member --help
 Manage project members
 
 Usage:
+  rc project member [flags]
   rc project member [command]
 
 Available Commands:
@@ -1967,6 +1932,7 @@ $ rc project token --help
 Manage API tokens
 
 Usage:
+  rc project token [flags]
   rc project token [command]
 
 Available Commands:
@@ -2034,6 +2000,7 @@ $ rc project branding --help
 Read or change white-label branding (colours/name/public_base_url)
 
 Usage:
+  rc project branding [flags]
   rc project branding [command]
 
 Available Commands:
@@ -2086,6 +2053,7 @@ $ rc project branding logo --help
 Set or clear the white-label logo image
 
 Usage:
+  rc project branding logo [flags]
   rc project branding logo [command]
 
 Available Commands:
@@ -2137,6 +2105,7 @@ $ rc project env --help
 Manage this project's sealed env secrets
 
 Usage:
+  rc project env [flags]
   rc project env [command]
 
 Available Commands:
@@ -2261,6 +2230,7 @@ $ rc project github --help
 Inspect the GitHub App install for this project
 
 Usage:
+  rc project github [flags]
   rc project github [command]
 
 Available Commands:
@@ -2296,6 +2266,7 @@ $ rc project action-settings --help
 Read or change action-plane config (operator-tier)
 
 Usage:
+  rc project action-settings [flags]
   rc project action-settings [command]
 
 Available Commands:
@@ -2347,6 +2318,7 @@ $ rc dev --help
 Develop and inspect project behavior
 
 Usage:
+  rc dev [flags]
   rc dev [command]
 
 Available Commands:
@@ -2371,6 +2343,7 @@ $ rc dev brain --help
 Inspect, sync, and queue out-of-band brain work
 
 Usage:
+  rc dev brain [flags]
   rc dev brain [command]
 
 Available Commands:
@@ -2410,9 +2383,6 @@ Fetch origin/main and refresh deployed brain cache
 
 Usage:
   rc dev brain sync [flags]
-
-Aliases:
-  sync, refresh
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2457,6 +2427,7 @@ $ rc dev console --help
 Use guarded production consoles
 
 Usage:
+  rc dev console [flags]
   rc dev console [command]
 
 Available Commands:
@@ -2480,6 +2451,7 @@ $ rc dev console database --help
 Run guarded production database reads
 
 Usage:
+  rc dev console database [flags]
   rc dev console database [command]
 
 Available Commands:
@@ -2553,6 +2525,7 @@ $ rc dev console bash --help
 List or run workspace console commands
 
 Usage:
+  rc dev console bash [flags]
   rc dev console bash [command]
 
 Available Commands:
@@ -2607,6 +2580,7 @@ $ rc dev console action --help
 Inspect and execute guarded rootcause actions
 
 Usage:
+  rc dev console action [flags]
   rc dev console action [command]
 
 Available Commands:
@@ -2711,6 +2685,7 @@ $ rc dev learning --help
 Inspect learning and consolidation inputs
 
 Usage:
+  rc dev learning [flags]
   rc dev learning [command]
 
 Available Commands:
@@ -2749,6 +2724,7 @@ $ rc dev api --help
 Inspect the public API contract
 
 Usage:
+  rc dev api [flags]
   rc dev api [command]
 
 Available Commands:
@@ -2800,6 +2776,7 @@ $ rc dev tools --help
 Use local provider and identifier utilities
 
 Usage:
+  rc dev tools [flags]
   rc dev tools [command]
 
 Available Commands:
@@ -2821,6 +2798,7 @@ $ rc dev tools id --help
 Translate provider message/thread ids
 
 Usage:
+  rc dev tools id [flags]
   rc dev tools id [command]
 
 Available Commands:
@@ -2875,6 +2853,7 @@ $ rc dev tools provider --help
 Provider (channel) utilities
 
 Usage:
+  rc dev tools provider [flags]
   rc dev tools provider [command]
 
 Available Commands:
@@ -2910,6 +2889,7 @@ $ rc fleet --help
 Operate and inspect project health
 
 Usage:
+  rc fleet [flags]
   rc fleet [command]
 
 Available Commands:
@@ -2996,6 +2976,7 @@ $ rc admin --help
 Box-level administration (users/projects/catalog; global-admin token)
 
 Usage:
+  rc admin [flags]
   rc admin [command]
 
 Available Commands:
@@ -3018,6 +2999,7 @@ $ rc admin user --help
 Manage box-level users
 
 Usage:
+  rc admin user [flags]
   rc admin user [command]
 
 Available Commands:
@@ -3085,6 +3067,7 @@ $ rc admin project --help
 Manage box-level projects
 
 Usage:
+  rc admin project [flags]
   rc admin project [command]
 
 Available Commands:
@@ -3136,6 +3119,7 @@ $ rc admin catalog --help
 Manage the integration catalog
 
 Usage:
+  rc admin catalog [flags]
   rc admin catalog [command]
 
 Available Commands:
@@ -3187,6 +3171,7 @@ $ rc auth --help
 Manage local authentication and inspect access
 
 Usage:
+  rc auth [flags]
   rc auth [command]
 
 Available Commands:
@@ -3278,6 +3263,7 @@ $ rc self --help
 Manage the rc installation and shell integration
 
 Usage:
+  rc self [flags]
   rc self [command]
 
 Available Commands:

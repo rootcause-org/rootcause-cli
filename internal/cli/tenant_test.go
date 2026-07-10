@@ -18,7 +18,7 @@ func TestTenantSettingsGetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "tenant", "settings", "get", "de-kies"); err != nil {
+	if err := run(t, e, "project", "tenant", "settings", "get", "de-kies"); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	assertGolden(t, "tenant_get.golden", out.String())
@@ -28,7 +28,7 @@ func TestTenantSettingsGetJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "settings", "get", "de-kies"); err != nil {
+	if err := run(t, e, "project", "tenant", "settings", "get", "de-kies"); err != nil {
 		t.Fatalf("get -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "hierarchy_tenant_settings.json"), out.Bytes())
@@ -38,7 +38,7 @@ func TestTenantSettingsGetMissingTenant(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "tenant", "settings", "get")
+	err := run(t, e, "project", "tenant", "settings", "get")
 	if err == nil || !strings.Contains(err.Error(), "arg") {
 		t.Fatalf("expected positional tenant error, got %v", err)
 	}
@@ -48,7 +48,7 @@ func TestTenantSettingsGet404(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "tenant", "settings", "get", "ghost")
+	err := run(t, e, "project", "tenant", "settings", "get", "ghost")
 	var apiErr *client.APIError
 	if !asAPIError(err, &apiErr) {
 		t.Fatalf("expected *client.APIError, got %T: %v", err, err)
@@ -63,7 +63,7 @@ func TestTenantSettingsSetNestedBody(t *testing.T) {
 	srv := hierarchyBodyCaptureServer(t, &gotBody)
 	defer srv.Close()
 	e := newTestEnvAt(t, srv.URL, "table")
-	err := run(t, e, "tenant", "settings", "set", "de-kies",
+	err := run(t, e, "project", "tenant", "settings", "set", "de-kies",
 		"persona.tone=tenant crisp",
 		"channel.labeling_enabled=true",
 		"persona.signature=",
@@ -100,7 +100,7 @@ func TestTenantSettingsSetBadBool(t *testing.T) {
 	srv := hierarchyBodyCaptureServer(t, &gotBody)
 	defer srv.Close()
 	e := newTestEnvAt(t, srv.URL, "table")
-	err := run(t, e, "tenant", "settings", "set", "de-kies", "channel.labeling_enabled=maybe")
+	err := run(t, e, "project", "tenant", "settings", "set", "de-kies", "channel.labeling_enabled=maybe")
 	if err == nil || !strings.Contains(err.Error(), "boolean") {
 		t.Fatalf("expected boolean-coercion error, got %v", err)
 	}
@@ -131,7 +131,7 @@ func TestTenantSettingsSchemaDump(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "settings", "schema"); err != nil {
+	if err := run(t, e, "project", "tenant", "settings", "schema"); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "meta_schema.json"), out.Bytes())
@@ -144,7 +144,7 @@ func TestTenantProfileGetJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "profile", "get", "de-kies"); err != nil {
+	if err := run(t, e, "project", "tenant", "profile", "get", "de-kies"); err != nil {
 		t.Fatalf("profile get: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "tenant_settings.json"), out.Bytes())
@@ -167,7 +167,7 @@ func TestTenantProfileGetProjectScope(t *testing.T) {
 	defer srv.Close()
 
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "alpha", "tenant", "profile", "get", "de-kies"); err != nil {
+	if err := run(t, e, "--project", "alpha", "project", "tenant", "profile", "get", "de-kies"); err != nil {
 		t.Fatalf("profile get: %v", err)
 	}
 	if sawProject != "alpha" {
@@ -179,7 +179,7 @@ func TestTenantProfileSchemaDump(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "profile", "schema"); err != nil {
+	if err := run(t, e, "project", "tenant", "profile", "schema"); err != nil {
 		t.Fatalf("profile schema: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "tenant_schema.json"), out.Bytes())
@@ -189,7 +189,7 @@ func TestTenantProfileSetLegacyFieldErrors(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "tenant", "profile", "set", "de-kies", "unknown_key=x")
+	err := run(t, e, "project", "tenant", "profile", "set", "de-kies", "unknown_key=x")
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
@@ -205,8 +205,8 @@ func TestProjectHierarchySettingsGetJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "config", "hierarchy", "get"); err != nil {
-		t.Fatalf("config hierarchy get: %v", err)
+	if err := run(t, e, "project", "settings", "behavior", "get"); err != nil {
+		t.Fatalf("project settings behavior get: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "hierarchy_project_settings.json"), out.Bytes())
 }
@@ -215,11 +215,11 @@ func TestMailboxSettingsSetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "settings", "set", "11111111-1111-1111-1111-111111111111", "persona.tone=mailbox direct"); err != nil {
-		t.Fatalf("mailbox settings set: %v", err)
+	if err := run(t, e, "project", "mailbox", "settings", "set", "11111111-1111-1111-1111-111111111111", "persona.tone=mailbox direct"); err != nil {
+		t.Fatalf("project mailbox settings set: %v", err)
 	}
 	if !strings.Contains(out.String(), "mailbox direct (mailbox)") {
-		t.Fatalf("mailbox settings output missing resolved mailbox value:\n%s", out.String())
+		t.Fatalf("project mailbox settings output missing resolved mailbox value:\n%s", out.String())
 	}
 }
 
@@ -227,7 +227,7 @@ func TestRoutesTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "routes"); err != nil {
+	if err := run(t, e, "dev", "api", "routes"); err != nil {
 		t.Fatalf("routes: %v", err)
 	}
 	if !strings.Contains(out.String(), "GET /api/v1/runs/{id}/trace") || !strings.Contains(out.String(), "deprecated") {
@@ -239,7 +239,7 @@ func TestOpenAPIJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "openapi"); err != nil {
+	if err := run(t, e, "dev", "api", "openapi"); err != nil {
 		t.Fatalf("openapi: %v", err)
 	}
 	if !strings.Contains(out.String(), `"openapi": "3.1.0"`) || !strings.Contains(out.String(), `/api/v1/runs/{id}/trace`) {
@@ -254,7 +254,7 @@ func TestRoutesAndOpenAPILargeJSONSpillUnlessRaw(t *testing.T) {
 
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--out-dir", outDir, "routes"); err != nil {
+	if err := run(t, e, "--out-dir", outDir, "dev", "api", "routes"); err != nil {
 		t.Fatalf("routes -o json spill: %v", err)
 	}
 	m := requireSpillManifest(t, out.Bytes())
@@ -271,7 +271,7 @@ func TestRoutesAndOpenAPILargeJSONSpillUnlessRaw(t *testing.T) {
 
 	openOutDir := t.TempDir()
 	eOpen, openOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eOpen, "--out-dir", openOutDir, "openapi"); err != nil {
+	if err := run(t, eOpen, "--out-dir", openOutDir, "dev", "api", "openapi"); err != nil {
 		t.Fatalf("openapi -o json spill: %v", err)
 	}
 	openM := requireSpillManifest(t, openOut.Bytes())
@@ -281,7 +281,7 @@ func TestRoutesAndOpenAPILargeJSONSpillUnlessRaw(t *testing.T) {
 
 	rawDir := t.TempDir()
 	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "openapi"); err != nil {
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "dev", "api", "openapi"); err != nil {
 		t.Fatalf("openapi --raw-output: %v", err)
 	}
 	if strings.Contains(rawOut.String(), `"spilled": true`) || !strings.Contains(rawOut.String(), `"openapi": "3.1.0"`) {

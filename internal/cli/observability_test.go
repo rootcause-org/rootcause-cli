@@ -17,7 +17,7 @@ import (
 
 // TestProjectScopeRidesAsQueryParam pins the core of the --project rework: the flag is a SERVER-SIDE
 // scope, threaded onto each read request as ?project=<id-or-name> with the SAME (default) token — not a
-// profile/token selector. It drives `rc fleet/runs/status/health/thread --project momentum-tools`
+// profile/token selector. It drives the canonical fleet, run, status, health, and thread commands
 // against a stub that records the project query param per endpoint.
 func TestProjectScopeRidesAsQueryParam(t *testing.T) {
 	got := map[string]string{} // endpoint label → observed ?project=
@@ -45,11 +45,11 @@ func TestProjectScopeRidesAsQueryParam(t *testing.T) {
 		label string
 		args  []string
 	}{
-		{"runs", []string{"fleet", "--project", scope}},
-		{"runs", []string{"runs", "--project", scope}},
+		{"runs", []string{"fleet", "runs", "--project", scope}},
+		{"runs", []string{"run", "list", "--project", scope}},
 		{"runs", []string{"status", "--project", scope}},
-		{"health", []string{"health", "--project", scope}},
-		{"thread", []string{"thread", "t1", "--project", scope}},
+		{"health", []string{"fleet", "health", "--project", scope}},
+		{"thread", []string{"run", "thread", "t1", "--project", scope}},
 	}
 	for _, tc := range cases {
 		e, _, _ := newTestEnv(t, srv, "json")
@@ -77,7 +77,7 @@ func TestNoProjectScopeOmitsQueryParam(t *testing.T) {
 	defer srv.Close()
 
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "fleet"); err != nil {
+	if err := run(t, e, "fleet", "runs"); err != nil {
 		t.Fatalf("fleet: %v", err)
 	}
 	if !hit {
@@ -99,7 +99,7 @@ func TestFleetDaysRidesAsQueryParam(t *testing.T) {
 	defer srv.Close()
 
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "fleet", "--days", "3"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--days", "3"); err != nil {
 		t.Fatalf("fleet --days: %v", err)
 	}
 	if len(sawDays) != 1 || sawDays[0] != "3" {
@@ -164,7 +164,7 @@ func TestFleetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "--kind", "fleet"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet"); err != nil {
 		t.Fatalf("fleet: %v", err)
 	}
 	assertGolden(t, "fleet.golden", out.String())
@@ -177,7 +177,7 @@ func TestFleetByModel(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "--kind", "fleet", "--by-model"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--by-model"); err != nil {
 		t.Fatalf("fleet --by-model: %v", err)
 	}
 	assertGolden(t, "fleet_by_model.golden", out.String())
@@ -188,7 +188,7 @@ func TestFleetTimeline(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "--kind", "fleet", "--timeline"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--timeline"); err != nil {
 		t.Fatalf("fleet --timeline: %v", err)
 	}
 	assertGolden(t, "fleet_timeline.golden", out.String())
@@ -199,7 +199,7 @@ func TestFleetAgentTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "--kind", "fleet", "--format", "agent"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--format", "agent"); err != nil {
 		t.Fatalf("fleet --format agent: %v", err)
 	}
 	assertGolden(t, "fleet_agent.golden", out.String())
@@ -210,7 +210,7 @@ func TestFleetBadFormat(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "--format", "bogus"); err == nil {
+	if err := run(t, e, "fleet", "runs", "--format", "bogus"); err == nil {
 		t.Fatal("expected an error for --format bogus")
 	}
 }
@@ -222,7 +222,7 @@ func TestPatternsTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "patterns"); err != nil {
+	if err := run(t, e, "fleet", "patterns"); err != nil {
 		t.Fatalf("patterns: %v", err)
 	}
 	assertGolden(t, "patterns.golden", out.String())
@@ -234,7 +234,7 @@ func TestHealthTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "health")
+	err := run(t, e, "fleet", "health")
 	if err == nil {
 		t.Fatal("expected a non-zero exit (error) for an unhealthy fleet")
 	}
@@ -246,7 +246,7 @@ func TestHealthCleanExitsZero(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "health", "--hours", "999"); err != nil {
+	if err := run(t, e, "fleet", "health", "--hours", "999"); err != nil {
 		t.Fatalf("clean health should exit zero, got %v", err)
 	}
 	assertGolden(t, "health_clean.golden", out.String())
@@ -258,7 +258,7 @@ func TestFleetJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "fleet", "--kind", "fleet"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet"); err != nil {
 		t.Fatalf("fleet -o json: %v", err)
 	}
 	// The accumulated runs across both pages, under {runs:[…]}.
@@ -279,8 +279,8 @@ func TestPatternsJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "patterns"); err != nil {
-		t.Fatalf("patterns -o json: %v", err)
+	if err := run(t, e, "fleet", "patterns"); err != nil {
+		t.Fatalf("fleet patterns -o json: %v", err)
 	}
 	var got struct {
 		Events []map[string]any `json:"events"`
@@ -299,8 +299,8 @@ func TestHealthJSONPassthrough(t *testing.T) {
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
 	// An unhealthy fleet still exits non-zero in JSON mode, but the body is the verbatim server rows.
-	if err := run(t, e, "health"); !errors.Is(err, errUnhealthy) {
-		t.Fatalf("health -o json on unhealthy fleet: err = %v, want errUnhealthy", err)
+	if err := run(t, e, "fleet", "health"); !errors.Is(err, errUnhealthy) {
+		t.Fatalf("fleet health -o json on unhealthy fleet: err = %v, want errUnhealthy", err)
 	}
 	assertJSONEqual(t, fixture(t, "health.json"), out.Bytes())
 }
@@ -315,9 +315,9 @@ func TestFleetPatternsHealthAllLargeJSONSpills(t *testing.T) {
 		args []string
 		want string
 	}{
-		{name: "fleet", args: []string{"fleet", "--all", "--kind", "fleet"}, want: `"total_runs"`},
-		{name: "patterns", args: []string{"patterns", "--all"}, want: `"egress"`},
-		{name: "health", args: []string{"health", "--all", "--hours", "999"}, want: `"health"`},
+		{name: "fleet", args: []string{"fleet", "runs", "--all", "--kind", "fleet"}, want: `"total_runs"`},
+		{name: "patterns", args: []string{"fleet", "patterns", "--all"}, want: `"egress"`},
+		{name: "health", args: []string{"fleet", "health", "--all", "--hours", "999"}, want: `"health"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			outDir := t.TempDir()

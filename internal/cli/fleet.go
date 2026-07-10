@@ -10,12 +10,12 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newFleetCmd builds `rc fleet`: the fleet digest over GET /api/v1/runs (paged), porting runs_digest.py's
+// newFleetRunsCmd builds `rc fleet runs`: the fleet digest over GET /api/v1/runs (paged), porting runs_digest.py's
 // per-run flag line + aggregate + worst offenders. The server ships raw per-run rows (+ the run_health
 // triage block for an operator bearer); the CLI computes the one derived flag the server can't (the $!
 // cost-spike, which needs a per-kind median) and renders the digest. --format agent emits the token-lean
 // index for an agent to triage. In -o json it's a raw passthrough of the paged run rows (no rendering).
-func newFleetCmd(e *env) *cobra.Command {
+func newFleetRunsCmd(e *env) *cobra.Command {
 	var days int
 	var kind string
 	var format string
@@ -24,7 +24,7 @@ func newFleetCmd(e *env) *cobra.Command {
 	var byModel bool
 	var timeline bool
 	cmd := &cobra.Command{
-		Use:   "fleet",
+		Use:   "runs",
 		Short: "Fleet digest of recent runs (flags, rates, worst offenders)",
 		Long: "Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + " +
 			"cost, the aggregate rates, and the worst-offender shortlists. --format agent gives a token-lean " +

@@ -50,7 +50,7 @@ func newSchemaCmd(e *env) *cobra.Command {
 // default, help), found across all resources. The human twin of /meta/schema for a single knob.
 func newExplainCmd(e *env) *cobra.Command {
 	return &cobra.Command{
-		Use:   "explain <key>",
+		Use:   "describe <key>",
 		Short: "Explain one config key (type, enum, scopes, default, help)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {

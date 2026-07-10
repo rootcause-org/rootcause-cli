@@ -17,7 +17,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
-// Projects renders the fleet handle list (`rc projects`): one row per project (name + id), name-ordered
+// Projects renders the fleet handle list (`rc project list`): one row per project (name + id), name-ordered
 // as the server sends them. A pure function of the wire rows so a golden pins it.
 func Projects(w io.Writer, resp *client.ProjectsResponse) {
 	if len(resp.Projects) == 0 {
@@ -88,7 +88,7 @@ func writeSummary(w io.Writer, s *client.Summary) {
 	}
 }
 
-// Runs renders the recent-runs table (the lead view of `rc runs`). Shows the next-page cursor when
+// Runs renders the recent-runs table (the lead view of `rc run list`). Shows the next-page cursor when
 // the server returned one.
 func Runs(w io.Writer, resp *client.RunsResponse) {
 	if len(resp.Runs) == 0 {
@@ -527,7 +527,7 @@ func placedLabel(hasDraft, hasNote bool, outcome string) string {
 // runWhy is the index-level one-liner explaining a surprising outcome: a truncated decline_reason, the
 // forced-submission cause, the model the run fell back FROM, and any tripped guardrail — joined into a
 // single terse line. Blank when there's nothing notable (the caller then omits the row). The untruncated
-// detail lives in `rc run <id> --full`.
+// detail lives in `rc run trace <id>`.
 func runWhy(d *client.RunDebug) string {
 	if d == nil {
 		return ""
@@ -911,7 +911,7 @@ func projectionSummary(raw string) string {
 
 // Settings renders the effective settings table: value (what's set, blank if unset), effective, and
 // default per key. kb_enrich_model is shown only when the server included it.
-// Settings renders the generic settings bag (`rc config get`): one row per key, in stable key order,
+// Settings renders the generic settings bag (`rc project settings runtime get`): one row per key, in stable key order,
 // with the override / effective / default / source. The CLI holds no per-key knowledge — it renders
 // whatever keys the server sends, so a new server-side knob appears with no CLI change.
 func Settings(w io.Writer, s *client.Settings) {

@@ -57,7 +57,7 @@ func fanOutProjects(e *env, c *client.Client) ([]client.Project, error) {
 // reads it in JSON mode without importing render twice for one symbol.
 func healthVerdict(h *client.HealthResponse) bool { return render.HealthVerdict(h) }
 
-// silenceUsage marks a command so Cobra doesn't dump its help on the returned error — `rc health`'s
+// silenceUsage marks a command so Cobra doesn't dump its help on the returned error — `rc fleet health`'s
 // non-zero exit is a verdict, not a usage mistake. (The root already sets SilenceUsage, but a child that
 // returns an error after a successful render should not re-trigger help either.)
 func silenceUsage(cmd *cobra.Command) { cmd.SilenceUsage = true }

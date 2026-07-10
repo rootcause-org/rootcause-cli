@@ -15,13 +15,11 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newMailboxCmd builds the `rc mailbox` group over the connection-backed WATCHED-mailbox API (the
+// newMailboxCmd builds the `rc project mailbox` group over the connection-backed watched-mailbox API (the
 // channel plane's live inbox watch): `ls` lists watched mailboxes, `mode` controls watch/processing/
-// delivery as one state, and
-// `connect` composes the dashboard Connections URL for the browser OAuth a human must complete. The
-// legacy email-keyed ROUTING table (tenant_mailboxes) lives under the nested `route` group so tenant
-// onboarding keeps working. All endpoints need an admin (ManageConnections) token; an all-projects token
-// scopes with --project, a pinned-tenant token sees only its tenant.
+// delivery as one state, and `connect` composes the dashboard Connections URL for browser OAuth.
+// All endpoints need an admin (ManageConnections) token; an all-projects token scopes with --project,
+// while a pinned-tenant token sees only its tenant.
 func newMailboxCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "mailbox", Short: "Manage watched mailboxes (the channel plane's inbox watch)"}
 	cmd.AddCommand(
@@ -32,7 +30,6 @@ func newMailboxCmd(e *env) *cobra.Command {
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
 		mailboxConnectIMAPCmd(e),
-		newMailboxRouteCmd(e),
 	)
 	return cmd
 }
@@ -262,7 +259,7 @@ var validConnectProviders = map[string]bool{"google": true, "microsoft": true, "
 
 // mailboxConnectCmd composes + prints the dashboard Connections URL for the human to open and click
 // "Connect <provider>". It makes NO state-changing API call (OAuth runs in the browser). The project
-// slug resolves from --project, else the brain-bound project, else `rc whoami`; if it can't be resolved
+// slug resolves from --project, else the brain-bound project, else `rc auth status`; if it can't be resolved
 // it prints the dashboard root with an instruction. The URL goes to STDOUT (so it can be captured); a
 // one-line hint goes to STDERR.
 func mailboxConnectCmd(e *env) *cobra.Command {
@@ -408,7 +405,7 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 }
 
 // connectScope resolves the project slug + optional tenant for the Connections URL: --project (or the
-// brain's auto-project) first, else `rc whoami`'s login-bound project. An explicit --tenant (or login
+// brain's auto-project) first, else `rc auth status`'s login-bound project. An explicit --tenant (or login
 // tenant) selects the tenant-scoped Connections page. A best-effort resolution: a whoami failure leaves
 // the slug empty so the caller falls back to the dashboard root.
 func (e *env) connectScope(c *client.Client) (slug, tenant string) {
@@ -436,23 +433,4 @@ func (e *env) connectScope(c *client.Client) (slug, tenant string) {
 		}
 	}
 	return slug, tenant
-}
-
-// newMailboxRouteCmd preserves the LEGACY routing table (tenant_mailboxes — the email-keyed routing the
-// channel plane uses to map an inbound address to a project/tenant) under `rc mailbox route ls|add`. It
-// targets the generic /api/v1/mailboxes collection (id = mailbox_id uuid); create is an upsert keyed on
-// the email, so `add` doubles as edit. This is NOT the watched-mailbox set (`rc mailbox ls`).
-func newMailboxRouteCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "route",
-		Short: "Legacy inbound routing table (email→project/tenant); NOT the watched mailboxes",
-		Long: "Manage the legacy email-keyed routing table (tenant_mailboxes): which inbound address routes " +
-			"to which project/tenant. This is the generic /api/v1/mailboxes collection, distinct from the " +
-			"connection-backed watched mailboxes shown by `rc mailbox ls`. Kept for tenant onboarding.",
-	}
-	cmd.AddCommand(
-		listSubCmd(e, "mailboxes"),
-		addSubCmd(e, "mailboxes"),
-	)
-	return cmd
 }

@@ -12,7 +12,7 @@ import (
 // errEmptyInstruction is the clear "nothing to do" error when no instruction arrives via args or stdin.
 var errEmptyInstruction = errors.New("empty instruction — pass it as args or pipe it on stdin")
 
-// newBrainCmd builds `rc brain edit <instruction>` and `rc brain consolidate` over the out-of-band
+// newBrainCmd builds `rc dev brain edit <instruction>` and `rc dev brain consolidate` over the out-of-band
 // brain-write queue (POST /api/v1/brain/{edit,consolidate}). Both are async — they return
 // {queued, job_id}; the durable write lands later (the run is read-only to the brain). The instruction
 // is joined from the args, or read from STDIN when none are given (so a long instruction can be piped).
@@ -47,10 +47,9 @@ func brainStatusCmd(e *env) *cobra.Command {
 
 func brainSyncCmd(e *env) *cobra.Command {
 	return &cobra.Command{
-		Use:     "sync",
-		Aliases: []string{"refresh"},
-		Short:   "Fetch origin/main and refresh deployed brain cache",
-		Args:    cobra.NoArgs,
+		Use:   "sync",
+		Short: "Fetch origin/main and refresh deployed brain cache",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
 			if err != nil {

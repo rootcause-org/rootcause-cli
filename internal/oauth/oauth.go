@@ -66,7 +66,7 @@ func (e *Error) Error() string {
 }
 
 // IsInvalidGrant reports whether err is an OAuth invalid_grant — a dead/expired/revoked refresh token,
-// the signal for the CLI to prompt a fresh `rc login`.
+// the signal for the CLI to prompt a fresh `rc auth login`.
 func IsInvalidGrant(err error) bool {
 	var oe *Error
 	return asOAuthError(err, &oe) && oe.Code == "invalid_grant"

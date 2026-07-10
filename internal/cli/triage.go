@@ -73,10 +73,9 @@ func triageRulesCmd(e *env) *cobra.Command {
 
 func triageRulesListCmd(e *env) *cobra.Command {
 	return &cobra.Command{
-		Use:     "ls",
-		Aliases: []string{"list"},
-		Short:   "List triage hard rules",
-		Args:    cobra.NoArgs,
+		Use:   "ls",
+		Short: "List triage hard rules",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			raw, err := triageRaw(e, http.MethodGet, "/api/v1/triage/rules", nil)
 			if err != nil {

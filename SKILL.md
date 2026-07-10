@@ -25,7 +25,7 @@ the active token and names one project on supported endpoints (`?project=`), let
 admin token** review a single project (`rc fleet runs --project momentum-tools`) or trigger one (`rc ask
 --project momentum-tools "…"`). A pinned token accepts only its own id/name and rejects a conflicting
 selector, so a supplied scope can never be silently ignored. The bet: a dev pulls this in to slice their data the way
-they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an action/skill, runs
+they prefer (`| jq`, scripts, a quick `rc run show <id>`) and, before authoring an action/skill, runs
 `rc run list` → `rc run events <id>` to **verify against real runs** — the author→verify loop taught in
 [rootcause-brain-skills/docs/rc-cli.md](../rootcause-brain-skills/docs/rc-cli.md).
 
@@ -48,7 +48,7 @@ output starts with `Scope: <project> / <tenant>`; JSON remains the raw server bo
 | `rc project list` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
 | `rc project rename <new-name>` | `PATCH /api/v1/projects/{project}/rename` | rename the active project slug + brain repo; `--project` supplies `{project}`, otherwise the CLI requires exactly one visible project |
 | `rc status` / `rc run list` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
-| `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
+| `rc run show <id>` | `GET /api/v1/runs/{id}` | one run, high level |
 | `rc run events <id>` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
 | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
 | `rc run debug <id>` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
@@ -84,8 +84,8 @@ page and leads with the health summary; `run list` owns the filterable table
 then by default polls `/runs/{id}` to a terminal status and renders by scenario (`--no-wait` prints the
 `run_id` and returns; JSON echoes the verbatim 202 body so `jq -r .run_id` works). It stays thin —
 submit + poll + render; all run logic is server-side. The CLI first sends the rich contract: explicit
-`scenario` (`email` by default, or `raw`; `mcp` accepted as a raw alias), `sender`/`subject` for email,
-and any run-control fields. `--attach <path>` is repeatable (`--path` alias; hidden `--pod` typo alias):
+`scenario` (`email` by default, or `raw`), `sender`/`subject` for email,
+and any run-control fields. `--attach <path>` is repeatable:
 the CLI resolves relative/absolute local paths, reads bytes, detects a MIME type, and sends
 `attachments[]` `{filename,mime_type,size_bytes,content_base64}` so the server can mint real inbound
 attachment IDs for action params. If a deployed server rejects that body as schema-malformed, and no
@@ -182,7 +182,7 @@ Progressive disclosure lives in `internal/outputspill`: large payloads are still
 CLI writes full artifacts under `.rootcause/output/` by default and prints a small table preview or JSON
 manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir`, `RC_OUTPUT_DIR`,
 `RC_OUTPUT_SPILL_THRESHOLD` (per field/stream, default 6000 bytes), `RC_OUTPUT_INLINE_MAX` (whole JSONL
-or JSON response, default 20000 bytes), `--no-preview`, and `--raw-output` for exact legacy stdout.
+or JSON response, default 20000 bytes), `--no-preview`, and `--raw-output` for exact full stdout.
 Phase-1 wiring covers `internal/cli/console.go` JSON passthrough, `rc dev console bash run` stdout/stderr, and
 `rc run events|trace|debug`; large NDJSON manifests unless `--stream` or `--raw-output` is passed.
 Phase-2 wiring extends the same `env.renderJSON` / `env.renderBytes` path to high-volume API metadata
@@ -272,7 +272,7 @@ token is present. Explicit `--tenant` and `.rootcause/local.toml` remain local o
 local overlay only supports `tenant`. Honors `XDG_CONFIG_HOME` for token storage. The committed marker
 is non-secret; tokens live only in the 0600 token store.
 
-### The `--debug` decomposer (`internal/debugdump`)
+### The `rc run debug` decomposer (`internal/debugdump`)
 `rc run debug <id>` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/trace` (cross-project for an
 all-projects admin token) and writes two files to `--out-dir` (default `.rootcause/debug/`) — a **jq-able JSONL**
 event log and a **thin markdown index** — then prints both paths. It does NOT summarize the run into
@@ -304,7 +304,7 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
 - **Before finishing any change:** `go build ./...`, `go vet ./...`, `go test ./...`, `gofmt -w`.
 - **Tests** (`internal/cli/`): golden-file tests for every table renderer + JSON-passthrough round-trip,
   driven by an `httptest` stub returning canned fixtures (`testdata/*.json` → `*.golden`), plus the
-  NDJSON shape, the `--debug` decomposer (golden index + JSONL), the API-error path (verbatim + exit),
+  NDJSON shape, the `rc run debug` decomposer (golden index + JSONL), the API-error path (verbatim + exit),
   the not-logged-in error, and the typed-error contract. Auth is exercised end-to-end against a stub
   OAuth server: device-flow login, transparent refresh (incl. rotation + a dead-token re-login prompt),
   logout/revoke, and (in `internal/oauth`) the PKCE loopback flow. The token store + `internal/token`
@@ -326,7 +326,7 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   CLI change, same invariant as the settings bag. `connection reveal` and `token mint` print the
   secret/refresh-token to **stdout** (so a pipe captures just it) with a one-line **stderr** "shown once"
   warning; `connection rm` issues `/revoke` then `DELETE`.
-- **`config set` value coercion:** [`config.go`](internal/cli/config.go) is **schema-aware** — it fetches
+- **`rc project settings runtime set` value coercion:** [`config.go`](internal/cli/config.go) is **schema-aware** — it fetches
   `/meta/schema` ONCE and coerces each `k=v` by the field's declared TYPE: a `list`/`array` type
   comma-splits into a JSON array (`pr.triggers=inbound,mcp` → `["inbound","mcp"]`; an empty value →
   `[]`, the clear gesture), a numeric type → a JSON number. On a schema miss (older server, network blip)
@@ -349,7 +349,7 @@ verified by hand against a real release. Keep this the *only* command that reach
 No MCP in v1 (a future layer over the same endpoints). Client-side analysis/rendering is fine, but **no
 direct DB access** — data comes only through `/api/v1`, and the endpoints behind it stay thin (raw rows,
 not server-computed views), with `-o json` always exposing those rows. Server writes are limited to
-public config/run surfaces: `config set` (settings whitelist), `rc project env set/rm` (sealed per-key secret
+public config/run surfaces: `rc project settings runtime set` (settings whitelist), `rc project env set/rm` (sealed per-key secret
 collections), and `rc ask` (triggers a run via `POST /api/v1/runs`; the CLI still holds no run logic).
 `rc project env pull` writes a LOCAL `./.env` only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`
 endpoints + the static first-party CLI client — the CLI invents no auth of its own (no new grant types,

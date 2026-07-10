@@ -10,7 +10,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newHealthCmd builds `rc health`: the health roll-up over the THIN /api/v1/health raw rows (mirror
+// newHealthCmd builds `rc fleet health`: the health roll-up over the THIN /api/v1/health raw rows (mirror
 // staleness + dead-lettered runs), porting health.py's healthy/unhealthy sections. It EXITS NON-ZERO when
 // anything is unhealthy so it's CI/cron usable. -o json is a raw passthrough of the server's health rows
 // (no verdict in JSON — the consumer decides). The verdict still drives the exit code in BOTH modes.
@@ -133,7 +133,7 @@ func fetchHealth(e *env, c *client.Client, hours int, project, tenant string) (*
 	return &resp, raw, nil
 }
 
-// errUnhealthy is the sentinel `rc health` returns to force a non-zero exit when a section is unhealthy.
+// errUnhealthy is the sentinel `rc fleet health` returns to force a non-zero exit when a section is unhealthy.
 // It carries no message of its own — the rendered report (or the JSON) is the user-facing output; the
 // command layer prints "error: unhealthy" only as the terse exit reason.
 var errUnhealthy = fmt.Errorf("unhealthy")

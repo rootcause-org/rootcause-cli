@@ -26,7 +26,7 @@ func TestRunsTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "runs", "--limit", "10"); err != nil {
+	if err := run(t, e, "run", "list", "--limit", "10"); err != nil {
 		t.Fatalf("runs: %v", err)
 	}
 	assertGolden(t, "runs.golden", out.String())
@@ -36,7 +36,7 @@ func TestRunDetailTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, e, "run", "show", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	assertGolden(t, "run.golden", out.String())
@@ -46,8 +46,8 @@ func TestRunEventsTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--events"); err != nil {
-		t.Fatalf("run --events: %v", err)
+	if err := run(t, e, "run", "events", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run events: %v", err)
 	}
 	assertGolden(t, "events.golden", out.String())
 }
@@ -56,8 +56,8 @@ func TestRunFullTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--full"); err != nil {
-		t.Fatalf("run --full: %v", err)
+	if err := run(t, e, "run", "trace", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run trace: %v", err)
 	}
 	assertGolden(t, "full.golden", out.String())
 }
@@ -69,7 +69,7 @@ func TestRunDeclinedTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "declined"); err != nil {
+	if err := run(t, e, "run", "show", "declined"); err != nil {
 		t.Fatalf("run declined: %v", err)
 	}
 	assertGolden(t, "run_declined.golden", out.String())
@@ -81,8 +81,8 @@ func TestRunDeclinedEventsTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "declined", "--events"); err != nil {
-		t.Fatalf("run declined --events: %v", err)
+	if err := run(t, e, "run", "events", "declined"); err != nil {
+		t.Fatalf("run events declined: %v", err)
 	}
 	assertGolden(t, "events_declined.golden", out.String())
 }
@@ -92,8 +92,8 @@ func TestRunDeclinedFullTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "declined", "--full"); err != nil {
-		t.Fatalf("run declined --full: %v", err)
+	if err := run(t, e, "run", "trace", "declined"); err != nil {
+		t.Fatalf("run trace declined: %v", err)
 	}
 	assertGolden(t, "full_declined.golden", out.String())
 }
@@ -104,7 +104,7 @@ func TestRunDeclinedJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "declined"); err != nil {
+	if err := run(t, e, "run", "show", "declined"); err != nil {
 		t.Fatalf("run declined -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "run_declined.json"), out.Bytes())
@@ -116,8 +116,8 @@ func TestRunBrainDiffTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--brain-diff"); err != nil {
-		t.Fatalf("run --brain-diff: %v", err)
+	if err := run(t, e, "run", "brain-diff", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run brain-diff: %v", err)
 	}
 	assertGolden(t, "brain_diff.golden", out.String())
 }
@@ -128,8 +128,8 @@ func TestRunBrainDiffNotFoundTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "no-brain", "--brain-diff"); err != nil {
-		t.Fatalf("run --brain-diff (not found): %v", err)
+	if err := run(t, e, "run", "brain-diff", "no-brain"); err != nil {
+		t.Fatalf("run brain-diff (not found): %v", err)
 	}
 	assertGolden(t, "brain_diff_none.golden", out.String())
 }
@@ -140,28 +140,18 @@ func TestRunBrainDiffJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--brain-diff"); err != nil {
-		t.Fatalf("run --brain-diff -o json: %v", err)
+	if err := run(t, e, "run", "brain-diff", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run brain-diff -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "brain_diff.json"), out.Bytes())
-}
-
-// TestRunBrainDiffMutualExclusion: --brain-diff can't combine with --events/--full/--debug.
-func TestRunBrainDiffMutualExclusion(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--brain-diff", "--full"); err == nil {
-		t.Fatal("expected an error combining --brain-diff with --full")
-	}
 }
 
 func TestBashRunTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
-		t.Fatalf("bash run: %v", err)
+	if err := run(t, e, "dev", "console", "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
+		t.Fatalf("dev console bash run: %v", err)
 	}
 	assertGolden(t, "bash_run.golden", out.String())
 }
@@ -170,8 +160,8 @@ func TestBashRunJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
-		t.Fatalf("bash run -o json: %v", err)
+	if err := run(t, e, "dev", "console", "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
+		t.Fatalf("dev console bash run -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "bash_run.json"), out.Bytes())
 }
@@ -181,8 +171,8 @@ func TestBashRunLargeTableSpills(t *testing.T) {
 	defer srv.Close()
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--out-dir", outDir, "bash", "run", "large-output"); err != nil {
-		t.Fatalf("bash run large: %v", err)
+	if err := run(t, e, "--out-dir", outDir, "dev", "console", "bash", "run", "large-output"); err != nil {
+		t.Fatalf("dev console bash run large: %v", err)
 	}
 	got := out.String()
 	if !strings.Contains(got, "[output too large:") || !strings.Contains(got, "full output saved to") || !strings.Contains(got, "Hints:") {
@@ -209,8 +199,8 @@ func TestBashRunSmallServerTruncatedSpills(t *testing.T) {
 	defer srv.Close()
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--out-dir", outDir, "bash", "run", "small-truncated"); err != nil {
-		t.Fatalf("bash run small truncated: %v", err)
+	if err := run(t, e, "--out-dir", outDir, "dev", "console", "bash", "run", "small-truncated"); err != nil {
+		t.Fatalf("dev console bash run small truncated: %v", err)
 	}
 	got := out.String()
 	if !strings.Contains(got, "full output saved to") || !strings.Contains(got, "stderr truncated") {
@@ -226,8 +216,8 @@ func TestBashRunSmallServerTruncatedSpills(t *testing.T) {
 	}
 
 	eJSON, outJSON, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eJSON, "--out-dir", outDir, "--no-preview", "bash", "run", "small-truncated"); err != nil {
-		t.Fatalf("bash run small truncated -o json: %v", err)
+	if err := run(t, eJSON, "--out-dir", outDir, "--no-preview", "dev", "console", "bash", "run", "small-truncated"); err != nil {
+		t.Fatalf("dev console bash run small truncated -o json: %v", err)
 	}
 	var manifest struct {
 		Artifacts map[string]struct {
@@ -248,8 +238,8 @@ func TestBashRunLargeJSONManifestAndRawOutput(t *testing.T) {
 
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--out-dir", outDir, "--no-preview", "bash", "run", "large-output"); err != nil {
-		t.Fatalf("bash run large -o json: %v", err)
+	if err := run(t, e, "--out-dir", outDir, "--no-preview", "dev", "console", "bash", "run", "large-output"); err != nil {
+		t.Fatalf("dev console bash run large -o json: %v", err)
 	}
 	var manifest map[string]any
 	if err := json.Unmarshal(out.Bytes(), &manifest); err != nil {
@@ -265,8 +255,8 @@ func TestBashRunLargeJSONManifestAndRawOutput(t *testing.T) {
 
 	rawDir := t.TempDir()
 	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "bash", "run", "large-output"); err != nil {
-		t.Fatalf("bash run large --raw-output: %v", err)
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "dev", "console", "bash", "run", "large-output"); err != nil {
+		t.Fatalf("dev console bash run large --raw-output: %v", err)
 	}
 	if !strings.Contains(rawOut.String(), "MIDDLE-SENTINEL") || strings.Contains(rawOut.String(), `"spilled": true`) {
 		t.Fatalf("raw output not preserved:\n%s", rawOut.String())
@@ -282,20 +272,20 @@ func TestBashListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "bash", "list"); err != nil {
-		t.Fatalf("bash list: %v", err)
+	if err := run(t, e, "dev", "console", "bash", "list"); err != nil {
+		t.Fatalf("dev console bash list: %v", err)
 	}
 	assertGolden(t, "bash_list.golden", out.String())
 }
 
-// TestRunFullJSONL locks the cross-repo seam: `rc run <id> --full -o json` must emit a `type:run`
+// TestRunFullJSONL locks the cross-repo seam: `rc run trace <id> -o json` must emit a `type:run`
 // header line followed by one `type:event` line per event (JSONL), each carrying its fields verbatim.
 func TestRunFullJSONL(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--full"); err != nil {
-		t.Fatalf("run --full -o json: %v", err)
+	if err := run(t, e, "run", "trace", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run trace -o json: %v", err)
 	}
 	assertGolden(t, "full.jsonl.golden", out.String())
 
@@ -345,7 +335,7 @@ func TestRunFullJSONL(t *testing.T) {
 	}
 }
 
-// TestRunDebug locks the --debug decomposer's two output files against goldens: a thin markdown index
+// TestRunDebug locks `rc run debug`'s two output files against goldens: a thin markdown index
 // and the jq-able JSONL (type:run header + type:event lines keyed by disp). The printed PATHS are
 // non-deterministic (a temp out-dir), so we golden the FILE CONTENTS, not stdout.
 func TestRunDebug(t *testing.T) {
@@ -353,8 +343,8 @@ func TestRunDebug(t *testing.T) {
 	defer srv.Close()
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--debug", "--out-dir", outDir); err != nil {
-		t.Fatalf("run --debug: %v", err)
+	if err := run(t, e, "run", "debug", "11111111-1111-1111-1111-111111111111", "--out-dir", outDir); err != nil {
+		t.Fatalf("run debug: %v", err)
 	}
 	// stdout carries the two written paths (index first, then jsonl).
 	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
@@ -441,8 +431,8 @@ func TestRunDebugJSONManifest(t *testing.T) {
 	defer srv.Close()
 	outDir := filepath.Join(t.TempDir(), "debug out")
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--debug", "--out-dir", outDir); err != nil {
-		t.Fatalf("run --debug -o json: %v", err)
+	if err := run(t, e, "run", "debug", "11111111-1111-1111-1111-111111111111", "--out-dir", outDir); err != nil {
+		t.Fatalf("run debug -o json: %v", err)
 	}
 	var manifest struct {
 		Spilled   bool `json:"spilled"`
@@ -477,7 +467,7 @@ func TestThreadTraceTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "thread", "thread-abc123"); err != nil {
+	if err := run(t, e, "run", "thread", "thread-abc123"); err != nil {
 		t.Fatalf("thread: %v", err)
 	}
 	assertGolden(t, "thread_trace.golden", out.String())
@@ -489,8 +479,8 @@ func TestThreadTraceSessionTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "thread", "session-fallback"); err != nil {
-		t.Fatalf("thread session: %v", err)
+	if err := run(t, e, "run", "thread", "session-fallback"); err != nil {
+		t.Fatalf("run thread session: %v", err)
 	}
 	assertGolden(t, "thread_trace_session.golden", out.String())
 }
@@ -501,8 +491,8 @@ func TestThreadTraceUnknownTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "thread", "unknown"); err != nil {
-		t.Fatalf("thread unknown: %v", err)
+	if err := run(t, e, "run", "thread", "unknown"); err != nil {
+		t.Fatalf("run thread unknown: %v", err)
 	}
 	assertGolden(t, "thread_trace_none.golden", out.String())
 }
@@ -513,8 +503,8 @@ func TestThreadTraceJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "thread", "thread-abc123"); err != nil {
-		t.Fatalf("thread -o json: %v", err)
+	if err := run(t, e, "run", "thread", "thread-abc123"); err != nil {
+		t.Fatalf("run thread -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "thread_trace.json"), out.Bytes())
 }
@@ -523,8 +513,8 @@ func TestConfigGetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "config", "get"); err != nil {
-		t.Fatalf("config get: %v", err)
+	if err := run(t, e, "project", "settings", "runtime", "get"); err != nil {
+		t.Fatalf("project settings runtime get: %v", err)
 	}
 	assertGolden(t, "config_get.golden", out.String())
 }
@@ -533,66 +523,66 @@ func TestConfigSetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "config", "set", "default_tier=pro", "max_run_usd=5"); err != nil {
-		t.Fatalf("config set: %v", err)
+	if err := run(t, e, "project", "settings", "runtime", "set", "default_tier=pro", "max_run_usd=5"); err != nil {
+		t.Fatalf("project settings runtime set: %v", err)
 	}
 	assertGolden(t, "config_set.golden", out.String())
 }
 
-// TestConfigSetListValue locks the list-coercion contract: `config set pr.triggers=inbound,mcp` sends a
+// TestConfigSetListValue locks the list-coercion contract: `project settings runtime set pr.triggers=inbound,mcp` sends a
 // JSON ARRAY (asserted in the PATCH handler), not a comma string. The handler fatals if it's not an array.
 func TestConfigSetListValue(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "config", "set", "pr.triggers=inbound,mcp"); err != nil {
-		t.Fatalf("config set pr.triggers: %v", err)
+	if err := run(t, e, "project", "settings", "runtime", "set", "pr.triggers=inbound,mcp"); err != nil {
+		t.Fatalf("project settings runtime set pr.triggers: %v", err)
 	}
 	assertGolden(t, "config_set.golden", out.String())
 }
 
-// TestConfigSetListClear locks the empty-list "clear" gesture: `config set egress.allowlist=` sends an
+// TestConfigSetListClear locks the empty-list "clear" gesture: `project settings runtime set egress.allowlist=` sends an
 // empty JSON array (asserted server-side), not null or "".
 func TestConfigSetListClear(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "config", "set", "egress.allowlist="); err != nil {
-		t.Fatalf("config set egress.allowlist= : %v", err)
+	if err := run(t, e, "project", "settings", "runtime", "set", "egress.allowlist="); err != nil {
+		t.Fatalf("project settings runtime set egress.allowlist= : %v", err)
 	}
 }
 
-// TestKBGetTable pins `rc kb get` — the generic bag command over a non-settings bag renders the same
-// {key:value/effective/default/source} table as `config get`.
+// TestKBGetTable pins `rc project knowledge sync get` — the generic bag command over a non-settings
+// bag renders the same {key:value/effective/default/source} table as project runtime settings.
 func TestKBGetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "kb", "get"); err != nil {
-		t.Fatalf("kb get: %v", err)
+	if err := run(t, e, "project", "knowledge", "sync", "get"); err != nil {
+		t.Fatalf("project knowledge sync get: %v", err)
 	}
 	assertGolden(t, "kb_get.golden", out.String())
 }
 
-// TestKBSetTable pins `rc kb set provider=intercom` round-tripping through PATCH /api/v1/kb.
+// TestKBSetTable pins `rc project knowledge sync set provider=intercom` round-tripping through PATCH /api/v1/kb.
 func TestKBSetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "kb", "set", "provider=intercom", "base_url=https://acme.intercom.io"); err != nil {
-		t.Fatalf("kb set: %v", err)
+	if err := run(t, e, "project", "knowledge", "sync", "set", "provider=intercom", "base_url=https://acme.intercom.io"); err != nil {
+		t.Fatalf("project knowledge sync set: %v", err)
 	}
 	assertGolden(t, "kb_get.golden", out.String())
 }
 
-// TestActionConfigSetBoolCoercion locks the bool-coercion contract: `rc action config set
+// TestActionConfigSetBoolCoercion locks the bool-coercion contract: `rc project action-settings set
 // actions_enabled=true` must send a JSON boolean, not the string "true" (asserted in the PATCH handler).
 func TestActionConfigSetBoolCoercion(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "action", "config", "set", "actions_enabled=true"); err != nil {
-		t.Fatalf("action config set actions_enabled=true: %v", err)
+	if err := run(t, e, "project", "action-settings", "set", "actions_enabled=true"); err != nil {
+		t.Fatalf("project action-settings set actions_enabled=true: %v", err)
 	}
 }
 
@@ -600,7 +590,7 @@ func TestSchemaTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "schema"); err != nil {
+	if err := run(t, e, "project", "settings", "schema"); err != nil {
 		t.Fatalf("schema: %v", err)
 	}
 	assertGolden(t, "schema.golden", out.String())
@@ -610,7 +600,7 @@ func TestSchemaJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "schema"); err != nil {
+	if err := run(t, e, "project", "settings", "schema"); err != nil {
 		t.Fatalf("schema -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "meta_schema.json"), out.Bytes())
@@ -620,7 +610,7 @@ func TestExplainTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "explain", "default_tier"); err != nil {
+	if err := run(t, e, "project", "settings", "describe", "default_tier"); err != nil {
 		t.Fatalf("explain: %v", err)
 	}
 	assertGolden(t, "explain_default_tier.golden", out.String())
@@ -631,7 +621,7 @@ func TestExplainUnknownKey(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "explain", "nope")
+	err := run(t, e, "project", "settings", "describe", "nope")
 	if err == nil || !strings.Contains(err.Error(), "unknown config key") {
 		t.Fatalf("want unknown-key error, got %v", err)
 	}
@@ -641,7 +631,7 @@ func TestAccessTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "access"); err != nil {
+	if err := run(t, e, "auth", "access"); err != nil {
 		t.Fatalf("access: %v", err)
 	}
 	assertGolden(t, "access.golden", out.String())
@@ -651,7 +641,7 @@ func TestAccessJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "access"); err != nil {
+	if err := run(t, e, "auth", "access"); err != nil {
 		t.Fatalf("access -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "meta_capabilities.json"), out.Bytes())
@@ -674,7 +664,7 @@ func TestRunDetailJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, e, "run", "show", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("run -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "run.json"), out.Bytes())
@@ -684,20 +674,20 @@ func TestConfigGetJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "config", "get"); err != nil {
-		t.Fatalf("config get -o json: %v", err)
+	if err := run(t, e, "project", "settings", "runtime", "get"); err != nil {
+		t.Fatalf("project settings runtime get -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "settings.json"), out.Bytes())
 }
 
-// TestEventsNDJSON asserts -o json on `run --events` emits one event object per line (NDJSON), not a
+// TestEventsNDJSON asserts -o json on `rc run events` emits one event object per line (NDJSON), not a
 // wrapping array — the streamable, jq-friendly contract.
 func TestEventsNDJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "11111111-1111-1111-1111-111111111111", "--events"); err != nil {
-		t.Fatalf("run --events -o json: %v", err)
+	if err := run(t, e, "run", "events", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run events -o json: %v", err)
 	}
 	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
 	if len(lines) != 2 {
@@ -720,8 +710,8 @@ func TestEventsLargeNDJSONSpills(t *testing.T) {
 	defer srv.Close()
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--out-dir", outDir, "run", "large-events", "--events"); err != nil {
-		t.Fatalf("run large-events --events: %v", err)
+	if err := run(t, e, "--out-dir", outDir, "run", "events", "large-events"); err != nil {
+		t.Fatalf("run events large-events: %v", err)
 	}
 	var manifest map[string]any
 	if err := json.Unmarshal(out.Bytes(), &manifest); err != nil {
@@ -744,8 +734,8 @@ func TestEventsLargeNDJSONSpills(t *testing.T) {
 
 	streamDir := t.TempDir()
 	eStream, streamOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eStream, "--out-dir", streamDir, "run", "large-events", "--events", "--stream"); err != nil {
-		t.Fatalf("run large-events --events --stream: %v", err)
+	if err := run(t, eStream, "--out-dir", streamDir, "run", "events", "large-events", "--stream"); err != nil {
+		t.Fatalf("run events large-events --stream: %v", err)
 	}
 	if strings.Contains(streamOut.String(), `"spilled": true`) {
 		t.Fatalf("--stream emitted manifest:\n%s", streamOut.String())
@@ -761,8 +751,8 @@ func TestEventsLargeNDJSONSpills(t *testing.T) {
 
 	rawDir := t.TempDir()
 	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "run", "large-events", "--events"); err != nil {
-		t.Fatalf("run large-events --events --raw-output: %v", err)
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "run", "events", "large-events"); err != nil {
+		t.Fatalf("run events large-events --raw-output: %v", err)
 	}
 	if strings.Contains(rawOut.String(), `"spilled": true`) {
 		t.Fatalf("--raw-output emitted manifest:\n%s", rawOut.String())
@@ -778,7 +768,7 @@ func TestAPIErrorPath(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, errb := newTestEnv(t, srv, "table")
-	err := run(t, e, "config", "set", "max_run_usd=oops")
+	err := run(t, e, "project", "settings", "runtime", "set", "max_run_usd=oops")
 	if err == nil {
 		t.Fatal("expected error from INVALID_SETTINGS, got nil")
 	}
@@ -793,7 +783,7 @@ func TestAPIErrorPath(t *testing.T) {
 	}
 }
 
-// TestNotLoggedIn asserts a clear "run `rc login`" error when no token resolves (no token store).
+// TestNotLoggedIn asserts a clear "run `rc auth login`" error when no token resolves (no token store).
 func TestNotLoggedIn(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -812,7 +802,7 @@ func TestNonEnvelopeHTTPError(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, errb := newTestEnv(t, srv, "table")
-	err := run(t, e, "run", "405")
+	err := run(t, e, "run", "show", "405")
 	if err == nil {
 		t.Fatal("expected error from 405, got nil")
 	}
@@ -836,8 +826,8 @@ func TestEventsRenumbered(t *testing.T) {
 	defer srv.Close()
 
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "sentinel", "--events"); err != nil {
-		t.Fatalf("run --events: %v", err)
+	if err := run(t, e, "run", "events", "sentinel"); err != nil {
+		t.Fatalf("run events: %v", err)
 	}
 	table := out.String()
 	if !strings.Contains(table, "#1  bash") || !strings.Contains(table, "#2  bash") {
@@ -848,22 +838,22 @@ func TestEventsRenumbered(t *testing.T) {
 	}
 
 	eJSON, outJSON, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eJSON, "run", "sentinel", "--events"); err != nil {
-		t.Fatalf("run --events -o json: %v", err)
+	if err := run(t, eJSON, "run", "events", "sentinel"); err != nil {
+		t.Fatalf("run events -o json: %v", err)
 	}
 	if !strings.Contains(outJSON.String(), `"seq":-1000000`) {
 		t.Errorf("NDJSON must keep the raw seq, got:\n%s", outJSON.String())
 	}
 }
 
-// TestSpamListTable pins `rc spam ls`: both lists rendered as one VERDICT/PATTERN/TYPE/SOURCE/CREATED
+// TestSpamListTable pins `rc project senders ls`: both lists rendered as one VERDICT/PATTERN/TYPE/SOURCE/CREATED
 // table (allows first, then blocks), in server order.
 func TestSpamListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "spam", "ls"); err != nil {
-		t.Fatalf("spam ls: %v", err)
+	if err := run(t, e, "project", "senders", "ls"); err != nil {
+		t.Fatalf("project senders ls: %v", err)
 	}
 	assertGolden(t, "spam_ls.golden", out.String())
 }
@@ -874,15 +864,15 @@ func TestSpamListJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "spam", "ls"); err != nil {
-		t.Fatalf("spam ls -o json: %v", err)
+	if err := run(t, e, "project", "senders", "ls"); err != nil {
+		t.Fatalf("project senders ls -o json: %v", err)
 	}
 	var got struct {
 		Allows []client.SpamRule `json:"allows"`
 		Blocks []client.SpamRule `json:"blocks"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
-		t.Fatalf("decode spam ls json: %v\n%s", err, out.String())
+		t.Fatalf("decode project senders ls json: %v\n%s", err, out.String())
 	}
 	if len(got.Allows) != 2 || len(got.Blocks) != 2 {
 		t.Fatalf("want 2 allows + 2 blocks, got %d + %d", len(got.Allows), len(got.Blocks))
@@ -892,50 +882,50 @@ func TestSpamListJSON(t *testing.T) {
 	}
 }
 
-// TestSpamAllowTable pins `rc spam allow <pattern> --reason …`: the echoed rule with the
+// TestSpamAllowTable pins `rc project senders allow <pattern> --reason …`: the echoed rule with the
 // server-inferred match_type renders as a one-row table.
 func TestSpamAllowTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "spam", "allow", "@partner.example", "--reason", "trusted"); err != nil {
-		t.Fatalf("spam allow: %v", err)
+	if err := run(t, e, "project", "senders", "allow", "@partner.example", "--reason", "trusted"); err != nil {
+		t.Fatalf("project senders allow: %v", err)
 	}
 	assertGolden(t, "spam_allow.golden", out.String())
 }
 
-// TestSpamAllowMailboxTable pins `rc spam allow <pattern> --mailbox <uuid>`: the mailbox_id rides in the
+// TestSpamAllowMailboxTable pins `rc project senders allow <pattern> --mailbox <uuid>`: the mailbox_id rides in the
 // POST body (asserted server-side by echoing it back as "mailbox"), and the echoed rule renders with the
 // MAILBOX column populated.
 func TestSpamAllowMailboxTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "spam", "allow", "@partner.example", "--mailbox", "mbx11111-0000-0000-0000-000000000009"); err != nil {
-		t.Fatalf("spam allow --mailbox: %v", err)
+	if err := run(t, e, "project", "senders", "allow", "@partner.example", "--mailbox", "mbx11111-0000-0000-0000-000000000009"); err != nil {
+		t.Fatalf("project senders allow --mailbox: %v", err)
 	}
 	assertGolden(t, "spam_allow_mailbox.golden", out.String())
 }
 
-// TestSpamListMailboxFilter pins `rc spam ls --mailbox <uuid>`: the client-side filter narrows the table
+// TestSpamListMailboxFilter pins `rc project senders ls --mailbox <uuid>`: the client-side filter narrows the table
 // to the two rules (one allow, one block) scoped to that mailbox, dropping the project-scoped rows.
 func TestSpamListMailboxFilter(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "spam", "ls", "--mailbox", "mbx11111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("spam ls --mailbox: %v", err)
+	if err := run(t, e, "project", "senders", "ls", "--mailbox", "mbx11111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("project senders ls --mailbox: %v", err)
 	}
 	assertGolden(t, "spam_ls_mailbox.golden", out.String())
 }
 
-// TestSpamBlockTable pins `rc spam block <pattern>` (no reason).
+// TestSpamBlockTable pins `rc project senders block <pattern>` (no reason).
 func TestSpamBlockTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "spam", "block", "junk@spammy.example"); err != nil {
-		t.Fatalf("spam block: %v", err)
+	if err := run(t, e, "project", "senders", "block", "junk@spammy.example"); err != nil {
+		t.Fatalf("project senders block: %v", err)
 	}
 	assertGolden(t, "spam_block.golden", out.String())
 }
@@ -946,8 +936,8 @@ func TestSpamRmTryBoth(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "spam", "rm", "allow-only"); err != nil {
-		t.Fatalf("spam rm: %v", err)
+	if err := run(t, e, "project", "senders", "rm", "allow-only"); err != nil {
+		t.Fatalf("project senders rm: %v", err)
 	}
 	if got := out.String(); !strings.Contains(got, "deleted spam rule allow-only") {
 		t.Errorf("want deleted confirmation, got %q", got)
@@ -960,7 +950,7 @@ func TestErrorIsTyped(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "run", "bad") // → 404 UNKNOWN_RUN
+	err := run(t, e, "run", "show", "bad") // → 404 UNKNOWN_RUN
 	var apiErr *client.APIError
 	if !asAPIError(err, &apiErr) {
 		t.Fatalf("expected *client.APIError, got %T: %v", err, err)

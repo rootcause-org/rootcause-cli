@@ -42,7 +42,6 @@ func TestCanonicalScopeContracts(t *testing.T) {
 		"fleet health":                  {Project: true, Tenant: true, AllProjects: true},
 		"project connection add":        {Project: true, Tenant: true},
 		"project mailbox mode":          {Project: true, Tenant: true},
-		"project mailbox route ls":      {Project: true},
 		"project tenant profile set":    {Project: true},
 		"project database controls set": {Project: true},
 		"dev console action run":        {Project: true},
@@ -87,7 +86,7 @@ func TestUnsupportedSelectorsFailBeforeRequest(t *testing.T) {
 func TestAllRejectsNarrowerScope(t *testing.T) {
 	for _, flag := range []string{"--project", "--tenant"} {
 		e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
-		err := run(t, e, flag, "alpha", "fleet", "--all")
+		err := run(t, e, flag, "alpha", "fleet", "runs", "--all")
 		if err == nil || !strings.Contains(err.Error(), "--all cannot be combined") {
 			t.Fatalf("%s error = %v", flag, err)
 		}
@@ -173,7 +172,7 @@ func TestRunAndObservabilitySelectorsReachURL(t *testing.T) {
 
 	for _, args := range [][]string{
 		{"--project", "alpha", "--tenant", "acme", "status"},
-		{"--project", "alpha", "--tenant", "acme", "run", "run-1"},
+		{"--project", "alpha", "--tenant", "acme", "run", "show", "run-1"},
 	} {
 		e := newTestEnvAt(t, srv.URL, "json")
 		if err := run(t, e, args...); err != nil {

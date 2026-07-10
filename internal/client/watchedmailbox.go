@@ -7,10 +7,9 @@ import (
 	"net/url"
 )
 
-// This file maps the connection-backed WATCHED-mailbox endpoints — the channel plane's live inbox watch
-// (list / pause / resume) — onto thin client calls. These are distinct from the generic /mailboxes
-// collection (the legacy email-keyed routing table behind `rc mailbox route`): watched mailboxes are
-// connection-backed and carry a subscription/sync-cursor lifecycle. Each method returns both the typed
+// This file maps the connection-backed watched-mailbox endpoints — the channel plane's live inbox watch
+// (list / pause / resume) — onto thin client calls. Mailboxes carry a subscription/sync-cursor lifecycle.
+// Each method returns both the typed
 // value (for the table view) and the raw body (for -o json passthrough — render, don't reshape).
 
 func watchedProjectPath(project, suffix string) string {

@@ -32,7 +32,7 @@ var hierarchyFields = map[string]map[string]valueKind{
 
 func newProjectHierarchySettingsCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "hierarchy",
+		Use:   "behavior",
 		Short: "Read or edit nested project settings (persona/channel)",
 	}
 	cmd.AddCommand(

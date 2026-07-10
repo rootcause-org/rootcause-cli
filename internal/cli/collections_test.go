@@ -14,7 +14,7 @@ func TestRepoListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "repo", "ls"); err != nil {
+	if err := run(t, e, "project", "repo", "ls"); err != nil {
 		t.Fatalf("repo ls: %v", err)
 	}
 	assertGolden(t, "repo_ls.golden", out.String())
@@ -24,7 +24,7 @@ func TestRepoListJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "repo", "ls"); err != nil {
+	if err := run(t, e, "project", "repo", "ls"); err != nil {
 		t.Fatalf("repo ls -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "repos.json"), out.Bytes())
@@ -34,7 +34,7 @@ func TestRepoAddTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "repo", "add", "id=momentum-web", "git_url=https://github.com/acme/momentum-web.git"); err != nil {
+	if err := run(t, e, "project", "repo", "add", "id=momentum-web", "git_url=https://github.com/acme/momentum-web.git"); err != nil {
 		t.Fatalf("repo add: %v", err)
 	}
 	assertGolden(t, "repo_add.golden", out.String())
@@ -47,7 +47,7 @@ func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
 
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--out-dir", outDir, "--no-preview", "repo", "add", "id=large-output", "git_url=https://github.com/acme/large-output.git"); err != nil {
+	if err := run(t, e, "--out-dir", outDir, "--no-preview", "project", "repo", "add", "id=large-output", "git_url=https://github.com/acme/large-output.git"); err != nil {
 		t.Fatalf("repo add large -o json: %v", err)
 	}
 	m := requireSpillManifest(t, out.Bytes())
@@ -64,7 +64,7 @@ func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
 
 	rawDir := t.TempDir()
 	eRaw, rawOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "repo", "add", "id=large-output", "git_url=https://github.com/acme/large-output.git"); err != nil {
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "project", "repo", "add", "id=large-output", "git_url=https://github.com/acme/large-output.git"); err != nil {
 		t.Fatalf("repo add large --raw-output: %v", err)
 	}
 	if strings.Contains(rawOut.String(), `"spilled": true`) || !strings.Contains(rawOut.String(), "large collection value") {
@@ -77,7 +77,7 @@ func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
 	}
 
 	eReveal, revealOut, revealErr := newTestEnv(t, srv, "table")
-	if err := run(t, eReveal, "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, eReveal, "project", "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("connection reveal under spill threshold: %v", err)
 	}
 	if got := revealOut.String(); got != "sk_live_REVEALED_ONCE\n" || strings.Contains(got, "output too large") {
@@ -89,7 +89,7 @@ func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
 
 	revealJSONDir := t.TempDir()
 	eRevealJSON, revealJSONOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eRevealJSON, "--out-dir", revealJSONDir, "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, eRevealJSON, "--out-dir", revealJSONDir, "project", "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("connection reveal -o json under spill threshold: %v", err)
 	}
 	assertJSONEqual(t, []byte(`{"secret":"sk_live_REVEALED_ONCE"}`), revealJSONOut.Bytes())
@@ -100,7 +100,7 @@ func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
 	}
 
 	eMint, mintOut, mintErr := newTestEnv(t, srv, "table")
-	if err := run(t, eMint, "token", "mint", "scope=config:read"); err != nil {
+	if err := run(t, eMint, "project", "token", "mint", "scope=config:read"); err != nil {
 		t.Fatalf("token mint under spill threshold: %v", err)
 	}
 	if !strings.Contains(mintOut.String(), "rc_refresh_MINTED_ONCE") || strings.Contains(mintOut.String(), "output too large") {
@@ -112,7 +112,7 @@ func TestCollectionLargeJSONValueSpillsButSecretsStayRaw(t *testing.T) {
 
 	mintJSONDir := t.TempDir()
 	eMintJSON, mintJSONOut, _ := newTestEnv(t, srv, "json")
-	if err := run(t, eMintJSON, "--out-dir", mintJSONDir, "token", "mint", "scope=config:read"); err != nil {
+	if err := run(t, eMintJSON, "--out-dir", mintJSONDir, "project", "token", "mint", "scope=config:read"); err != nil {
 		t.Fatalf("token mint -o json under spill threshold: %v", err)
 	}
 	assertJSONEqual(t, []byte(`{"refresh_token":"rc_refresh_MINTED_ONCE","scope":"config:read","status":"active"}`), mintJSONOut.Bytes())
@@ -127,7 +127,7 @@ func TestRepoSetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "repo", "set", "momentum-web", "description=Updated"); err != nil {
+	if err := run(t, e, "project", "repo", "set", "momentum-web", "description=Updated"); err != nil {
 		t.Fatalf("repo set: %v", err)
 	}
 	assertGolden(t, "repo_set.golden", out.String())
@@ -137,7 +137,7 @@ func TestRepoRmTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "repo", "rm", "momentum-web"); err != nil {
+	if err := run(t, e, "project", "repo", "rm", "momentum-web"); err != nil {
 		t.Fatalf("repo rm: %v", err)
 	}
 	if got := out.String(); got != "deleted repos momentum-web\n" {
@@ -149,7 +149,7 @@ func TestTenantListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "tenant", "ls"); err != nil {
+	if err := run(t, e, "project", "tenant", "ls"); err != nil {
 		t.Fatalf("tenant ls: %v", err)
 	}
 	assertGolden(t, "tenant_ls.golden", out.String())
@@ -159,7 +159,7 @@ func TestTenantAddTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "tenant", "add", "slug=acme", "name=Acme Dental"); err != nil {
+	if err := run(t, e, "project", "tenant", "add", "slug=acme", "name=Acme Dental"); err != nil {
 		t.Fatalf("tenant add: %v", err)
 	}
 	assertGolden(t, "tenant_add.golden", out.String())
@@ -169,7 +169,7 @@ func TestTenantGetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "tenant", "get", "acme"); err != nil {
+	if err := run(t, e, "project", "tenant", "get", "acme"); err != nil {
 		t.Fatalf("tenant get: %v", err)
 	}
 	assertGolden(t, "tenant_add.golden", out.String())
@@ -179,7 +179,7 @@ func TestTenantGetJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "get", "acme"); err != nil {
+	if err := run(t, e, "project", "tenant", "get", "acme"); err != nil {
 		t.Fatalf("tenant get -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "tenant_item.json"), out.Bytes())
@@ -189,7 +189,7 @@ func TestConnectionListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "connection", "ls"); err != nil {
+	if err := run(t, e, "project", "connection", "ls"); err != nil {
 		t.Fatalf("connection ls: %v", err)
 	}
 	assertGolden(t, "connection_ls.golden", out.String())
@@ -199,7 +199,7 @@ func TestConnectionListJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "connection", "ls"); err != nil {
+	if err := run(t, e, "project", "connection", "ls"); err != nil {
 		t.Fatalf("connection ls -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "connections.json"), out.Bytes())
@@ -209,7 +209,7 @@ func TestConnectionAddTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "connection", "add", "name=podio", "kind=api_key"); err != nil {
+	if err := run(t, e, "project", "connection", "add", "name=podio", "kind=api_key"); err != nil {
 		t.Fatalf("connection add: %v", err)
 	}
 	assertGolden(t, "connection_add.golden", out.String())
@@ -219,7 +219,7 @@ func TestConnectionProbeTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "connection", "probe", "notion.write", "--write", "--notion-page", "page-123", "--cleanup"); err != nil {
+	if err := run(t, e, "project", "connection", "probe", "notion.write", "--write", "--notion-page", "page-123", "--cleanup"); err != nil {
 		t.Fatalf("connection probe: %v", err)
 	}
 	assertGolden(t, "connection_probe.golden", out.String())
@@ -229,7 +229,7 @@ func TestConnectionProbeJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "connection", "probe", "notion.write"); err != nil {
+	if err := run(t, e, "project", "connection", "probe", "notion.write"); err != nil {
 		t.Fatalf("connection probe -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "connection_probe.json"), out.Bytes())
@@ -241,7 +241,7 @@ func TestConnectionRevealSecret(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, e, "project", "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("connection reveal: %v", err)
 	}
 	if got := out.String(); got != "sk_live_REVEALED_ONCE\n" {
@@ -256,7 +256,7 @@ func TestConnectionRevealJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, e, "project", "connection", "reveal", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("connection reveal -o json: %v", err)
 	}
 	assertJSONEqual(t, []byte(`{"secret":"sk_live_REVEALED_ONCE"}`), out.Bytes())
@@ -266,7 +266,7 @@ func TestConnectionRotateTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "connection", "rotate", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, e, "project", "connection", "rotate", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("connection rotate: %v", err)
 	}
 	assertGolden(t, "connection_rotate.golden", out.String())
@@ -276,7 +276,7 @@ func TestConnectionRmTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "connection", "rm", "11111111-1111-1111-1111-111111111111"); err != nil {
+	if err := run(t, e, "project", "connection", "rm", "11111111-1111-1111-1111-111111111111"); err != nil {
 		t.Fatalf("connection rm: %v", err)
 	}
 	if got := out.String(); got != "revoked and deleted connection 11111111-1111-1111-1111-111111111111\n" {
@@ -288,7 +288,7 @@ func TestMemberListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "member", "ls"); err != nil {
+	if err := run(t, e, "project", "member", "ls"); err != nil {
 		t.Fatalf("member ls: %v", err)
 	}
 	assertGolden(t, "member_ls.golden", out.String())
@@ -298,7 +298,7 @@ func TestMemberListJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "member", "ls"); err != nil {
+	if err := run(t, e, "project", "member", "ls"); err != nil {
 		t.Fatalf("member ls -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "members.json"), out.Bytes())
@@ -308,7 +308,7 @@ func TestMemberAddTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "member", "add", "id=carol@acme.test", "role=editor"); err != nil {
+	if err := run(t, e, "project", "member", "add", "id=carol@acme.test", "role=editor"); err != nil {
 		t.Fatalf("member add: %v", err)
 	}
 	assertGolden(t, "member_add.golden", out.String())
@@ -318,7 +318,7 @@ func TestMemberRmTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "member", "rm", "bob@acme.test"); err != nil {
+	if err := run(t, e, "project", "member", "rm", "bob@acme.test"); err != nil {
 		t.Fatalf("member rm: %v", err)
 	}
 	if got := out.String(); got != "deleted members bob@acme.test\n" {
@@ -330,7 +330,7 @@ func TestTokenListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "token", "ls"); err != nil {
+	if err := run(t, e, "project", "token", "ls"); err != nil {
 		t.Fatalf("token ls: %v", err)
 	}
 	assertGolden(t, "token_ls.golden", out.String())
@@ -340,7 +340,7 @@ func TestTokenListJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "token", "ls"); err != nil {
+	if err := run(t, e, "project", "token", "ls"); err != nil {
 		t.Fatalf("token ls -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "tokens.json"), out.Bytes())
@@ -351,7 +351,7 @@ func TestTokenMintShowsRefreshToken(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "token", "mint", "scope=config:read"); err != nil {
+	if err := run(t, e, "project", "token", "mint", "scope=config:read"); err != nil {
 		t.Fatalf("token mint: %v", err)
 	}
 	if !strings.Contains(out.String(), "rc_refresh_MINTED_ONCE") {
@@ -366,7 +366,7 @@ func TestTokenMintJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "token", "mint", "scope=config:read"); err != nil {
+	if err := run(t, e, "project", "token", "mint", "scope=config:read"); err != nil {
 		t.Fatalf("token mint -o json: %v", err)
 	}
 	assertJSONEqual(t, []byte(`{"refresh_token":"rc_refresh_MINTED_ONCE","scope":"config:read","status":"active"}`), out.Bytes())
@@ -376,7 +376,7 @@ func TestTokenRevokeTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "token", "revoke", "tok_aaaa"); err != nil {
+	if err := run(t, e, "project", "token", "revoke", "tok_aaaa"); err != nil {
 		t.Fatalf("token revoke: %v", err)
 	}
 	if got := out.String(); got != "revoked token tok_aaaa\n" {

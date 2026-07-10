@@ -22,7 +22,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// `rc upgrade` is self-update: the binary replaces itself with the latest GitHub release for the
+// `rc self update` replaces the binary with the latest GitHub release for the
 // running OS/arch, so non-Homebrew installs (Linux/WSL/Windows, the install.sh / install.ps1 path) get
 // the same one-command update as `brew upgrade rc` — no need to re-paste the install URL. When rc was
 // installed via Homebrew it refuses and points at `brew update && brew upgrade rc`, so it never fights brew's
@@ -33,24 +33,24 @@ const (
 	ghDownload  = "https://github.com/" + ghRepo + "/releases/download" // /<tag>/<asset>
 )
 
-func newUpgradeCmd(e *env, version string) *cobra.Command {
+func newSelfUpdateCmd(e *env, version string) *cobra.Command {
 	var checkOnly bool
 	cmd := &cobra.Command{
-		Use:   "upgrade",
+		Use:   "update",
 		Short: "Update rc to the latest release (self-update)",
 		Long: "Update rc to the latest GitHub release for this OS/arch.\n\n" +
 			"On Linux/WSL/Windows this replaces the running binary in place. On a Homebrew install it\n" +
 			"defers to `brew upgrade rc` instead, so it doesn't fight Homebrew's bookkeeping.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runUpgrade(e, version, checkOnly)
+			return runSelfUpdate(e, version, checkOnly)
 		},
 	}
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "only report whether a newer version exists; install nothing")
 	return cmd
 }
 
-func runUpgrade(e *env, current string, checkOnly bool) error {
+func runSelfUpdate(e *env, current string, checkOnly bool) error {
 	latest, err := latestReleaseTag(e.ctx())
 	if err != nil {
 		return err

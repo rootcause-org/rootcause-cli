@@ -1,4 +1,4 @@
-// This file renders the local-synthesis export views (`rc export ls|get`, `rc mailbox harvest`): the
+// This file renders the local-synthesis export views (`rc project corpus ls|get`, `rc project mailbox harvest`): the
 // harvest/survey corpus exports and their lifecycle status. Pure functions of the wire items so a
 // golden pins them.
 package render

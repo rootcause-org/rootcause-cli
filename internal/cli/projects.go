@@ -10,13 +10,13 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newProjectsCmd builds `rc projects`: list the fleet handles (id + name) over GET /api/v1/projects. With
+// newProjectListCmd builds `rc project list`: list the fleet handles (id + name) over GET /api/v1/projects. With
 // an all-projects admin token it lists every project; with a project-pinned token it lists just that one
 // (so a customer key can confirm its binding). It's the entry point for fleet review and the seed the
 // `--all` fan-out lists before hitting each project's read surface. -o json is a raw passthrough.
-func newProjectsCmd(e *env) *cobra.Command {
+func newProjectListCmd(e *env) *cobra.Command {
 	return &cobra.Command{
-		Use:   "projects",
+		Use:   "list",
 		Short: "List the projects this token can see (the fleet, for an all-projects token)",
 		Long: "Fetch GET /api/v1/projects and list the project handles (name + id). An all-projects admin " +
 			"token lists the whole fleet; a project-scoped token lists only its own project. -o json passes " +

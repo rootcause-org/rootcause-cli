@@ -9,20 +9,17 @@ emits clean JSON for the brain-side renderer to consume.
 
 ## What exists today
 
-Commands registered in [`internal/cli/root.go:47`](../internal/cli/root.go): `status`, `runs`, `run`,
-`config`. `rc run <id> --events` already calls `GET /api/v1/runs/{id}/events` and emits **NDJSON** in
-`-o json` ([`internal/cli/run.go:13`](../internal/cli/run.go), `Client.Events`
-[`internal/client/client.go:89`](../internal/client/client.go)). Historical note: the original design
-used env/config API keys; current auth is OAuth, and URL override is only `ROOTCAUSE_BASE_URL`.
-**Read-only — there is no trigger verb.**
+The nine-root tree is assembled in [`internal/cli/surface.go`](../../internal/cli/surface.go). `rc ask`
+triggers runs; `rc run show|events|trace|debug` inspects them. `rc run events <id>` calls
+`GET /api/v1/runs/{id}/events` and emits **NDJSON** in `-o json`; authentication is OAuth and the only
+transport override is `ROOTCAUSE_BASE_URL`.
 
-## Change 1 — new verb `rc ask`
+## Trigger — `rc ask`
 
-The missing trigger. Env-authed by the project key (exactly the "based on env vars we have"
-requirement). New command file `internal/cli/ask.go`, registered in `root.go`.
+OAuth-authenticated trigger implemented in `internal/cli/ask.go` and registered by `surface.go`.
 
 ```
-rc ask "<question>" [--brain-ref <ref>] [--tenant <slug>] [--wait/--no-wait] [--timeout 5m] [-o json|table]
+rc ask "<question>" [--brain-ref <ref>] [--tenant <slug>] [--no-wait] [--timeout 5m] [-o json|table]
 
   rc ask "Hi, my account is sophie.coca-cola.com. Do I still have open invoices?"
   rc ask "<q>" --brain-ref dev/refund-rework        # run against a non-main brain ref (test run)
@@ -35,7 +32,7 @@ Behavior:
 2. **`--wait` is the DEFAULT** (decided): poll `GET /api/v1/runs/{id}` every `poll_after_ms` until the
    run reaches a terminal status (`done`/`error`/timeout), honoring `--timeout` (default 5m). Print a
    terse live status line on a TTY. `--no-wait` prints `run_id` and returns immediately.
-3. On completion, print the run summary (same renderer as `rc run <id>`). In `-o json`, print the
+3. On completion, print the run summary (same renderer as `rc run show <id>`). In `-o json`, print the
    summary object; `run_id` is always on stdout so it can be captured: `RID=$(rc ask "…" --no-wait -o json | jq -r .run_id)`.
 4. `--brain-ref` is forwarded verbatim as `brain_ref`. A `4xx BAD_BRAIN_REF` or "ref not found" is
    surfaced via the existing typed-error path ([`internal/client/errors.go`](../internal/client/errors.go)) —
@@ -45,7 +42,7 @@ Behavior:
 > `dev/*` branch (main untouched → not live), then ask against it. The server runs the real loop and
 > flags any actions/PRs as test. See the server spec.
 
-## Change 2 — `rc run <id> --full` (the bundle, decomposed)
+## Trace — `rc run trace <id>` (the bundle, decomposed)
 
 The server returns one bundle (`GET /api/v1/runs/{id}/trace`); **`rc` decomposes it for progressive
 disclosure** (decided). Add `Client.Full(ctx, id) (*FullResponse, error)` hitting `/trace`, with
@@ -57,11 +54,11 @@ Extend `internal/cli/run.go`:
 
 | Invocation | Hits | Output |
 |---|---|---|
-| `rc run <id>` | `/runs/{id}` | high-level summary (today) |
-| `rc run <id> --events` | `/runs/{id}/events` | per-event trace (today; NDJSON in `-o json`) |
-| **`rc run <id> --full`** | `/runs/{id}/trace` | **the whole bundle.** `-o json`: emit as the brain-renderer's input — header line first, then one NDJSON line per event (the JSONL shape). `-o table`: a compact decomposed view (header block + timeline). |
+| `rc run show <id>` | `/runs/{id}` | high-level summary |
+| `rc run events <id>` | `/runs/{id}/events` | per-event trace (NDJSON in `-o json`) |
+| **`rc run trace <id>`** | `/runs/{id}/trace` | **the whole bundle.** `-o json`: emit as the brain-renderer's input — header line first, then one NDJSON line per event (the JSONL shape). `-o table`: a compact decomposed view (header block + timeline). |
 
-The `--full -o json` output is **the exact stdin contract** the brain-dev renderer reads to produce
+The `rc run trace <id> -o json` output is **the exact stdin contract** the brain-dev renderer reads to produce
 `<run8>-<proj>.{md,jsonl}`. Keep it stable; it is the cross-repo seam. Reuse `emitNDJSON`
 ([`run.go:65`](../internal/cli/run.go)) for the event lines, prefixed by the run-header line
 (`{"type":"run",…}` then `{"type":"event",…}` per line — mirrors the existing JSONL format so the
@@ -69,14 +66,14 @@ renderer is source-agnostic).
 
 ## Output / JSON conventions (unchanged)
 
-TTY-aware: table on a terminal, JSON when piped or `-o json`. `rc ask`/`rc run --full` must behave
+TTY-aware: table on a terminal, JSON when piped or `-o json`. `rc ask`/`rc run trace` must behave
 identically to existing commands re: `-o`, exit codes, and the typed error envelope.
 
 ## Tests
 
 - `internal/cli/ask_test.go`: submit → poll → terminal, `--no-wait`, `--brain-ref` forwarding, timeout,
   `BAD_BRAIN_REF` surfacing. Mock the HTTP client as in [`internal/cli/cli_test.go`](../internal/cli/cli_test.go).
-- Golden test ([`internal/cli/golden_test.go`](../internal/cli/golden_test.go)) for `rc run <id> --full
+- Golden test ([`internal/cli/golden_test.go`](../internal/cli/golden_test.go)) for `rc run trace <id>
   -o json` — this is the renderer's input contract; lock it.
 
 ## Release
@@ -88,5 +85,5 @@ once published. The `/trace` JSON contract version must move in lockstep with th
 ## Out of scope
 
 - Rendering the markdown index / writing files — that's the brain-dev renderer (Python), fed by
-  `rc run <id> --full -o json`. `rc` only emits JSON.
+  `rc run trace <id> -o json`. `rc` only emits JSON.
 - Any SSM / host access — `rc` is the infra-free public-API client by definition.

@@ -12,7 +12,7 @@ import (
 )
 
 // TestAskWaitsForTerminal: submit → poll → terminal. The default (wait) path submits, polls
-// /runs/{id} until "done", then renders the run summary like `rc run <id>`.
+// /runs/{id} until "done", then renders the run summary like `rc run show <id>`.
 func TestAskWaitsForTerminal(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -79,7 +79,7 @@ func TestAskNoWaitTable(t *testing.T) {
 	if strings.TrimSpace(out.String()) != "11111111-1111-1111-1111-111111111111" {
 		t.Errorf("stdout should be the run_id alone, got: %q", out.String())
 	}
-	if !strings.Contains(errb.String(), "rc run 11111111") {
+	if !strings.Contains(errb.String(), "rc run show 11111111") {
 		t.Errorf("expected a poll hint on stderr, got: %q", errb.String())
 	}
 }
@@ -146,28 +146,11 @@ func TestAskDefaultScenarioEmailFieldsForwarded(t *testing.T) {
 	}
 }
 
-func TestAskScenarioMCPAliasIsRaw(t *testing.T) {
-	var got map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Fatalf("decode request: %v", err)
-		}
-		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
-	}))
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "ask", "q", "--scenario", "mcp", "--no-wait"); err != nil {
-		t.Fatalf("ask --scenario mcp: %v", err)
-	}
-	if got["scenario"] != "raw" {
-		t.Errorf("scenario = %v, want raw", got["scenario"])
-	}
-	if _, ok := got["sender"]; ok {
-		t.Errorf("raw default should omit sender, got body=%v", got)
-	}
-	if _, ok := got["subject"]; ok {
-		t.Errorf("raw default should omit subject, got body=%v", got)
+func TestAskRejectsUnknownScenario(t *testing.T) {
+	e := &env{out: &bytes.Buffer{}, err: &bytes.Buffer{}}
+	err := run(t, e, "ask", "q", "--scenario", "mcp", "--no-wait")
+	if err == nil || !strings.Contains(err.Error(), `invalid --scenario "mcp" (want email or raw)`) {
+		t.Fatalf("error = %v, want invalid scenario", err)
 	}
 }
 
@@ -234,7 +217,7 @@ func TestAskAttachReadsLocalFiles(t *testing.T) {
 	}))
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "ask", "q", "--attach", "invoice.pdf", "--path", filepath.Join(dir, "note.unknownext"), "--no-wait"); err != nil {
+	if err := run(t, e, "ask", "q", "--attach", "invoice.pdf", "--attach", filepath.Join(dir, "note.unknownext"), "--no-wait"); err != nil {
 		t.Fatalf("ask --attach: %v", err)
 	}
 	atts, ok := got["attachments"].([]any)
@@ -248,31 +231,6 @@ func TestAskAttachReadsLocalFiles(t *testing.T) {
 	second := atts[1].(map[string]any)
 	if second["filename"] != "note.unknownext" || second["mime_type"] != "text/plain; charset=utf-8" || second["content_base64"] != "aGVsbG8=" {
 		t.Fatalf("second attachment = %#v", second)
-	}
-}
-
-func TestAskPodAliasReadsAttachmentPath(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "note.txt")
-	if err := os.WriteFile(p, []byte("hi"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	var got map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
-			t.Fatalf("decode request: %v", err)
-		}
-		w.WriteHeader(http.StatusAccepted)
-		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
-	}))
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "ask", "q", "--pod", p, "--no-wait"); err != nil {
-		t.Fatalf("ask --pod: %v", err)
-	}
-	atts := got["attachments"].([]any)
-	if len(atts) != 1 || atts[0].(map[string]any)["filename"] != "note.txt" {
-		t.Fatalf("attachments = %#v", got["attachments"])
 	}
 }
 

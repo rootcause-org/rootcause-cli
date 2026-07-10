@@ -9,18 +9,18 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
-// Golden + contract tests for the local-synthesis harvest/export surface (rc mailbox harvest, rc export
-// ls/get/download) plus a pure unit test of the corpus splitter. Mirrors config_surface_test.go: a stub
-// server returns canned JSON/Markdown, the test pins the rendered output (or the on-disk split tree).
+// Golden + contract tests for local synthesis (`rc project mailbox harvest` and
+// `rc project corpus ls/get/download`) plus a pure corpus-splitter unit test. A stub server returns
+// canned JSON/Markdown; tests pin rendered output or the on-disk split tree.
 
-// --- rc export ls / get ---
+// --- rc project corpus ls / get ---
 
 func TestExportListTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "export", "ls"); err != nil {
-		t.Fatalf("export ls: %v", err)
+	if err := run(t, e, "project", "corpus", "ls"); err != nil {
+		t.Fatalf("project corpus ls: %v", err)
 	}
 	assertGolden(t, "export_ls.golden", out.String())
 }
@@ -29,8 +29,8 @@ func TestExportListJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "export", "ls"); err != nil {
-		t.Fatalf("export ls -o json: %v", err)
+	if err := run(t, e, "project", "corpus", "ls"); err != nil {
+		t.Fatalf("project corpus ls -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "exports.json"), out.Bytes())
 }
@@ -39,8 +39,8 @@ func TestExportGetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "export", "get", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("export get: %v", err)
+	if err := run(t, e, "project", "corpus", "get", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("project corpus get: %v", err)
 	}
 	assertGolden(t, "export_get.golden", out.String())
 }
@@ -49,21 +49,21 @@ func TestExportGetJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "export", "get", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("export get -o json: %v", err)
+	if err := run(t, e, "project", "corpus", "get", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("project corpus get -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "export_item.json"), out.Bytes())
 }
 
-// --- rc mailbox harvest ---
+// --- rc project mailbox harvest ---
 
 // TestMailboxHarvestAccepted: the no-wait path prints {export_id,status} and a poll hint on stderr.
 func TestMailboxHarvestAccepted(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "harvest", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("mailbox harvest: %v", err)
+	if err := run(t, e, "project", "mailbox", "harvest", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("project mailbox harvest: %v", err)
 	}
 	if !strings.Contains(out.String(), "export_id: eeee1111-0000-0000-0000-000000000001") {
 		t.Errorf("missing export_id in stdout: %q", out.String())
@@ -79,7 +79,7 @@ func TestMailboxHarvestConflict(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "mailbox", "harvest", "busy")
+	err := run(t, e, "project", "mailbox", "harvest", "busy")
 	var apiErr *client.APIError
 	if !asAPIError(err, &apiErr) || apiErr.Code != "HARVEST_IN_PROGRESS" {
 		t.Fatalf("expected HARVEST_IN_PROGRESS APIError, got %v", err)
@@ -92,8 +92,8 @@ func TestMailboxHarvestWait(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "harvest", "wait", "--wait", "--clean=false", "--max-threads", "5"); err != nil {
-		t.Fatalf("mailbox harvest --wait: %v", err)
+	if err := run(t, e, "project", "mailbox", "harvest", "wait", "--wait", "--clean=false", "--max-threads", "5"); err != nil {
+		t.Fatalf("project mailbox harvest --wait: %v", err)
 	}
 	got := out.String()
 	if !strings.Contains(got, "status:") || !strings.Contains(got, "done") {
@@ -112,8 +112,8 @@ func TestMailboxIMAPEnvWritesSecretFile0600(t *testing.T) {
 	}
 	e, out, errb := newTestEnv(t, srv, "table")
 	id := "720c2741-dda4-4ecc-bcb3-5561a818e84b"
-	if err := run(t, e, "mailbox", "imap-env", id); err != nil {
-		t.Fatalf("mailbox imap-env: %v", err)
+	if err := run(t, e, "project", "mailbox", "imap-env", id); err != nil {
+		t.Fatalf("project mailbox imap-env: %v", err)
 	}
 	wantPath := filepath.Join(".rootcause", "imap", id+".env")
 	if strings.TrimSpace(out.String()) != wantPath {
@@ -159,8 +159,8 @@ func TestMailboxIMAPEnvJSONOmitsSecretValues(t *testing.T) {
 	tmp := t.TempDir()
 	outFile := filepath.Join(tmp, "imap.env")
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "mailbox", "imap-env", "mb1", "--out", outFile); err != nil {
-		t.Fatalf("mailbox imap-env -o json: %v", err)
+	if err := run(t, e, "project", "mailbox", "imap-env", "mb1", "--out", outFile); err != nil {
+		t.Fatalf("project mailbox imap-env -o json: %v", err)
 	}
 	if strings.Contains(out.String(), "imap-secret") || strings.Contains(out.String(), "smtp-secret") || strings.Contains(out.String(), "do-not-print-me") {
 		t.Fatalf("secret leaked in json output: %q", out.String())
@@ -173,14 +173,14 @@ func TestMailboxIMAPEnvJSONOmitsSecretValues(t *testing.T) {
 	}
 }
 
-// --- rc export download ---
+// --- rc project corpus download ---
 
 func TestExportDownloadStdout(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "export", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("export download: %v", err)
+	if err := run(t, e, "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("project corpus download: %v", err)
 	}
 	if !strings.HasPrefix(out.String(), "---\nharvest_format: v1") {
 		t.Errorf("expected raw corpus on stdout, got: %q", out.String())
@@ -193,8 +193,8 @@ func TestExportDownloadOut(t *testing.T) {
 	dir := t.TempDir()
 	outFile := filepath.Join(dir, "corpus.md")
 	e, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "export", "download", "eeee1111-0000-0000-0000-000000000001", "--out", outFile); err != nil {
-		t.Fatalf("export download --out: %v", err)
+	if err := run(t, e, "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001", "--out", outFile); err != nil {
+		t.Fatalf("project corpus download --out: %v", err)
 	}
 	data, err := os.ReadFile(outFile)
 	if err != nil {
@@ -212,8 +212,8 @@ func TestExportDownloadLargeStdoutSpillsUnlessOutOrRaw(t *testing.T) {
 
 	outDir := t.TempDir()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--out-dir", outDir, "--no-preview", "export", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("export download spill: %v", err)
+	if err := run(t, e, "--out-dir", outDir, "--no-preview", "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("project corpus download spill: %v", err)
 	}
 	if !strings.Contains(out.String(), "[output too large:") || !strings.Contains(out.String(), "body.md") {
 		t.Fatalf("download did not print spill preview:\n%s", out.String())
@@ -233,8 +233,8 @@ func TestExportDownloadLargeStdoutSpillsUnlessOutOrRaw(t *testing.T) {
 	fileDir := t.TempDir()
 	outFile := filepath.Join(fileDir, "corpus.md")
 	eFile, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, eFile, "--out-dir", fileDir, "export", "download", "eeee1111-0000-0000-0000-000000000001", "--out", outFile); err != nil {
-		t.Fatalf("export download --out: %v", err)
+	if err := run(t, eFile, "--out-dir", fileDir, "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001", "--out", outFile); err != nil {
+		t.Fatalf("project corpus download --out: %v", err)
 	}
 	if _, err := os.Stat(outFile); err != nil {
 		t.Fatalf("--out file missing: %v", err)
@@ -245,8 +245,8 @@ func TestExportDownloadLargeStdoutSpillsUnlessOutOrRaw(t *testing.T) {
 
 	rawDir := t.TempDir()
 	eRaw, rawOut, _ := newTestEnv(t, srv, "table")
-	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "export", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("export download --raw-output: %v", err)
+	if err := run(t, eRaw, "--out-dir", rawDir, "--raw-output", "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001"); err != nil {
+		t.Fatalf("project corpus download --raw-output: %v", err)
 	}
 	if !strings.Contains(rawOut.String(), "Where is my invoice?") || strings.Contains(rawOut.String(), "[output too large:") {
 		t.Fatalf("raw export body not preserved:\n%s", rawOut.String())
@@ -264,7 +264,7 @@ func TestExportDownloadOutSplitExclusive(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "export", "download", "eeee1111-0000-0000-0000-000000000001", "--out", "x.md", "--split", "y")
+	err := run(t, e, "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001", "--out", "x.md", "--split", "y")
 	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
 		t.Fatalf("expected a mutually-exclusive error, got %v", err)
 	}
@@ -274,7 +274,7 @@ func TestExportDownloadBodyUnavailable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "export", "download", "missing")
+	err := run(t, e, "project", "corpus", "download", "missing")
 	var apiErr *client.APIError
 	if !asAPIError(err, &apiErr) || apiErr.Code != "BODY_UNAVAILABLE" {
 		t.Fatalf("expected BODY_UNAVAILABLE APIError, got %v", err)
@@ -289,8 +289,8 @@ func TestExportDownloadSplit(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "split")
 	e, out, _ := newTestEnv(t, srv, "table")
 	id := "eeee1111-0000-0000-0000-000000000001"
-	if err := run(t, e, "export", "download", id, "--split", dir); err != nil {
-		t.Fatalf("export download --split: %v", err)
+	if err := run(t, e, "project", "corpus", "download", id, "--split", dir); err != nil {
+		t.Fatalf("project corpus download --split: %v", err)
 	}
 	if strings.TrimSpace(out.String()) != dir {
 		t.Errorf("split stdout = %q, want the dir %q", out.String(), dir)
@@ -344,8 +344,8 @@ func TestExportDownloadSplitDefaultDir(t *testing.T) {
 	}
 	e, out, _ := newTestEnv(t, srv, "table")
 	id := "eeee1111-0000-0000-0000-000000000001"
-	if err := run(t, e, "export", "download", id, "--split", ""); err != nil {
-		t.Fatalf("export download --split '': %v", err)
+	if err := run(t, e, "project", "corpus", "download", id, "--split", ""); err != nil {
+		t.Fatalf("project corpus download --split '': %v", err)
 	}
 	wantDir := filepath.Join(".rootcause", "exports", id)
 	if strings.TrimSpace(out.String()) != wantDir {

@@ -109,7 +109,7 @@ func TestLoginPKCEBrowserOpenFailureStillPrintsURL(t *testing.T) {
 		t.Fatalf("access token = %q, want rcoa_ok", toks.AccessToken)
 	}
 	got := out.String()
-	for _, want := range []string{"Sign-in URL:", "Browser open failed: no browser launcher", "rc login --device"} {
+	for _, want := range []string{"Sign-in URL:", "Browser open failed: no browser launcher", "rc auth login --device"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("login output = %q, want %q", got, want)
 		}

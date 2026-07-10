@@ -284,9 +284,6 @@ help using `go test ./internal/cli -update`.
 | `rc project mailbox imap-env` | Write an IMAP mailbox env file for local deep harvest (0600; values never printed) |
 | `rc project mailbox ls` | List watched mailboxes (id, provider, email, status, tenant, expiry, error) |
 | `rc project mailbox mode` | Set the mailbox watch, processing, and delivery mode |
-| `rc project mailbox route add` | Create a mailboxe |
-| `rc project mailbox route ls` | List mailboxes |
-| `rc project mailbox route` | Legacy inbound routing table (email→project/tenant); NOT the watched mailboxes |
 | `rc project mailbox settings get` | Show settings with resolved provenance |
 | `rc project mailbox settings set` | Patch settings (nested; key= or --unset clears local override) |
 | `rc project mailbox settings` | Read or edit nested mailbox settings (persona/channel) |
@@ -370,7 +367,7 @@ all-projects tokens outside a brain checkout or as an override; inside a brain c
 `--tenant <slug>` explicitly selects a tenant where supported; it is required for workspace-producing
 commands when a tenant-enabled project login is project-pinned. `-o json|table` forces output. Large
 output spills to `.rootcause/output/` by default; use `--out-dir <dir>` or `RC_OUTPUT_DIR` to change
-that, `--no-preview` to print paths/metadata only, and `--raw-output` to preserve exact legacy stdout.
+that, `--no-preview` to print paths/metadata only, and `--raw-output` to preserve exact full stdout.
 
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
 dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin
@@ -380,8 +377,7 @@ dev/<branch>`); the server runs the real loop against it and flags any actions/P
 wraps the prompt as one synthetic inbound message from `--from` with `--subject` (or a compact prompt
 first line). Use this for high-fidelity brain-dev checks: tone, notes, actions, PR proposals, and
 declines are rendered like a reviewable support result. Use `--scenario raw` for direct investigations;
-the CLI sends `scenario=raw` and prints one Markdown answer. `--scenario mcp` is accepted as a
-compatibility alias for raw, but `raw` is the documented name.
+the CLI sends `scenario=raw` and prints one Markdown answer.
 
 `rc ask --attach path/to/file.pdf` uploads a local file as an inbound attachment on the synthetic
 message. Repeat it for multiple files; relative paths are resolved from the current working directory.

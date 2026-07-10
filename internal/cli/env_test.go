@@ -11,7 +11,7 @@ import (
 // the env commands produce (it may only ever land in the 0600 ./.env file).
 const secretValue = "sk_live_SECRET"
 
-// TestEnvKeys covers `rc env keys` in table + JSON: names only, never a value.
+// TestEnvKeys covers `rc project env keys` in table + JSON: names only, never a value.
 func TestEnvKeys(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -26,19 +26,19 @@ func TestEnvKeys(t *testing.T) {
 		{
 			name:    "table",
 			output:  "table",
-			args:    []string{"env", "keys"},
+			args:    []string{"project", "env", "keys"},
 			wantOut: []string{"FEATURE_FLAG", "REGION", "STRIPE_KEY"},
 		},
 		{
 			name:    "json",
 			output:  "json",
-			args:    []string{"env", "keys"},
+			args:    []string{"project", "env", "keys"},
 			wantOut: []string{`"keys"`, `"FEATURE_FLAG"`, `"count": 3`},
 		},
 		{
 			name:    "tenant",
 			output:  "table",
-			args:    []string{"env", "keys", "--tenant", "acme"},
+			args:    []string{"project", "env", "keys", "--tenant", "acme"},
 			wantOut: []string{"ACME_DSN", "FEATURE_FLAG", "REGION"},
 		},
 	}
@@ -59,7 +59,7 @@ func TestEnvKeys(t *testing.T) {
 	}
 }
 
-// TestEnvPull covers `rc env pull`: it writes a 0600 ./.env with the real VALUES, but prints only
+// TestEnvPull covers `rc project env pull`: it writes a 0600 ./.env with the real VALUES, but prints only
 // NAMES + count.
 func TestEnvPull(t *testing.T) {
 	srv := stubServer(t)
@@ -69,7 +69,7 @@ func TestEnvPull(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
 		e, out, errb := newTestEnv(t, srv, "table")
-		if err := run(t, e, "env", "pull"); err != nil {
+		if err := run(t, e, "project", "env", "pull"); err != nil {
 			t.Fatalf("run: %v (stderr=%s)", err, errb.String())
 		}
 		// stdout: names + count, no values.
@@ -101,7 +101,7 @@ func TestEnvPull(t *testing.T) {
 		dir := t.TempDir()
 		t.Chdir(dir)
 		e, out, errb := newTestEnv(t, srv, "table")
-		if err := run(t, e, "env", "pull", "--tenant", "acme"); err != nil {
+		if err := run(t, e, "project", "env", "pull", "--tenant", "acme"); err != nil {
 			t.Fatalf("run: %v (stderr=%s)", err, errb.String())
 		}
 		assertNoSecret(t, out.String(), errb.String())
@@ -122,7 +122,7 @@ func TestEnvPull(t *testing.T) {
 			t.Fatalf("seed loose .env: %v", err)
 		}
 		e, _, errb := newTestEnv(t, srv, "table")
-		if err := run(t, e, "env", "pull"); err != nil {
+		if err := run(t, e, "project", "env", "pull"); err != nil {
 			t.Fatalf("run: %v (stderr=%s)", err, errb.String())
 		}
 		info, _ := os.Stat(filepath.Join(dir, ".env"))
@@ -132,7 +132,7 @@ func TestEnvPull(t *testing.T) {
 	})
 }
 
-// TestEnvDiff covers `rc env diff`: in-sync (exit 0) vs drift (nonzero exit, names-only report).
+// TestEnvDiff covers `rc project env diff`: in-sync (exit 0) vs drift (nonzero exit, names-only report).
 func TestEnvDiff(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -142,11 +142,11 @@ func TestEnvDiff(t *testing.T) {
 		t.Chdir(dir)
 		// pull, then diff — must be in sync, exit 0.
 		e, _, errb := newTestEnv(t, srv, "table")
-		if err := run(t, e, "env", "pull"); err != nil {
+		if err := run(t, e, "project", "env", "pull"); err != nil {
 			t.Fatalf("pull: %v (stderr=%s)", err, errb.String())
 		}
 		e2, out, errb2 := newTestEnv(t, srv, "table")
-		if err := run(t, e2, "env", "diff"); err != nil {
+		if err := run(t, e2, "project", "env", "diff"); err != nil {
 			t.Fatalf("diff in-sync should exit 0, got: %v (stderr=%s)", err, errb2.String())
 		}
 		if !strings.Contains(out.String(), "in sync") {
@@ -164,7 +164,7 @@ func TestEnvDiff(t *testing.T) {
 			t.Fatalf("seed .env: %v", err)
 		}
 		e, out, errb := newTestEnv(t, srv, "table")
-		err := run(t, e, "env", "diff")
+		err := run(t, e, "project", "env", "diff")
 		if err == nil {
 			t.Fatalf("diff with drift should return an error (nonzero exit); stdout=%s", out.String())
 		}
@@ -184,7 +184,7 @@ func TestEnvDiff(t *testing.T) {
 			t.Fatalf("seed .env: %v", err)
 		}
 		e, out, errb := newTestEnv(t, srv, "json")
-		if err := run(t, e, "env", "diff"); err == nil {
+		if err := run(t, e, "project", "env", "diff"); err == nil {
 			t.Fatalf("json diff with drift should return an error")
 		}
 		got := out.String()

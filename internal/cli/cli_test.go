@@ -31,21 +31,21 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
-		// `rc fleet` pages this: with a cursor set, return the operator-tier (health-bearing) page that
+		// `rc fleet runs` pages this: with a cursor set, return the operator-tier (health-bearing) page that
 		// ENDS the window (no next_before) so the paging loop terminates. Without a cursor it's the
 		// existing single-page fixture (status/runs view).
 		if r.URL.Query().Get("before") != "" {
 			_, _ = w.Write(fixture(t, "fleet_runs_p2.json"))
 			return
 		}
-		if r.URL.Query().Get("kind") == "fleet" { // `rc fleet` test path: drive the operator-tier digest fixtures
+		if r.URL.Query().Get("kind") == "fleet" { // `rc fleet runs` test path: drive the operator-tier digest fixtures
 			_, _ = w.Write(fixture(t, "fleet_runs_p1.json"))
 			return
 		}
 		_, _ = w.Write(fixture(t, "runs.json"))
 	})
 
-	// Fleet enumeration (rc projects + the --all fan-out seed). A "solo" project drives the --all
+	// Fleet enumeration (rc project list + the --all fan-out seed). A "solo" project drives the --all
 	// scoped-token error; the default returns the two-project fleet.
 	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
@@ -59,7 +59,7 @@ func stubServer(t *testing.T) *httptest.Server {
 			`{"id":"bbbbbbbb-0000-0000-0000-000000000002","name":"bravo"}]}`))
 	})
 
-	// Observability feeds (rc fleet / patterns / health). The events feed is paged: page 1 carries a
+	// Observability feeds (rc fleet runs/patterns/health). The events feed is paged: page 1 carries a
 	// next_before, page 2 (before set) is the last page — exercising the CLI's paging loop + accumulation.
 	mux.HandleFunc("GET /api/v1/run-events", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
@@ -229,7 +229,7 @@ func stubServer(t *testing.T) *httptest.Server {
 			TimeoutS int    `json:"timeout_s"`
 		}
 		if err := json.Unmarshal([]byte(body), &req); err != nil {
-			t.Fatalf("decode bash run body: %v\n%s", err, body)
+			t.Fatalf("decode dev console bash run body: %v\n%s", err, body)
 		}
 		if req.Command == "large-output" {
 			w.Header().Set("Content-Type", "application/json")
@@ -754,7 +754,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 			Mode string `json:"mode"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("decode mailbox mode: %v", err)
+			t.Fatalf("decode project mailbox mode: %v", err)
 		}
 		if body.Mode != "watch" {
 			t.Fatalf("mode = %q, want watch", body.Mode)
@@ -763,7 +763,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":false,"has_sync_cursor":true}`))
 	})
 
-	// generic IMAP/SMTP connect (rc mailbox connect-imap): assert the password rode in the BODY (never
+	// generic IMAP/SMTP connect (rc project mailbox connect-imap): assert the password rode in the BODY (never
 	// argv) and that the client applied the username→email / smtp-host→imap-host defaults, then echo a
 	// created watched-mailbox item. A duplicate email ("dupe@acme.test") drives the 409 MAILBOX_IN_USE path.
 	imapConnect := func(w http.ResponseWriter, r *http.Request) {
@@ -798,7 +798,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/mailboxes/{id}/imap-env", imapEnv)
 	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes/{id}/imap-env", imapEnv)
 
-	// local-synthesis harvest/export (rc mailbox harvest, rc export ls/get/download). Harvest asserts the
+	// local-synthesis harvest/export (rc project mailbox harvest, rc project corpus ls/get/download). Harvest asserts the
 	// clean/max_threads body shape; a mailbox id "busy" drives the 409 HARVEST_IN_PROGRESS path. The export
 	// list/get echo canned fixtures; download returns raw Markdown (id "missing" → 404 BODY_UNAVAILABLE).
 	// id "running-then-done" flips its export status once so the --wait poll loop terminates on the 2nd read.
@@ -867,22 +867,6 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write(fixture(t, "harvest_corpus.md"))
 	})
 
-	// legacy routing table (rc mailbox route): list + create (upsert). Create asserts the email arrives.
-	mux.HandleFunc("GET /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(fixture(t, "mailboxes.json"))
-	})
-	mux.HandleFunc("POST /api/v1/mailboxes", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		body := readBody(t, r)
-		if !strings.Contains(body, `"mailbox":"support@acme.test"`) {
-			t.Fatalf("mailbox create body missing mailbox: %s", body)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write(fixture(t, "mailbox_item.json"))
-	})
-
 	// env per-key writes (grounding default; action plane). set asserts the value rode in the BODY
 	// (never argv) and is never echoed; reveal returns {secret}; rm is a 204.
 	mux.HandleFunc("POST /api/v1/env_grounding", func(w http.ResponseWriter, r *http.Request) {
@@ -890,10 +874,10 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		body := readBody(t, r)
 		var got map[string]any
 		if err := json.Unmarshal([]byte(body), &got); err != nil {
-			t.Fatalf("decode env set body: %v\n%s", err, body)
+			t.Fatalf("decode project env set body: %v\n%s", err, body)
 		}
 		if got["key"] != "STRIPE_KEY" || got["value"] != "sk_live_FROM_STDIN" {
-			t.Fatalf("env set body = %v, want key=STRIPE_KEY value=sk_live_FROM_STDIN", got)
+			t.Fatalf("project env set body = %v, want key=STRIPE_KEY value=sk_live_FROM_STDIN", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"key":"STRIPE_KEY"}`))
@@ -1005,7 +989,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write(fixture(t, "github_status.json"))
 	})
 
-	// brain edit / consolidate — both return {queued, job_id}.
+	// dev brain edit / consolidate — both return {queued, job_id}.
 	mux.HandleFunc("GET /api/v1/brain/status", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
@@ -1020,7 +1004,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		requireAuth(t, r)
 		body := readBody(t, r)
 		if !strings.Contains(body, `"instruction":"add a runbook for refunds"`) {
-			t.Fatalf("brain edit body missing instruction: %s", body)
+			t.Fatalf("dev brain edit body missing instruction: %s", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_edit_001"}`))
@@ -1185,7 +1169,6 @@ func newTestEnv(t *testing.T, srv *httptest.Server, output string) (*env, *bytes
 // stdout, stderr, and the error from Execute (so the error-path test can assert non-nil).
 func run(t *testing.T, e *env, args ...string) error {
 	t.Helper()
-	args = canonicalTestArgs(args)
 	// Cobra resets the --output-bound field to its flag default during parsing, so force the mode via
 	// an explicit -o arg (mirroring how a user would) rather than presetting e.output.
 	if e.output != "" {
@@ -1196,104 +1179,6 @@ func run(t *testing.T, e *env, args ...string) error {
 	root.SetOut(e.out)
 	root.SetErr(e.err)
 	return root.Execute()
-}
-
-// canonicalTestArgs lets the behavioral tests keep describing the feature under test while executing
-// it through the canonical command tree. Surface-specific tests below assert that the retired root
-// paths themselves are unavailable.
-func canonicalTestArgs(args []string) []string {
-	commandAt := 0
-	for commandAt < len(args) {
-		switch args[commandAt] {
-		case "--profile", "--project", "--tenant", "--output", "-o", "--out-dir":
-			commandAt += 2
-		case "--no-preview", "--raw-output":
-			commandAt++
-		default:
-			return append(append([]string{}, args[:commandAt]...), canonicalCommandArgs(args[commandAt:])...)
-		}
-	}
-	return args
-}
-
-func canonicalCommandArgs(args []string) []string {
-	if len(args) == 0 {
-		return args
-	}
-	prepend := func(prefix ...string) []string { return append(prefix, args[1:]...) }
-	switch args[0] {
-	case "login", "logout":
-		return prepend("auth", args[0])
-	case "whoami":
-		return prepend("auth", "status")
-	case "projects":
-		return prepend("project", "list")
-	case "repo", "tenant", "connection", "member", "token", "mailbox", "env", "database", "branding", "github", "triage":
-		return prepend("project", args[0])
-	case "spam":
-		return prepend("project", "senders")
-	case "export":
-		return prepend("project", "corpus")
-	case "brain":
-		return prepend("dev", "brain")
-	case "dream":
-		return prepend("dev", "learning")
-	case "bash":
-		return prepend("dev", "console", "bash")
-	case "db":
-		return prepend("dev", "console", "database")
-	case "capabilities":
-		return prepend("dev", "console", "capabilities")
-	case "provider", "id":
-		return prepend("dev", "tools", args[0])
-	case "routes", "openapi":
-		return prepend("dev", "api", args[0])
-	case "access":
-		return prepend("auth", "access")
-	case "schema":
-		return prepend("project", "settings", "schema")
-	case "explain":
-		return prepend("project", "settings", "describe")
-	case "runs":
-		return prepend("run", "list")
-	case "thread":
-		return prepend("run", "thread")
-	case "fleet", "patterns", "health":
-		name := args[0]
-		if name == "fleet" {
-			name = "runs"
-		}
-		return prepend("fleet", name)
-	case "upgrade":
-		return prepend("self", "update")
-	case "config":
-		if len(args) > 1 && args[1] == "hierarchy" {
-			return append([]string{"project", "settings", "behavior"}, args[2:]...)
-		}
-		if len(args) > 1 && args[1] == "openrouter-key" {
-			return append([]string{"project", "model-key", "openrouter"}, args[2:]...)
-		}
-		return prepend("project", "settings", "runtime")
-	case "kb":
-		if len(args) > 1 && (args[1] == "get" || args[1] == "set") {
-			return append([]string{"project", "knowledge", "sync"}, args[1:]...)
-		}
-		return append([]string{"project", "knowledge", "content"}, args[1:]...)
-	case "action":
-		if len(args) > 1 && args[1] == "config" {
-			return append([]string{"project", "action-settings"}, args[2:]...)
-		}
-		return prepend("dev", "console", "action")
-	case "run":
-		views := map[string]string{"--events": "events", "--full": "trace", "--debug": "debug", "--brain-diff": "brain-diff"}
-		for i, arg := range args {
-			if view := views[arg]; view != "" {
-				without := append(append([]string{}, args[1:i]...), args[i+1:]...)
-				return append([]string{"run", view}, without...)
-			}
-		}
-	}
-	return args
 }
 
 func requireAuth(t *testing.T, r *http.Request) {

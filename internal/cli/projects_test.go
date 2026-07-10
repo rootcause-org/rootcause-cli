@@ -9,13 +9,13 @@ import (
 	"testing"
 )
 
-// TestProjectsTable pins `rc projects`: the fleet handle list (name + id), name-ordered as the server
+// TestProjectsTable pins `rc project list`: the fleet handle list (name + id), name-ordered as the server
 // sends them.
 func TestProjectsTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "projects"); err != nil {
+	if err := run(t, e, "project", "list"); err != nil {
 		t.Fatalf("projects: %v", err)
 	}
 	got := out.String()
@@ -31,8 +31,8 @@ func TestProjectsJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "projects"); err != nil {
-		t.Fatalf("projects -o json: %v", err)
+	if err := run(t, e, "project", "list"); err != nil {
+		t.Fatalf("project list -o json: %v", err)
 	}
 	var got struct {
 		Projects []map[string]any `json:"projects"`
@@ -154,14 +154,14 @@ func projectRenameServer(t *testing.T, projects string, gotProject, gotBody *str
 	return httptest.NewServer(mux)
 }
 
-// TestFleetAllJSON: `rc fleet --all` fans out across every project and emits the merged structure
+// TestFleetAllJSON: `rc fleet runs --all` fans out across every project and emits the merged structure
 // {projects:[{project,runs}], total_runs}. Each project pages the fleet fixtures (4 runs), so a
 // two-project fleet totals 8.
 func TestFleetAllJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "fleet", "--all", "--kind", "fleet"); err != nil {
+	if err := run(t, e, "fleet", "runs", "--all", "--kind", "fleet"); err != nil {
 		t.Fatalf("fleet --all -o json: %v", err)
 	}
 	var got struct {
@@ -197,7 +197,7 @@ func TestFleetAllScopedTokenErrors(t *testing.T) {
 	defer solo.Close()
 
 	e, _, _ := newTestEnv(t, solo, "table")
-	err := run(t, e, "fleet", "--all")
+	err := run(t, e, "fleet", "runs", "--all")
 	if err == nil {
 		t.Fatal("expected an error for --all with a project-scoped token")
 	}

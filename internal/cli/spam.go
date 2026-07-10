@@ -9,13 +9,13 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newSpamCmd wires `rc spam` — the per-project/tenant spam allow/block lists ("never spam" / "always
+// newSpamCmd wires `rc project senders` — the per-project/tenant spam allow/block lists ("never spam" / "always
 // spam"), a plane separate from the drafting sender lists. The spam endpoints address the project (and
 // tenant) in the PATH (/api/v1/projects/{project}[/tenants/{slug}]/spam/…), so every subcommand
 // resolves a concrete project slug (spamProject) rather than riding the ?project= collection scope.
 func newSpamCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "spam",
+		Use:   "senders",
 		Short: "Manage the spam allow/block lists (never-spam / always-spam)",
 	}
 	cmd.AddCommand(
@@ -27,16 +27,15 @@ func newSpamCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// spamListCmd is `rc spam ls`: both lists in one table (VERDICT PATTERN TYPE SOURCE [CREATED]); -o json
+// spamListCmd is `rc project senders ls`: both lists in one table (VERDICT PATTERN TYPE SOURCE [CREATED]); -o json
 // emits the raw allow+block bodies as a {"allows":…,"blocks":…} envelope so a consumer sees exactly
 // what each endpoint returned.
 func spamListCmd(e *env) *cobra.Command {
 	var mailbox string
 	cmd := &cobra.Command{
-		Use:     "ls",
-		Aliases: []string{"list"},
-		Short:   "List the spam allow and block rules",
-		Args:    cobra.NoArgs,
+		Use:   "ls",
+		Short: "List the spam allow and block rules",
+		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
 			if err != nil {
@@ -67,7 +66,7 @@ func spamListCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// filterSpamByMailbox keeps only rules whose mailbox scope matches (client-side filter for `rc spam ls
+// filterSpamByMailbox keeps only rules whose mailbox scope matches (client-side filter for `rc project senders ls
 // --mailbox`). An empty filter is a no-op — every rule passes. The server's GET returns all scopes below
 // the resolved one; this narrows the table to one mailbox without a second round-trip.
 func filterSpamByMailbox(rules []client.SpamRule, mailbox string) []client.SpamRule {

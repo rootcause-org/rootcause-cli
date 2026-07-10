@@ -9,10 +9,9 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newDatabaseCmd: `rc database ls/get/set` over the databases collection (id = dsn) PLUS a `controls`
-// sub-group over the nested /databases/{dsn}/controls sub-resource. The noun is `database` (not `db`)
-// because `rc db` is already the guarded production-read console command — keeping them distinct avoids
-// shadowing that surface.
+// newDatabaseCmd: `rc project database ls/get/set` over the databases collection (id = dsn) plus a
+// `controls` sub-group over the nested /databases/{dsn}/controls sub-resource. Guarded production reads
+// live separately at `rc dev console database`.
 func newDatabaseCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "database", Short: "Manage registered databases (list/read/update + access controls)"}
 	cmd.AddCommand(
@@ -25,7 +24,7 @@ func newDatabaseCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// newDatabasePreviewCmd: `rc database preview <dsn> --tenant … --principal-kind … --principal-id …
+// newDatabasePreviewCmd: `rc project database preview <dsn> --tenant … --principal-kind … --principal-id …
 // [--table …]` over POST /api/v1/databases/{dsn}/scope-preview — the ONE real per-principal preview. It
 // mints the scoped views a real run of (tenant, principal) would see and returns per-table counts + sample
 // rows + the compiled predicate. Preview-only (never writes); the principal pair validates together.
@@ -73,7 +72,7 @@ func newDatabasePreviewCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// newDatabaseControlsCmd: `rc database controls get|set <dsn>` over GET/PATCH
+// newDatabaseControlsCmd: `rc project database controls get|set <dsn>` over GET/PATCH
 // /api/v1/databases/{dsn}/controls — a hand-written nested-path call (not a generic collection route).
 func newDatabaseControlsCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "controls", Short: "Read or change a database's access controls"}

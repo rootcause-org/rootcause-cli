@@ -61,7 +61,7 @@ func (s *liveSource) Refresh(ctx context.Context) (string, error) {
 }
 
 // refreshLocked exchanges the stored refresh token for a fresh access token and persists the result.
-// A dead/expired refresh (invalid_grant) surfaces as a "run `rc login`" prompt. Must hold s.mu.
+// A dead/expired refresh (invalid_grant) surfaces as a "run `rc auth login`" prompt. Must hold s.mu.
 //
 // Cross-process safety: the in-process mutex only serializes ONE liveSource. Two concurrent `rc`
 // processes (parallel agents on one machine) can both present the same refresh token; with a ROTATING

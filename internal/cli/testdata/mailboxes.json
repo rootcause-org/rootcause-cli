@@ -1,4 +1,0 @@
-{ "mailboxes": [
-  { "id": "mb-1111", "mailbox": "support@acme.test", "tenant": "acme", "status": "active" },
-  { "id": "mb-2222", "mailbox": "help@bravo.test", "tenant": "bravo", "status": "active" }
-] }

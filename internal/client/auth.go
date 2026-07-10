@@ -10,7 +10,7 @@ import "context"
 type TokenSource interface {
 	// Token returns a currently-valid access token, refreshing pre-emptively if it's near expiry. An
 	// error here means the caller can't authenticate at all (no stored token / refresh failed) — the
-	// command surfaces it as a "run `rc login`" prompt.
+	// command surfaces it as a "run `rc auth login`" prompt.
 	Token(ctx context.Context) (string, error)
 	// Refresh forces a refresh after the server rejected the access token mid-flight (a 401), returning
 	// the new token. A nil-returning/erroring Refresh means re-login is required.

@@ -70,8 +70,7 @@ func commandScope(path string) scopeSpec {
 	case strings.HasPrefix(path, "project repo "), strings.HasPrefix(path, "project connection "), strings.HasPrefix(path, "project member "):
 		return projectTenant
 	case strings.HasPrefix(path, "project mailbox ") &&
-		!strings.HasPrefix(path, "project mailbox settings ") &&
-		!strings.HasPrefix(path, "project mailbox route "):
+		!strings.HasPrefix(path, "project mailbox settings "):
 		return projectTenant
 	case strings.HasPrefix(path, "project corpus "), strings.HasPrefix(path, "project env "):
 		return projectTenant
@@ -93,8 +92,6 @@ func commandScope(path string) scopeSpec {
 	case strings.HasPrefix(path, "project tenant "):
 		return projectOnly
 	case strings.HasPrefix(path, "project mailbox settings "):
-		return projectOnly
-	case strings.HasPrefix(path, "project mailbox route "):
 		return projectOnly
 	case strings.HasPrefix(path, "project model-key "), strings.HasPrefix(path, "project knowledge sync "):
 		return projectOnly
