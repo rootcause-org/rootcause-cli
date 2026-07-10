@@ -3,4 +3,4 @@ RUN                                   KIND      SOURCE      STATUS   OUTCOME   C
 22222222-2222-2222-2222-222222222222  email     Inbound     error    error     timeout   2m0s      2026-06-19T08:00:00Z
 33333333-3333-3333-3333-333333333333  analysis  Prompt API  running  running   ok        -         2026-06-19T09:05:00Z
 
-More: rc runs --before 33333333-3333-3333-3333-333333333333
+More: rc run list --before 33333333-3333-3333-3333-333333333333

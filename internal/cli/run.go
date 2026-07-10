@@ -16,25 +16,42 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newRunCmd builds `rc run <id>` and `rc run <id> --events`. Without --events it's GET
-// /api/v1/runs/{id} (one run, high level); with --events it's the full per-event trace. In JSON mode
-// the trace is emitted as NDJSON (one event object per line) — streamable and jq-friendly, not a
-// wrapping array — while the high-level view stays a single JSON object.
+type runView int
+
+const (
+	runViewShow runView = iota
+	runViewEvents
+	runViewTrace
+	runViewDebug
+	runViewBrainDiff
+)
+
+// newRunCmd keeps `rc run <id>` as the terse show shorthand and puts every other view under an
+// explicit verb, so scripts never depend on mutually-exclusive presentation flags.
 func newRunCmd(e *env) *cobra.Command {
-	var events bool
-	var full bool
-	var debug bool
-	var brainDiff bool
+	cmd := newRunViewCmd(e, "run <id>", "Inspect and manage the run lifecycle", runViewShow)
+	cmd.AddCommand(
+		commandNamed(newRunsCmd(e), "list"),
+		newRunViewCmd(e, "show <id>", "Show one run", runViewShow),
+		newRunViewCmd(e, "events <id>", "Show the full per-event trace", runViewEvents),
+		newRunViewCmd(e, "trace <id>", "Show the whole run bundle", runViewTrace),
+		newRunViewCmd(e, "debug <id>", "Decompose a run into local debug artifacts", runViewDebug),
+		newRunViewCmd(e, "brain-diff <id>", "Show the brain commit written by a run", runViewBrainDiff),
+		commandNamed(newThreadCmd(e), "thread <id>"),
+		runFeedbackCmd(e),
+		runRetryCmd(e),
+	)
+	return cmd
+}
+
+func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 	var stream bool
 	cmd := &cobra.Command{
-		Use:   "run <id>",
-		Short: "Show one run (--events for the trace, --full for the bundle, --brain-diff for the brain commit, --debug to decompose it offline)",
+		Use:   use,
+		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			id := args[0]
-			if more := boolsSet(events, full, debug, brainDiff); more > 1 {
-				return fmt.Errorf("--events, --full, --brain-diff and --debug are mutually exclusive")
-			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
@@ -43,7 +60,7 @@ func newRunCmd(e *env) *cobra.Command {
 
 			// --debug: decompose the /trace bundle into a jq-able JSONL + a thin markdown index on disk, then
 			// print the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
-			if debug {
+			if view == runViewDebug {
 				outDir := e.outDir
 				if outDir == "" {
 					outDir = defaultDebugDir
@@ -51,7 +68,7 @@ func newRunCmd(e *env) *cobra.Command {
 				return runDebug(e, c, id, outDir)
 			}
 
-			if full {
+			if view == runViewTrace {
 				// JSON mode is the renderer's input contract: emit the bundle as JSONL from the raw bytes so
 				// no server field is dropped on the cross-repo seam. Table mode decodes into the typed bundle.
 				if jsonMode {
@@ -69,7 +86,7 @@ func newRunCmd(e *env) *cobra.Command {
 				return nil
 			}
 
-			if events {
+			if view == runViewEvents {
 				resp, err := c.Events(e.ctx(), id)
 				if err != nil {
 					return err
@@ -81,7 +98,7 @@ func newRunCmd(e *env) *cobra.Command {
 				return nil
 			}
 
-			if brainDiff {
+			if view == runViewBrainDiff {
 				// JSON mode is a byte-faithful passthrough (render, don't reshape); table mode decodes the
 				// typed BrainDiff and renders the commit + files + diff.
 				if jsonMode {
@@ -114,12 +131,9 @@ func newRunCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&events, "events", false, "show the full per-event trace")
-	cmd.Flags().BoolVar(&full, "full", false, "show the whole bundle (header + trace; JSONL in -o json)")
-	cmd.Flags().BoolVar(&debug, "debug", false, "decompose the run into a jq-able JSONL + thin markdown index on disk")
-	cmd.Flags().BoolVar(&brainDiff, "brain-diff", false, "show the journal commit this run wrote to the brain")
-	cmd.Flags().BoolVar(&stream, "stream", false, "stream JSONL to stdout even when it is large")
-	cmd.AddCommand(runFeedbackCmd(e), runRetryCmd(e))
+	if view == runViewEvents || view == runViewTrace {
+		cmd.Flags().BoolVar(&stream, "stream", false, "stream JSONL to stdout even when it is large")
+	}
 	return cmd
 }
 

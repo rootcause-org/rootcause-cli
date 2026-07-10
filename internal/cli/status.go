@@ -7,10 +7,8 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newStatusCmd builds `rc status`: the no-filter view of GET /api/v1/runs, leading with the health
-// summary then a compact recent-runs table. Same endpoint as `rc runs`; the only difference is which
-// view leads (summary here, table there). It takes no filters by design — status is the default
-// "everything at a glance" view.
+// newStatusCmd builds `rc status`: the fixed five-row view of GET /api/v1/runs, leading with the health
+// summary then a compact recent-runs table. `rc run list` owns filtering and deeper pagination.
 func newStatusCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
@@ -22,7 +20,7 @@ func newStatusCmd(e *env) *cobra.Command {
 				return err
 			}
 			// --project scopes an all-projects token to one project (disregarded for a pinned token).
-			params := client.RunsParams{Project: e.scopeProject()}
+			params := client.RunsParams{Limit: 5, Project: e.scopeProject()}
 			// JSON mode is a verbatim passthrough so `| jq` sees the true response; table mode decodes
 			// into the typed struct for rendering.
 			if render.IsJSON(e.mode(), e.out) {

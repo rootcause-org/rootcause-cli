@@ -2,7 +2,7 @@
 
 A scriptable client that lets a project **consume its own rootcause data** and **change its own
 config** — over rootcause's public JSON `/api/v1`, authed with an **OAuth access token** (you sign in
-once with `rc login`; the CLI refreshes the token for you). **Fat client, thin server:** endpoints
+once with `rc auth login`; the CLI refreshes the token for you). **Fat client, thin server:** endpoints
 return raw, token-scoped data; the CLI may digest/cluster/render it for you, and every such command also
 emits the raw rows as **JSON when piped** so `| jq` always works and you can slice it your own way.
 
@@ -17,20 +17,20 @@ Sources:
 $ rc ask "Do I still have open invoices?"   # simulate a support email, wait, print draft/note
 $ rc ask --scenario raw "How many active subscriptions are past due?"
 $ rc ask --effort pro "Retry this with a stronger model tier"
-$ rc runs --kind prompt --limit 5 | jq '.runs[].run_id'
-$ rc run <id> --events        # full per-iteration trace (NDJSON when piped)
-$ rc run <id> --full          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
-$ rc dream evidence --limit 50 -o json
-$ rc config set max_run_usd=5 default_tier=pro
-$ rc config hierarchy set persona.tone=warm channel.labeling_enabled=true
-$ rc triage policy get -o json
-$ rc triage rules ls -o json
-$ rc tenant settings get --tenant acme
-$ rc tenant profile get --tenant acme
-$ rc mailbox settings set <mailbox-id> persona.tone=direct
-$ rc routes | grep /trace
-$ rc env keys                  # key NAMES of the production grounding env (no values)
-$ rc env pull                  # sync that env to a local 0600 ./.env (for brain-dev --live)
+$ rc run list --kind prompt --limit 5 | jq '.runs[].run_id'
+$ rc run events <id>        # full per-iteration trace (NDJSON when piped)
+$ rc run trace <id>          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
+$ rc dev learning evidence --limit 50 -o json
+$ rc project settings runtime set max_run_usd=5 default_tier=pro
+$ rc project settings behavior set persona.tone=warm channel.labeling_enabled=true
+$ rc project triage policy get -o json
+$ rc project triage rules ls -o json
+$ rc project tenant settings get --tenant acme
+$ rc project tenant profile get --tenant acme
+$ rc project mailbox settings set <mailbox-id> persona.tone=direct
+$ rc dev api routes | grep /trace
+$ rc project env keys                  # key NAMES of the production grounding env (no values)
+$ rc project env pull                  # sync that env to a local 0600 ./.env (for brain-dev --live)
 ```
 
 ## Install
@@ -78,18 +78,18 @@ unsigned binary may be quarantined: `xattr -d com.apple.quarantine $(which rc)`.
 ### Upgrading
 
 ```bash
-rc upgrade            # self-update to the latest release (Linux / WSL / Windows)
-rc upgrade --check    # just say whether a newer version exists
-brew upgrade rc       # macOS (Homebrew) — rc upgrade detects this and points you here
+rc self update            # self-update to the latest release (Linux / WSL / Windows)
+rc self update --check    # just say whether a newer version exists
+brew upgrade rc       # macOS (Homebrew) — rc self update detects this and points you here
 ```
 
-`rc upgrade` replaces its own binary with the latest release for your OS/arch (verifying the published
+`rc self update` replaces its own binary with the latest release for your OS/arch (verifying the published
 checksum first). On a Homebrew install it defers to `brew upgrade rc` so it doesn't fight brew. (`go
 install …@latest` re-installs the latest for Go users.)
 
 ## Sign in
 
-`rc` authenticates with **OAuth**. Sign in once with `rc login`; it stores an access + refresh token in
+`rc` authenticates with **OAuth**. Sign in once with `rc auth login`; it stores an access + refresh token in
 `~/.config/rootcause/tokens.json` (0600) and refreshes the short-lived access token transparently on
 every later command. The token's **scope is chosen on the browser consent screen** (a single project,
 one tenant under a project, or — for a global admin — all projects); there is no key to paste.
@@ -97,14 +97,14 @@ Tenant-enabled project logins can be project-scoped, then `--tenant <slug>` choo
 command.
 
 ```bash
-rc login            # opens your browser (PKCE loopback), catches the redirect, stores the token
-rc login --device   # headless/SSH: prints a short code you approve in a browser on any device
-rc logout           # revoke the token server-side and clear it locally
+rc auth login            # opens your browser (PKCE loopback), catches the redirect, stores the token
+rc auth login --device   # headless/SSH: prints a short code you approve in a browser on any device
+rc auth logout           # revoke the token server-side and clear it locally
 ```
 
-`rc login` prints the full sign-in URL before trying to open a browser, so agents can surface that URL
+`rc auth login` prints the full sign-in URL before trying to open a browser, so agents can surface that URL
 to a human immediately. If the local browser opener fails, the command keeps waiting on the printed URL;
-use `rc login --device` for true headless/SSH sessions where a browser cannot reach localhost.
+use `rc auth login --device` for true headless/SSH sessions where a browser cannot reach localhost.
 
 **Let the brain checkout select the profile.** A brain repo (`rootcause-brain-<project>`) commits a
 `.rootcause.toml` binding it to one project, so `rc` run anywhere inside it first looks for
@@ -113,8 +113,8 @@ a local token profile with the same name. If that profile exists, it uses it; ot
 
 ```bash
 cd rootcause-brain-acme   # committed .rootcause.toml: project = "acme"
-rc login                  # stores a token under the "acme" profile
-rc whoami                 # profile: acme · project: acme · tenant if bound · auth: logged in
+rc auth login                  # stores a token under the "acme" profile
+rc auth status                 # profile: acme · project: acme · tenant if bound · auth: logged in
 rc ask "…"                # just works
 ```
 
@@ -124,8 +124,8 @@ own project. Main intent: the checkout chooses the project context; the profile 
 local token to use.
 
 **Base URL** is deliberately boring: production is hardcoded to `https://app.replypen.com`. The only
-runtime override is `ROOTCAUSE_BASE_URL`, for deliberate staging/dev work. `rc login` uses the same
-resolution, and `rc whoami` prints both the URL and its source (`built-in production` or
+runtime override is `ROOTCAUSE_BASE_URL`, for deliberate staging/dev work. `rc auth login` uses the same
+resolution, and `rc auth status` prints both the URL and its source (`built-in production` or
 `ROOTCAUSE_BASE_URL`). Old `base_url` values in `~/.config/rootcause/config.toml`, `.rootcause.toml`,
 or the token store do not steer normal commands. The legacy production host
 `https://rootcause.probackup.io` is treated as an alias when an explicit env/token URL is canonicalized.
@@ -139,21 +139,22 @@ the brain marker's project if that token exists > `"default"`. `--profile` picks
 a command uses.
 `--project <id-or-name>` is **not** a token selector — it's a **server-side scope**: it keeps the active
 token and names one project on supported endpoints (`?project=`), so an **all-projects admin token** can
-review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask --project
+review a single project (`rc fleet runs --project momentum-tools`) or trigger one (`rc ask --project
 momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
-When a project scope is set, the CLI validates it against `rc projects` first and fails typos with a
-hint to run `rc projects`.
-On tenant-enabled projects, the active `rc login` may bind one tenant or the whole project. Plain
+When a project scope is set, the CLI validates it against `rc project list` first and fails typos with a
+hint to run `rc project list`.
+On tenant-enabled projects, the active `rc auth login` may bind one tenant or the whole project. Plain
 `rc ask "…"` works when the token is tenant-pinned; project-pinned logins pass `--tenant <slug>` per
-workspace-producing command. `rc whoami` shows the login-bound project and tenant, when one is pinned.
+workspace-producing command. `rc auth status` shows the login-bound project and tenant, when one is pinned.
 
-For a whole-fleet review with an all-projects token, `rc fleet`/`patterns`/`health` take **`--all`**:
-the CLI lists the fleet (`rc projects`) and fans out per project — `fleet --all` groups the digest by
-project with a fleet total, `health --all` exits non-zero if ANY project is unhealthy, `patterns --all`
+For a whole-fleet review with an all-projects token, `rc fleet runs`, `rc fleet patterns`, and
+`rc fleet health` take **`--all`**. The CLI lists the fleet (`rc project list`) and fans out per project —
+`fleet runs --all` groups the digest by project with a fleet total, `fleet health --all` exits non-zero
+if ANY project is unhealthy, and `fleet patterns --all`
 clusters per project. `-o json` emits the merged `{projects:[…]}` shape. `--all` against a project-scoped
 token is a friendly error (it needs an all-projects token), not a silent single-project run.
 
-`rc fleet` also carries the aggregates operators used to drop to raw SQL for: **`--by-model`** (per
+`rc fleet runs` also carries the aggregates operators used to drop to raw SQL for: **`--by-model`** (per
 answered model — runs, total/avg cost, and how many were **fallbacks**; the highest-value view, it
 surfaces "one model is N% of spend purely as a fallback") and **`--timeline`** (per-day
 runs/errors/cost). Both off by default to keep the digest scannable; the per-run `is_fallback` /
@@ -168,70 +169,208 @@ in the OAuth token store.
 
 ## Commands
 
+The inventory below is generated from Cobra's offline command tree. Refresh it together with recursive
+help using `go test ./internal/cli -update`.
+
+<!-- BEGIN GENERATED COMMAND INVENTORY -->
+| Command | Purpose |
+|---|---|
+| `rc admin catalog ls` | List catalog |
+| `rc admin catalog upsert` | Create or update a catalog entry (keyed on key=) |
+| `rc admin catalog` | Manage the integration catalog |
+| `rc admin project add` | Create a project (name=… [default_tier=…] [egress_mode=wildcard|enforce]) |
+| `rc admin project ls` | List projects |
+| `rc admin project` | Manage box-level projects |
+| `rc admin user add` | Create a user (email=… [admin=true] [password=…]) |
+| `rc admin user ls` | List users |
+| `rc admin user set` | Update a user ([admin=true|false] [password=…]) |
+| `rc admin user` | Manage box-level users |
+| `rc admin` | Box-level administration (users/projects/catalog; global-admin token) |
+| `rc ask` | Trigger a run from a question and wait for the answer |
+| `rc auth access` | Show what this token may do (scopes, writable keys, resources) |
+| `rc auth login` | Sign in with OAuth (PKCE loopback by default, --device for headless) |
+| `rc auth logout` | Revoke and clear this profile's stored tokens |
+| `rc auth status` | Show the resolved profile/project/login tenant + sign-in status |
+| `rc auth` | Manage local authentication and inspect access |
+| `rc dev api openapi` | Dump the canonical OpenAPI document |
+| `rc dev api routes` | Show the canonical API route manifest |
+| `rc dev api` | Inspect the public API contract |
+| `rc dev brain consolidate` | Queue the consolidation cron on demand |
+| `rc dev brain edit` | Queue a brain edit from a plain-language instruction (or STDIN) |
+| `rc dev brain status` | Show deployed brain cache status |
+| `rc dev brain sync` | Fetch origin/main and refresh deployed brain cache |
+| `rc dev brain` | Inspect, sync, and queue out-of-band brain work |
+| `rc dev console action list` | List available actions |
+| `rc dev console action preflight` | Run action preflight/dry-run |
+| `rc dev console action run` | Execute an action |
+| `rc dev console action show` | Show one action manifest |
+| `rc dev console action` | Inspect and execute guarded rootcause actions |
+| `rc dev console bash list` | List cataloged brain scripts |
+| `rc dev console bash run` | Run one command in the guarded workspace console |
+| `rc dev console bash` | List or run workspace console commands |
+| `rc dev console capabilities` | List direct production primitives available to this login |
+| `rc dev console database list` | List available databases |
+| `rc dev console database query` | Run a read-only SQL query through rootcause scoping |
+| `rc dev console database schema` | Fetch database schema, optionally one table |
+| `rc dev console database` | Run guarded production database reads |
+| `rc dev console` | Use guarded production consoles |
+| `rc dev learning evidence` | List feedback and sent-edit evidence for consolidation |
+| `rc dev learning` | Inspect learning and consolidation inputs |
+| `rc dev tools id gmail` | Translate Gmail hex/decimal/thread-f: ids + build a clickable URL |
+| `rc dev tools id outlook` | Classify an Outlook/Graph id + tell you which DB column matches it |
+| `rc dev tools id` | Translate provider message/thread ids |
+| `rc dev tools provider detect` | Detect a domain's email backend (google/microsoft/other) from DNS |
+| `rc dev tools provider` | Provider (channel) utilities |
+| `rc dev tools` | Use local provider and identifier utilities |
+| `rc dev` | Develop and inspect project behavior |
+| `rc fleet health` | Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy |
+| `rc fleet patterns` | Cluster recent failures into ranked patterns (bash + blocked egress) |
+| `rc fleet runs` | Fleet digest of recent runs (flags, rates, worst offenders) |
+| `rc fleet` | Operate and inspect project health |
+| `rc project action-settings get` | Show current values (value / effective / default) |
+| `rc project action-settings set` | Change values (sparse, validate-then-apply server-side) |
+| `rc project action-settings` | Read or change action-plane config (operator-tier) |
+| `rc project branding get` | Show current values (value / effective / default) |
+| `rc project branding logo clear` | Remove the stored logo |
+| `rc project branding logo set` | Upload a logo image (PNG/SVG/JPEG) |
+| `rc project branding logo` | Set or clear the white-label logo image |
+| `rc project branding set` | Change values (sparse, validate-then-apply server-side) |
+| `rc project branding` | Read or change white-label branding (colours/name/public_base_url) |
+| `rc project connection add` | Create a connection |
+| `rc project connection ls` | List connections |
+| `rc project connection probe` | Probe an integration capability grant |
+| `rc project connection reveal` | Print a connection's secret (sensitive, shown once) |
+| `rc project connection rm` | Revoke and delete a connection |
+| `rc project connection rotate` | Rotate a connection's secret |
+| `rc project connection` | Manage outbound integration connections |
+| `rc project corpus download` | Download the export's Markdown corpus (stdout, --out <file>, or --split <dir>) |
+| `rc project corpus get` | Show one export |
+| `rc project corpus ls` | List exports (id, kind, status, threads, truncated, created/completed) |
+| `rc project corpus mine-settings` | Mine a completed harvest for persona/triage setting proposals |
+| `rc project corpus` | Read local-synthesis corpus exports (harvest/survey) |
+| `rc project database controls get` | Show a database's controls |
+| `rc project database controls set` | Change a database's controls (JSON object or k=v pairs; sparse) |
+| `rc project database controls` | Read or change a database's access controls |
+| `rc project database get` | Show one database |
+| `rc project database ls` | List databases |
+| `rc project database preview` | Preview the scoped rows a (tenant, principal) would see |
+| `rc project database set` | Update a database |
+| `rc project database` | Manage registered databases (list/read/update + access controls) |
+| `rc project env diff` | Compare local ./.env to the server (NAMES-only drift); nonzero exit on drift |
+| `rc project env keys` | List the key NAMES of the server's grounding env (log-safe, no values) |
+| `rc project env pull` | Fetch the production grounding env and write ./.env (0600); prints NAMES + count, never values |
+| `rc project env reveal` | Print one env var's value (sensitive, shown once) |
+| `rc project env rm` | Delete one env var |
+| `rc project env set` | Upsert one env var (value from STDIN by default; never echoed) |
+| `rc project env` | Manage this project's sealed env secrets |
+| `rc project github status` | Show the GitHub App install status (installed/account/install_url) |
+| `rc project github` | Inspect the GitHub App install for this project |
+| `rc project knowledge content export` | Export selected KB articles to a fresh local artifact directory |
+| `rc project knowledge content list` | List KB collections without article bodies |
+| `rc project knowledge content search` | Search KB articles and write matched articles to local artifacts |
+| `rc project knowledge content` | List, search, and export knowledge articles |
+| `rc project knowledge sync get` | Show current values (value / effective / default) |
+| `rc project knowledge sync set` | Change values (sparse, validate-then-apply server-side) |
+| `rc project knowledge sync` | Manage knowledge synchronization settings |
+| `rc project knowledge` | Search knowledge content and configure synchronization |
+| `rc project list` | List the projects this token can see (the fleet, for an all-projects token) |
+| `rc project mailbox connect-imap` | Connect a generic IMAP/SMTP mailbox (live-probed before it's saved) |
+| `rc project mailbox connect` | Print the dashboard Connections URL to start a provider's browser OAuth |
+| `rc project mailbox harvest` | Start a local-synthesis harvest of a mailbox (optionally wait for the export) |
+| `rc project mailbox imap-env` | Write an IMAP mailbox env file for local deep harvest (0600; values never printed) |
+| `rc project mailbox ls` | List watched mailboxes (id, provider, email, status, tenant, expiry, error) |
+| `rc project mailbox pause` | Pause watching a mailbox |
+| `rc project mailbox process off` | Hold silent — keep watching, stop drafting |
+| `rc project mailbox process on` | Start processing inbound mail (drafts replies) |
+| `rc project mailbox process` | Toggle processing (silent onboarding) for a watched mailbox |
+| `rc project mailbox resume` | Resume watching a mailbox (surfaces needs_attention on a subscribe failure) |
+| `rc project mailbox route add` | Create a mailboxe |
+| `rc project mailbox route ls` | List mailboxes |
+| `rc project mailbox route` | Legacy inbound routing table (email→project/tenant); NOT the watched mailboxes |
+| `rc project mailbox settings get` | Show settings with resolved provenance |
+| `rc project mailbox settings set` | Patch settings (nested; key= or --unset clears local override) |
+| `rc project mailbox settings` | Read or edit nested mailbox settings (persona/channel) |
+| `rc project mailbox` | Manage watched mailboxes (the channel plane's inbox watch) |
+| `rc project member add` | Create a member |
+| `rc project member ls` | List members |
+| `rc project member rm` | Delete a member |
+| `rc project member` | Manage project members |
+| `rc project model-key openrouter clear` | Remove the stored OpenRouter key |
+| `rc project model-key openrouter reveal` | Print the stored OpenRouter key (sensitive, shown once) |
+| `rc project model-key openrouter set` | Store the OpenRouter key (from STDIN by default; never echoed) |
+| `rc project model-key openrouter` | Manage the OpenRouter API key (set/clear/reveal) |
+| `rc project model-key` | Manage model-provider credentials |
+| `rc project rename` | Rename the active project slug and brain repo |
+| `rc project repo add` | Create a repo |
+| `rc project repo ls` | List repos |
+| `rc project repo rm` | Delete a repo |
+| `rc project repo set` | Update a repo |
+| `rc project repo` | Manage source repos (mirrors + per-repo PR config) |
+| `rc project senders allow` | Never treat mail from <pattern> as spam |
+| `rc project senders block` | Always treat mail from <pattern> as spam |
+| `rc project senders ls` | List the spam allow and block rules |
+| `rc project senders rm` | Delete a spam rule by id |
+| `rc project senders` | Manage the spam allow/block lists (never-spam / always-spam) |
+| `rc project settings behavior get` | Show settings with resolved provenance |
+| `rc project settings behavior set` | Patch settings (nested; key= or --unset clears local override) |
+| `rc project settings behavior` | Read or edit nested project settings (persona/channel) |
+| `rc project settings describe` | Explain one config key (type, enum, scopes, default, help) |
+| `rc project settings runtime get` | Show current values (value / effective / default) |
+| `rc project settings runtime set` | Change values (sparse, validate-then-apply server-side) |
+| `rc project settings runtime` | Manage flat runtime settings |
+| `rc project settings schema` | Show the config registry (fields, types, scopes, defaults) |
+| `rc project settings` | Read, change, and describe project settings |
+| `rc project tenant add` | Create a tenant |
+| `rc project tenant get` | Show one tenant |
+| `rc project tenant ls` | List tenants |
+| `rc project tenant profile get` | Show a tenant's projection/profile values |
+| `rc project tenant profile schema` | Dump the tenant profile JSON schema |
+| `rc project tenant profile set` | Edit tenant projection/profile values |
+| `rc project tenant profile` | Read or edit tenant projection/profile values |
+| `rc project tenant set` | Update a tenant |
+| `rc project tenant settings get` | Show settings with resolved provenance |
+| `rc project tenant settings schema` | Dump the hierarchy settings schema (debug/reference) |
+| `rc project tenant settings set` | Patch settings (nested; key= or --unset clears local override) |
+| `rc project tenant settings` | Read or edit nested tenant settings (persona/channel) |
+| `rc project tenant` | Manage tenants (sub-scopes below a project) and their settings |
+| `rc project token ls` | List tokens |
+| `rc project token mint` | Mint a new token (refresh token shown once) |
+| `rc project token revoke` | Revoke a token |
+| `rc project token` | Manage API tokens |
+| `rc project triage policy get` | Show triage policy guidance |
+| `rc project triage policy set` | Replace triage policy guidance |
+| `rc project triage policy` | Read or edit free-form triage guidance |
+| `rc project triage rules add` | Create a triage hard rule |
+| `rc project triage rules ls` | List triage hard rules |
+| `rc project triage rules rm` | Delete a triage hard rule |
+| `rc project triage rules set` | Patch a triage hard rule |
+| `rc project triage rules` | Read or edit deterministic triage rules |
+| `rc project triage` | Read or change mail triage policy and hard rules |
+| `rc project` | Manage project configuration and resources |
+| `rc run brain-diff` | Show the brain commit written by a run |
+| `rc run debug` | Decompose a run into local debug artifacts |
+| `rc run events` | Show the full per-event trace |
+| `rc run feedback` | Record score/comment feedback on a run's trace |
+| `rc run list` | List recent runs (filterable) |
+| `rc run retry` | Re-run a run (optionally at a different tier); prints the new run id |
+| `rc run show` | Show one run |
+| `rc run thread` | Trace one thread/session: every run for it, with placement + a why-no-draft hint |
+| `rc run trace` | Show the whole run bundle |
+| `rc run` | Inspect and manage the run lifecycle |
+| `rc self completion` | Generate a shell completion script |
+| `rc self update` | Update rc to the latest release (self-update) |
+| `rc self` | Manage the rc installation and shell integration |
+| `rc status` | Health summary + recent runs |
+<!-- END GENERATED COMMAND INVENTORY -->
+
 Global flags: `--profile <name>` picks the stored token; `--project <id-or-name>` scopes supported
-requests to one project server-side and is validated against `rc projects` before use (useful for
+requests to one project server-side and is validated against `rc project list` before use (useful for
 all-projects tokens outside a brain checkout or as an override; inside a brain checkout the
 `.rootcause.toml` project is used automatically when falling back to `default`);
 `--tenant <slug>` explicitly selects a tenant where supported; it is required for workspace-producing
 commands when a tenant-enabled project login is project-pinned. `-o json|table` forces output. Large
 output spills to `.rootcause/output/` by default; use `--out-dir <dir>` or `RC_OUTPUT_DIR` to change
 that, `--no-preview` to print paths/metadata only, and `--raw-output` to preserve exact legacy stdout.
-
-| Command | Does |
-|---|---|
-| `rc login [--device]` | OAuth sign-in: PKCE loopback (browser) by default, `--device` for headless/SSH. Stores the token under the resolved profile |
-| `rc logout` | revoke the profile's token server-side and clear it from the local store |
-| `rc whoami` | the resolved profile/project/login tenant + sign-in status |
-| `rc projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token |
-| `rc project rename <new-name>` | rename the active project slug + brain repo. With `--project`, renames that scope; otherwise requires exactly one visible project |
-| `rc status` | recent runs + health summary (the no-filter index view) |
-| `rc ask "<q>" [--attach path]... [--scenario email\|raw] [--from addr] [--subject s] [--session <id>] [--brain-ref <ref>] [--effort default\|pro\|max] [--principal-kind K --principal-id ID [--asserted-by …] [--assurance …]] [--no-wait] [--timeout 5m]` | trigger a run; waits by default (`--no-wait` prints the run_id). Default `--scenario email` simulates a support email and renders draft/note/actions/PR/run metadata; `--scenario raw` renders one direct answer plus actions/PR/run metadata (`mcp` is accepted as a raw alias). `--attach` is repeatable and uploads local files as synthetic inbound attachments (`--path` is an alias; hidden `--pod` accepts the common typo). Inside a brain checkout, an all-projects `default` token auto-scopes to that brain; outside one, add global `--project <id-or-name>`. `--from` defaults to `rc-ask@example.test`; `--subject` defaults to a compact first line. `--session` threads the run onto a multi-turn session (see below). `--effort pro|max` forces a stronger rootcause model tier for this run; omitted/default keeps normal tier selection. `--principal-kind`+`--principal-id` (a pair) assert a data-scoping identity (see below) |
-| `rc runs [--limit N] [--kind email\|prompt\|mcp\|analysis] [--category …] [--before <id>]` | filterable run list, keyset-paged |
-| `rc run <id>` | one run, high level |
-| `rc run <id> --events [--stream]` | full per-event trace (NDJSON in JSON mode; large streams spill to a manifest unless `--stream`/`--raw-output`) |
-| `rc run <id> --full [--stream]` | the whole bundle: header (full draft/notes, system prompt, egress, trace) + per-event trace with cost/tokens. JSON mode is JSONL (`type:run` header line, then `type:event` per line); large streams spill unless `--stream`/`--raw-output` |
-| `rc run <id> --debug [--out-dir <dir>]` | decompose the run into a jq-able JSONL event log + a thin markdown index on disk; table mode prints both paths, JSON mode prints a manifest (the cross-project debug path for an all-projects admin token) |
-| `rc run feedback <id> [--score N] [--comment TEXT]` | record score/comment feedback on a run's trace (feeds consolidation) |
-| `rc run retry <id> [--tier standard\|pro\|max]` | re-run a run (optionally at a different tier); prints the new run id |
-| `rc dream evidence [--limit N]` | list feedback and sent-edit evidence for a local dream-cycle pass |
-| `rc config get` | effective settings + box defaults |
-| `rc config set k=v [k=v…]` | change settings (validated server-side) |
-| `rc kb list [--provider intercom] [--collection <name>] [--limit N]` | inventory KB collections/counts without article bodies |
-| `rc kb search <query> [--provider intercom] [--limit N] [--out <dir>] [--no-materialize]` | search KB articles remotely, print compact hits, and write `manifest.json`, `hits.md`, and matched markdown articles under `.rootcause/tmp/kb-searches/...` |
-| `rc kb export (--query <query> \| --article <id-or-path> \| --all) [--provider intercom] [--out <dir>]` | materialize selected KB articles to a fresh local artifact directory for `rg`/scripts |
-| `rc kb get` / `set k=v [k=v…]` | read/change KB sync config (provider/base_url/…) |
-| `rc triage policy get\|set` / `rc triage rules ls\|add\|set\|rm` | read/change draft/no-draft guidance and deterministic hard rules |
-| `rc config openrouter-key set\|clear\|reveal` | manage the OpenRouter API key (`set` reads from **STDIN** by default; `reveal` prints it once) |
-| `rc env keys` | key NAMES of the project's production grounding env (log-safe, no values) |
-| `rc env pull` | fetch that env and write a local **0600 `./.env`** (prints NAMES + count, never values) |
-| `rc env diff` | compare local `./.env` to the server — NAMES-only drift, **nonzero exit on drift** |
-| `rc env set key=<K> [value=<V>] [--plane grounding\|action]` | upsert one env var — value read from **STDIN** by default, never echoed |
-| `rc env rm <K> [--plane grounding\|action]` | delete one env var |
-| `rc env reveal <K> [--plane grounding\|action]` | print one env var's value (sensitive, shown once) |
-| `rc tenant ls\|add\|get\|set` | manage project tenants; archive with `rc tenant set <slug> status=archived` |
-| `rc mailbox ls` | list watched mailboxes (the channel plane's inbox watch): id, provider, email, status, tenant, subscription expiry, error |
-| `rc mailbox pause\|resume <id>` | pause / resume watching a mailbox (resume surfaces `needs_attention` + the error message on a subscribe failure) |
-| `rc mailbox connect --provider google\|microsoft\|intercom [--project …]` | print the dashboard **Connections** URL to open in a browser and complete the provider's OAuth (no API write) |
-| `rc mailbox connect-imap --email <addr> --imap-host <host> [--tenant … --username … --imap-port … --imap-tls none\|starttls\|implicit --smtp-host … --smtp-port … --smtp-tls … --smtp-username …]` | connect a generic IMAP/SMTP mailbox; the server live-probes IMAP login + `SELECT INBOX` + SMTP AUTH before saving (failure saves nothing; duplicate → 409). Password from `$RC_MAILBOX_PASSWORD` or an interactive stdin prompt — never argv. Defaults mirror the server: `--username`→`--email`, `--smtp-host`→`--imap-host`, ports/TLS `993/implicit` + `587/starttls` |
-| `rc connection probe <capability> [--write --notion-page <id> --cleanup] [--label <label>]` | validate an integration capability grant without a brain sync or agent run. Read-only checks grant/capability/action-plane diagnostics; `notion.write --write` appends a tiny Notion block to the supplied page, rereads it, and archives it when `--cleanup` is set |
-| `rc mailbox route ls\|add` | **legacy** email-keyed routing table (which inbound address → which project/tenant); the generic `/api/v1/mailboxes` collection, kept for tenant onboarding |
-| `rc database ls\|get\|set` | list / read / update registered databases |
-| `rc database controls get\|set <dsn>` | read / change a database's access controls (JSON object or k=v) |
-| `rc database preview <dsn> --tenant … --principal-kind … --principal-id … [--table …]` | preview the scoped rows a **(tenant, principal)** would see — per-table counts + sample rows + the compiled predicate (read-only; `-o json` for the raw report) |
-| `rc branding logo set <file>\|clear` | upload (multipart) or remove the white-label logo |
-| `rc github status` | GitHub App install status (`installed` / `account` / `install_url`) |
-| `rc brain status` · `rc brain sync` | show / refresh the deployed on-box brain cache (`sync` fetches origin/main, fast-forwards when safe, and refreshes warm bash sessions) |
-| `rc brain edit <instruction…>` · `rc brain consolidate` | queue an out-of-band brain edit / the consolidation cron (both print `{queued, job_id}`) |
-| `rc admin user ls\|add\|set` · `rc admin project ls\|add` · `rc admin catalog ls\|upsert` | box-level administration (needs a **global-admin** token; no `--project` scope) |
-| `rc capabilities` | list direct console primitives available to this login |
-| `rc db list\|schema\|query` | guarded production DB reads through rootcause scoping |
-| `rc bash list` | list cataloged brain scripts plus deployed brain cache status/staleness |
-| `rc bash run [--timeout N] "<command>"` | run one bash command in the same guarded workspace shape as the hosted agent loop; large stdout/stderr spills to local artifacts with preview + hints; output names the mounted brain revision |
-| `rc action list\|show\|preflight\|run` | inspect or execute vetted, human-scoped actions |
-| `rc provider detect <domain\|email> [more…]` | **local** (DNS only, no auth): classify a domain's email backend (google/microsoft/other) and whether rootcause can onboard it |
-| `rc id gmail\|outlook <id>` | **local** (no network): translate a provider message/thread id + build a clickable URL / DB-column lookup |
-| `rc upgrade [--check]` | self-update to the latest release (Linux/WSL/Windows); on a Homebrew install, defers to `brew upgrade rc` |
-| `rc --version` · `rc help` | |
 
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
 dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin
@@ -283,31 +422,31 @@ second option"). `--no-wait` prints just the `run_id`; the `session_id` is the o
 Output auto-detects: **TTY → table, piped → JSON**. Force with `-o json` / `-o table`. API errors are
 surfaced verbatim (`CODE: message`) with a non-zero exit.
 
-### `rc env` — self-serve grounding-env sync
+### `rc project env` — self-serve grounding-env sync
 
 A project's grounding scripts read their credentials (PG DSN, Stripe key, …) from a gitignored `.env`
-in the brain clone. `rc env` lets a project admin or developer with secrets access sync that
+in the brain clone. `rc project env` lets a project admin or developer with secrets access sync that
 **production** env to their laptop over OAuth — the self-serve equivalent of the operator-only
 `scripts/rc_env.py --pull` (which needs AWS/SSM access). Run it **from inside the brain clone** (it
 reads/writes `./.env`):
 
 ```bash
-rc env keys                 # what keys exist (names only — safe to paste/log)
-rc env pull                 # write ./.env at 0600 — then `brain-dev --live` can run grounding locally
-rc env diff                 # has my local ./.env drifted from production? (names-only; exit≠0 on drift)
-printf %s "$SECRET_VALUE" | rc env set key=FOO_API_TOKEN
-rc env rm FOO_API_TOKEN
-rc env reveal FOO_API_TOKEN # prints the value once; sensitive
+rc project env keys                 # what keys exist (names only — safe to paste/log)
+rc project env pull                 # write ./.env at 0600 — then `brain-dev --live` can run grounding locally
+rc project env diff                 # has my local ./.env drifted from production? (names-only; exit≠0 on drift)
+printf %s "$SECRET_VALUE" | rc project env set key=FOO_API_TOKEN
+rc project env rm FOO_API_TOKEN
+rc project env reveal FOO_API_TOKEN # prints the value once; sensitive
 ```
 
 > **Secret hygiene:** `keys`/`diff` are names-only; `pull` writes values only to the 0600 file; `set`
 > reads from STDIN by default and never echoes. `reveal` is the deliberate exception: it prints one live
 > secret value for copy/pipe use and audits the key name. The pulled `.env` holds **real production
 > secrets** on your laptop — treat it like a password file (it's gitignored in every brain repo). A
-> tenant-enabled bulk pull uses the tenant bound to your `rc login`, or requires `--tenant` when the
+> tenant-enabled bulk pull uses the tenant bound to your `rc auth login`, or requires `--tenant` when the
 > login is project-pinned.
 
-`rc env set/rm/reveal` targets the grounding plane by default (`/api/v1/env_grounding`), which is
+`rc project env set/rm/reveal` targets the grounding plane by default (`/api/v1/env_grounding`), which is
 injected into normal read-only runs. Per-key commands target a tenant env only when the OAuth token
 itself is tenant-bound; `--tenant` does not retarget `set/rm/reveal`. `--plane action` targets
 `.env.action` (`/api/v1/env_action`), the operator-only write-plane for hosted actions; it is

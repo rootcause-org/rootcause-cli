@@ -103,7 +103,7 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 	}
 	_ = tw.Flush()
 	if resp.NextBefore != "" {
-		_, _ = fmt.Fprintf(w, "\nMore: rc runs --before %s\n", resp.NextBefore)
+		_, _ = fmt.Fprintf(w, "\nMore: rc run list --before %s\n", resp.NextBefore)
 	}
 }
 

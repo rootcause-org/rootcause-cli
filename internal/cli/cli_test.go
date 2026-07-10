@@ -1190,6 +1190,7 @@ func newTestEnv(t *testing.T, srv *httptest.Server, output string) (*env, *bytes
 // stdout, stderr, and the error from Execute (so the error-path test can assert non-nil).
 func run(t *testing.T, e *env, args ...string) error {
 	t.Helper()
+	args = canonicalTestArgs(args)
 	// Cobra resets the --output-bound field to its flag default during parsing, so force the mode via
 	// an explicit -o arg (mirroring how a user would) rather than presetting e.output.
 	if e.output != "" {
@@ -1200,6 +1201,104 @@ func run(t *testing.T, e *env, args ...string) error {
 	root.SetOut(e.out)
 	root.SetErr(e.err)
 	return root.Execute()
+}
+
+// canonicalTestArgs lets the behavioral tests keep describing the feature under test while executing
+// it through the canonical command tree. Surface-specific tests below assert that the retired root
+// paths themselves are unavailable.
+func canonicalTestArgs(args []string) []string {
+	commandAt := 0
+	for commandAt < len(args) {
+		switch args[commandAt] {
+		case "--profile", "--project", "--tenant", "--output", "-o", "--out-dir":
+			commandAt += 2
+		case "--no-preview", "--raw-output":
+			commandAt++
+		default:
+			return append(append([]string{}, args[:commandAt]...), canonicalCommandArgs(args[commandAt:])...)
+		}
+	}
+	return args
+}
+
+func canonicalCommandArgs(args []string) []string {
+	if len(args) == 0 {
+		return args
+	}
+	prepend := func(prefix ...string) []string { return append(prefix, args[1:]...) }
+	switch args[0] {
+	case "login", "logout":
+		return prepend("auth", args[0])
+	case "whoami":
+		return prepend("auth", "status")
+	case "projects":
+		return prepend("project", "list")
+	case "repo", "tenant", "connection", "member", "token", "mailbox", "env", "database", "branding", "github", "triage":
+		return prepend("project", args[0])
+	case "spam":
+		return prepend("project", "senders")
+	case "export":
+		return prepend("project", "corpus")
+	case "brain":
+		return prepend("dev", "brain")
+	case "dream":
+		return prepend("dev", "learning")
+	case "bash":
+		return prepend("dev", "console", "bash")
+	case "db":
+		return prepend("dev", "console", "database")
+	case "capabilities":
+		return prepend("dev", "console", "capabilities")
+	case "provider", "id":
+		return prepend("dev", "tools", args[0])
+	case "routes", "openapi":
+		return prepend("dev", "api", args[0])
+	case "access":
+		return prepend("auth", "access")
+	case "schema":
+		return prepend("project", "settings", "schema")
+	case "explain":
+		return prepend("project", "settings", "describe")
+	case "runs":
+		return prepend("run", "list")
+	case "thread":
+		return prepend("run", "thread")
+	case "fleet", "patterns", "health":
+		name := args[0]
+		if name == "fleet" {
+			name = "runs"
+		}
+		return prepend("fleet", name)
+	case "upgrade":
+		return prepend("self", "update")
+	case "config":
+		if len(args) > 1 && args[1] == "hierarchy" {
+			return append([]string{"project", "settings", "behavior"}, args[2:]...)
+		}
+		if len(args) > 1 && args[1] == "openrouter-key" {
+			return append([]string{"project", "model-key", "openrouter"}, args[2:]...)
+		}
+		return prepend("project", "settings", "runtime")
+	case "kb":
+		if len(args) > 1 && (args[1] == "get" || args[1] == "set") {
+			return append([]string{"project", "knowledge", "sync"}, args[1:]...)
+		}
+		return append([]string{"project", "knowledge", "content"}, args[1:]...)
+	case "action":
+		if len(args) > 1 && args[1] == "config" {
+			return append([]string{"project", "action-settings"}, args[2:]...)
+		}
+		return prepend("dev", "console", "action")
+	case "run":
+		views := map[string]string{"--events": "events", "--full": "trace", "--debug": "debug", "--brain-diff": "brain-diff"}
+		for i, arg := range args {
+			if view := views[arg]; view != "" {
+				without := append(append([]string{}, args[1:i]...), args[i+1:]...)
+				return append([]string{"run", view}, without...)
+			}
+		}
+	}
+	return args
 }
 
 func requireAuth(t *testing.T, r *http.Request) {

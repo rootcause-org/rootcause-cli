@@ -1,24 +1,31 @@
 ---
 name: rootcause-cli
-description: "The `rc` CLI — a scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with an OAuth access token (sign in via `rc login`; the CLI refreshes it). Use when working in this repo: adding/changing a command, the HTTP client, OAuth/token-store/config resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. Fat client, thin server: endpoints return raw token-scoped data, the CLI may digest/cluster/render it locally, and `-o json` always exposes the raw rows."
+description: "The `rc` CLI — a scriptable Go client that lets a project consume its OWN rootcause data and change its own config over rootcause's public JSON /api/v1, authed with an OAuth access token (sign in via `rc auth login`; the CLI refreshes it). Use when working in this repo: adding/changing a command, the HTTP client, OAuth/token-store/config resolution, or the table/JSON render layer; or when wiring a new endpoint the API already serves. Fat client, thin server: endpoints return raw token-scoped data, the CLI may digest/cluster/render it locally, and `-o json` always exposes the raw rows."
 ---
 
 # rootcause-cli (`rc`) — a project's window into its own rootcause data
+
+The command tree has nine stable, offline roots. Start work with `status`, `ask`, or the complete
+`run` lifecycle; project configuration stays under `project`; specialist development tools stay under
+`dev`; fleet operations and box administration stay under `fleet` and `admin`; local credentials and
+installation plumbing stay under `auth` and `self`. Cobra help is grouped as Start, Manage, Develop,
+Operate, and Local. `rc help` remains callable but framework help/completion commands do not appear as
+extra roots; completion lives at `rc self completion`.
 
 `rc` is a **fat client over a thin server**: rootcause endpoints stay simple and return **raw,
 token-scoped data**; `rc` may compute views on top of it locally (digests, clustering, health roll-ups,
 diagnosis) — and every such command still exposes the raw rows via `-o json`, so a consumer can ignore
 our rendering and slice the data themselves. It holds **no DB access** — data comes only through the
-public `/api/v1`, with an **OAuth access token** minted by `rc login` (the token resolves the caller's
+public `/api/v1`, with an **OAuth access token** minted by `rc auth login` (the token resolves the caller's
 project + principal server-side: a pinned token scopes to one project, an all-projects admin token reads
 cross-project).
 `--profile` picks *which stored token* to use; the token's project scope is baked in at consent time.
 `--project <id-or-name>` is a different lever — a **server-side scope**, not a token selector: it keeps
 the active token and names one project on supported endpoints (`?project=`), letting an **all-projects
-admin token** review a single project (`rc fleet --project momentum-tools`) or trigger one (`rc ask
+admin token** review a single project (`rc fleet runs --project momentum-tools`) or trigger one (`rc ask
 --project momentum-tools "…"`). A pinned token disregards it (it can't widen its own scope). The bet: a dev pulls this in to slice their data the way
 they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an action/skill, runs
-`rc runs` → `rc run <id> --events` to **verify against real runs** — the author→verify loop taught in
+`rc run list` → `rc run events <id>` to **verify against real runs** — the author→verify loop taught in
 [rootcause-brain-skills/docs/rc-cli.md](../rootcause-brain-skills/docs/rc-cli.md).
 
 ## The ladder (progressive disclosure — index → one run → detail)
@@ -30,39 +37,40 @@ but they keep the raw rows reachable via `-o json`.
 | Command | Endpoint | What |
 |---|---|---|
 | `rc ask "<q>"` | `POST /api/v1/runs` | trigger a run from a question, then poll to the answer (the ONE server-write trigger; supports `--scenario email|raw`, repeatable `--attach`, `--project` for all-projects admin tokens, and `--effort default|pro|max`; see below) |
-| `rc projects` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
+| `rc project list` | `GET /api/v1/projects` | list the fleet handles (name + id) the token can see — every project for an all-projects admin token, just its own for a pinned token; the seed for the `--all` fan-out |
 | `rc project rename <new-name>` | `PATCH /api/v1/projects/{project}/rename` | rename the active project slug + brain repo; `--project` supplies `{project}`, otherwise the CLI requires exactly one visible project |
-| `rc status` / `rc runs` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
+| `rc status` / `rc run list` | `GET /api/v1/runs` | index: recent runs + health summary (the [runs-index-api](../rootcause/.agents/skills/features/runs-index-api.md)) |
 | `rc run <id>` | `GET /api/v1/runs/{id}` | one run, high level |
-| `rc run <id> --events` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
-| `rc run <id> --full` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
-| `rc run <id> --debug` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
-| `rc dream evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit evidence for local dream-cycle passes; JSON is the primary surface |
-| `rc config get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
-| `rc kb list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc kb get/set` still owns KB sync config over `/api/v1/kb` |
-| `rc config hierarchy get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
-| `rc triage policy get/set`, `rc triage rules ls/add/set/rm` | `/api/v1/triage/*` | read/change mail draft/no-draft guidance and deterministic skip/force-process rules |
-| `rc tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
-| `rc tenant profile get/set --tenant <slug>` | `GET/PATCH /api/v1/tenants/{slug}/settings` | read/change the legacy tenant projection/profile values record while the server still exposes it at the old path |
-| `rc mailbox settings get/set <id>` | `GET/PATCH /api/v1/projects/{project}/mailboxes/{id}/settings?resolved=true` | read/change mailbox hierarchy overrides |
-| `rc mailbox harvest <id> [--wait]` | `POST /api/v1/mailboxes/{id}/harvest` | start a local-synthesis harvest of a mailbox → a queued export; `--wait` polls the export to a terminal status. `--clean` (default true), `--max-threads N` |
-| `rc mailbox connect-imap --email … --imap-host …` | `POST /api/v1/mailboxes/imap/connect` | connect a generic IMAP/SMTP mailbox (server live-probes IMAP+SMTP before saving). Password via `$RC_MAILBOX_PASSWORD` or stdin prompt — never argv. Defaults mirror the server (`--username`→`--email`, `--smtp-host`→`--imap-host`, `993/implicit`+`587/starttls`) |
-| `rc export ls` / `get <id>` | `GET /api/v1/exports[/{id}]` | list/read the harvest/survey corpus exports (newest-first) |
-| `rc export download <id> [--out f] [--split dir]` | `GET /api/v1/exports/{id}/download` | download the raw Markdown corpus (stdout/`--out`), or `--split` it into an `INDEX.md` + per-thread tree the local dream-cycle greps (default `.rootcause/exports/<id>/`, auto-gitignored). Marks the export consumed |
-| `rc routes` / `rc openapi` | `GET /api/v1/meta/routes` / `GET /api/v1/meta/openapi.json` | canonical route manifest + generated OpenAPI |
-| `rc brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
-| `rc repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
-| `rc tenant ls/add/get/set` | `GET/POST/GET/PATCH /api/v1/tenants[/{slug}]` | manage project tenant rows; archive with `set <slug> status=archived` |
-| `rc connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
-| `rc connection probe <capability>` | `POST /api/v1/connections/probe` | developer write-plane diagnostic: check the OAuth/capability grant independently from action-plane enablement; optional provider-specific write probes such as `notion.write --write --notion-page <id> --cleanup` |
-| `rc member ls/add/rm` | `GET/POST/DELETE /api/v1/members` | project members (no read/update server-side → 405) |
-| `rc token ls/mint/revoke` | `GET/POST/DELETE /api/v1/tokens` | API tokens; `mint` prints the `refresh_token` ONCE |
-| `rc env keys` / `pull` / `diff` | `GET /api/v1/env` | sync the project's PRODUCTION grounding `.env` to a local 0600 `./.env` — values never print |
-| `rc env set` / `rm` / `reveal` | `/api/v1/env_grounding` or `/api/v1/env_action` | add/rotate/delete/reveal one sealed env key. `grounding` is the normal run-injected read-only plane; `action` is the operator-only write-plane (`.env.action`) |
-| `rc login` / `logout` / `whoami` | `/oauth/*` (+ local) | OAuth sign-in / revoke / local status (see Auth below) |
+| `rc run events <id>` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
+| `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
+| `rc run debug <id>` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
+| `rc dev learning evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit evidence for local dream-cycle passes; JSON is the primary surface |
+| `rc project settings runtime get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
+| `rc project knowledge content list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc project knowledge sync get/set` still owns KB sync config over `/api/v1/kb` |
+| `rc project settings behavior get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
+| `rc project triage policy get/set`, `rc project triage rules ls/add/set/rm` | `/api/v1/triage/*` | read/change mail draft/no-draft guidance and deterministic skip/force-process rules |
+| `rc project tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
+| `rc project tenant profile get/set --tenant <slug>` | `GET/PATCH /api/v1/tenants/{slug}/settings` | read/change the legacy tenant projection/profile values record while the server still exposes it at the old path |
+| `rc project mailbox settings get/set <id>` | `GET/PATCH /api/v1/projects/{project}/mailboxes/{id}/settings?resolved=true` | read/change mailbox hierarchy overrides |
+| `rc project mailbox harvest <id> [--wait]` | `POST /api/v1/mailboxes/{id}/harvest` | start a local-synthesis harvest of a mailbox → a queued export; `--wait` polls the export to a terminal status. `--clean` (default true), `--max-threads N` |
+| `rc project mailbox connect-imap --email … --imap-host …` | `POST /api/v1/mailboxes/imap/connect` | connect a generic IMAP/SMTP mailbox (server live-probes IMAP+SMTP before saving). Password via `$RC_MAILBOX_PASSWORD` or stdin prompt — never argv. Defaults mirror the server (`--username`→`--email`, `--smtp-host`→`--imap-host`, `993/implicit`+`587/starttls`) |
+| `rc project corpus ls` / `get <id>` | `GET /api/v1/exports[/{id}]` | list/read the harvest/survey corpus exports (newest-first) |
+| `rc project corpus download <id> [--out f] [--split dir]` | `GET /api/v1/exports/{id}/download` | download the raw Markdown corpus (stdout/`--out`), or `--split` it into an `INDEX.md` + per-thread tree the local dream-cycle greps (default `.rootcause/exports/<id>/`, auto-gitignored). Marks the export consumed |
+| `rc dev api routes` / `rc dev api openapi` | `GET /api/v1/meta/routes` / `GET /api/v1/meta/openapi.json` | canonical route manifest + generated OpenAPI |
+| `rc dev brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
+| `rc project repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
+| `rc project tenant ls/add/get/set` | `GET/POST/GET/PATCH /api/v1/tenants[/{slug}]` | manage project tenant rows; archive with `set <slug> status=archived` |
+| `rc project connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
+| `rc project connection probe <capability>` | `POST /api/v1/connections/probe` | developer write-plane diagnostic: check the OAuth/capability grant independently from action-plane enablement; optional provider-specific write probes such as `notion.write --write --notion-page <id> --cleanup` |
+| `rc project member ls/add/rm` | `GET/POST/DELETE /api/v1/members` | project members (no read/update server-side → 405) |
+| `rc project token ls/mint/revoke` | `GET/POST/DELETE /api/v1/tokens` | API tokens; `mint` prints the `refresh_token` ONCE |
+| `rc project env keys` / `pull` / `diff` | `GET /api/v1/env` | sync the project's PRODUCTION grounding `.env` to a local 0600 `./.env` — values never print |
+| `rc project env set` / `rm` / `reveal` | `/api/v1/env_grounding` or `/api/v1/env_action` | add/rotate/delete/reveal one sealed env key. `grounding` is the normal run-injected read-only plane; `action` is the operator-only write-plane (`.env.action`) |
+| `rc auth login` / `logout` / `status` | `/oauth/*` (+ local) | OAuth sign-in / revoke / local status (see Auth below) |
 
-`rc status` and `rc runs` are the **same endpoint** — status is the no-filter view (leads with the
-health summary), `runs` leads with the filterable table (`--limit`/`--kind`/`--category`/`--before`).
+`rc status` and `rc run list` are the **same endpoint** — status requests a fixed five-row at-a-glance
+page and leads with the health summary; `run list` owns the filterable table
+(`--limit`/`--kind`/`--category`/`--before`).
 
 `rc ask` ([ask.go](internal/cli/ask.go)) is the one **trigger**: it `POST`s the prompt to `/api/v1/runs`,
 then by default polls `/runs/{id}` to a terminal status and renders by scenario (`--no-wait` prints the
@@ -93,11 +101,11 @@ ref (a test run); `--effort pro|max` sends `reasoning_effort` to force a stronge
 for this run (omitted/default keeps normal tier selection). `--principal-kind`+`--principal-id` (a
 required pair; optional `--asserted-by`/`--assurance` need that pair) send a nested `principal` object
 that scopes the run's data access to that identity — dormant unless the project declares `scope_claims`;
-tenant binding stays the `--tenant` slug, never `tenant_hint`. On tenant-enabled projects, `rc login` may
+tenant binding stays the `--tenant` slug, never `tenant_hint`. On tenant-enabled projects, `rc auth login` may
 be tenant-pinned or project-pinned. A tenant-pinned login works with plain `rc ask`; a project-pinned
 login must pass `--tenant <slug>` on each workspace-producing command.
 
-`rc env` deliberately treats secret values differently from ordinary JSON. Bulk `GET /api/v1/env`
+`rc project env` deliberately treats secret values differently from ordinary JSON. Bulk `GET /api/v1/env`
 returns live grounding secret VALUES, so `env.go` reshapes to NAMES only for `keys`/`diff`, and `pull`
 writes values solely to the 0600 `./.env` (never stdout). Per-key `set` reads the value from STDIN by
 default and calls the collection create/upsert; `rm` deletes one key; `reveal` is the one command that
@@ -105,32 +113,32 @@ prints a value, with a stderr warning, for intentional copy/pipe use. `--plane g
 normal read-only run env (`env_grounding`); `--plane action` targets `.env.action` (`env_action`), an
 operator-only write-plane collection that is never mounted into normal runs.
 
-`rc brain status` and `rc brain sync` are the public brain-cache loop for project brain developers:
+`rc dev brain status` and `rc dev brain sync` are the public brain-cache loop for project brain developers:
 `status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
 state; `sync` fetches origin/main, fast-forwards local main only when safe, and refreshes warm
-Developer Console bash workspaces so the next `rc bash run` remounts `/brain`. If local main is
+Developer Console bash workspaces so the next `rc dev console bash run` remounts `/brain`. If local main is
 ahead/diverged/dirty, the server refuses to reconcile and returns the current/deployed SHAs so an
-operator can handle it explicitly. `rc bash list`, `rc bash run`, and `rc capabilities` echo brain
+operator can handle it explicitly. `rc dev console bash list`, `rc dev console bash run`, and `rc dev console capabilities` echo brain
 status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
 
-`rc brain status` and `rc brain sync` are the public brain-cache loop for project brain developers:
+`rc dev brain status` and `rc dev brain sync` are the public brain-cache loop for project brain developers:
 `status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
 state; `sync` fetches origin/main, fast-forwards local main only when safe, and refreshes warm
-Developer Console bash workspaces so the next `rc bash run` remounts `/brain`. If local main is
+Developer Console bash workspaces so the next `rc dev console bash run` remounts `/brain`. If local main is
 ahead/diverged/dirty, the server refuses to reconcile and returns the current/deployed SHAs so an
-operator can handle it explicitly. `rc bash list`, `rc bash run`, and `rc capabilities` echo brain
+operator can handle it explicitly. `rc dev console bash list`, `rc dev console bash run`, and `rc dev console capabilities` echo brain
 status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
 
-`rc run --full/--debug` treats historical snapshots as authoritative: `brain_resolved`,
+`rc run trace` and `rc run debug` treat historical snapshots as authoritative: `brain_resolved`,
 `tenant_settings`, and `grounding_sources` come from `/trace`; current tenant/source state is only a drift
 annotation. Debug JSONL preserves raw `grounding_sources` and adds `grounding_source_drift_count`; table
 and markdown render missing/drifted mirrors or KB first.
 
-`rc kb search` is progressive-disclosure glue over the guarded bash workspace, not a giant markdown
+`rc project knowledge content search` is progressive-disclosure glue over the guarded bash workspace, not a giant markdown
 dump: it searches `/kb/<provider>` remotely, prints only ranked metadata/snippets, then fetches each
 matched article individually and writes a fresh local artifact folder. Agents should treat the printed
 artifact path as the handle, then use local `rg`/`sed`/scripts over `articles/`. JSON mode exposes the
-same `artifact_dir`, counts, truncation flag, and ranked article metadata. `rc kb export` uses the same
+same `artifact_dir`, counts, truncation flag, and ranked article metadata. `rc project knowledge content export` uses the same
 writer for `--query`, `--article`, or `--all`; every output directory must be new to avoid stale
 cross-search contamination.
 
@@ -138,7 +146,8 @@ cross-search contamination.
 
 ```
 cmd/rc/main.go            → cli.Execute(version)
-internal/cli/             cobra commands; one file per command (root/status/runs/run/config/env/auth).
+internal/cli/             `surface.go` owns the nine-root information architecture; command files own
+                          their thin endpoint adapters (status/run/config/env/auth/etc.).
                           A command = parse flags → one client call → render. errors.go surfaces
                           the API's {code,message,details} VERBATIM to stderr, exit 1. tokensource.go is
                           the live client.TokenSource (store + refresh policy).
@@ -157,20 +166,21 @@ internal/render/          render.go (TTY-detect + JSON passthrough) + table.go (
 
 ### Output: pipe-first, TTY-aware
 `render.IsJSON(mode, w)` — `-o json`/`-o table` wins; else **JSON unless stdout is a terminal**. So a
-TTY gets a table; a pipe/redirect gets JSON (`rc runs | jq …` always works). JSON mode is a **verbatim
+TTY gets a table; a pipe/redirect gets JSON (`rc run list | jq …` always works). JSON mode is a **verbatim
 pretty-print of the server body** (re-indent only), so jq sees the true response shape — the CLI can't
-invent or drop a field. `rc run --events -o json` emits **NDJSON** (one event per line), not an array.
+invent or drop a field. `rc run events <id> -o json` emits **NDJSON** (one event per line), not an array.
 
 Progressive disclosure lives in `internal/outputspill`: large payloads are still fetched fully, but the
 CLI writes full artifacts under `.rootcause/output/` by default and prints a small table preview or JSON
 manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir`, `RC_OUTPUT_DIR`,
 `RC_OUTPUT_SPILL_THRESHOLD` (per field/stream, default 6000 bytes), `RC_OUTPUT_INLINE_MAX` (whole JSONL
 or JSON response, default 20000 bytes), `--no-preview`, and `--raw-output` for exact legacy stdout.
-Phase-1 wiring covers `internal/cli/console.go` JSON passthrough, `rc bash run` stdout/stderr, and
-`rc run --events|--full|--debug`; large NDJSON manifests unless `--stream` or `--raw-output` is passed.
+Phase-1 wiring covers `internal/cli/console.go` JSON passthrough, `rc dev console bash run` stdout/stderr, and
+`rc run events|trace|debug`; large NDJSON manifests unless `--stream` or `--raw-output` is passed.
 Phase-2 wiring extends the same `env.renderJSON` / `env.renderBytes` path to high-volume API metadata
-(`rc routes`, `rc openapi`), observability fan-outs (`fleet`/`patterns`/`health`, including `--all`),
-collection CRUD JSON responses with large values, and `rc export download` stdout bodies. Intentional
+(`rc dev api routes`, `rc dev api openapi`), observability fan-outs (`fleet runs` / `fleet patterns` /
+`fleet health`, including `--all`),
+collection CRUD JSON responses with large values, and `rc project corpus download` stdout bodies. Intentional
 one-time secret reveal surfaces (`connection reveal`, `token mint`) stay raw so capture/copy behavior is
 unchanged.
 
@@ -178,7 +188,7 @@ unchanged.
 OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_KEY`, and
 `.rootcause.secret.toml` are gone). The shape:
 
-- **`rc login`** ([auth.go](internal/cli/auth.go)) runs a flow in `internal/oauth` against the static
+- **`rc auth login`** ([auth.go](internal/cli/auth.go)) runs a flow in `internal/oauth` against the static
   first-party client `rcocl_cli`: **PKCE loopback** by default (bind a localhost port, open the browser
   at `/oauth/authorize`, catch `http://127.0.0.1:<port>/callback`, exchange the code — the loopback
   redirect is port-insensitive server-side per RFC 8252). It prints the full authorize URL before trying
@@ -188,12 +198,12 @@ OAuth is the **only** bearer credential (the legacy `rcl_` key, `ROOTCAUSE_API_K
   the CLI.
 - **Token store** (`internal/token`): `~/.config/rootcause/tokens.json` (0600), keyed by profile —
   `{access_token, refresh_token, expires_at, base_url}`. `base_url` is diagnostic/refresh metadata from
-  login or the latest refresh; it does not override normal command transport. `rc logout` revokes
+  login or the latest refresh; it does not override normal command transport. `rc auth logout` revokes
   server-side + clears it.
 - **Transparent refresh**: `client.Client` takes a `TokenSource`; `tokensource.go`'s `liveSource` reads
   the profile's token, refreshes pre-emptively within 60s of expiry (and on a 401, the client retries
   once after a forced refresh), and **persists the rotated pair**. A dead refresh (`invalid_grant`)
-  surfaces as a "run `rc login`" prompt. All refresh policy lives in `liveSource` — the client stays
+  surfaces as a "run `rc auth login`" prompt. All refresh policy lives in `liveSource` — the client stays
   OAuth-oblivious. Tests inject `client.StaticToken` to bypass the store.
 
 ### Config & profile precedence
@@ -211,15 +221,15 @@ it's a server-side scope the command layer threads onto each read request, never
 health, thread-trace, prompt submit, env, and settings); an all-projects admin token uses it to scope
 one project, a pinned token disregards it server-side. The brain→default fallback sets this scope
 implicitly from `.rootcause.toml`. Before using a non-empty scope, the CLI checks `GET /api/v1/projects`
-and returns `UNKNOWN_PROJECT` with a `rc projects` hint when the id/name is not visible. See
+and returns `UNKNOWN_PROJECT` with a `rc project list` hint when the id/name is not visible. See
 `env.scopeProject` / `env.validateProjectScope` in `internal/cli/root.go`.
 On tenant-enabled projects, the active OAuth login may bind one tenant or the whole project. Plain
 `rc ask` sends no tenant flag and works only when the token is tenant-pinned; project-pinned logins use
-`--tenant <slug>` per command. `rc whoami` calls `/api/v1/whoami` to show the login-bound project and
+`--tenant <slug>` per command. `rc auth status` calls `/api/v1/whoami` to show the login-bound project and
 tenant, when one is pinned.
 
-**Fleet-wide `--all`** (`rc fleet`/`patterns`/`health`) is the FAT-CLIENT fan-out that complements
-`--project`: it lists the fleet via `rc projects`, then calls the per-project read endpoint once per
+**Fleet-wide `--all`** (`rc fleet runs` / `rc fleet patterns` / `rc fleet health`) is the FAT-CLIENT fan-out that complements
+`--project`: it lists the fleet via `rc project list`, then calls the per-project read endpoint once per
 project with `?project=<id>`, and merges the results — grouped-per-project with a fleet total (`fleet`),
 a clustered section per project (`patterns`), or a per-project verdict whose worst case sets the exit
 code (`health`). `-o json` emits the merged `{projects:[…]}` structure. `--all` needs an all-projects
@@ -228,12 +238,12 @@ named error rather than silently running just that one. The per-project endpoint
 the fan-out + grouping live entirely in the CLI (`runFleetAll`/`runPatternsAll`/`runHealthAll`,
 `fanOutProjects` in `internal/cli`).
 
-`rc health` renders the raw `/api/v1/health` inputs: mirror rows (state/staleness), watched-mailbox
+`rc fleet runs health` renders the raw `/api/v1/health` inputs: mirror rows (state/staleness), watched-mailbox
 watch facts, and dead-lettered runs in the chosen window. The CLI marks mailbox rows unhealthy only when
 they are parked (`error`/`needs_attention`) or active with an expired main/spam subscription; JSON mode
 still passes the raw shape through unchanged.
 
-**`rc fleet` aggregates** (all computed fat-client in `internal/render/fleet.go`, pure functions of
+**`rc fleet runs` aggregates** (all computed fat-client in `internal/render/fleet.go`, pure functions of
 the `/api/v1/runs` rows): the default human digest is the per-run flag table + rates + worst
 offenders; **`--by-model`** adds the model×cost×**fallback** breakdown (the highest-value view — which
 model burned the spend and how much was a fallback), **`--timeline`** adds the per-day
@@ -244,18 +254,18 @@ skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in
 
 Base URL resolution is exactly `ROOTCAUSE_BASE_URL` > built-in production default
 (`https://app.replypen.com`). `ROOTCAUSE_BASE_URL` is the deliberate staging/dev escape hatch; otherwise
-normal commands and `rc login` hit production. Persisted `base_url` values in config profiles, brain
+normal commands and `rc auth login` hit production. Persisted `base_url` values in config profiles, brain
 markers, or token records do not override command transport. The legacy production host
 `https://rootcause.probackup.io` is canonicalized to `https://app.replypen.com` when an explicit env or
 stored token URL is normalized. `Resolved` carries `Profile`/`Project`/`Brain` and the URL source so
-`root.go` crafts the loud error and `rc whoami` can print whether the URL came from built-in production
-or `ROOTCAUSE_BASE_URL`. `rc whoami` asks `/api/v1/whoami` for the login-bound project/tenant when a
+`root.go` crafts the loud error and `rc auth status` can print whether the URL came from built-in production
+or `ROOTCAUSE_BASE_URL`. `rc auth status` asks `/api/v1/whoami` for the login-bound project/tenant when a
 token is present. Explicit `--tenant` and `.rootcause/local.toml` remain local override/debug paths. The
 local overlay only supports `tenant`. Honors `XDG_CONFIG_HOME` for token storage. The committed marker
 is non-secret; tokens live only in the 0600 token store.
 
 ### The `--debug` decomposer (`internal/debugdump`)
-`rc run <id> --debug` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/trace` (cross-project for an
+`rc run debug <id>` ports rootcause's `rc_agent_debug.py` to Go: it pulls `/trace` (cross-project for an
 all-projects admin token) and writes two files to `--out-dir` (default `.rootcause/debug/`) — a **jq-able JSONL**
 event log and a **thin markdown index** — then prints both paths. It does NOT summarize the run into
 stdout: the calling agent reads the index, then drills into the JSONL with its own bash/jq. The JSONL
@@ -315,7 +325,7 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   it falls back to a static known-key set (`egress.allowlist`, `pr.triggers` as lists; `max_run_usd` as a
   number). The server is always the final validator.
 
-## The one non-API command: `rc upgrade`
+## The one non-API command: `rc self update`
 
 [`internal/cli/upgrade.go`](internal/cli/upgrade.go) is the deliberate exception to "every command is
 one API call": it talks to the **GitHub releases** API (not the rootcause API, no bearer key), then
@@ -331,9 +341,9 @@ verified by hand against a real release. Keep this the *only* command that reach
 No MCP in v1 (a future layer over the same endpoints). Client-side analysis/rendering is fine, but **no
 direct DB access** — data comes only through `/api/v1`, and the endpoints behind it stay thin (raw rows,
 not server-computed views), with `-o json` always exposing those rows. Server writes are limited to
-public config/run surfaces: `config set` (settings whitelist), `rc env set/rm` (sealed per-key secret
+public config/run surfaces: `config set` (settings whitelist), `rc project env set/rm` (sealed per-key secret
 collections), and `rc ask` (triggers a run via `POST /api/v1/runs`; the CLI still holds no run logic).
-`rc env pull` writes a LOCAL `./.env` only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`
+`rc project env pull` writes a LOCAL `./.env` only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`
 endpoints + the static first-party CLI client — the CLI invents no auth of its own (no new grant types,
 no token minting beyond the standard flows). No interactive TUI/dashboard — scriptable, pipe-first,
 headless.

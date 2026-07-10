@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -67,6 +68,7 @@ func Execute(version string) int {
 // newRootCmd assembles the root command + global flags + subcommands. Split out so tests can build a
 // root against an in-memory env and a stub server.
 func newRootCmd(e *env, version string) *cobra.Command {
+	cobra.EnableCommandSorting = false
 	root := &cobra.Command{
 		Use:           "rc",
 		Short:         "rootcause CLI — a thin, scriptable client over the rootcause API",
@@ -74,6 +76,15 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		SilenceUsage:  true, // a runtime error isn't a usage error; don't dump help on it
 		SilenceErrors: true, // Execute prints the error itself, verbatim
 	}
+	root.CompletionOptions.DisableDefaultCmd = true
+	root.AddGroup(
+		&cobra.Group{ID: "start", Title: "Start:"},
+		&cobra.Group{ID: "manage", Title: "Manage:"},
+		&cobra.Group{ID: "develop", Title: "Develop:"},
+		&cobra.Group{ID: "operate", Title: "Operate:"},
+		&cobra.Group{ID: "local", Title: "Local:"},
+	)
+	root.SetHelpCommandGroupID("local")
 	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
 	root.PersistentFlags().StringVar(&e.project, "project", "", "scope the request to one project by name or id (requires an all-projects token)")
 	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "override the login tenant where supported")
@@ -82,51 +93,15 @@ func newRootCmd(e *env, version string) *cobra.Command {
 	root.PersistentFlags().BoolVar(&e.noPreview, "no-preview", false, "write large output artifacts but omit head/tail previews")
 	root.PersistentFlags().BoolVar(&e.rawOutput, "raw-output", false, "disable progressive output spill and print full payloads to stdout")
 
-	root.AddCommand(
-		newStatusCmd(e),
-		newRunsCmd(e),
-		newRunCmd(e),
-		newDreamCmd(e),
-		newThreadCmd(e),
-		newProjectsCmd(e),
-		newProjectCmd(e),
-		newFleetCmd(e),
-		newPatternsCmd(e),
-		newHealthCmd(e),
-		newAskCmd(e),
-		newCapabilitiesCmd(e),
-		newDBCmd(e),
-		newBashCmd(e),
-		newActionCmd(e),
-		newConfigCmd(e),
-		newTriageCmd(e),
-		newSpamCmd(e),
-		newKBCmd(e, version),
-		newBrandingCmd(e),
-		newRepoCmd(e),
-		newConnectionCmd(e),
-		newMemberCmd(e),
-		newTokenCmd(e),
-		newMailboxCmd(e),
-		newExportCmd(e),
-		newProviderCmd(e),
-		newIDCmd(e),
-		newDatabaseCmd(e),
-		newGitHubCmd(e),
-		newBrainCmd(e),
-		newAdminCmd(e),
-		newSchemaCmd(e),
-		newExplainCmd(e),
-		newAccessCmd(e),
-		newRoutesCmd(e),
-		newOpenAPICmd(e),
-		newEnvCmd(e),
-		newTenantCmd(e),
-		newLoginCmd(e),
-		newLogoutCmd(e),
-		newWhoamiCmd(e),
-		newUpgradeCmd(e, version),
-	)
+	root.AddCommand(newTopLevelCommands(e, root, version)...)
+	root.InitDefaultHelpCmd()
+	for _, cmd := range root.Commands() {
+		if cmd.Name() == "help" {
+			cmd.Hidden = true
+			break
+		}
+	}
+	root.SetUsageTemplate(strings.ReplaceAll(root.UsageTemplate(), `(or .IsAvailableCommand (eq .Name "help"))`, `.IsAvailableCommand`))
 	return root
 }
 

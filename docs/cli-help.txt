@@ -1,0 +1,3401 @@
+$ rc --help
+rootcause CLI — a thin, scriptable client over the rootcause API
+
+Usage:
+  rc [command]
+
+Start:
+  status      Health summary + recent runs
+  ask         Trigger a run from a question and wait for the answer
+  run         Inspect and manage the run lifecycle
+
+Manage:
+  project     Manage project configuration and resources
+
+Develop:
+  dev         Develop and inspect project behavior
+
+Operate:
+  fleet       Operate and inspect project health
+  admin       Box-level administration (users/projects/catalog; global-admin token)
+
+Local:
+  auth        Manage local authentication and inspect access
+  self        Manage the rc installation and shell integration
+
+Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc [command] --help" for more information about a command.
+
+$ rc status --help
+Health summary + recent runs
+
+Usage:
+  rc status [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc ask --help
+Trigger a run from a question and wait for the answer
+
+Usage:
+  rc ask <question> [flags]
+
+Flags:
+      --asserted-by string      who asserted the principal (default server-side); requires the --principal-kind/--principal-id pair
+      --assurance string        assurance level of the principal assertion (default server-side); requires the --principal-kind/--principal-id pair
+      --attach stringArray      attach a local file to the synthetic run (repeatable)
+      --brain-ref string        run against a non-main brain ref (e.g. dev/refund-rework) — a test run
+      --effort string           reasoning effort override: default, pro, or max
+      --from string             sender address for --scenario email (default "rc-ask@example.test")
+      --no-wait                 submit and print the run_id immediately, without waiting
+      --path stringArray        alias for --attach
+      --principal-id string     principal external id (the asserted identity); requires --principal-kind
+      --principal-kind string   principal kind to scope the run's data (e.g. kampadmin_person); requires --principal-id
+      --scenario string         answer shape: email or raw (alias: mcp) (default "email")
+      --session string          session id to thread the run onto
+      --subject string          subject for --scenario email (default: compact prompt first line)
+      --timeout duration        max time to wait for a terminal status (default 5m0s)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run --help
+Inspect and manage the run lifecycle
+
+Usage:
+  rc run <id> [flags]
+  rc run [command]
+
+Available Commands:
+  list        List recent runs (filterable)
+  show        Show one run
+  events      Show the full per-event trace
+  trace       Show the whole run bundle
+  debug       Decompose a run into local debug artifacts
+  brain-diff  Show the brain commit written by a run
+  thread      Trace one thread/session: every run for it, with placement + a why-no-draft hint
+  feedback    Record score/comment feedback on a run's trace
+  retry       Re-run a run (optionally at a different tier); prints the new run id
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc run [command] --help" for more information about a command.
+
+$ rc run list --help
+List recent runs (filterable)
+
+Usage:
+  rc run list [flags]
+
+Flags:
+      --before string     cursor: run_id to page to the next (older) page
+      --category string   filter by category (e.g. ok, timeout, cost_cap)
+      --kind string       filter by kind: email|prompt|mcp|analysis|console
+      --limit int         max runs to return (1..100, server default 50)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run show --help
+Show one run
+
+Usage:
+  rc run show <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run events --help
+Show the full per-event trace
+
+Usage:
+  rc run events <id> [flags]
+
+Flags:
+      --stream   stream JSONL to stdout even when it is large
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run trace --help
+Show the whole run bundle
+
+Usage:
+  rc run trace <id> [flags]
+
+Flags:
+      --stream   stream JSONL to stdout even when it is large
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run debug --help
+Decompose a run into local debug artifacts
+
+Usage:
+  rc run debug <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run brain-diff --help
+Show the brain commit written by a run
+
+Usage:
+  rc run brain-diff <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run thread --help
+Trace a thread or session id: every run for it (newest first), each with status, health flags, what was placed (draft/note), and — when the newest run errored or declined — a deterministic hint at where it likely failed.
+
+The id may be a thread id OR a session UUID (the server falls back to session when no thread matches). An unknown id is a clean empty answer, not an error.
+
+Usage:
+  rc run thread <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run feedback --help
+Record score/comment feedback on a run's trace
+
+Usage:
+  rc run feedback <run-id> [--score N] [--comment TEXT] [flags]
+
+Flags:
+      --comment string   free-text feedback comment
+      --score int        feedback score (e.g. -1, 0, 1)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run retry --help
+Re-run a run (optionally at a different tier); prints the new run id
+
+Usage:
+  rc run retry <run-id> [--tier standard|pro|max] [flags]
+
+Flags:
+      --tier string   model tier for the retry: standard|pro|max
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project --help
+Manage project configuration and resources
+
+Usage:
+  rc project [command]
+
+Available Commands:
+  list            List the projects this token can see (the fleet, for an all-projects token)
+  rename          Rename the active project slug and brain repo
+  settings        Read, change, and describe project settings
+  tenant          Manage tenants (sub-scopes below a project) and their settings
+  mailbox         Manage watched mailboxes (the channel plane's inbox watch)
+  triage          Read or change mail triage policy and hard rules
+  senders         Manage the spam allow/block lists (never-spam / always-spam)
+  model-key       Manage model-provider credentials
+  connection      Manage outbound integration connections
+  knowledge       Search knowledge content and configure synchronization
+  corpus          Read local-synthesis corpus exports (harvest/survey)
+  database        Manage registered databases (list/read/update + access controls)
+  repo            Manage source repos (mirrors + per-repo PR config)
+  member          Manage project members
+  token           Manage API tokens
+  branding        Read or change white-label branding (colours/name/public_base_url)
+  env             Manage this project's sealed env secrets
+  github          Inspect the GitHub App install for this project
+  action-settings Read or change action-plane config (operator-tier)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project [command] --help" for more information about a command.
+
+$ rc project list --help
+Fetch GET /api/v1/projects and list the project handles (name + id). An all-projects admin token lists the whole fleet; a project-scoped token lists only its own project. -o json passes the raw server rows through.
+
+Usage:
+  rc project list [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project rename --help
+Rename the active project slug and brain repo
+
+Usage:
+  rc project rename <new-name> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project settings --help
+Read, change, and describe project settings
+
+Usage:
+  rc project settings [command]
+
+Available Commands:
+  runtime     Manage flat runtime settings
+  behavior    Read or edit nested project settings (persona/channel)
+  describe    Explain one config key (type, enum, scopes, default, help)
+  schema      Show the config registry (fields, types, scopes, defaults)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project settings [command] --help" for more information about a command.
+
+$ rc project settings runtime --help
+Manage flat runtime settings
+
+Usage:
+  rc project settings runtime [command]
+
+Available Commands:
+  get         Show current values (value / effective / default)
+  set         Change values (sparse, validate-then-apply server-side)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project settings runtime [command] --help" for more information about a command.
+
+$ rc project settings runtime get --help
+Show current values (value / effective / default)
+
+Usage:
+  rc project settings runtime get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project settings runtime set --help
+Change values (sparse, validate-then-apply server-side)
+
+Usage:
+  rc project settings runtime set k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project settings behavior --help
+Read or edit nested project settings (persona/channel)
+
+Usage:
+  rc project settings behavior [command]
+
+Available Commands:
+  get         Show settings with resolved provenance
+  set         Patch settings (nested; key= or --unset clears local override)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project settings behavior [command] --help" for more information about a command.
+
+$ rc project settings behavior get --help
+Show settings with resolved provenance
+
+Usage:
+  rc project settings behavior get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project settings behavior set --help
+Patch settings (nested; key= or --unset clears local override)
+
+Usage:
+  rc project settings behavior set group.key=value [group.key=value...] [flags]
+
+Flags:
+      --unset stringArray   clear a scope-local override (group.key); repeatable
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project settings describe --help
+Explain one config key (type, enum, scopes, default, help)
+
+Usage:
+  rc project settings describe <key> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project settings schema --help
+Show the config registry (fields, types, scopes, defaults)
+
+Usage:
+  rc project settings schema [resource] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant --help
+Manage tenants (sub-scopes below a project) and their settings
+
+Usage:
+  rc project tenant [command]
+
+Available Commands:
+  settings    Read or edit nested tenant settings (persona/channel)
+  profile     Read or edit tenant projection/profile values
+  ls          List tenants
+  add         Create a tenant
+  get         Show one tenant
+  set         Update a tenant
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project tenant [command] --help" for more information about a command.
+
+$ rc project tenant settings --help
+Read or edit nested tenant settings (persona/channel)
+
+Usage:
+  rc project tenant settings [command]
+
+Available Commands:
+  get         Show settings with resolved provenance
+  set         Patch settings (nested; key= or --unset clears local override)
+  schema      Dump the hierarchy settings schema (debug/reference)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project tenant settings [command] --help" for more information about a command.
+
+$ rc project tenant settings get --help
+Show settings with resolved provenance
+
+Usage:
+  rc project tenant settings get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant settings set --help
+Patch settings (nested; key= or --unset clears local override)
+
+Usage:
+  rc project tenant settings set group.key=value [group.key=value...] [flags]
+
+Flags:
+      --unset stringArray   clear a scope-local override (group.key); repeatable
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant settings schema --help
+Dump the hierarchy settings schema (debug/reference)
+
+Usage:
+  rc project tenant settings schema [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant profile --help
+Read or edit tenant projection/profile values
+
+Usage:
+  rc project tenant profile [command]
+
+Available Commands:
+  get         Show a tenant's projection/profile values
+  set         Edit tenant projection/profile values
+  schema      Dump the tenant profile JSON schema
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project tenant profile [command] --help" for more information about a command.
+
+$ rc project tenant profile get --help
+Show a tenant's projection/profile values
+
+Usage:
+  rc project tenant profile get --tenant <slug> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant profile set --help
+Edit tenant projection/profile values
+
+Usage:
+  rc project tenant profile set --tenant <slug> key=val [key=val …] [flags]
+
+Flags:
+      --unset stringArray   unconfigure a key (sends explicit null); repeatable
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant profile schema --help
+Dump the tenant profile JSON schema
+
+Usage:
+  rc project tenant profile schema [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant ls --help
+List tenants
+
+Usage:
+  rc project tenant ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant add --help
+Create a tenant
+
+Usage:
+  rc project tenant add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant get --help
+Show one tenant
+
+Usage:
+  rc project tenant get <slug> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project tenant set --help
+Update a tenant
+
+Usage:
+  rc project tenant set <slug> k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox --help
+Manage watched mailboxes (the channel plane's inbox watch)
+
+Usage:
+  rc project mailbox [command]
+
+Available Commands:
+  ls           List watched mailboxes (id, provider, email, status, tenant, expiry, error)
+  pause        Pause watching a mailbox
+  resume       Resume watching a mailbox (surfaces needs_attention on a subscribe failure)
+  process      Toggle processing (silent onboarding) for a watched mailbox
+  harvest      Start a local-synthesis harvest of a mailbox (optionally wait for the export)
+  imap-env     Write an IMAP mailbox env file for local deep harvest (0600; values never printed)
+  settings     Read or edit nested mailbox settings (persona/channel)
+  connect      Print the dashboard Connections URL to start a provider's browser OAuth
+  connect-imap Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)
+  route        Legacy inbound routing table (email→project/tenant); NOT the watched mailboxes
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project mailbox [command] --help" for more information about a command.
+
+$ rc project mailbox ls --help
+List watched mailboxes (id, provider, email, status, tenant, expiry, error)
+
+Usage:
+  rc project mailbox ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox pause --help
+Pause watching a mailbox
+
+Usage:
+  rc project mailbox pause <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox resume --help
+Resume watching a mailbox (surfaces needs_attention on a subscribe failure)
+
+Usage:
+  rc project mailbox resume <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox process --help
+Toggle processing (silent onboarding) for a watched mailbox
+
+Usage:
+  rc project mailbox process [command]
+
+Available Commands:
+  on          Start processing inbound mail (drafts replies)
+  off         Hold silent — keep watching, stop drafting
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project mailbox process [command] --help" for more information about a command.
+
+$ rc project mailbox process on --help
+Start processing inbound mail (drafts replies)
+
+Usage:
+  rc project mailbox process on <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox process off --help
+Hold silent — keep watching, stop drafting
+
+Usage:
+  rc project mailbox process off <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox harvest --help
+Start a local-synthesis harvest of a mailbox (optionally wait for the export)
+
+Usage:
+  rc project mailbox harvest <mailbox-id> [flags]
+
+Flags:
+      --clean              request the cleaned corpus (server default true) (default true)
+      --max-threads int    cap the harvest to N threads (0 = server default)
+      --timeout duration   max time to wait under --wait (default 5m0s)
+      --wait               poll the export until it reaches a terminal status
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox imap-env --help
+Write an IMAP mailbox env file for local deep harvest (0600; values never printed)
+
+Usage:
+  rc project mailbox imap-env <mailbox-id> --out .rootcause/imap/<mailbox-id>.env [flags]
+
+Flags:
+      --out string   write env file to this path (default .rootcause/imap/<mailbox-id>.env)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox settings --help
+Read or edit nested mailbox settings (persona/channel)
+
+Usage:
+  rc project mailbox settings [command]
+
+Available Commands:
+  get         Show settings with resolved provenance
+  set         Patch settings (nested; key= or --unset clears local override)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project mailbox settings [command] --help" for more information about a command.
+
+$ rc project mailbox settings get --help
+Show settings with resolved provenance
+
+Usage:
+  rc project mailbox settings get <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox settings set --help
+Patch settings (nested; key= or --unset clears local override)
+
+Usage:
+  rc project mailbox settings set <id> group.key=value [group.key=value...] [flags]
+
+Flags:
+      --unset stringArray   clear a scope-local override (group.key); repeatable
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox connect --help
+Print the dashboard Connections URL to start a provider's browser OAuth
+
+Usage:
+  rc project mailbox connect --provider google|microsoft|intercom [--project …] [flags]
+
+Flags:
+      --provider string   channel provider to connect: google|microsoft|intercom
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox connect-imap --help
+Link a generic IMAP/SMTP mailbox to a project (or tenant with --tenant). The server logs in over IMAP, selects INBOX, and authenticates SMTP before persisting anything — a failure saves nothing.
+
+The password is read from $RC_MAILBOX_PASSWORD or, if unset, prompted on stdin — never passed as an argument. Defaults mirror the server: --username defaults to --email, --smtp-host to --imap-host, and ports/TLS default to 993/implicit (IMAP) and 587/starttls (SMTP).
+
+Usage:
+  rc project mailbox connect-imap --email <addr> --imap-host <host> [flags]
+
+Flags:
+      --email string           mailbox email address (required)
+      --imap-host string       IMAP server host (required)
+      --imap-port int          IMAP server port (default: server 993)
+      --imap-tls string        IMAP TLS mode: none|starttls|implicit (default: server implicit)
+      --smtp-host string       SMTP server host (default: --imap-host)
+      --smtp-port int          SMTP server port (default: server 587)
+      --smtp-tls string        SMTP TLS mode: none|starttls|implicit (default: server starttls)
+      --smtp-username string   SMTP username override (default: --username)
+      --username string        IMAP/SMTP login username (default: --email)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox route --help
+Manage the legacy email-keyed routing table (tenant_mailboxes): which inbound address routes to which project/tenant. This is the generic /api/v1/mailboxes collection, distinct from the connection-backed watched mailboxes shown by `rc mailbox ls`. Kept for tenant onboarding.
+
+Usage:
+  rc project mailbox route [command]
+
+Available Commands:
+  ls          List mailboxes
+  add         Create a mailboxe
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project mailbox route [command] --help" for more information about a command.
+
+$ rc project mailbox route ls --help
+List mailboxes
+
+Usage:
+  rc project mailbox route ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox route add --help
+Create a mailboxe
+
+Usage:
+  rc project mailbox route add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project triage --help
+Read or change mail triage policy and hard rules
+
+Usage:
+  rc project triage [command]
+
+Available Commands:
+  policy      Read or edit free-form triage guidance
+  rules       Read or edit deterministic triage rules
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project triage [command] --help" for more information about a command.
+
+$ rc project triage policy --help
+Read or edit free-form triage guidance
+
+Usage:
+  rc project triage policy [command]
+
+Available Commands:
+  get         Show triage policy guidance
+  set         Replace triage policy guidance
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project triage policy [command] --help" for more information about a command.
+
+$ rc project triage policy get --help
+Show triage policy guidance
+
+Usage:
+  rc project triage policy get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project triage policy set --help
+Replace triage policy guidance
+
+Usage:
+  rc project triage policy set <guidance> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project triage rules --help
+Read or edit deterministic triage rules
+
+Usage:
+  rc project triage rules [command]
+
+Available Commands:
+  ls          List triage hard rules
+  add         Create a triage hard rule
+  set         Patch a triage hard rule
+  rm          Delete a triage hard rule
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project triage rules [command] --help" for more information about a command.
+
+$ rc project triage rules ls --help
+List triage hard rules
+
+Usage:
+  rc project triage rules ls [flags]
+
+Aliases:
+  ls, list
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project triage rules add --help
+Create a triage hard rule
+
+Usage:
+  rc project triage rules add effect=<skip|force_process> match_kind=<...> pattern=<...> [header_name=...] [reason=...] [priority=N] [enabled=true|false] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project triage rules set --help
+Patch a triage hard rule
+
+Usage:
+  rc project triage rules set <id> field=value [field=value...] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project triage rules rm --help
+Delete a triage hard rule
+
+Usage:
+  rc project triage rules rm <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project senders --help
+Manage the spam allow/block lists (never-spam / always-spam)
+
+Usage:
+  rc project senders [command]
+
+Available Commands:
+  ls          List the spam allow and block rules
+  allow       Never treat mail from <pattern> as spam
+  block       Always treat mail from <pattern> as spam
+  rm          Delete a spam rule by id
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project senders [command] --help" for more information about a command.
+
+$ rc project senders ls --help
+List the spam allow and block rules
+
+Usage:
+  rc project senders ls [flags]
+
+Aliases:
+  ls, list
+
+Flags:
+      --mailbox string   show only rules scoped to this mailbox uuid (client-side filter)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project senders allow --help
+Never treat mail from <pattern> as spam
+
+Usage:
+  rc project senders allow <pattern> [flags]
+
+Flags:
+      --mailbox string   scope the rule to this mailbox uuid (else project/tenant scope)
+      --reason string    why this rule exists (shown in the list)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project senders block --help
+Always treat mail from <pattern> as spam
+
+Usage:
+  rc project senders block <pattern> [flags]
+
+Flags:
+      --mailbox string   scope the rule to this mailbox uuid (else project/tenant scope)
+      --reason string    why this rule exists (shown in the list)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project senders rm --help
+Delete a spam rule by id
+
+Usage:
+  rc project senders rm <id> [flags]
+
+Flags:
+      --verdict string   target one list directly: allow|block (default: try both)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project model-key --help
+Manage model-provider credentials
+
+Usage:
+  rc project model-key [command]
+
+Available Commands:
+  openrouter  Manage the OpenRouter API key (set/clear/reveal)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project model-key [command] --help" for more information about a command.
+
+$ rc project model-key openrouter --help
+Manage the OpenRouter API key (set/clear/reveal)
+
+Usage:
+  rc project model-key openrouter [command]
+
+Available Commands:
+  set         Store the OpenRouter key (from STDIN by default; never echoed)
+  clear       Remove the stored OpenRouter key
+  reveal      Print the stored OpenRouter key (sensitive, shown once)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project model-key openrouter [command] --help" for more information about a command.
+
+$ rc project model-key openrouter set --help
+Store the OpenRouter key (from STDIN by default; never echoed)
+
+Usage:
+  rc project model-key openrouter set [<key>] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project model-key openrouter clear --help
+Remove the stored OpenRouter key
+
+Usage:
+  rc project model-key openrouter clear [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project model-key openrouter reveal --help
+Print the stored OpenRouter key (sensitive, shown once)
+
+Usage:
+  rc project model-key openrouter reveal [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project connection --help
+Manage outbound integration connections
+
+Usage:
+  rc project connection [command]
+
+Available Commands:
+  ls          List connections
+  add         Create a connection
+  probe       Probe an integration capability grant
+  reveal      Print a connection's secret (sensitive, shown once)
+  rotate      Rotate a connection's secret
+  rm          Revoke and delete a connection
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project connection [command] --help" for more information about a command.
+
+$ rc project connection ls --help
+List connections
+
+Usage:
+  rc project connection ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project connection add --help
+Create a connection
+
+Usage:
+  rc project connection add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project connection probe --help
+Probe an integration capability grant
+
+Usage:
+  rc project connection probe <capability> [flags]
+
+Flags:
+      --cleanup              delete/archive the probe artifact when supported
+      --label string         OAuth grant label (default account when empty)
+      --notion-page string   Notion page id for notion.write --write
+      --write                perform the provider write/read-back probe
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project connection reveal --help
+Print a connection's secret (sensitive, shown once)
+
+Usage:
+  rc project connection reveal <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project connection rotate --help
+Rotate a connection's secret
+
+Usage:
+  rc project connection rotate <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project connection rm --help
+Revoke and delete a connection
+
+Usage:
+  rc project connection rm <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project knowledge --help
+Search knowledge content and configure synchronization
+
+Usage:
+  rc project knowledge [command]
+
+Available Commands:
+  content     List, search, and export knowledge articles
+  sync        Manage knowledge synchronization settings
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project knowledge [command] --help" for more information about a command.
+
+$ rc project knowledge content --help
+List, search, and export knowledge articles
+
+Usage:
+  rc project knowledge content [command]
+
+Available Commands:
+  list        List KB collections without article bodies
+  search      Search KB articles and write matched articles to local artifacts
+  export      Export selected KB articles to a fresh local artifact directory
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project knowledge content [command] --help" for more information about a command.
+
+$ rc project knowledge content list --help
+List KB collections without article bodies
+
+Usage:
+  rc project knowledge content list [flags]
+
+Flags:
+      --collection string   limit inventory to one provider-relative collection
+      --limit int           max collections to print
+      --provider string     KB provider mount under /kb (default "intercom")
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project knowledge content search --help
+Search KB articles and write matched articles to local artifacts
+
+Usage:
+  rc project knowledge content search <query> [flags]
+
+Flags:
+      --limit int         max matched articles to materialize (default 25)
+      --no-materialize    skip writing full article markdown files
+      --out string        artifact directory (must not already exist)
+      --provider string   KB provider mount under /kb (default "intercom")
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project knowledge content export --help
+Export selected KB articles to a fresh local artifact directory
+
+Usage:
+  rc project knowledge content export (--query <query> | --article <id-or-path> | --all) [flags]
+
+Flags:
+      --all               export all provider articles
+      --article string    article id, filename, or provider-relative path to export
+      --out string        artifact directory (must not already exist)
+      --provider string   KB provider mount under /kb (default "intercom")
+      --query string      search query to export
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project knowledge sync --help
+Manage knowledge synchronization settings
+
+Usage:
+  rc project knowledge sync [command]
+
+Available Commands:
+  get         Show current values (value / effective / default)
+  set         Change values (sparse, validate-then-apply server-side)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project knowledge sync [command] --help" for more information about a command.
+
+$ rc project knowledge sync get --help
+Show current values (value / effective / default)
+
+Usage:
+  rc project knowledge sync get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project knowledge sync set --help
+Change values (sparse, validate-then-apply server-side)
+
+Usage:
+  rc project knowledge sync set k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project corpus --help
+Read local-synthesis corpus exports (harvest/survey)
+
+Usage:
+  rc project corpus [command]
+
+Available Commands:
+  ls            List exports (id, kind, status, threads, truncated, created/completed)
+  get           Show one export
+  download      Download the export's Markdown corpus (stdout, --out <file>, or --split <dir>)
+  mine-settings Mine a completed harvest for persona/triage setting proposals
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project corpus [command] --help" for more information about a command.
+
+$ rc project corpus ls --help
+List exports (id, kind, status, threads, truncated, created/completed)
+
+Usage:
+  rc project corpus ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project corpus get --help
+Show one export
+
+Usage:
+  rc project corpus get <export-id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project corpus download --help
+Download the export's Markdown corpus (stdout, --out <file>, or --split <dir>)
+
+Usage:
+  rc project corpus download <export-id> [flags]
+
+Flags:
+      --out string     write the corpus to this file instead of stdout
+      --split string   split into a per-thread tree under this dir (empty → .rootcause/exports/<id>/)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project corpus mine-settings --help
+Mine a completed harvest for persona/triage setting proposals
+
+Usage:
+  rc project corpus mine-settings <export-id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project database --help
+Manage registered databases (list/read/update + access controls)
+
+Usage:
+  rc project database [command]
+
+Available Commands:
+  ls          List databases
+  get         Show one database
+  set         Update a database
+  controls    Read or change a database's access controls
+  preview     Preview the scoped rows a (tenant, principal) would see
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project database [command] --help" for more information about a command.
+
+$ rc project database ls --help
+List databases
+
+Usage:
+  rc project database ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project database get --help
+Show one database
+
+Usage:
+  rc project database get <dsn> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project database set --help
+Update a database
+
+Usage:
+  rc project database set <dsn> k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project database controls --help
+Read or change a database's access controls
+
+Usage:
+  rc project database controls [command]
+
+Available Commands:
+  get         Show a database's controls
+  set         Change a database's controls (JSON object or k=v pairs; sparse)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project database controls [command] --help" for more information about a command.
+
+$ rc project database controls get --help
+Show a database's controls
+
+Usage:
+  rc project database controls get <dsn> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project database controls set --help
+Change a database's controls (JSON object or k=v pairs; sparse)
+
+Usage:
+  rc project database controls set <dsn> <json | k=v…> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project database preview --help
+Preview the scoped rows a (tenant, principal) would see
+
+Usage:
+  rc project database preview <dsn> [flags]
+
+Flags:
+      --principal-id string     principal external id (the asserted identity); requires --principal-kind
+      --principal-kind string   principal kind to scope by (e.g. kampadmin_person); requires --principal-id
+      --table string            limit the preview to a single view
+      --tenant string           tenant slug to bind the preview to (omit for a flat/cross-tenant preview)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+
+$ rc project repo --help
+Manage source repos (mirrors + per-repo PR config)
+
+Usage:
+  rc project repo [command]
+
+Available Commands:
+  ls          List repos
+  add         Create a repo
+  set         Update a repo
+  rm          Delete a repo
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project repo [command] --help" for more information about a command.
+
+$ rc project repo ls --help
+List repos
+
+Usage:
+  rc project repo ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project repo add --help
+Create a repo
+
+Usage:
+  rc project repo add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project repo set --help
+Update a repo
+
+Usage:
+  rc project repo set <name> k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project repo rm --help
+Delete a repo
+
+Usage:
+  rc project repo rm <name> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project member --help
+Manage project members
+
+Usage:
+  rc project member [command]
+
+Available Commands:
+  ls          List members
+  add         Create a member
+  rm          Delete a member
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project member [command] --help" for more information about a command.
+
+$ rc project member ls --help
+List members
+
+Usage:
+  rc project member ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project member add --help
+Create a member
+
+Usage:
+  rc project member add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project member rm --help
+Delete a member
+
+Usage:
+  rc project member rm <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project token --help
+Manage API tokens
+
+Usage:
+  rc project token [command]
+
+Available Commands:
+  ls          List tokens
+  mint        Mint a new token (refresh token shown once)
+  revoke      Revoke a token
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project token [command] --help" for more information about a command.
+
+$ rc project token ls --help
+List tokens
+
+Usage:
+  rc project token ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project token mint --help
+Mint a new token (refresh token shown once)
+
+Usage:
+  rc project token mint [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project token revoke --help
+Revoke a token
+
+Usage:
+  rc project token revoke <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project branding --help
+Read or change white-label branding (colours/name/public_base_url)
+
+Usage:
+  rc project branding [command]
+
+Available Commands:
+  get         Show current values (value / effective / default)
+  set         Change values (sparse, validate-then-apply server-side)
+  logo        Set or clear the white-label logo image
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project branding [command] --help" for more information about a command.
+
+$ rc project branding get --help
+Show current values (value / effective / default)
+
+Usage:
+  rc project branding get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project branding set --help
+Change values (sparse, validate-then-apply server-side)
+
+Usage:
+  rc project branding set k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project branding logo --help
+Set or clear the white-label logo image
+
+Usage:
+  rc project branding logo [command]
+
+Available Commands:
+  set         Upload a logo image (PNG/SVG/JPEG)
+  clear       Remove the stored logo
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project branding logo [command] --help" for more information about a command.
+
+$ rc project branding logo set --help
+Upload a logo image (PNG/SVG/JPEG)
+
+Usage:
+  rc project branding logo set <file> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project branding logo clear --help
+Remove the stored logo
+
+Usage:
+  rc project branding logo clear [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project env --help
+Manage this project's sealed env secrets
+
+Usage:
+  rc project env [command]
+
+Available Commands:
+  pull        Fetch the production grounding env and write ./.env (0600); prints NAMES + count, never values
+  diff        Compare local ./.env to the server (NAMES-only drift); nonzero exit on drift
+  keys        List the key NAMES of the server's grounding env (log-safe, no values)
+  set         Upsert one env var (value from STDIN by default; never echoed)
+  rm          Delete one env var
+  reveal      Print one env var's value (sensitive, shown once)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project env [command] --help" for more information about a command.
+
+$ rc project env pull --help
+Fetch the production grounding env and write ./.env (0600); prints NAMES + count, never values
+
+Usage:
+  rc project env pull [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project env diff --help
+Compare local ./.env to the server (NAMES-only drift); nonzero exit on drift
+
+Usage:
+  rc project env diff [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project env keys --help
+List the key NAMES of the server's grounding env (log-safe, no values)
+
+Usage:
+  rc project env keys [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project env set --help
+Upsert one env var (value from STDIN by default; never echoed)
+
+Usage:
+  rc project env set key=<K> [value=<V>] [--plane grounding|action] [flags]
+
+Flags:
+      --plane string   which env plane: grounding|action (default "grounding")
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project env rm --help
+Delete one env var
+
+Usage:
+  rc project env rm <K> [--plane grounding|action] [flags]
+
+Flags:
+      --plane string   which env plane: grounding|action (default "grounding")
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project env reveal --help
+Print one env var's value (sensitive, shown once)
+
+Usage:
+  rc project env reveal <K> [--plane grounding|action] [flags]
+
+Flags:
+      --plane string   which env plane: grounding|action (default "grounding")
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project github --help
+Inspect the GitHub App install for this project
+
+Usage:
+  rc project github [command]
+
+Available Commands:
+  status      Show the GitHub App install status (installed/account/install_url)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project github [command] --help" for more information about a command.
+
+$ rc project github status --help
+Show the GitHub App install status (installed/account/install_url)
+
+Usage:
+  rc project github status [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project action-settings --help
+Read or change action-plane config (operator-tier)
+
+Usage:
+  rc project action-settings [command]
+
+Available Commands:
+  get         Show current values (value / effective / default)
+  set         Change values (sparse, validate-then-apply server-side)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc project action-settings [command] --help" for more information about a command.
+
+$ rc project action-settings get --help
+Show current values (value / effective / default)
+
+Usage:
+  rc project action-settings get [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc project action-settings set --help
+Change values (sparse, validate-then-apply server-side)
+
+Usage:
+  rc project action-settings set k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev --help
+Develop and inspect project behavior
+
+Usage:
+  rc dev [command]
+
+Available Commands:
+  brain       Inspect, sync, and queue out-of-band brain work
+  console     Use guarded production consoles
+  learning    Inspect learning and consolidation inputs
+  api         Inspect the public API contract
+  tools       Use local provider and identifier utilities
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev [command] --help" for more information about a command.
+
+$ rc dev brain --help
+Inspect, sync, and queue out-of-band brain work
+
+Usage:
+  rc dev brain [command]
+
+Available Commands:
+  status      Show deployed brain cache status
+  sync        Fetch origin/main and refresh deployed brain cache
+  edit        Queue a brain edit from a plain-language instruction (or STDIN)
+  consolidate Queue the consolidation cron on demand
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev brain [command] --help" for more information about a command.
+
+$ rc dev brain status --help
+Show deployed brain cache status
+
+Usage:
+  rc dev brain status [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev brain sync --help
+Fetch origin/main and refresh deployed brain cache
+
+Usage:
+  rc dev brain sync [flags]
+
+Aliases:
+  sync, refresh
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev brain edit --help
+Queue a brain edit from a plain-language instruction (or STDIN)
+
+Usage:
+  rc dev brain edit <instruction…> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev brain consolidate --help
+Queue the consolidation cron on demand
+
+Usage:
+  rc dev brain consolidate [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console --help
+Use guarded production consoles
+
+Usage:
+  rc dev console [command]
+
+Available Commands:
+  database     Run guarded production database reads
+  bash         List or run workspace console commands
+  action       Inspect and execute guarded rootcause actions
+  capabilities List direct production primitives available to this login
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev console [command] --help" for more information about a command.
+
+$ rc dev console database --help
+Run guarded production database reads
+
+Usage:
+  rc dev console database [command]
+
+Available Commands:
+  list        List available databases
+  schema      Fetch database schema, optionally one table
+  query       Run a read-only SQL query through rootcause scoping
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev console database [command] --help" for more information about a command.
+
+$ rc dev console database list --help
+List available databases
+
+Usage:
+  rc dev console database list [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console database schema --help
+Fetch database schema, optionally one table
+
+Usage:
+  rc dev console database schema <db> [flags]
+
+Flags:
+      --table string   limit schema to one table name
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console database query --help
+Run a read-only SQL query through rootcause scoping
+
+Usage:
+  rc dev console database query <db> <sql> [flags]
+
+Flags:
+      --limit int   max rows to return inline (server cap 500)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console bash --help
+List or run workspace console commands
+
+Usage:
+  rc dev console bash [command]
+
+Available Commands:
+  list        List cataloged brain scripts
+  run         Run one command in the guarded workspace console
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev console bash [command] --help" for more information about a command.
+
+$ rc dev console bash list --help
+List cataloged brain scripts
+
+Usage:
+  rc dev console bash list [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console bash run --help
+Run one command in the guarded workspace console
+
+Usage:
+  rc dev console bash run [--timeout N] <command> [flags]
+
+Flags:
+      --timeout int   per-command timeout in seconds
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console action --help
+Inspect and execute guarded rootcause actions
+
+Usage:
+  rc dev console action [command]
+
+Available Commands:
+  list        List available actions
+  show        Show one action manifest
+  preflight   Run action preflight/dry-run
+  run         Execute an action
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev console action [command] --help" for more information about a command.
+
+$ rc dev console action list --help
+List available actions
+
+Usage:
+  rc dev console action list [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console action show --help
+Show one action manifest
+
+Usage:
+  rc dev console action show <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console action preflight --help
+Run action preflight/dry-run
+
+Usage:
+  rc dev console action preflight <id> --params '{...}' [flags]
+
+Flags:
+      --params string   JSON object of action params
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console action run --help
+Execute an action
+
+Usage:
+  rc dev console action run <id> --params '{...}' [flags]
+
+Flags:
+      --params string   JSON object of action params
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev console capabilities --help
+List direct production primitives available to this login
+
+Usage:
+  rc dev console capabilities [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev learning --help
+Inspect learning and consolidation inputs
+
+Usage:
+  rc dev learning [command]
+
+Available Commands:
+  evidence    List feedback and sent-edit evidence for consolidation
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev learning [command] --help" for more information about a command.
+
+$ rc dev learning evidence --help
+List feedback and sent-edit evidence for consolidation
+
+Usage:
+  rc dev learning evidence [flags]
+
+Flags:
+      --limit int   max rows per evidence plane (server default 20, cap 100)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev api --help
+Inspect the public API contract
+
+Usage:
+  rc dev api [command]
+
+Available Commands:
+  routes      Show the canonical API route manifest
+  openapi     Dump the canonical OpenAPI document
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev api [command] --help" for more information about a command.
+
+$ rc dev api routes --help
+Show the canonical API route manifest
+
+Usage:
+  rc dev api routes [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev api openapi --help
+Dump the canonical OpenAPI document
+
+Usage:
+  rc dev api openapi [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev tools --help
+Use local provider and identifier utilities
+
+Usage:
+  rc dev tools [command]
+
+Available Commands:
+  id          Translate provider message/thread ids
+  provider    Provider (channel) utilities
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev tools [command] --help" for more information about a command.
+
+$ rc dev tools id --help
+Translate provider message/thread ids
+
+Usage:
+  rc dev tools id [command]
+
+Available Commands:
+  gmail       Translate Gmail hex/decimal/thread-f: ids + build a clickable URL
+  outlook     Classify an Outlook/Graph id + tell you which DB column matches it
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev tools id [command] --help" for more information about a command.
+
+$ rc dev tools id gmail --help
+Translate Gmail hex/decimal/thread-f: ids + build a clickable URL
+
+Usage:
+  rc dev tools id gmail <id> [flags]
+
+Flags:
+      --user string   Gmail /u/N/ mailbox index for the web URL (default "0")
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev tools id outlook --help
+Classify an Outlook/Graph id + tell you which DB column matches it
+
+Usage:
+  rc dev tools id outlook <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc dev tools provider --help
+Provider (channel) utilities
+
+Usage:
+  rc dev tools provider [command]
+
+Available Commands:
+  detect      Detect a domain's email backend (google/microsoft/other) from DNS
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc dev tools provider [command] --help" for more information about a command.
+
+$ rc dev tools provider detect --help
+Detect a domain's email backend (google/microsoft/other) from DNS
+
+Usage:
+  rc dev tools provider detect <domain|email> [more…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc fleet --help
+Operate and inspect project health
+
+Usage:
+  rc fleet [command]
+
+Available Commands:
+  runs        Fleet digest of recent runs (flags, rates, worst offenders)
+  health      Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy
+  patterns    Cluster recent failures into ranked patterns (bash + blocked egress)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc fleet [command] --help" for more information about a command.
+
+$ rc fleet runs --help
+Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + cost, the aggregate rates, and the worst-offender shortlists. --format agent gives a token-lean index for an agent to triage. --all fans out across every project (all-projects token), grouped per project with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by project under --all).
+
+Usage:
+  rc fleet runs [flags]
+
+Flags:
+      --all             fan out across every project (requires an all-projects token)
+      --by-model        add the model×cost×fallback breakdown (which model burned the spend, how much was a fallback)
+      --ctx-warn int    peak-context tokens at/above which a run gets the CTX flag (0 disables) (default 50000)
+      --days int        window label for the digest header (days) (default 7)
+      --format string   output style: human|agent (default "human")
+      --kind string     filter by kind: email|prompt|mcp|analysis
+      --timeline        add the per-day runs/errors/cost timeline
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc fleet health --help
+Fetch GET /api/v1/health and render the healthy/unhealthy sections (stale/failing mirrors, dead-lettered runs). Exits non-zero when unhealthy, so it's usable in CI/cron. --all fans out across every project (all-projects token) and exits non-zero if ANY project is unhealthy. -o json passes the raw server rows through; the exit code still reflects the verdict.
+
+Usage:
+  rc fleet health [flags]
+
+Flags:
+      --all         fan out across every project (requires an all-projects token)
+      --hours int   dead-letter window in hours (default 24)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc fleet patterns --help
+Page GET /api/v1/run-events and /egress-log and cluster them like run_patterns: bash-failure signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix stub. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).
+
+Usage:
+  rc fleet patterns [flags]
+
+Flags:
+      --all           fan out across every project (requires an all-projects token)
+      --days int      window in days (default 14)
+      --kind string   filter by kind: email|prompt|mcp|analysis
+      --top int       max patterns per section (default 15)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin --help
+Box-level administration (users/projects/catalog; global-admin token)
+
+Usage:
+  rc admin [command]
+
+Available Commands:
+  user        Manage box-level users
+  project     Manage box-level projects
+  catalog     Manage the integration catalog
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc admin [command] --help" for more information about a command.
+
+$ rc admin user --help
+Manage box-level users
+
+Usage:
+  rc admin user [command]
+
+Available Commands:
+  ls          List users
+  add         Create a user (email=… [admin=true] [password=…])
+  set         Update a user ([admin=true|false] [password=…])
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc admin user [command] --help" for more information about a command.
+
+$ rc admin user ls --help
+List users
+
+Usage:
+  rc admin user ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin user add --help
+Create a user (email=… [admin=true] [password=…])
+
+Usage:
+  rc admin user add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin user set --help
+Update a user ([admin=true|false] [password=…])
+
+Usage:
+  rc admin user set <id> k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin project --help
+Manage box-level projects
+
+Usage:
+  rc admin project [command]
+
+Available Commands:
+  ls          List projects
+  add         Create a project (name=… [default_tier=…] [egress_mode=wildcard|enforce])
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc admin project [command] --help" for more information about a command.
+
+$ rc admin project ls --help
+List projects
+
+Usage:
+  rc admin project ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin project add --help
+Create a project (name=… [default_tier=…] [egress_mode=wildcard|enforce])
+
+Usage:
+  rc admin project add k=v [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin catalog --help
+Manage the integration catalog
+
+Usage:
+  rc admin catalog [command]
+
+Available Commands:
+  ls          List catalog
+  upsert      Create or update a catalog entry (keyed on key=)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc admin catalog [command] --help" for more information about a command.
+
+$ rc admin catalog ls --help
+List catalog
+
+Usage:
+  rc admin catalog ls [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc admin catalog upsert --help
+Create or update a catalog entry (keyed on key=)
+
+Usage:
+  rc admin catalog upsert key=<k> [k=v…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc auth --help
+Manage local authentication and inspect access
+
+Usage:
+  rc auth [command]
+
+Available Commands:
+  login       Sign in with OAuth (PKCE loopback by default, --device for headless)
+  logout      Revoke and clear this profile's stored tokens
+  status      Show the resolved profile/project/login tenant + sign-in status
+  access      Show what this token may do (scopes, writable keys, resources)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc auth [command] --help" for more information about a command.
+
+$ rc auth login --help
+Sign in to rootcause. By default this opens your browser and catches the redirect on a
+localhost port (PKCE). On a headless/SSH box, use --device to get a short code you approve in
+a browser on any device.
+
+Tokens are stored per profile in /tmp/rootcause-cli-help-test/rootcause/tokens.json (0600). Pick the project (or
+all-projects, if you're an admin) on the browser consent screen.
+
+Usage:
+  rc auth login [flags]
+
+Flags:
+      --device   use the device-authorization flow (headless/SSH — no local browser)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc auth logout --help
+Revoke and clear this profile's stored tokens
+
+Usage:
+  rc auth logout [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc auth status --help
+Show the resolved profile/project/login tenant + sign-in status
+
+Usage:
+  rc auth status [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc auth access --help
+Show what this token may do (scopes, writable keys, resources)
+
+Usage:
+  rc auth access [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc self --help
+Manage the rc installation and shell integration
+
+Usage:
+  rc self [command]
+
+Available Commands:
+  update      Update rc to the latest release (self-update)
+  completion  Generate a shell completion script
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+Use "rc self [command] --help" for more information about a command.
+
+$ rc self update --help
+Update rc to the latest GitHub release for this OS/arch.
+
+On Linux/WSL/Windows this replaces the running binary in place. On a Homebrew install it
+defers to `brew upgrade rc` instead, so it doesn't fight Homebrew's bookkeeping.
+
+Usage:
+  rc self update [flags]
+
+Flags:
+      --check   only report whether a newer version exists; install nothing
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc self completion --help
+Generate a shell completion script
+
+Usage:
+  rc self completion bash|zsh|fish|powershell [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+

@@ -30,7 +30,7 @@ func asItem(raw []byte) client.Item {
 func listSubCmd(e *env, resource string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "ls",
-		Short: "List " + resource + "s",
+		Short: "List " + resource,
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
@@ -56,7 +56,7 @@ func listSubCmd(e *env, resource string) *cobra.Command {
 func addSubCmd(e *env, resource string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "add k=v [k=v…]",
-		Short: "Create a " + resource,
+		Short: "Create a " + collectionSingular(resource),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			body, err := parseItemArgs(args)
@@ -109,7 +109,7 @@ func getSubCmd(e *env, resource, idHelp string) *cobra.Command {
 func setSubCmd(e *env, resource, idHelp string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "set <" + idHelp + "> k=v [k=v…]",
-		Short: "Update a " + resource,
+		Short: "Update a " + collectionSingular(resource),
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
 			body, err := parseItemArgs(args[1:])
@@ -138,7 +138,7 @@ func setSubCmd(e *env, resource, idHelp string) *cobra.Command {
 func rmSubCmd(e *env, resource, idHelp string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rm <" + idHelp + ">",
-		Short: "Delete a " + resource,
+		Short: "Delete a " + collectionSingular(resource),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			c, err := e.newClient()
@@ -159,6 +159,13 @@ func rmSubCmd(e *env, resource, idHelp string) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func collectionSingular(resource string) string {
+	if resource == "databases" {
+		return "database"
+	}
+	return strings.TrimSuffix(resource, "s")
 }
 
 // verbSubCmd is a no-body item-verb (rotate/revoke) over POST /api/v1/<resource>/<id>/<verb>.
