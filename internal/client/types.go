@@ -240,6 +240,26 @@ type RunSummary struct {
 	DeclinedReason string     `json:"declined_reason,omitempty"`
 	Topic          string     `json:"topic,omitempty"`
 	Health         *RunHealth `json:"health,omitempty"`
+	raw            json.RawMessage
+}
+
+func (r *RunSummary) UnmarshalJSON(data []byte) error {
+	type wire RunSummary
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = RunSummary(decoded)
+	r.raw = append(r.raw[:0], data...)
+	return nil
+}
+
+func (r RunSummary) MarshalJSON() ([]byte, error) {
+	if len(r.raw) > 0 {
+		return append([]byte(nil), r.raw...), nil
+	}
+	type wire RunSummary
+	return json.Marshal(wire(r))
 }
 
 // RunHealth is the per-run triage block on a run index row (run_health view). The COUNT/flag fields are
@@ -790,6 +810,26 @@ type RunEvent struct {
 	DurationMs   int64           `json:"duration_ms"`
 	At           string          `json:"at"`
 	Reasoning    string          `json:"reasoning,omitempty"`
+	raw          json.RawMessage
+}
+
+func (e *RunEvent) UnmarshalJSON(data []byte) error {
+	type wire RunEvent
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*e = RunEvent(decoded)
+	e.raw = append(e.raw[:0], data...)
+	return nil
+}
+
+func (e RunEvent) MarshalJSON() ([]byte, error) {
+	if len(e.raw) > 0 {
+		return append([]byte(nil), e.raw...), nil
+	}
+	type wire RunEvent
+	return json.Marshal(wire(e))
 }
 
 // RunEventsResponse is one page of GET /api/v1/run-events. NextBefore is the cursor to the next
@@ -812,6 +852,26 @@ type EgressRow struct {
 	BytesOut     int64  `json:"bytes_out"`
 	Decision     string `json:"decision"`
 	At           string `json:"at"`
+	raw          json.RawMessage
+}
+
+func (e *EgressRow) UnmarshalJSON(data []byte) error {
+	type wire EgressRow
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*e = EgressRow(decoded)
+	e.raw = append(e.raw[:0], data...)
+	return nil
+}
+
+func (e EgressRow) MarshalJSON() ([]byte, error) {
+	if len(e.raw) > 0 {
+		return append([]byte(nil), e.raw...), nil
+	}
+	type wire EgressRow
+	return json.Marshal(wire(e))
 }
 
 // EgressResponse is one page of GET /api/v1/egress-log.
@@ -954,7 +1014,7 @@ type ConsoleCapsSum struct {
 	Action bool `json:"action"`
 }
 
-// TenantSettings is GET /api/v1/tenants/{slug}/settings (and the echoed body of a PATCH), the legacy
+// TenantSettings is GET /api/v1/tenants/{slug}/profile (and the echoed body of a PATCH), the
 // tenant profile/projection record. It mirrors the server's tenantSettingsGetResponse /
 // tenantSettingsPatchResponse field-for-field. Settings is the RAW stored object (kept as
 // json.RawMessage so the CLI renders/echoes the exact keys+values the server holds — never reshaped;
@@ -967,7 +1027,7 @@ type TenantSettings struct {
 	AppliedAt string          `json:"applied_at"`
 }
 
-// TenantSettingsPatchRequest is the PATCH /api/v1/tenants/{slug}/settings profile body:
+// TenantSettingsPatchRequest is the PATCH /api/v1/tenants/{slug}/profile body:
 // { "settings": { …partial… }, "source"?: "…" }. Settings is a raw key→value map so an explicit JSON
 // null (the "unconfigure" gesture) rides through verbatim, distinct from an omitted key. Source is the
 // provenance label ("cli"); omitempty so a blank source isn't sent (the server defaults it to "cli").

@@ -32,7 +32,7 @@ func brainStatusCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, raw, err := c.BrainStatus(e.ctx(), e.scopeProject())
+			resp, raw, err := c.BrainStatus(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -56,7 +56,7 @@ func brainSyncCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, raw, err := c.BrainSync(e.ctx(), e.scopeProject())
+			resp, raw, err := c.BrainSync(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -90,7 +90,7 @@ func brainEditCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.BrainEdit(e.ctx(), instruction, e.scopeProject())
+			raw, err := c.BrainEdit(e.ctx(), instruction, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -113,7 +113,7 @@ func brainConsolidateCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.BrainConsolidate(e.ctx(), e.scopeProject())
+			raw, err := c.BrainConsolidate(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}

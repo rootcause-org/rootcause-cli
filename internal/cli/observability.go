@@ -28,7 +28,9 @@ func errBadFormat(got string) error {
 // healthPath builds the /api/v1/health URL for the JSON-passthrough fetch — the same URL the typed
 // Health() fetch hits, so -o json and the verdict can't diverge. project is the explicit fan-out scope
 // ("" for a pinned token's own).
-func healthPath(hours int, project string) string { return client.HealthPath(hours, project) }
+func healthPath(hours int, project, tenant string) string {
+	return client.HealthPath(hours, project, tenant)
+}
 
 // fanOutProjects resolves the project set the `--all` observability commands iterate over. It lists the
 // fleet via GET /api/v1/projects, then enforces that `--all` is meaningful: an all-projects admin token
@@ -46,7 +48,7 @@ func fanOutProjects(e *env, c *client.Client) ([]client.Project, error) {
 			name = resp.Projects[0].Name
 		}
 		return nil, fmt.Errorf("--all needs an all-projects token, but this token is scoped to %s — "+
-			"drop --all to review just that project, or `rc login` with an all-projects token", name)
+			"drop --all to review just that project, or `rc auth login` with an all-projects token", name)
 	}
 	return resp.Projects, nil
 }

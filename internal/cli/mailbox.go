@@ -16,7 +16,8 @@ import (
 )
 
 // newMailboxCmd builds the `rc mailbox` group over the connection-backed WATCHED-mailbox API (the
-// channel plane's live inbox watch): `ls` lists watched mailboxes, `pause`/`resume` toggle one, and
+// channel plane's live inbox watch): `ls` lists watched mailboxes, `mode` controls watch/processing/
+// delivery as one state, and
 // `connect` composes the dashboard Connections URL for the browser OAuth a human must complete. The
 // legacy email-keyed ROUTING table (tenant_mailboxes) lives under the nested `route` group so tenant
 // onboarding keeps working. All endpoints need an admin (ManageConnections) token; an all-projects token
@@ -25,9 +26,7 @@ func newMailboxCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "mailbox", Short: "Manage watched mailboxes (the channel plane's inbox watch)"}
 	cmd.AddCommand(
 		mailboxLsCmd(e),
-		mailboxPauseCmd(e),
-		mailboxResumeCmd(e),
-		mailboxProcessCmd(e),
+		mailboxModeCmd(e),
 		mailboxHarvestCmd(e),
 		mailboxIMAPEnvCmd(e),
 		newMailboxSettingsCmd(e),
@@ -59,7 +58,10 @@ func mailboxIMAPEnvCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, _, err := c.IMAPMailboxEnv(e.ctx(), mailboxID, e.scopeProject())
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			resp, _, err := c.IMAPMailboxEnv(e.ctx(), mailboxID, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -100,13 +102,16 @@ func mailboxHarvestCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
 			// --clean is a pointer to the server: omit it (nil) unless the user set it, so the server default
 			// (true) is authoritative and this CLI never hard-codes it.
 			var cleanPtr *bool
 			if cmd.Flags().Changed("clean") {
 				cleanPtr = &clean
 			}
-			acc, raw, err := c.StartHarvest(e.ctx(), args[0], cleanPtr, maxThreads, e.scopeProject())
+			acc, raw, err := c.StartHarvest(e.ctx(), args[0], cleanPtr, maxThreads, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -116,7 +121,7 @@ func mailboxHarvestCmd(e *env) *cobra.Command {
 					return render.JSON(e.out, raw)
 				}
 				_, _ = fmt.Fprintf(e.out, "export_id: %s\nstatus: %s\n", acc.ExportID, acc.Status)
-				_, _ = fmt.Fprintf(e.err, "queued — poll with: rc export get %s\n", acc.ExportID)
+				_, _ = fmt.Fprintf(e.err, "queued — poll with: rc project corpus get %s\n", acc.ExportID)
 				return nil
 			}
 
@@ -151,7 +156,7 @@ func waitForExport(e *env, c *client.Client, id string, timeout time.Duration) (
 
 	showProgress := render.IsTerminal(e.err)
 	for {
-		x, raw, err := c.Export(ctx, id, e.scopeProject())
+		x, raw, err := c.Export(ctx, id, e.scopeProject(), e.scopeTenant())
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
 				return nil, nil, fmt.Errorf("timed out after %s waiting for export %s", timeout, id)
@@ -192,35 +197,6 @@ func isTerminalExportStatus(s string) bool {
 	}
 }
 
-// mailboxProcessCmd toggles the silent-onboarding gate: `on` enqueues runs for inbound mail, `off` keeps
-// polling but produces no drafts. Orthogonal to pause/resume (the watch lifecycle) — a watching mailbox
-// can be held silent and flipped to processing when the operator is ready.
-func mailboxProcessCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "process", Short: "Toggle processing (silent onboarding) for a watched mailbox"}
-	run := func(enabled bool) func(*cobra.Command, []string) error {
-		return func(_ *cobra.Command, args []string) error {
-			c, err := e.newClient()
-			if err != nil {
-				return err
-			}
-			m, raw, err := c.SetWatchedMailboxProcessing(e.ctx(), args[0], enabled, e.scopeProject())
-			if err != nil {
-				return err
-			}
-			if e.jsonOut() {
-				return render.JSON(e.out, raw)
-			}
-			render.WatchedMailbox(e.out, m)
-			return nil
-		}
-	}
-	cmd.AddCommand(
-		&cobra.Command{Use: "on <id>", Short: "Start processing inbound mail (drafts replies)", Args: cobra.ExactArgs(1), RunE: run(true)},
-		&cobra.Command{Use: "off <id>", Short: "Hold silent — keep watching, stop drafting", Args: cobra.ExactArgs(1), RunE: run(false)},
-	)
-	return cmd
-}
-
 // mailboxLsCmd: GET /api/v1/mailboxes/watched → the watched-mailbox table (or -o json passthrough).
 func mailboxLsCmd(e *env) *cobra.Command {
 	return &cobra.Command{
@@ -232,7 +208,10 @@ func mailboxLsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			l, raw, err := c.WatchedMailboxes(e.ctx(), e.scopeProject())
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			l, raw, err := c.WatchedMailboxes(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -245,18 +224,25 @@ func mailboxLsCmd(e *env) *cobra.Command {
 	}
 }
 
-// mailboxPauseCmd: POST /api/v1/mailboxes/{id}/pause → the updated item (status:"paused").
-func mailboxPauseCmd(e *env) *cobra.Command {
+func mailboxModeCmd(e *env) *cobra.Command {
 	return &cobra.Command{
-		Use:   "pause <id>",
-		Short: "Pause watching a mailbox",
-		Args:  cobra.ExactArgs(1),
+		Use:   "mode <id> <off|watch|shadow|live>",
+		Short: "Set the mailbox watch, processing, and delivery mode",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
+			switch args[1] {
+			case "off", "watch", "shadow", "live":
+			default:
+				return fmt.Errorf("invalid mode %q: want off, watch, shadow, or live", args[1])
+			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			m, raw, err := c.PauseWatchedMailbox(e.ctx(), args[0], e.scopeProject())
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			m, raw, err := c.SetWatchedMailboxMode(e.ctx(), args[0], args[1], e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -264,35 +250,6 @@ func mailboxPauseCmd(e *env) *cobra.Command {
 				return render.JSON(e.out, raw)
 			}
 			render.WatchedMailbox(e.out, m)
-			return nil
-		},
-	}
-}
-
-// mailboxResumeCmd: POST /api/v1/mailboxes/{id}/resume → the updated item. A Subscribe failure on resume
-// is still a 200 with status:"needs_attention" + error_message — the render surfaces that message, so
-// this is not treated as a command error.
-func mailboxResumeCmd(e *env) *cobra.Command {
-	return &cobra.Command{
-		Use:   "resume <id>",
-		Short: "Resume watching a mailbox (surfaces needs_attention on a subscribe failure)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
-			c, err := e.newClient()
-			if err != nil {
-				return err
-			}
-			m, raw, err := c.ResumeWatchedMailbox(e.ctx(), args[0], e.scopeProject())
-			if err != nil {
-				return err
-			}
-			if e.jsonOut() {
-				return render.JSON(e.out, raw)
-			}
-			render.WatchedMailbox(e.out, m)
-			if m != nil && m.Status == "needs_attention" && m.ErrorMessage != "" {
-				_, _ = fmt.Fprintf(e.err, "note: mailbox needs attention — %s\n", m.ErrorMessage)
-			}
 			return nil
 		},
 	}
@@ -359,7 +316,7 @@ var validTLSModes = map[string]bool{"none": true, "starttls": true, "implicit": 
 // / BAD_IMAP_CONFIG) and saves nothing; a duplicate is a 409. The password NEVER rides in argv — it comes
 // from $RC_MAILBOX_PASSWORD or an interactive stdin prompt. Defaults mirror the server (username→email,
 // smtp-host→imap-host; ports/TLS left 0/"" so the server applies 993/implicit + 587/starttls). On success
-// it prints the mailbox id + status and a one-line hint for turning it on with `rc mailbox process on`.
+// it prints the mailbox id + status and a one-line hint for turning it on with `mailbox mode ... live`.
 func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 	var email, username, imapHost, imapTLS, smtpHost, smtpTLS, smtpUsername string
 	var imapPort, smtpPort int
@@ -408,6 +365,9 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
 			req := client.IMAPConnectRequest{
 				Tenant:       e.scopeTenant(),
 				EmailAddress: email,
@@ -430,7 +390,7 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 			}
 			render.WatchedMailbox(e.out, m)
 			if m != nil {
-				_, _ = fmt.Fprintf(e.err, "connected — start processing with: rc mailbox process on %s\n", m.ID)
+				_, _ = fmt.Fprintf(e.err, "connected — start processing with: rc project mailbox mode %s live\n", m.ID)
 			}
 			return nil
 		},

@@ -58,8 +58,11 @@ func newMailboxSettingsCmd(e *env) *cobra.Command {
 func hierarchySettingsGetCmd(e *env, scope string, idArg func(*cobra.Command, []string) (string, error)) *cobra.Command {
 	use := "get"
 	args := cobra.NoArgs
-	if scope == "mailbox" {
+	if scope == "mailbox" || scope == "tenant" {
 		use = "get <id>"
+		if scope == "tenant" {
+			use = "get <slug>"
+		}
 		args = cobra.ExactArgs(1)
 	}
 	return &cobra.Command{
@@ -100,8 +103,11 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 	var unset []string
 	use := "set group.key=value [group.key=value...]"
 	args := cobra.ArbitraryArgs
-	if scope == "mailbox" {
+	if scope == "mailbox" || scope == "tenant" {
 		use = "set <id> group.key=value [group.key=value...]"
+		if scope == "tenant" {
+			use = "set <slug> group.key=value [group.key=value...]"
+		}
 		args = cobra.MinimumNArgs(1)
 	}
 	cmd := &cobra.Command{
@@ -125,7 +131,7 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 					return err
 				}
 			}
-			if scope == "mailbox" {
+			if scope != "project" {
 				patchArgs = args[1:]
 			}
 			if len(patchArgs) == 0 && len(unset) == 0 {

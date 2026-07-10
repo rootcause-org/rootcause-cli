@@ -51,6 +51,8 @@ type env struct {
 	// profile. It lets all-projects tokens keep the checkout's project scope without the user repeating
 	// --project in every brain repo.
 	autoProject string
+	loginTenant string
+	scopeHeader bool
 }
 
 // Execute is the binary entrypoint. It returns the process exit code so main stays trivial; any
@@ -75,6 +77,13 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		Version:       version,
 		SilenceUsage:  true, // a runtime error isn't a usage error; don't dump help on it
 		SilenceErrors: true, // Execute prints the error itself, verbatim
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			if err := validateCommandScope(e, cmd); err != nil {
+				return err
+			}
+			installScopeHeader(e, cmd)
+			return nil
+		},
 	}
 	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddGroup(
@@ -102,6 +111,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		}
 	}
 	root.SetUsageTemplate(strings.ReplaceAll(root.UsageTemplate(), `(or .IsAvailableCommand (eq .Name "help"))`, `.IsAvailableCommand`))
+	annotateCommandScopes(root)
 	return root
 }
 
@@ -144,6 +154,7 @@ func (e *env) newClient() (*client.Client, error) {
 	// Test seam: a fixed bearer bypasses the token store + refresh entirely.
 	if e.tokenOvr != "" {
 		c := client.New(baseURL, client.StaticToken(e.tokenOvr))
+		e.resolveScopeHeader(c)
 		if err := e.validateProjectScope(c); err != nil {
 			return nil, err
 		}
@@ -170,10 +181,70 @@ func (e *env) newClient() (*client.Client, error) {
 		return nil, notLoggedIn(res)
 	}
 	c := client.New(baseURL, newLiveSource(res.Profile, baseURL))
+	if err := e.resolveProjectForTenant(c); err != nil {
+		return nil, err
+	}
+	e.resolveScopeHeader(c)
 	if err := e.validateProjectScope(c); err != nil {
 		return nil, err
 	}
 	return c, nil
+}
+
+// resolveScopeHeader learns an implicit tenant pin only for human output. Failure is non-fatal: the
+// command's real request remains authoritative and can still render without the convenience header.
+func (e *env) resolveScopeHeader(c *client.Client) {
+	if !e.scopeHeader || e.scopeTenant() != "" {
+		return
+	}
+	scope, err := c.Whoami(e.ctx())
+	if err != nil || scope == nil || scope.Tenant == nil {
+		return
+	}
+	e.loginTenant = scope.Tenant.Slug
+	if e.loginTenant == "" {
+		e.loginTenant = scope.Tenant.Name
+	}
+	if e.scopeProject() == "" && scope.Project != nil {
+		e.autoProject = scope.Project.Name
+		if e.autoProject == "" {
+			e.autoProject = scope.Project.ID
+		}
+	}
+}
+
+// resolveProjectForTenant supplies the canonical project-tree prefix when a project-pinned login uses
+// an explicit/local tenant selector outside a brain checkout. The token is authoritative: an
+// all-projects login still has to name --project instead of guessing among visible projects.
+func (e *env) resolveProjectForTenant(c *client.Client) error {
+	if e.scopeTenant() == "" || e.scopeProject() != "" {
+		return nil
+	}
+	return e.resolvePinnedProject(c)
+}
+
+// resolvePinnedProject supplies the project-tree prefix for commands whose canonical API has no flat
+// current-project form. A global login must choose --project explicitly.
+func (e *env) resolvePinnedProject(c *client.Client) error {
+	if e.scopeProject() != "" {
+		return nil
+	}
+	scope, err := c.Whoami(e.ctx())
+	if err != nil {
+		return err
+	}
+	if scope.Project == nil {
+		return &client.APIError{
+			Status:  http.StatusBadRequest,
+			Code:    "PROJECT_REQUIRED",
+			Message: "--project <project> is required for an all-projects login",
+		}
+	}
+	e.autoProject = scope.Project.Name
+	if e.autoProject == "" {
+		e.autoProject = scope.Project.ID
+	}
+	return nil
 }
 
 // notLoggedIn is the clear "no token for this profile" error. Inside a brain this is reached only
@@ -181,9 +252,9 @@ func (e *env) newClient() (*client.Client, error) {
 func notLoggedIn(res config.Resolved) error {
 	if res.Brain != nil {
 		return fmt.Errorf("this brain is project %q but you're not logged in for it\n"+
-			"  fix: run `rc login` from here (use --device on a headless box)", res.Brain.Project)
+			"  fix: run `rc auth login` from here (use --device on a headless box)", res.Brain.Project)
 	}
-	return fmt.Errorf("not logged in (profile %q) — run `rc login`", res.Profile)
+	return fmt.Errorf("not logged in (profile %q) — run `rc auth login`", res.Profile)
 }
 
 // tenantOr returns the explicit --tenant flag when set, else any local tenant override captured by
@@ -198,7 +269,10 @@ func (e *env) tenantOr(flag string) string {
 // scopeTenant is the explicit/local tenant override for a request. Empty lets the login-bound tenant win
 // server-side on tenant-enabled projects.
 func (e *env) scopeTenant() string {
-	return e.tenantOr(e.tenant)
+	if tenant := e.tenantOr(e.tenant); tenant != "" {
+		return tenant
+	}
+	return e.loginTenant
 }
 
 // scopeProject is the explicit --project scope (id-or-name) for a read request: it rides as ?project= on
@@ -209,13 +283,19 @@ func (e *env) scopeProject() string {
 	if e.project != "" {
 		return e.project
 	}
+	if e.scopeTenant() != "" && e.resolved.Project != "" {
+		return e.resolved.Project
+	}
 	return e.autoProject
 }
 
 // validateProjectScope checks an explicit/brain-derived project scope against the fleet handles the
 // token can see. It catches typos before a command renders local state or makes a scoped write.
 func (e *env) validateProjectScope(c *client.Client) error {
-	project := e.scopeProject()
+	project := e.project
+	if project == "" {
+		project = e.autoProject
+	}
 	if project == "" {
 		return nil
 	}
@@ -231,13 +311,9 @@ func (e *env) validateProjectScope(c *client.Client) error {
 	return &client.APIError{
 		Status:  http.StatusNotFound,
 		Code:    "UNKNOWN_PROJECT",
-		Message: fmt.Sprintf("unknown project %q (run `rc projects` to see available projects)", project),
+		Message: fmt.Sprintf("unknown project %q (run `rc project list` to see available projects)", project),
 	}
 }
-
-// tenantSlug is the explicitly-addressed tenant for `rc tenant settings/profile` — the persistent --tenant only
-// (no brain fallback: editing a tenant's record is an explicit act, never inferred from the checkout).
-func (e *env) tenantSlug() string { return e.tenant }
 
 // ctx is the per-command context. A single place to add a timeout/signal later without touching each
 // command.

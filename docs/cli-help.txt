@@ -542,7 +542,7 @@ $ rc project tenant settings get --help
 Show settings with resolved provenance
 
 Usage:
-  rc project tenant settings get [flags]
+  rc project tenant settings get <slug> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -557,7 +557,7 @@ $ rc project tenant settings set --help
 Patch settings (nested; key= or --unset clears local override)
 
 Usage:
-  rc project tenant settings set group.key=value [group.key=value...] [flags]
+  rc project tenant settings set <slug> group.key=value [group.key=value...] [flags]
 
 Flags:
       --unset stringArray   clear a scope-local override (group.key); repeatable
@@ -612,7 +612,7 @@ $ rc project tenant profile get --help
 Show a tenant's projection/profile values
 
 Usage:
-  rc project tenant profile get --tenant <slug> [flags]
+  rc project tenant profile get <slug> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -627,7 +627,7 @@ $ rc project tenant profile set --help
 Edit tenant projection/profile values
 
 Usage:
-  rc project tenant profile set --tenant <slug> key=val [key=val …] [flags]
+  rc project tenant profile set <slug> key=val [key=val …] [flags]
 
 Flags:
       --unset stringArray   unconfigure a key (sends explicit null); repeatable
@@ -724,9 +724,7 @@ Usage:
 
 Available Commands:
   ls           List watched mailboxes (id, provider, email, status, tenant, expiry, error)
-  pause        Pause watching a mailbox
-  resume       Resume watching a mailbox (surfaces needs_attention on a subscribe failure)
-  process      Toggle processing (silent onboarding) for a watched mailbox
+  mode         Set the mailbox watch, processing, and delivery mode
   harvest      Start a local-synthesis harvest of a mailbox (optionally wait for the export)
   imap-env     Write an IMAP mailbox env file for local deep harvest (0600; values never printed)
   settings     Read or edit nested mailbox settings (persona/channel)
@@ -760,77 +758,11 @@ Global Flags:
       --raw-output       disable progressive output spill and print full payloads to stdout
       --tenant string    override the login tenant where supported
 
-$ rc project mailbox pause --help
-Pause watching a mailbox
+$ rc project mailbox mode --help
+Set the mailbox watch, processing, and delivery mode
 
 Usage:
-  rc project mailbox pause <id> [flags]
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
-$ rc project mailbox resume --help
-Resume watching a mailbox (surfaces needs_attention on a subscribe failure)
-
-Usage:
-  rc project mailbox resume <id> [flags]
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
-$ rc project mailbox process --help
-Toggle processing (silent onboarding) for a watched mailbox
-
-Usage:
-  rc project mailbox process [command]
-
-Available Commands:
-  on          Start processing inbound mail (drafts replies)
-  off         Hold silent — keep watching, stop drafting
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
-Use "rc project mailbox process [command] --help" for more information about a command.
-
-$ rc project mailbox process on --help
-Start processing inbound mail (drafts replies)
-
-Usage:
-  rc project mailbox process on <id> [flags]
-
-Global Flags:
-      --no-preview       write large output artifacts but omit head/tail previews
-      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
-  -o, --output string    output format: json|table (default: auto-detect)
-      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
-      --project string   scope the request to one project by name or id (requires an all-projects token)
-      --raw-output       disable progressive output spill and print full payloads to stdout
-      --tenant string    override the login tenant where supported
-
-$ rc project mailbox process off --help
-Hold silent — keep watching, stop drafting
-
-Usage:
-  rc project mailbox process off <id> [flags]
+  rc project mailbox mode <id> <off|watch|shadow|live> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3040,7 +2972,7 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc fleet patterns --help
-Page GET /api/v1/run-events and /egress-log and cluster them like run_patterns: bash-failure signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix stub. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).
+Page GET /api/v1/run-events and /api/v1/egress-log and cluster them like run_patterns: bash-failure signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix stub. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).
 
 Usage:
   rc fleet patterns [flags]

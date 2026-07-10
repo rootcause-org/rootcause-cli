@@ -1,6 +1,0 @@
-id:          needs-attn
-provider:    microsoft
-email:       help@acme.test
-status:      needs_attention
-processing:  silent
-error:       Subscribe failed: token expired

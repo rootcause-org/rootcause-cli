@@ -12,7 +12,7 @@ import (
 // collections_test.go pattern: a stub server returns canned JSON, the test pins the rendered output (or
 // the load-bearing stdout/stderr split for secrets).
 
-// --- watched mailboxes (rc mailbox ls/pause/resume/connect) ---
+// --- watched mailboxes (rc mailbox ls/mode/connect) ---
 
 func TestMailboxWatchedListTable(t *testing.T) {
 	srv := stubServer(t)
@@ -34,49 +34,14 @@ func TestMailboxWatchedListJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "watched_mailboxes.json"), out.Bytes())
 }
 
-func TestMailboxPauseTable(t *testing.T) {
+func TestMailboxModeTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "pause", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("mailbox pause: %v", err)
+	if err := run(t, e, "--project", "alpha", "mailbox", "mode", "11111111-1111-1111-1111-111111111111", "watch"); err != nil {
+		t.Fatalf("mailbox mode: %v", err)
 	}
-	assertGolden(t, "mailbox_pause.golden", out.String())
-}
-
-// TestMailboxResumeNeedsAttention: a resume that hit a Subscribe failure is still a 200 — the item
-// carries status:needs_attention + error_message, and the CLI surfaces (not errors on) that message.
-func TestMailboxResumeNeedsAttention(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "resume", "needs-attn"); err != nil {
-		t.Fatalf("mailbox resume: %v", err)
-	}
-	assertGolden(t, "mailbox_resume_needs_attn.golden", out.String())
-	if !strings.Contains(errb.String(), "needs attention") {
-		t.Errorf("expected a needs-attention note on stderr, got: %q", errb.String())
-	}
-}
-
-func TestMailboxProcessOn(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "process", "on", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("mailbox process on: %v", err)
-	}
-	assertGolden(t, "mailbox_process_on.golden", out.String())
-}
-
-func TestMailboxProcessOff(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "mailbox", "process", "off", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("mailbox process off: %v", err)
-	}
-	assertGolden(t, "mailbox_process_off.golden", out.String())
+	assertGolden(t, "mailbox_mode.golden", out.String())
 }
 
 // TestMailboxConnectURL: connect makes NO API call beyond whoami — it composes + prints the dashboard
@@ -109,7 +74,7 @@ func TestMailboxConnectInvalidProvider(t *testing.T) {
 
 // TestMailboxConnectIMAP: the password comes from $RC_MAILBOX_PASSWORD (never argv), the client applies
 // the username→email / smtp-host→imap-host defaults (asserted server-side), and success prints the
-// created item + a one-line "process on" hint to stderr.
+// created item + a one-line canonical mode hint to stderr.
 func TestMailboxConnectIMAP(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -119,8 +84,8 @@ func TestMailboxConnectIMAP(t *testing.T) {
 		t.Fatalf("mailbox connect-imap: %v", err)
 	}
 	assertGolden(t, "mailbox_connect_imap.golden", out.String())
-	if !strings.Contains(errb.String(), "process on mb-imap-1") {
-		t.Errorf("expected a process-on hint on stderr, got: %q", errb.String())
+	if !strings.Contains(errb.String(), "mailbox mode mb-imap-1 live") {
+		t.Errorf("expected a mailbox-mode hint on stderr, got: %q", errb.String())
 	}
 }
 

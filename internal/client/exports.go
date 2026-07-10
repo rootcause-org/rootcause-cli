@@ -25,8 +25,15 @@ type HarvestRequest struct {
 // StartHarvest posts POST /api/v1/mailboxes/{id}/harvest → the 202 accept body {export_id, status}. It
 // returns the typed accept AND the raw bytes so -o json echoes the verbatim server body. A 409
 // (HARVEST_IN_PROGRESS) surfaces as an APIError through the command layer.
-func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool, maxThreads int, project string) (*HarvestAccepted, json.RawMessage, error) {
-	path := watchedScope("/api/v1/mailboxes/"+url.PathEscape(mailboxID)+"/harvest", project)
+func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool, maxThreads int, project, tenant string) (*HarvestAccepted, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "exports"); err != nil {
+		return nil, nil, err
+	}
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(mailboxID)+"/harvest")
+	if path == "" {
+		path = "/api/v1/mailboxes/" + url.PathEscape(mailboxID) + "/harvest"
+	}
+	path = collectionScopePath(path, "", tenant)
 	var raw json.RawMessage
 	if err := c.do(ctx, http.MethodPost, path, HarvestRequest{Clean: clean, MaxThreads: maxThreads}, &raw); err != nil {
 		return nil, nil, err
@@ -42,8 +49,11 @@ func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool
 // it enqueues a shallow-mining pass over the completed harvest's corpus (→ proposed persona/triage
 // settings). Reuses HarvestAccepted (same {export_id,status} shape). A non-harvest / not-done / evicted
 // body surfaces as a typed APIError through the command layer.
-func (c *Client) MineSettings(ctx context.Context, id, project string) (*HarvestAccepted, json.RawMessage, error) {
-	path := watchedScope("/api/v1/exports/"+url.PathEscape(id)+"/mine-settings", project)
+func (c *Client) MineSettings(ctx context.Context, id, project, tenant string) (*HarvestAccepted, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "exports"); err != nil {
+		return nil, nil, err
+	}
+	path := exportItemPath(id, "/mine-settings", project, tenant)
 	var raw json.RawMessage
 	if err := c.do(ctx, http.MethodPost, path, nil, &raw); err != nil {
 		return nil, nil, err
@@ -57,9 +67,13 @@ func (c *Client) MineSettings(ctx context.Context, id, project string) (*Harvest
 
 // Exports fetches GET /api/v1/exports → the export list (newest-first). Returns the typed list and the
 // raw body for -o json passthrough.
-func (c *Client) Exports(ctx context.Context, project string) (*ExportList, json.RawMessage, error) {
+func (c *Client) Exports(ctx context.Context, project, tenant string) (*ExportList, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "exports"); err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, watchedScope("/api/v1/exports", project), nil, &raw); err != nil {
+	path := scopedTreePath(project, tenant, "/exports", "/api/v1/exports"+collectionScope("", tenant))
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out ExportList
@@ -70,9 +84,12 @@ func (c *Client) Exports(ctx context.Context, project string) (*ExportList, json
 }
 
 // Export fetches GET /api/v1/exports/{id} → one export item + the raw body for -o json.
-func (c *Client) Export(ctx context.Context, id, project string) (*ExportItem, json.RawMessage, error) {
+func (c *Client) Export(ctx context.Context, id, project, tenant string) (*ExportItem, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "exports"); err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, watchedScope("/api/v1/exports/"+url.PathEscape(id), project), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, exportItemPath(id, "", project, tenant), nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out ExportItem
@@ -86,9 +103,20 @@ func (c *Client) Export(ctx context.Context, id, project string) (*ExportItem, j
 // request marks the export consumed server-side. Unlike the JSON methods it sets Accept: text/markdown
 // and returns the body bytes as-is; a non-2xx still decodes the JSON error envelope (e.g. 404
 // BODY_UNAVAILABLE when the body isn't ready/was evicted).
-func (c *Client) DownloadExport(ctx context.Context, id, project string) ([]byte, error) {
-	path := watchedScope("/api/v1/exports/"+url.PathEscape(id)+"/download", project)
+func (c *Client) DownloadExport(ctx context.Context, id, project, tenant string) ([]byte, error) {
+	if err := requireTenantProject(project, tenant, "exports"); err != nil {
+		return nil, err
+	}
+	path := exportItemPath(id, "/download", project, tenant)
 	return c.attemptRawWithRefresh(ctx, http.MethodGet, path, "text/markdown")
+}
+
+func exportItemPath(id, suffix, project, tenant string) string {
+	path := watchedProjectPath(project, "/exports/"+url.PathEscape(id)+suffix)
+	if path == "" {
+		path = "/api/v1/exports/" + url.PathEscape(id) + suffix
+	}
+	return collectionScopePath(path, "", tenant)
 }
 
 // attemptRawWithRefresh sends one request with the Accept header set to accept, returning the raw 2xx

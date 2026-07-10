@@ -18,7 +18,7 @@ func TestTenantSettingsGetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "tenant", "settings", "get", "--tenant", "de-kies"); err != nil {
+	if err := run(t, e, "tenant", "settings", "get", "de-kies"); err != nil {
 		t.Fatalf("get: %v", err)
 	}
 	assertGolden(t, "tenant_get.golden", out.String())
@@ -28,7 +28,7 @@ func TestTenantSettingsGetJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "settings", "get", "--tenant", "de-kies"); err != nil {
+	if err := run(t, e, "tenant", "settings", "get", "de-kies"); err != nil {
 		t.Fatalf("get -o json: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "hierarchy_tenant_settings.json"), out.Bytes())
@@ -39,8 +39,8 @@ func TestTenantSettingsGetMissingTenant(t *testing.T) {
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
 	err := run(t, e, "tenant", "settings", "get")
-	if err == nil || !strings.Contains(err.Error(), "--tenant") {
-		t.Fatalf("expected --tenant required error, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "arg") {
+		t.Fatalf("expected positional tenant error, got %v", err)
 	}
 }
 
@@ -48,7 +48,7 @@ func TestTenantSettingsGet404(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "tenant", "settings", "get", "--tenant", "ghost")
+	err := run(t, e, "tenant", "settings", "get", "ghost")
 	var apiErr *client.APIError
 	if !asAPIError(err, &apiErr) {
 		t.Fatalf("expected *client.APIError, got %T: %v", err, err)
@@ -63,7 +63,7 @@ func TestTenantSettingsSetNestedBody(t *testing.T) {
 	srv := hierarchyBodyCaptureServer(t, &gotBody)
 	defer srv.Close()
 	e := newTestEnvAt(t, srv.URL, "table")
-	err := run(t, e, "tenant", "settings", "set", "--tenant", "de-kies",
+	err := run(t, e, "tenant", "settings", "set", "de-kies",
 		"persona.tone=tenant crisp",
 		"channel.labeling_enabled=true",
 		"persona.signature=",
@@ -100,7 +100,7 @@ func TestTenantSettingsSetBadBool(t *testing.T) {
 	srv := hierarchyBodyCaptureServer(t, &gotBody)
 	defer srv.Close()
 	e := newTestEnvAt(t, srv.URL, "table")
-	err := run(t, e, "tenant", "settings", "set", "--tenant", "de-kies", "channel.labeling_enabled=maybe")
+	err := run(t, e, "tenant", "settings", "set", "de-kies", "channel.labeling_enabled=maybe")
 	if err == nil || !strings.Contains(err.Error(), "boolean") {
 		t.Fatalf("expected boolean-coercion error, got %v", err)
 	}
@@ -144,7 +144,7 @@ func TestTenantProfileGetJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "tenant", "profile", "get", "--tenant", "de-kies"); err != nil {
+	if err := run(t, e, "tenant", "profile", "get", "de-kies"); err != nil {
 		t.Fatalf("profile get: %v", err)
 	}
 	assertJSONEqual(t, fixture(t, "tenant_settings.json"), out.Bytes())
@@ -157,7 +157,7 @@ func TestTenantProfileGetProjectScope(t *testing.T) {
 		requireAuth(t, r)
 		_, _ = w.Write([]byte(`{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`))
 	})
-	mux.HandleFunc("GET /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/tenants/{slug}/profile", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		sawProject = r.URL.Query().Get("project")
 		w.Header().Set("Content-Type", "application/json")
@@ -167,7 +167,7 @@ func TestTenantProfileGetProjectScope(t *testing.T) {
 	defer srv.Close()
 
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "alpha", "tenant", "profile", "get", "--tenant", "de-kies"); err != nil {
+	if err := run(t, e, "--project", "alpha", "tenant", "profile", "get", "de-kies"); err != nil {
 		t.Fatalf("profile get: %v", err)
 	}
 	if sawProject != "alpha" {
@@ -189,7 +189,7 @@ func TestTenantProfileSetLegacyFieldErrors(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "tenant", "profile", "set", "--tenant", "de-kies", "unknown_key=x")
+	err := run(t, e, "tenant", "profile", "set", "de-kies", "unknown_key=x")
 	if err == nil {
 		t.Fatal("expected validation error")
 	}

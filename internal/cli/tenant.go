@@ -13,9 +13,8 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newTenantCmd builds tenant hierarchy settings plus the legacy profile/projection record. `settings`
-// edits the canonical project-tree hierarchy bag; `profile` talks to the still-shipped tenant profile
-// API until the server renames that route off "settings".
+// newTenantCmd builds tenant hierarchy settings plus the profile/projection record. `settings` edits
+// the canonical project-tree hierarchy bag; `profile` uses the distinct tenant-profile API.
 func newTenantCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tenant",
@@ -39,13 +38,7 @@ func newTenantSettingsCmd(e *env) *cobra.Command {
 		Use:   "settings",
 		Short: "Read or edit nested tenant settings (persona/channel)",
 	}
-	idArg := func(_ *cobra.Command, _ []string) (string, error) {
-		tenant := e.tenantSlug()
-		if tenant == "" {
-			return "", errMissingTenant
-		}
-		return tenant, nil
-	}
+	idArg := func(_ *cobra.Command, args []string) (string, error) { return args[0], nil }
 	cmd.AddCommand(
 		hierarchySettingsGetCmd(e, "tenant", idArg),
 		hierarchySettingsSetCmd(e, "tenant", idArg),
@@ -69,27 +62,24 @@ func newTenantProfileCmd(e *env) *cobra.Command {
 
 func newTenantProfileGetCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "get --tenant <slug>",
+		Use:   "get <slug>",
 		Short: "Show a tenant's projection/profile values",
-		Args:  cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			tenant := e.tenantSlug()
-			if tenant == "" {
-				return errMissingTenant
-			}
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			tenant := args[0]
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
 			project := e.scopeProject()
-			ts, err := c.GetTenantSettings(e.ctx(), tenant, project)
+			ts, raw, err := c.GetTenantSettings(e.ctx(), tenant, project)
 			if err != nil {
 				return err
 			}
 			if render.IsJSON(e.mode(), e.out) {
 				// Passthrough: emit the whole record (tenant_id/version/applied_at + raw settings) so the
 				// jq path sees exactly what the server holds.
-				return writeJSON(e, ts)
+				return e.renderJSON("tenant-profile-"+tenant, raw)
 			}
 			// Group/label using the schema when it's reachable; fall back to a plain sorted key=value
 			// list if the schema fetch fails (never block a read on the schema endpoint).
@@ -104,15 +94,13 @@ func newTenantProfileGetCmd(e *env) *cobra.Command {
 func newTenantProfileSetCmd(e *env) *cobra.Command {
 	var unset []string
 	cmd := &cobra.Command{
-		Use:   "set --tenant <slug> key=val [key=val …]",
+		Use:   "set <slug> key=val [key=val …]",
 		Short: "Edit tenant projection/profile values",
-		Args:  cobra.ArbitraryArgs,
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			tenant := e.tenantSlug()
-			if tenant == "" {
-				return errMissingTenant
-			}
-			if len(args) == 0 && len(unset) == 0 {
+			tenant := args[0]
+			patchArgs := args[1:]
+			if len(patchArgs) == 0 && len(unset) == 0 {
 				return fmt.Errorf("nothing to set: pass key=value pairs and/or --unset <key>")
 			}
 			c, err := e.newClient()
@@ -127,11 +115,11 @@ func newTenantProfileSetCmd(e *env) *cobra.Command {
 			if schemaErr != nil {
 				schema = nil
 			}
-			settings, err := buildTenantPatch(args, unset, schema)
+			settings, err := buildTenantPatch(patchArgs, unset, schema)
 			if err != nil {
 				return err
 			}
-			ts, err := c.PatchTenantSettings(e.ctx(), tenant, project, client.TenantSettingsPatchRequest{
+			ts, raw, err := c.PatchTenantSettings(e.ctx(), tenant, project, client.TenantSettingsPatchRequest{
 				Settings: settings,
 				Source:   "cli",
 			})
@@ -139,7 +127,7 @@ func newTenantProfileSetCmd(e *env) *cobra.Command {
 				return err
 			}
 			if render.IsJSON(e.mode(), e.out) {
-				return writeJSON(e, ts)
+				return e.renderJSON("tenant-profile-"+tenant, raw)
 			}
 			renderTenantSettings(e, ts, schema)
 			return nil
@@ -189,9 +177,6 @@ func newTenantProfileSchemaCmd(e *env) *cobra.Command {
 	}
 	return cmd
 }
-
-// errMissingTenant is the shared "--tenant required" error for get/set (schema is tenant-agnostic).
-var errMissingTenant = fmt.Errorf("--tenant <slug> is required")
 
 // --- schema model (the slice of the enriched JSON Schema the CLI needs) ---
 

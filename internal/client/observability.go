@@ -17,6 +17,7 @@ type FeedParams struct {
 	Limit   int
 	Before  string
 	Project string
+	Tenant  string
 }
 
 // query renders the params into a URL query string (leading "?" when non-empty), so the JSON-passthrough
@@ -38,6 +39,9 @@ func (p FeedParams) query() string {
 	if p.Project != "" {
 		q.Set("project", p.Project)
 	}
+	if p.Tenant != "" {
+		q.Set("tenant", p.Tenant)
+	}
 	if enc := q.Encode(); enc != "" {
 		return "?" + enc
 	}
@@ -51,13 +55,16 @@ func EgressPath(p FeedParams) string { return "/api/v1/egress-log" + p.query() }
 
 // HealthPath builds GET /api/v1/health?hours=&project= — project is the explicit scope an all-projects
 // admin token names (the `--all` fan-out); "" omits it (a pinned token's own scope).
-func HealthPath(hours int, project string) string {
+func HealthPath(hours int, project, tenant string) string {
 	q := url.Values{}
 	if hours > 0 {
 		q.Set("hours", strconv.Itoa(hours))
 	}
 	if project != "" {
 		q.Set("project", project)
+	}
+	if tenant != "" {
+		q.Set("tenant", tenant)
 	}
 	if enc := q.Encode(); enc != "" {
 		return "/api/v1/health?" + enc
@@ -149,20 +156,17 @@ func (c *Client) AllRuns(ctx context.Context, p RunsParams) (runs []RunSummary, 
 // fetch hits, so `-o json` passthrough and the table view can never diverge on what was requested.
 // project is the explicit scope an all-projects admin token names via --project; "" omits it (a pinned
 // token's own scope, where the server disregards the param).
-func ThreadTracePath(id, project string) string {
+func ThreadTracePath(id, project, tenant string) string {
 	path := "/api/v1/threads/" + url.PathEscape(id) + "/trace"
-	if project != "" {
-		path += "?project=" + url.QueryEscape(project)
-	}
-	return path
+	return collectionScopePath(path, project, tenant)
 }
 
 // ThreadTrace fetches GET /api/v1/threads/{id}/trace — every run for one thread (or session) id. Used by
 // the table view of `rc thread`; the JSON path goes through Raw (ThreadTracePath) to keep the passthrough
 // byte-faithful (render, don't reshape). project is the optional --project scope (see ThreadTracePath).
-func (c *Client) ThreadTrace(ctx context.Context, id, project string) (*ThreadTrace, error) {
+func (c *Client) ThreadTrace(ctx context.Context, id, project, tenant string) (*ThreadTrace, error) {
 	var out ThreadTrace
-	if err := c.do(ctx, http.MethodGet, ThreadTracePath(id, project), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, ThreadTracePath(id, project, tenant), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -170,9 +174,9 @@ func (c *Client) ThreadTrace(ctx context.Context, id, project string) (*ThreadTr
 
 // Health fetches GET /api/v1/health?hours=&project= — the raw health inputs the CLI rolls up. project is
 // the explicit scope an all-projects admin token names (the `--all` fan-out); "" is a pinned token's own.
-func (c *Client) Health(ctx context.Context, hours int, project string) (*HealthResponse, error) {
+func (c *Client) Health(ctx context.Context, hours int, project, tenant string) (*HealthResponse, error) {
 	var out HealthResponse
-	if err := c.do(ctx, http.MethodGet, HealthPath(hours, project), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, HealthPath(hours, project, tenant), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

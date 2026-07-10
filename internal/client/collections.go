@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 )
@@ -47,18 +48,27 @@ func (l *ListResponse) UnmarshalJSON(data []byte) error {
 	return nil // an object with no array value → empty list (the explicit no-rows case)
 }
 
-// collectionPath builds /api/v1/<resource>[/<id>][/<verb>] with the shared ?project=&tenant= scope. id
-// and verb are optional; empty segments are skipped. id is path-escaped (a repo id is a name, a
-// connection id a uuid).
-func collectionPath(resource, id, verb, project, tenant string) string {
+// collectionPath uses the canonical project tree whenever scope is explicit. Tenant selection is
+// never encoded as a flat query because the server's deprecated collection aliases ignore it.
+func collectionPath(resource, id, verb, project, tenant string) (string, error) {
+	if tenant != "" && project == "" {
+		return "", fmt.Errorf("--project <project> is required with --tenant for %s", resource)
+	}
 	p := "/api/v1/" + resource
+	if project != "" {
+		p = "/api/v1/projects/" + url.PathEscape(project)
+		if tenant != "" {
+			p += "/tenants/" + url.PathEscape(tenant)
+		}
+		p += "/" + resource
+	}
 	if id != "" {
 		p += "/" + url.PathEscape(id)
 	}
 	if verb != "" {
 		p += "/" + verb
 	}
-	return p + collectionScope(project, tenant)
+	return p, nil
 }
 
 func collectionScope(project, tenant string) string {
@@ -75,11 +85,19 @@ func collectionScope(project, tenant string) string {
 	return ""
 }
 
+func collectionScopePath(path, project, tenant string) string {
+	return path + collectionScope(project, tenant)
+}
+
 // List fetches GET /api/v1/<resource>, returning both the parsed items (for the table renderer) and the
 // raw body (for -o json passthrough).
 func (c *Client) List(ctx context.Context, resource, project, tenant string) (*ListResponse, json.RawMessage, error) {
+	path, err := collectionPath(resource, "", "", project, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, collectionPath(resource, "", "", project, tenant), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out ListResponse
@@ -92,8 +110,12 @@ func (c *Client) List(ctx context.Context, resource, project, tenant string) (*L
 // Get fetches GET /api/v1/<resource>/<id> — one collection element, returning the parsed item (for the
 // key:value renderer) and the raw body (for -o json passthrough).
 func (c *Client) Get(ctx context.Context, resource, id, project, tenant string) (Item, json.RawMessage, error) {
+	path, err := collectionPath(resource, id, "", project, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, collectionPath(resource, id, "", project, tenant), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var item Item
@@ -106,25 +128,41 @@ func (c *Client) Get(ctx context.Context, resource, id, project, tenant string) 
 // Create posts POST /api/v1/<resource> with the supplied flat body, returning the echoed item (a
 // connection create deliberately omits the secret) and the raw body.
 func (c *Client) Create(ctx context.Context, resource string, body map[string]any, project, tenant string) (Item, json.RawMessage, error) {
-	return c.itemWrite(ctx, http.MethodPost, collectionPath(resource, "", "", project, tenant), body)
+	path, err := collectionPath(resource, "", "", project, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
+	return c.itemWrite(ctx, http.MethodPost, path, body)
 }
 
 // Patch sends PATCH /api/v1/<resource>/<id> (sparse) and returns the updated item + raw body.
 func (c *Client) Patch(ctx context.Context, resource, id string, body map[string]any, project, tenant string) (Item, json.RawMessage, error) {
-	return c.itemWrite(ctx, http.MethodPatch, collectionPath(resource, id, "", project, tenant), body)
+	path, err := collectionPath(resource, id, "", project, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
+	return c.itemWrite(ctx, http.MethodPatch, path, body)
 }
 
 // Verb posts POST /api/v1/<resource>/<id>/<verb> (reveal/rotate/revoke) with no body, returning the
 // verb's flat response (e.g. {"secret":…}) + raw body.
 func (c *Client) Verb(ctx context.Context, resource, id, verb, project, tenant string) (Item, json.RawMessage, error) {
-	return c.itemWrite(ctx, http.MethodPost, collectionPath(resource, id, verb, project, tenant), nil)
+	path, err := collectionPath(resource, id, verb, project, tenant)
+	if err != nil {
+		return nil, nil, err
+	}
+	return c.itemWrite(ctx, http.MethodPost, path, nil)
 }
 
 // Delete sends DELETE /api/v1/<resource>/<id>. A 204/empty body is fine; any returned body is passed
 // back raw for the -o json path.
 func (c *Client) Delete(ctx context.Context, resource, id, project, tenant string) (json.RawMessage, error) {
+	path, err := collectionPath(resource, id, "", project, tenant)
+	if err != nil {
+		return nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodDelete, collectionPath(resource, id, "", project, tenant), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodDelete, path, nil, &raw); err != nil {
 		return nil, err
 	}
 	return raw, nil

@@ -382,17 +382,17 @@ func stubServer(t *testing.T) *httptest.Server {
 
 	// Hierarchy settings editing surface. The schema is served verbatim from the embedded legacy copy
 	// for the compatibility schema command; GET returns a nested record; PATCH echoes the nested patch.
-	mux.HandleFunc("GET /api/v1/tenants/settings/schema", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/tenant-profiles/schema", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "tenant_schema.json"))
 	})
-	mux.HandleFunc("GET /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/tenants/{slug}/profile", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "tenant_settings.json"))
 	})
-	mux.HandleFunc("PATCH /api/v1/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("PATCH /api/v1/tenants/{slug}/profile", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
 		if strings.Contains(body, `"unknown_key"`) {
@@ -740,33 +740,33 @@ func largeEventsJSON() []byte {
 func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	t.Helper()
 
-	// watched mailboxes (the channel plane's inbox watch): list / pause / resume. resume on id
-	// "needs-attn" returns a 200 with status:needs_attention + error_message (a subscribe failure surfaced,
-	// NOT an error envelope).
-	mux.HandleFunc("GET /api/v1/mailboxes/watched", func(w http.ResponseWriter, r *http.Request) {
+	// Watched mailboxes: list + canonical mode.
+	watchedList := func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "watched_mailboxes.json"))
-	})
-	mux.HandleFunc("POST /api/v1/mailboxes/{id}/pause", func(w http.ResponseWriter, r *http.Request) {
+	}
+	mux.HandleFunc("GET /api/v1/mailboxes/watched", watchedList)
+	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes", watchedList)
+	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/mode", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"paused","has_sync_cursor":true}`))
-	})
-	mux.HandleFunc("POST /api/v1/mailboxes/{id}/resume", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		if r.PathValue("id") == "needs-attn" {
-			_, _ = w.Write([]byte(`{"id":"needs-attn","provider":"microsoft","email_address":"help@acme.test","status":"needs_attention","has_sync_cursor":false,"error_message":"Subscribe failed: token expired"}`))
-			return
+		var body struct {
+			Mode string `json:"mode"`
 		}
-		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","has_sync_cursor":true}`))
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode mailbox mode: %v", err)
+		}
+		if body.Mode != "watch" {
+			t.Fatalf("mode = %q, want watch", body.Mode)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":false,"has_sync_cursor":true}`))
 	})
 
 	// generic IMAP/SMTP connect (rc mailbox connect-imap): assert the password rode in the BODY (never
 	// argv) and that the client applied the username→email / smtp-host→imap-host defaults, then echo a
 	// created watched-mailbox item. A duplicate email ("dupe@acme.test") drives the 409 MAILBOX_IN_USE path.
-	mux.HandleFunc("POST /api/v1/mailboxes/imap/connect", func(w http.ResponseWriter, r *http.Request) {
+	imapConnect := func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
 		var got map[string]any
@@ -787,31 +787,22 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"mb-imap-1","provider":"imap","email_address":"info@acme.test","status":"connected","processing_enabled":false,"has_sync_cursor":false}`))
-	})
-	mux.HandleFunc("GET /api/v1/mailboxes/{id}/imap-env", func(w http.ResponseWriter, r *http.Request) {
+	}
+	mux.HandleFunc("POST /api/v1/mailboxes/imap/connect", imapConnect)
+	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/imap/connect", imapConnect)
+	imapEnv := func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"mailbox_id":"` + r.PathValue("id") + `","email_address":"info@acme.test","env":{"RC_MAILBOX_ID":"` + r.PathValue("id") + `","RC_IMAP_EMAIL":"info@acme.test","RC_IMAP_USERNAME":"imap-user","RC_IMAP_PASSWORD":"imap-secret","RC_IMAP_HOST":"imap.acme.test","RC_IMAP_PORT":"993","RC_IMAP_TLS":"implicit","RC_SMTP_HOST":"smtp.acme.test","RC_SMTP_PORT":"587","RC_SMTP_TLS":"starttls","RC_SMTP_USERNAME":"smtp-user","RC_SMTP_PASSWORD":"smtp-secret","RC_UNEXPECTED_SECRET":"do-not-print-me"}}`))
-	})
-
-	// silent-onboarding processing gate (rc mailbox process on/off): echo the updated item with the
-	// flag reflecting the verb path.
-	mux.HandleFunc("POST /api/v1/mailboxes/{id}/processing/enable", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":true,"has_sync_cursor":true}`))
-	})
-	mux.HandleFunc("POST /api/v1/mailboxes/{id}/processing/disable", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":false,"has_sync_cursor":true}`))
-	})
+	}
+	mux.HandleFunc("GET /api/v1/mailboxes/{id}/imap-env", imapEnv)
+	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes/{id}/imap-env", imapEnv)
 
 	// local-synthesis harvest/export (rc mailbox harvest, rc export ls/get/download). Harvest asserts the
 	// clean/max_threads body shape; a mailbox id "busy" drives the 409 HARVEST_IN_PROGRESS path. The export
 	// list/get echo canned fixtures; download returns raw Markdown (id "missing" → 404 BODY_UNAVAILABLE).
 	// id "running-then-done" flips its export status once so the --wait poll loop terminates on the 2nd read.
-	mux.HandleFunc("POST /api/v1/mailboxes/{id}/harvest", func(w http.ResponseWriter, r *http.Request) {
+	harvest := func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		if r.PathValue("id") == "busy" {
 			w.WriteHeader(http.StatusConflict)
@@ -835,7 +826,9 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{"export_id":"` + exportID + `","status":"pending"}`))
-	})
+	}
+	mux.HandleFunc("POST /api/v1/mailboxes/{id}/harvest", harvest)
+	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/harvest", harvest)
 	// exportWaitCalls counts GETs for the wait-export so the first read is "running", the second "done".
 	exportWaitCalls := 0
 	mux.HandleFunc("GET /api/v1/exports", func(w http.ResponseWriter, r *http.Request) {
@@ -843,7 +836,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "exports.json"))
 	})
-	mux.HandleFunc("GET /api/v1/exports/{id}", func(w http.ResponseWriter, r *http.Request) {
+	exportGet := func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		if r.PathValue("id") == "wait-export" {
@@ -856,7 +849,9 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 			return
 		}
 		_, _ = w.Write(fixture(t, "export_item.json"))
-	})
+	}
+	mux.HandleFunc("GET /api/v1/exports/{id}", exportGet)
+	mux.HandleFunc("GET /api/v1/projects/{project}/exports/{id}", exportGet)
 	mux.HandleFunc("GET /api/v1/exports/{id}/download", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		if r.PathValue("id") == "missing" {

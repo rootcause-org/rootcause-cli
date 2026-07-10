@@ -218,7 +218,7 @@ func TestUnknownProjectScopeFailsBeforeCommand(t *testing.T) {
 	}
 	printError(errb, err)
 	got := errb.String()
-	for _, want := range []string{"UNKNOWN_PROJECT", "charlie", "rc projects"} {
+	for _, want := range []string{"UNKNOWN_PROJECT", "charlie", "rc project list"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}

@@ -11,6 +11,15 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
+func collectionTenant(e *env, resource string) string {
+	switch resource {
+	case "connections", "repos", "members":
+		return e.scopeTenant()
+	default:
+		return ""
+	}
+}
+
 // asItem decodes a flat JSON object into a client.Item for the generic key:value renderer. A non-object
 // body yields an empty item (the renderer prints "(no fields returned)"), so a bespoke endpoint that
 // returns a small object renders without a dedicated wire struct.
@@ -37,7 +46,7 @@ func listSubCmd(e *env, resource string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			l, raw, err := c.List(e.ctx(), resource, e.scopeProject(), e.scopeTenant())
+			l, raw, err := c.List(e.ctx(), resource, e.scopeProject(), collectionTenant(e, resource))
 			if err != nil {
 				return err
 			}
@@ -67,7 +76,7 @@ func addSubCmd(e *env, resource string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, raw, err := c.Create(e.ctx(), resource, body, e.scopeProject(), e.scopeTenant())
+			item, raw, err := c.Create(e.ctx(), resource, body, e.scopeProject(), collectionTenant(e, resource))
 			if err != nil {
 				return err
 			}
@@ -92,7 +101,7 @@ func getSubCmd(e *env, resource, idHelp string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, raw, err := c.Get(e.ctx(), resource, args[0], e.scopeProject(), e.scopeTenant())
+			item, raw, err := c.Get(e.ctx(), resource, args[0], e.scopeProject(), collectionTenant(e, resource))
 			if err != nil {
 				return err
 			}
@@ -120,7 +129,7 @@ func setSubCmd(e *env, resource, idHelp string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, raw, err := c.Patch(e.ctx(), resource, args[0], body, e.scopeProject(), e.scopeTenant())
+			item, raw, err := c.Patch(e.ctx(), resource, args[0], body, e.scopeProject(), collectionTenant(e, resource))
 			if err != nil {
 				return err
 			}
@@ -145,7 +154,7 @@ func rmSubCmd(e *env, resource, idHelp string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Delete(e.ctx(), resource, args[0], e.scopeProject(), e.scopeTenant())
+			raw, err := c.Delete(e.ctx(), resource, args[0], e.scopeProject(), collectionTenant(e, resource))
 			if err != nil {
 				return err
 			}
@@ -179,7 +188,7 @@ func verbSubCmd(e *env, resource, idHelp, verb, short string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, raw, err := c.Verb(e.ctx(), resource, args[0], verb, e.scopeProject(), e.scopeTenant())
+			item, raw, err := c.Verb(e.ctx(), resource, args[0], verb, e.scopeProject(), collectionTenant(e, resource))
 			if err != nil {
 				return err
 			}
@@ -243,7 +252,7 @@ func connectionProbeCmd(e *env) *cobra.Command {
 				Write:      write,
 				NotionPage: notionPage,
 				Cleanup:    cleanup,
-			}, e.scopeProject(), e.scopeTenant())
+			}, e.scopeProject(), collectionTenant(e, "connections"))
 			if err != nil {
 				return err
 			}
@@ -273,7 +282,7 @@ func connectionRevealCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, raw, err := c.Verb(e.ctx(), "connections", args[0], "reveal", e.scopeProject(), e.scopeTenant())
+			item, raw, err := c.Verb(e.ctx(), "connections", args[0], "reveal", e.scopeProject(), collectionTenant(e, "connections"))
 			if err != nil {
 				return err
 			}
@@ -299,10 +308,10 @@ func connectionRmCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, _, err := c.Verb(e.ctx(), "connections", args[0], "revoke", e.scopeProject(), e.scopeTenant()); err != nil {
+			if _, _, err := c.Verb(e.ctx(), "connections", args[0], "revoke", e.scopeProject(), collectionTenant(e, "connections")); err != nil {
 				return err
 			}
-			raw, err := c.Delete(e.ctx(), "connections", args[0], e.scopeProject(), e.scopeTenant())
+			raw, err := c.Delete(e.ctx(), "connections", args[0], e.scopeProject(), collectionTenant(e, "connections"))
 			if err != nil {
 				return err
 			}
@@ -357,7 +366,7 @@ func tokenMintCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			item, raw, err := c.Create(e.ctx(), "tokens", body, e.scopeProject(), e.scopeTenant())
+			item, raw, err := c.Create(e.ctx(), "tokens", body, e.scopeProject(), "")
 			if err != nil {
 				return err
 			}
@@ -382,7 +391,7 @@ func tokenRevokeCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Delete(e.ctx(), "tokens", args[0], e.scopeProject(), e.scopeTenant())
+			raw, err := c.Delete(e.ctx(), "tokens", args[0], e.scopeProject(), "")
 			if err != nil {
 				return err
 			}

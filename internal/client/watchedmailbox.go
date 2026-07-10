@@ -13,15 +13,6 @@ import (
 // connection-backed and carry a subscription/sync-cursor lifecycle. Each method returns both the typed
 // value (for the table view) and the raw body (for -o json passthrough — render, don't reshape).
 
-// watchedScope appends the ?project= scope an all-projects admin token names per request; "" omits it
-// (a pinned token's own scope, where the server disregards the param).
-func watchedScope(path, project string) string {
-	if project != "" {
-		return path + "?project=" + url.QueryEscape(project)
-	}
-	return path
-}
-
 func watchedProjectPath(project, suffix string) string {
 	if project != "" {
 		return "/api/v1/projects/" + url.PathEscape(project) + suffix
@@ -31,9 +22,16 @@ func watchedProjectPath(project, suffix string) string {
 
 // WatchedMailboxes fetches GET /api/v1/mailboxes/watched — every connection-backed mailbox the channel
 // plane watches. Returns the parsed list (for the table) and the raw body (for -o json passthrough).
-func (c *Client) WatchedMailboxes(ctx context.Context, project string) (*WatchedMailboxList, json.RawMessage, error) {
+func (c *Client) WatchedMailboxes(ctx context.Context, project, tenant string) (*WatchedMailboxList, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "mailboxes require a project scope"}
+	}
+	if err := requireTenantProject(project, tenant, "mailboxes"); err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, watchedScope("/api/v1/mailboxes/watched", project), nil, &raw); err != nil {
+	path := scopedTreePath(project, tenant, "/mailboxes", "")
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out WatchedMailboxList
@@ -41,29 +39,6 @@ func (c *Client) WatchedMailboxes(ctx context.Context, project string) (*Watched
 		return nil, nil, err
 	}
 	return &out, raw, nil
-}
-
-// PauseWatchedMailbox posts POST /api/v1/mailboxes/{id}/pause (no body) → the single updated item.
-func (c *Client) PauseWatchedMailbox(ctx context.Context, id, project string) (*WatchedMailbox, json.RawMessage, error) {
-	return c.watchedVerb(ctx, id, "pause", project)
-}
-
-// ResumeWatchedMailbox posts POST /api/v1/mailboxes/{id}/resume (no body) → the updated item. A
-// Subscribe failure still returns 200 with status="needs_attention" + error_message (NOT an error — the
-// CLI surfaces the message), so this is the success path for that case too.
-func (c *Client) ResumeWatchedMailbox(ctx context.Context, id, project string) (*WatchedMailbox, json.RawMessage, error) {
-	return c.watchedVerb(ctx, id, "resume", project)
-}
-
-// SetWatchedMailboxProcessing posts POST /api/v1/mailboxes/{id}/processing/{enable,disable} (no body) →
-// the updated item. This is the silent-onboarding gate, orthogonal to pause/resume (the watch
-// lifecycle): a watching mailbox can still be held silent.
-func (c *Client) SetWatchedMailboxProcessing(ctx context.Context, id string, enabled bool, project string) (*WatchedMailbox, json.RawMessage, error) {
-	verb := "processing/disable"
-	if enabled {
-		verb = "processing/enable"
-	}
-	return c.watchedVerb(ctx, id, verb, project)
 }
 
 // IMAPConnectRequest is the POST /api/v1/mailboxes/imap/connect body. Field names mirror the server's
@@ -96,8 +71,12 @@ type IMAPEnvResponse struct {
 // success it returns the created watched-mailbox item. The tenant (if any) rides in the body; `project`
 // rides as ?project= for an all-projects admin token.
 func (c *Client) ConnectIMAPMailbox(ctx context.Context, req IMAPConnectRequest, project string) (*WatchedMailbox, json.RawMessage, error) {
+	path := watchedProjectPath(project, "/mailboxes/imap/connect")
+	if path == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "connecting a mailbox requires a project scope"}
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, watchedScope("/api/v1/mailboxes/imap/connect", project), req, &raw); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out WatchedMailbox
@@ -107,14 +86,16 @@ func (c *Client) ConnectIMAPMailbox(ctx context.Context, req IMAPConnectRequest,
 	return &out, raw, nil
 }
 
-// IMAPMailboxEnv fetches the scoped local-harvest env projection for one IMAP mailbox. Prefer the
-// canonical project-tree route when project is known; fall back to the deprecated flat alias for
-// project-pinned tokens that do not need an explicit scope.
-func (c *Client) IMAPMailboxEnv(ctx context.Context, id, project string) (*IMAPEnvResponse, json.RawMessage, error) {
-	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(id)+"/imap-env")
-	if path == "" {
-		path = "/api/v1/mailboxes/" + url.PathEscape(id) + "/imap-env"
+// IMAPMailboxEnv fetches the scoped local-harvest env projection from the canonical project tree.
+func (c *Client) IMAPMailboxEnv(ctx context.Context, id, project, tenant string) (*IMAPEnvResponse, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "IMAP env requires a project scope"}
 	}
+	if err := requireTenantProject(project, tenant, "mailboxes"); err != nil {
+		return nil, nil, err
+	}
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(id)+"/imap-env")
+	path = collectionScopePath(path, "", tenant)
 	var raw json.RawMessage
 	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
 		return nil, nil, err
@@ -126,10 +107,14 @@ func (c *Client) IMAPMailboxEnv(ctx context.Context, id, project string) (*IMAPE
 	return &out, raw, nil
 }
 
-func (c *Client) watchedVerb(ctx context.Context, id, verb, project string) (*WatchedMailbox, json.RawMessage, error) {
-	path := watchedScope("/api/v1/mailboxes/"+url.PathEscape(id)+"/"+verb, project)
+func (c *Client) SetWatchedMailboxMode(ctx context.Context, id, mode, project, tenant string) (*WatchedMailbox, json.RawMessage, error) {
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(id)+"/mode")
+	if path == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "mailbox mode requires a project scope"}
+	}
+	path = collectionScopePath(path, "", tenant)
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, path, nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, map[string]any{"mode": mode}, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out WatchedMailbox

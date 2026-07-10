@@ -41,6 +41,13 @@ func IsTerminal(w io.Writer) bool { return isTerminal(w) }
 // isTerminal reports whether w is a character device (a TTY). A non-*os.File writer (e.g. a test
 // buffer) is treated as "not a terminal" → JSON, which is the safe, scriptable default.
 func isTerminal(w io.Writer) bool {
+	for {
+		unwrapper, ok := w.(interface{ UnwrapWriter() io.Writer })
+		if !ok {
+			break
+		}
+		w = unwrapper.UnwrapWriter()
+	}
 	f, ok := w.(*os.File)
 	if !ok {
 		return false

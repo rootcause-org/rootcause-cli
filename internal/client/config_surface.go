@@ -84,9 +84,12 @@ func (c *Client) GitHubStatus(ctx context.Context, project string) (json.RawMess
 // --- Brain status / sync / edit / consolidate (/api/v1/brain/*) ---
 
 // BrainStatus fetches the on-box brain cache status relative to origin/main.
-func (c *Client) BrainStatus(ctx context.Context, project string) (*BrainStatusResponse, json.RawMessage, error) {
+func (c *Client) BrainStatus(ctx context.Context, project, tenant string) (*BrainStatusResponse, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "brain"); err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, "/api/v1/brain/status"+collectionScope(project, ""), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, scopedTreePath(project, tenant, "/brain/status", "/api/v1/brain/status"), nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out BrainStatusResponse
@@ -97,9 +100,12 @@ func (c *Client) BrainStatus(ctx context.Context, project string) (*BrainStatusR
 }
 
 // BrainSync fetches origin/main, fast-forwards when safe, and refreshes warm bash sessions.
-func (c *Client) BrainSync(ctx context.Context, project string) (*BrainSyncResponse, json.RawMessage, error) {
+func (c *Client) BrainSync(ctx context.Context, project, tenant string) (*BrainSyncResponse, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "brain"); err != nil {
+		return nil, nil, err
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, "/api/v1/brain/sync"+collectionScope(project, ""), map[string]any{}, &raw); err != nil {
+	if err := c.do(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/sync", "/api/v1/brain/sync"), map[string]any{}, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out BrainSyncResponse
@@ -110,25 +116,49 @@ func (c *Client) BrainSync(ctx context.Context, project string) (*BrainSyncRespo
 }
 
 // BrainEdit queues an out-of-band brain edit from an instruction; returns {queued, job_id}.
-func (c *Client) BrainEdit(ctx context.Context, instruction, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, "/api/v1/brain/edit", map[string]any{"instruction": instruction}, project, "")
+func (c *Client) BrainEdit(ctx context.Context, instruction, project, tenant string) (json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "brain"); err != nil {
+		return nil, err
+	}
+	return c.Raw(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/edit", "/api/v1/brain/edit"), map[string]any{"instruction": instruction})
 }
 
 // BrainConsolidate queues the consolidation cron on demand; returns {queued, job_id}.
-func (c *Client) BrainConsolidate(ctx context.Context, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, "/api/v1/brain/consolidate", map[string]any{}, project, "")
+func (c *Client) BrainConsolidate(ctx context.Context, project, tenant string) (json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "brain"); err != nil {
+		return nil, err
+	}
+	return c.Raw(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/consolidate", "/api/v1/brain/consolidate"), map[string]any{})
+}
+
+func scopedTreePath(project, tenant, suffix, fallback string) string {
+	if project == "" {
+		return fallback
+	}
+	path := "/api/v1/projects/" + url.PathEscape(project)
+	if tenant != "" {
+		path += "/tenants/" + url.PathEscape(tenant)
+	}
+	return path + suffix
+}
+
+func requireTenantProject(project, tenant, resource string) error {
+	if tenant != "" && project == "" {
+		return fmt.Errorf("--project <project> is required with --tenant for %s", resource)
+	}
+	return nil
 }
 
 // --- Run feedback / retry (POST /api/v1/runs/{id}/{feedback,retry}) ---
 
 // RunFeedback posts a score/comment on a run's trace.
-func (c *Client) RunFeedback(ctx context.Context, id string, body map[string]any, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, "")
+func (c *Client) RunFeedback(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
+	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
 }
 
 // RunRetry re-runs a run (optionally at a different tier); returns the new run id.
-func (c *Client) RunRetry(ctx context.Context, id string, body map[string]any, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/retry", body, project, "")
+func (c *Client) RunRetry(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
+	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/retry", body, project, tenant)
 }
 
 // --- Database controls (GET/PATCH /api/v1/databases/{dsn}/controls) ---

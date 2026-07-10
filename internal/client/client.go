@@ -60,6 +60,7 @@ type RunsParams struct {
 	Category string
 	Before   string
 	Project  string
+	Tenant   string
 }
 
 // Runs fetches GET /api/v1/runs — the shared endpoint behind both `rc status` and `rc runs`.
@@ -82,6 +83,9 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 	}
 	if p.Project != "" {
 		q.Set("project", p.Project)
+	}
+	if p.Tenant != "" {
+		q.Set("tenant", p.Tenant)
 	}
 	path := "/api/v1/runs"
 	if enc := q.Encode(); enc != "" {
@@ -129,18 +133,22 @@ func (c *Client) Whoami(ctx context.Context) (*WhoamiResponse, error) {
 }
 
 // Run fetches GET /api/v1/runs/{id} — one run, high level.
-func (c *Client) Run(ctx context.Context, id string) (*RunDetail, error) {
+func (c *Client) Run(ctx context.Context, id, project, tenant string) (*RunDetail, error) {
 	var out RunDetail
-	if err := c.do(ctx, http.MethodGet, "/api/v1/runs/"+url.PathEscape(id), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, collectionScopePath("/api/v1/runs/"+url.PathEscape(id), project, tenant), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
+func RunPath(id, project, tenant string) string {
+	return collectionScopePath("/api/v1/runs/"+url.PathEscape(id), project, tenant)
+}
+
 // Events fetches GET /api/v1/runs/{id}/events — the full per-event trace.
-func (c *Client) Events(ctx context.Context, id string) (*EventsResponse, error) {
+func (c *Client) Events(ctx context.Context, id, project, tenant string) (*EventsResponse, error) {
 	var out EventsResponse
-	if err := c.do(ctx, http.MethodGet, "/api/v1/runs/"+url.PathEscape(id)+"/events", nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, collectionScopePath("/api/v1/runs/"+url.PathEscape(id)+"/events", project, tenant), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
@@ -149,27 +157,32 @@ func (c *Client) Events(ctx context.Context, id string) (*EventsResponse, error)
 // Full fetches GET /api/v1/runs/{id}/trace — the whole bundle (run header + per-event trace with the
 // ai_usage join). Used by the table view of `rc run <id> --full`; the JSON path goes through Raw to
 // keep the renderer's JSONL seam byte-faithful.
-func (c *Client) Full(ctx context.Context, id string) (*FullResponse, error) {
+func (c *Client) Full(ctx context.Context, id, project, tenant string) (*FullResponse, error) {
 	var out FullResponse
-	if err := c.do(ctx, http.MethodGet, RunTracePath(id), nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, RunTracePath(id, project, tenant), nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-func RunTracePath(id string) string {
-	return "/api/v1/runs/" + url.PathEscape(id) + "/trace"
+func RunTracePath(id, project, tenant string) string {
+	return collectionScopePath("/api/v1/runs/"+url.PathEscape(id)+"/trace", project, tenant)
 }
 
 // BrainDiff fetches GET /api/v1/runs/{id}/brain-diff — the ONE journal commit the run wrote to its
 // brain. Used by the table view of `rc run <id> --brain-diff`; the JSON path goes through Raw to keep
 // the passthrough byte-faithful (render, don't reshape).
-func (c *Client) BrainDiff(ctx context.Context, id string) (*BrainDiff, error) {
+func (c *Client) BrainDiff(ctx context.Context, id, project, tenant string) (*BrainDiff, error) {
 	var out BrainDiff
-	if err := c.do(ctx, http.MethodGet, "/api/v1/runs/"+url.PathEscape(id)+"/brain-diff", nil, &out); err != nil {
+	path := RunBrainDiffPath(id, project, tenant)
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
+}
+
+func RunBrainDiffPath(id, project, tenant string) string {
+	return collectionScopePath("/api/v1/runs/"+url.PathEscape(id)+"/brain-diff", project, tenant)
 }
 
 // Submit posts POST /api/v1/runs to trigger a run. It returns BOTH the typed 202 body (for the
@@ -354,8 +367,8 @@ func (c *Client) RawHierarchySettings(ctx context.Context, method, scope, projec
 	return c.Raw(ctx, method, hierarchySettingsPath(scope, project, id, resolved), body)
 }
 
-// tenantProfileScope is the legacy profile endpoint's project selector. Pinned tokens ignore it
-// server-side; all-projects admin tokens need it to select one brain/project.
+// tenantProfileScope is the profile endpoint's project selector. Pinned tokens validate it server-side;
+// all-projects admin tokens need it to select one brain/project.
 func tenantProfileScope(project string) string {
 	if project == "" {
 		return ""
@@ -363,38 +376,46 @@ func tenantProfileScope(project string) string {
 	return "?project=" + url.QueryEscape(project)
 }
 
-// GetTenantSettings fetches GET /api/v1/tenants/{slug}/settings — one tenant's legacy
+// GetTenantSettings fetches GET /api/v1/tenants/{slug}/profile — one tenant's
 // projection/profile record (settings + version + applied_at). slug is path-escaped; project is the
-// optional all-projects-token selector.
-func (c *Client) GetTenantSettings(ctx context.Context, slug, project string) (*TenantSettings, error) {
-	var out TenantSettings
-	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/settings" + tenantProfileScope(project)
-	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
-		return nil, err
+// optional all-projects-token selector. Raw bytes preserve future server fields for JSON output.
+func (c *Client) GetTenantSettings(ctx context.Context, slug, project string) (*TenantSettings, json.RawMessage, error) {
+	var raw json.RawMessage
+	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/profile" + tenantProfileScope(project)
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
+		return nil, nil, err
 	}
-	return &out, nil
+	var out TenantSettings
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
 }
 
-// PatchTenantSettings sends a sparse PATCH /api/v1/tenants/{slug}/settings (only the keys in
-// req.Settings; an explicit nil value → JSON null = unconfigure) and returns the merged legacy profile
+// PatchTenantSettings sends a sparse PATCH /api/v1/tenants/{slug}/profile (only the keys in
+// req.Settings; an explicit nil value → JSON null = unconfigure) and returns the merged profile
 // record. The server owns the schema/merge/validation; a bad merged value comes back as a 400
 // validation_failed the command layer surfaces verbatim.
-func (c *Client) PatchTenantSettings(ctx context.Context, slug, project string, req TenantSettingsPatchRequest) (*TenantSettings, error) {
-	var out TenantSettings
-	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/settings" + tenantProfileScope(project)
-	if err := c.do(ctx, http.MethodPatch, path, req, &out); err != nil {
-		return nil, err
+func (c *Client) PatchTenantSettings(ctx context.Context, slug, project string, req TenantSettingsPatchRequest) (*TenantSettings, json.RawMessage, error) {
+	var raw json.RawMessage
+	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/profile" + tenantProfileScope(project)
+	if err := c.do(ctx, http.MethodPatch, path, req, &raw); err != nil {
+		return nil, nil, err
 	}
-	return &out, nil
+	var out TenantSettings
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
 }
 
-// GetTenantSettingsSchema fetches GET /api/v1/tenants/settings/schema — the enriched profile JSON
+// GetTenantSettingsSchema fetches GET /api/v1/tenant-profiles/schema — the enriched profile JSON
 // Schema (x-* render metadata included). Returned as raw bytes: `rc tenant profile schema` dumps it
 // verbatim, and `set` parses it for client-side type/enum coercion. Not project-specific, but
 // bearer-gated.
 func (c *Client) GetTenantSettingsSchema(ctx context.Context, project string) (json.RawMessage, error) {
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, "/api/v1/tenants/settings/schema"+tenantProfileScope(project), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/api/v1/tenant-profiles/schema"+tenantProfileScope(project), nil, &raw); err != nil {
 		return nil, err
 	}
 	return raw, nil

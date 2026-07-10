@@ -35,17 +35,13 @@ func newHealthCmd(e *env) *cobra.Command {
 				return runHealthAll(e, cmd, c, hours)
 			}
 
-			// JSON mode: raw passthrough of the server rows. We still fetch the typed body to compute the
-			// verdict for the exit code (the rows ARE the wire struct, so re-marshaling is byte-faithful).
-			resp, err := c.Health(e.ctx(), hours, e.scopeProject())
+			// Fetch once: the typed view drives the verdict while the same response bytes remain the JSON
+			// passthrough. Two independent reads could print one health snapshot and exit on another.
+			resp, raw, err := fetchHealth(e, c, hours, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
 			if e.jsonOut() {
-				raw, rerr := c.Raw(e.ctx(), "GET", healthPath(hours, e.scopeProject()), nil)
-				if rerr != nil {
-					return rerr
-				}
 				if rerr := e.renderJSON("health", raw); rerr != nil {
 					return rerr
 				}
@@ -80,17 +76,17 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 	}
 
 	type entry struct {
-		Project string                 `json:"project"`
-		Health  *client.HealthResponse `json:"health"`
+		Project string          `json:"project"`
+		Health  json.RawMessage `json:"health"`
 	}
 	entries := make([]entry, 0, len(projects))
 	allHealthy := true
 	for _, proj := range projects {
-		resp, ferr := c.Health(e.ctx(), hours, proj.ID)
+		resp, raw, ferr := fetchHealth(e, c, hours, proj.ID, "")
 		if ferr != nil {
 			return fmt.Errorf("health --all: project %s: %w", proj.Name, ferr)
 		}
-		entries = append(entries, entry{Project: proj.Name, Health: resp})
+		entries = append(entries, entry{Project: proj.Name, Health: raw})
 		if !healthVerdict(resp) {
 			allHealthy = false
 		}
@@ -123,6 +119,18 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 		return errUnhealthy
 	}
 	return nil
+}
+
+func fetchHealth(e *env, c *client.Client, hours int, project, tenant string) (*client.HealthResponse, json.RawMessage, error) {
+	raw, err := c.Raw(e.ctx(), "GET", healthPath(hours, project, tenant), nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	var resp client.HealthResponse
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, nil, fmt.Errorf("decode health response: %w", err)
+	}
+	return &resp, raw, nil
 }
 
 // errUnhealthy is the sentinel `rc health` returns to force a non-zero exit when a section is unhealthy.

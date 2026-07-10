@@ -32,14 +32,14 @@ func newThreadCmd(e *env) *cobra.Command {
 			if render.IsJSON(e.mode(), e.out) {
 				// Raw passthrough: emit exactly what the server sent (render, don't reshape) so jq sees the
 				// true shape.
-				raw, err := c.Raw(e.ctx(), "GET", client.ThreadTracePath(id, e.scopeProject()), nil)
+				raw, err := c.Raw(e.ctx(), "GET", client.ThreadTracePath(id, e.scopeProject(), e.scopeTenant()), nil)
 				if err != nil {
 					return err
 				}
 				return render.JSON(e.out, raw)
 			}
 
-			tr, err := c.ThreadTrace(e.ctx(), id, e.scopeProject())
+			tr, err := c.ThreadTrace(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}

@@ -25,8 +25,8 @@ $ rc project settings runtime set max_run_usd=5 default_tier=pro
 $ rc project settings behavior set persona.tone=warm channel.labeling_enabled=true
 $ rc project triage policy get -o json
 $ rc project triage rules ls -o json
-$ rc project tenant settings get --tenant acme
-$ rc project tenant profile get --tenant acme
+$ rc project tenant settings get acme
+$ rc project tenant profile get acme
 $ rc project mailbox settings set <mailbox-id> persona.tone=direct
 $ rc dev api routes | grep /trace
 $ rc project env keys                  # key NAMES of the production grounding env (no values)
@@ -140,12 +140,16 @@ a command uses.
 `--project <id-or-name>` is **not** a token selector — it's a **server-side scope**: it keeps the active
 token and names one project on supported endpoints (`?project=`), so an **all-projects admin token** can
 review a single project (`rc fleet runs --project momentum-tools`) or trigger one (`rc ask --project
-momentum-tools "…"`) without minting a per-project profile; a project-pinned token disregards it.
+momentum-tools "…"`) without minting a per-project profile; a project-pinned token rejects any selector
+that does not name its own project.
 When a project scope is set, the CLI validates it against `rc project list` first and fails typos with a
 hint to run `rc project list`.
 On tenant-enabled projects, the active `rc auth login` may bind one tenant or the whole project. Plain
 `rc ask "…"` works when the token is tenant-pinned; project-pinned logins pass `--tenant <slug>` per
-workspace-producing command. `rc auth status` shows the login-bound project and tenant, when one is pinned.
+workspace-producing command. Every executable command declares whether it applies project/tenant scope;
+unsupported selectors fail before a request, and `--all` cannot be combined with either. Human
+tenant-scoped output starts with `Scope: project / tenant`; JSON remains the raw API response. `rc auth
+status` shows the login-bound project and tenant, when one is pinned.
 
 For a whole-fleet review with an all-projects token, `rc fleet runs`, `rc fleet patterns`, and
 `rc fleet health` take **`--all`**. The CLI lists the fleet (`rc project list`) and fans out per project —
@@ -279,11 +283,7 @@ help using `go test ./internal/cli -update`.
 | `rc project mailbox harvest` | Start a local-synthesis harvest of a mailbox (optionally wait for the export) |
 | `rc project mailbox imap-env` | Write an IMAP mailbox env file for local deep harvest (0600; values never printed) |
 | `rc project mailbox ls` | List watched mailboxes (id, provider, email, status, tenant, expiry, error) |
-| `rc project mailbox pause` | Pause watching a mailbox |
-| `rc project mailbox process off` | Hold silent — keep watching, stop drafting |
-| `rc project mailbox process on` | Start processing inbound mail (drafts replies) |
-| `rc project mailbox process` | Toggle processing (silent onboarding) for a watched mailbox |
-| `rc project mailbox resume` | Resume watching a mailbox (surfaces needs_attention on a subscribe failure) |
+| `rc project mailbox mode` | Set the mailbox watch, processing, and delivery mode |
 | `rc project mailbox route add` | Create a mailboxe |
 | `rc project mailbox route ls` | List mailboxes |
 | `rc project mailbox route` | Legacy inbound routing table (email→project/tenant); NOT the watched mailboxes |

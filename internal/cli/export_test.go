@@ -68,7 +68,7 @@ func TestMailboxHarvestAccepted(t *testing.T) {
 	if !strings.Contains(out.String(), "export_id: eeee1111-0000-0000-0000-000000000001") {
 		t.Errorf("missing export_id in stdout: %q", out.String())
 	}
-	if !strings.Contains(errb.String(), "rc export get") {
+	if !strings.Contains(errb.String(), "rc project corpus get") {
 		t.Errorf("missing poll hint on stderr: %q", errb.String())
 	}
 }

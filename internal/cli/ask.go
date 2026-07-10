@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,14 +114,14 @@ func newAskCmd(e *env) *cobra.Command {
 			// JSON remains a verbatim passthrough of /runs/{id}. Table mode is scenario-aware: email tries
 			// the richer /trace bundle for draft/note bodies, raw stays the lean single-answer view.
 			if jsonMode {
-				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(detail.RunID), nil)
+				raw, err := c.Raw(e.ctx(), "GET", client.RunPath(detail.RunID, e.scopeProject(), e.scopeTenant()), nil)
 				if err != nil {
 					return err
 				}
 				return render.JSON(e.out, raw)
 			}
 			if scenario == "email" {
-				full, _ := c.Full(e.ctx(), detail.RunID)
+				full, _ := c.Full(e.ctx(), detail.RunID, e.scopeProject(), e.scopeTenant())
 				render.AskEmail(e.out, detail, full)
 				return nil
 			}
@@ -304,7 +303,7 @@ func waitForRun(e *env, c *client.Client, sub *client.SubmitResponse, timeout ti
 
 	showProgress := render.IsTerminal(e.err)
 	for {
-		detail, err := c.Run(ctx, sub.RunID)
+		detail, err := c.Run(ctx, sub.RunID, e.scopeProject(), e.scopeTenant())
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
 				return nil, fmt.Errorf("timed out after %s waiting for run %s", timeout, sub.RunID)

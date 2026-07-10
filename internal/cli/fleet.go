@@ -49,14 +49,14 @@ func newFleetCmd(e *env) *cobra.Command {
 			// `days` is server-side so paging stops at the requested window instead of walking old history.
 			// kind IS a server-side filter; --project scopes an all-projects token to one project
 			// (disregarded for a pinned token).
-			p := client.RunsParams{Days: days, Kind: kind, Project: e.scopeProject()}
+			p := client.RunsParams{Days: days, Kind: kind, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 
 			runs, capped, err := c.AllRuns(e.ctx(), p)
 			if err != nil {
 				return err
 			}
 			if capped {
-				warnCapped(e, "fleet: hit the page cap — older runs omitted; narrow --kind or use rc runs --before")
+				warnCapped(e, "fleet: hit the page cap — older runs omitted; narrow --kind or use rc run list --before")
 			}
 
 			if e.jsonOut() {

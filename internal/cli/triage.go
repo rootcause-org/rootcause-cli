@@ -152,15 +152,18 @@ func triageRaw(e *env, method, path string, body map[string]any) ([]byte, error)
 	if err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	if project := e.scopeProject(); project != "" {
-		q.Set("project", project)
+	project := e.scopeProject()
+	tenant := e.scopeTenant()
+	if tenant != "" && project == "" {
+		return nil, fmt.Errorf("--project <project> is required with --tenant for triage")
 	}
-	if tenant := e.scopeTenant(); tenant != "" {
-		q.Set("tenant", tenant)
-	}
-	if enc := q.Encode(); enc != "" {
-		path += "?" + enc
+	if project != "" {
+		suffix := strings.TrimPrefix(path, "/api/v1/triage")
+		path = "/api/v1/projects/" + url.PathEscape(project)
+		if tenant != "" {
+			path += "/tenants/" + url.PathEscape(tenant)
+		}
+		path += "/triage" + suffix
 	}
 	return c.Raw(e.ctx(), method, path, body)
 }

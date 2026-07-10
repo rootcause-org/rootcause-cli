@@ -252,7 +252,7 @@ func TestWhoamiUnknownProjectFailsWithProjectsHint(t *testing.T) {
 	}
 	printError(&errb, err)
 	got := errb.String()
-	for _, want := range []string{"UNKNOWN_PROJECT", "pb-admin", "rc projects"} {
+	for _, want := range []string{"UNKNOWN_PROJECT", "pb-admin", "rc project list"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}
@@ -407,7 +407,7 @@ func TestRefreshDeadTokenPromptsReauth(t *testing.T) {
 
 	src := newLiveSource("default", stub.srv.URL)
 	_, err := src.Token(t.Context())
-	if err == nil || !strings.Contains(err.Error(), "rc login") {
+	if err == nil || !strings.Contains(err.Error(), "rc auth login") {
 		t.Fatalf("expected a re-login prompt, got %v", err)
 	}
 }

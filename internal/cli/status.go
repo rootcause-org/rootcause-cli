@@ -20,7 +20,7 @@ func newStatusCmd(e *env) *cobra.Command {
 				return err
 			}
 			// --project scopes an all-projects token to one project (disregarded for a pinned token).
-			params := client.RunsParams{Limit: 5, Project: e.scopeProject()}
+			params := client.RunsParams{Limit: 5, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 			// JSON mode is a verbatim passthrough so `| jq` sees the true response; table mode decodes
 			// into the typed struct for rendering.
 			if render.IsJSON(e.mode(), e.out) {

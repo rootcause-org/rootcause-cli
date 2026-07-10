@@ -26,7 +26,7 @@ func newPatternsCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "patterns",
 		Short: "Cluster recent failures into ranked patterns (bash + blocked egress)",
-		Long: "Page GET /api/v1/run-events and /egress-log and cluster them like run_patterns: bash-failure " +
+		Long: "Page GET /api/v1/run-events and /api/v1/egress-log and cluster them like run_patterns: bash-failure " +
 			"signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix " +
 			"stub. --all fans out across every project (all-projects token), one clustered section per project. " +
 			"-o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).",
@@ -40,7 +40,7 @@ func newPatternsCmd(e *env) *cobra.Command {
 				return runPatternsAll(e, c, days, top, kind)
 			}
 
-			fp := client.FeedParams{Days: days, Kind: kind, Project: e.scopeProject()}
+			fp := client.FeedParams{Days: days, Kind: kind, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 			events, egress, err := fetchPatternsFeeds(e, c, fp, "patterns")
 			if err != nil {
 				return err

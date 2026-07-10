@@ -62,7 +62,7 @@ func runUpgrade(e *env, current string, checkOnly bool) error {
 	}
 
 	if checkOnly {
-		_, _ = fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n  run: rc upgrade\n", normVersion(current), normVersion(latest))
+		_, _ = fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n  run: rc self update\n", normVersion(current), normVersion(latest))
 		return nil
 	}
 

@@ -23,7 +23,8 @@ cross-project).
 `--project <id-or-name>` is a different lever — a **server-side scope**, not a token selector: it keeps
 the active token and names one project on supported endpoints (`?project=`), letting an **all-projects
 admin token** review a single project (`rc fleet runs --project momentum-tools`) or trigger one (`rc ask
---project momentum-tools "…"`). A pinned token disregards it (it can't widen its own scope). The bet: a dev pulls this in to slice their data the way
+--project momentum-tools "…"`). A pinned token accepts only its own id/name and rejects a conflicting
+selector, so a supplied scope can never be silently ignored. The bet: a dev pulls this in to slice their data the way
 they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an action/skill, runs
 `rc run list` → `rc run events <id>` to **verify against real runs** — the author→verify loop taught in
 [rootcause-brain-skills/docs/rc-cli.md](../rootcause-brain-skills/docs/rc-cli.md).
@@ -33,6 +34,13 @@ they prefer (`| jq`, scripts, a quick `rc run <id>`) and, before authoring an ac
 The base rungs are one endpoint each (index → one run → detail). Higher-level commands (digests,
 patterns, health, thread trace) may fan out over several raw endpoints and compute the view locally —
 but they keep the raw rows reachable via `-o json`.
+
+Every executable command has a fail-closed scope contract (`internal/cli/scope.go`). Persistent
+`--project` / `--tenant` selectors are either applied or rejected before any request; `--all` is mutually
+exclusive with both. Tenant-record profile/settings commands take the slug positionally, never from
+ambient brain/login context. Tenant-capable collections use the canonical project/tenant route tree;
+outside a brain, a project-pinned login resolves its project through `/whoami`. Human tenant-scoped
+output starts with `Scope: <project> / <tenant>`; JSON remains the raw server body.
 
 | Command | Endpoint | What |
 |---|---|---|
@@ -49,8 +57,8 @@ but they keep the raw rows reachable via `-o json`.
 | `rc project knowledge content list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc project knowledge sync get/set` still owns KB sync config over `/api/v1/kb` |
 | `rc project settings behavior get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
 | `rc project triage policy get/set`, `rc project triage rules ls/add/set/rm` | `/api/v1/triage/*` | read/change mail draft/no-draft guidance and deterministic skip/force-process rules |
-| `rc project tenant settings get/set --tenant <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
-| `rc project tenant profile get/set --tenant <slug>` | `GET/PATCH /api/v1/tenants/{slug}/settings` | read/change the legacy tenant projection/profile values record while the server still exposes it at the old path |
+| `rc project tenant settings get/set <slug>` | `GET/PATCH /api/v1/projects/{project}/tenants/{slug}/settings?resolved=true` | read/change tenant hierarchy overrides; null clears the scope-local override |
+| `rc project tenant profile get/set <slug>` | `GET/PATCH /api/v1/tenants/{slug}/profile` | read/change the tenant projection/profile values record |
 | `rc project mailbox settings get/set <id>` | `GET/PATCH /api/v1/projects/{project}/mailboxes/{id}/settings?resolved=true` | read/change mailbox hierarchy overrides |
 | `rc project mailbox harvest <id> [--wait]` | `POST /api/v1/mailboxes/{id}/harvest` | start a local-synthesis harvest of a mailbox → a queued export; `--wait` polls the export to a terminal status. `--clean` (default true), `--max-threads N` |
 | `rc project mailbox connect-imap --email … --imap-host …` | `POST /api/v1/mailboxes/imap/connect` | connect a generic IMAP/SMTP mailbox (server live-probes IMAP+SMTP before saving). Password via `$RC_MAILBOX_PASSWORD` or stdin prompt — never argv. Defaults mirror the server (`--username`→`--email`, `--smtp-host`→`--imap-host`, `993/implicit`+`587/starttls`) |
@@ -219,7 +227,7 @@ it's a server-side scope the command layer threads onto each read request, never
 
 `--project <id-or-name>` rides as `?project=` on supported per-project endpoints (run index, feeds,
 health, thread-trace, prompt submit, env, and settings); an all-projects admin token uses it to scope
-one project, a pinned token disregards it server-side. The brain→default fallback sets this scope
+one project, while a pinned token requires the selector to name its own project. The brain→default fallback sets this scope
 implicitly from `.rootcause.toml`. Before using a non-empty scope, the CLI checks `GET /api/v1/projects`
 and returns `UNKNOWN_PROJECT` with a `rc project list` hint when the id/name is not visible. See
 `env.scopeProject` / `env.validateProjectScope` in `internal/cli/root.go`.
@@ -238,7 +246,7 @@ named error rather than silently running just that one. The per-project endpoint
 the fan-out + grouping live entirely in the CLI (`runFleetAll`/`runPatternsAll`/`runHealthAll`,
 `fanOutProjects` in `internal/cli`).
 
-`rc fleet runs health` renders the raw `/api/v1/health` inputs: mirror rows (state/staleness), watched-mailbox
+`rc fleet health` renders the raw `/api/v1/health` inputs: mirror rows (state/staleness), watched-mailbox
 watch facts, and dead-lettered runs in the chosen window. The CLI marks mailbox rows unhealthy only when
 they are parked (`error`/`needs_attention`) or active with an expired main/spam subscription; JSON mode
 still passes the raw shape through unchanged.

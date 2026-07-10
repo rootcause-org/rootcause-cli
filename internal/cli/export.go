@@ -39,7 +39,7 @@ func exportMineSettingsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			acc, raw, err := c.MineSettings(e.ctx(), args[0], e.scopeProject())
+			acc, raw, err := c.MineSettings(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -63,7 +63,7 @@ func exportLsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			l, raw, err := c.Exports(e.ctx(), e.scopeProject())
+			l, raw, err := c.Exports(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -87,7 +87,7 @@ func exportGetCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			x, raw, err := c.Export(e.ctx(), args[0], e.scopeProject())
+			x, raw, err := c.Export(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -121,7 +121,7 @@ func exportDownloadCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body, err := c.DownloadExport(e.ctx(), args[0], e.scopeProject())
+			body, err := c.DownloadExport(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}

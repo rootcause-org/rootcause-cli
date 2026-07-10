@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 
@@ -72,13 +71,13 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 				// JSON mode is the renderer's input contract: emit the bundle as JSONL from the raw bytes so
 				// no server field is dropped on the cross-repo seam. Table mode decodes into the typed bundle.
 				if jsonMode {
-					raw, err := c.Raw(e.ctx(), "GET", client.RunTracePath(id), nil)
+					raw, err := c.Raw(e.ctx(), "GET", client.RunTracePath(id, e.scopeProject(), e.scopeTenant()), nil)
 					if err != nil {
 						return err
 					}
 					return emitFullJSONL(e, id, raw, stream)
 				}
-				resp, err := c.Full(e.ctx(), id)
+				resp, err := c.Full(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 				if err != nil {
 					return err
 				}
@@ -87,7 +86,7 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 			}
 
 			if view == runViewEvents {
-				resp, err := c.Events(e.ctx(), id)
+				resp, err := c.Events(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 				if err != nil {
 					return err
 				}
@@ -102,13 +101,14 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 				// JSON mode is a byte-faithful passthrough (render, don't reshape); table mode decodes the
 				// typed BrainDiff and renders the commit + files + diff.
 				if jsonMode {
-					raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(id)+"/brain-diff", nil)
+					path := client.RunBrainDiffPath(id, e.scopeProject(), e.scopeTenant())
+					raw, err := c.Raw(e.ctx(), "GET", path, nil)
 					if err != nil {
 						return err
 					}
 					return e.renderJSON("run-brain-diff-"+id, raw)
 				}
-				resp, err := c.BrainDiff(e.ctx(), id)
+				resp, err := c.BrainDiff(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 				if err != nil {
 					return err
 				}
@@ -117,13 +117,13 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 			}
 
 			if jsonMode {
-				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs/"+url.PathEscape(id), nil)
+				raw, err := c.Raw(e.ctx(), "GET", client.RunPath(id, e.scopeProject(), e.scopeTenant()), nil)
 				if err != nil {
 					return err
 				}
 				return e.renderJSON("run-"+id, raw)
 			}
-			detail, err := c.Run(e.ctx(), id)
+			detail, err := c.Run(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -164,7 +164,7 @@ func runFeedbackCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.RunFeedback(e.ctx(), args[0], body, e.scopeProject())
+			raw, err := c.RunFeedback(e.ctx(), args[0], body, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -200,7 +200,7 @@ func runRetryCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.RunRetry(e.ctx(), args[0], body, e.scopeProject())
+			raw, err := c.RunRetry(e.ctx(), args[0], body, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -242,7 +242,7 @@ const defaultDebugDir = ".rootcause/debug"
 // raw jq-able JSONL event log + a thin markdown index, printing both paths. It does NOT render the run
 // into stdout — the whole point is to hand the agent primitives (the two files) it drills into itself.
 func runDebug(e *env, c *client.Client, id, outDir string) error {
-	full, err := c.Full(e.ctx(), id)
+	full, err := c.Full(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 	if err != nil {
 		return err
 	}
