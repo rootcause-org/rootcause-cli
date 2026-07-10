@@ -11,22 +11,6 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newConfigCmd builds `rc config get` and `rc config set k=v …`, mapping onto GET/PATCH
-// /api/v1/settings. The server owns the key whitelist and all validation; the CLI just shapes the
-// sparse PATCH body and renders the result, surfacing INVALID_SETTINGS field errors verbatim. It reuses
-// the generic bag builders (bag.go) — `rc kb` / `rc branding` / `rc action config` are the same shape
-// over their own bag paths.
-func newConfigCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "config",
-		Short: "Read or change project settings",
-	}
-	cmd.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"),
-		newProjectHierarchySettingsCmd(e),
-		newOpenRouterKeyCmd(e))
-	return cmd
-}
-
 // newOpenRouterKeyCmd builds `rc config openrouter-key set|clear|reveal` over the bespoke
 // /api/v1/settings/openrouter-key endpoint (PUT/DELETE/POST .../reveal). The key is box-wide. `set`
 // reads the key from STDIN by default (secret hygiene); an explicit arg is accepted but lands in shell

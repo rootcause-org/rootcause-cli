@@ -10,15 +10,6 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-func newDreamCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "dream",
-		Short: "Inspect local dream-cycle evidence",
-	}
-	cmd.AddCommand(dreamEvidenceCmd(e))
-	return cmd
-}
-
 func dreamEvidenceCmd(e *env) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{

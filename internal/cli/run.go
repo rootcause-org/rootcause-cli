@@ -300,17 +300,6 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 	return nil
 }
 
-// boolsSet counts how many of the given flags are true (for mutual-exclusion checks).
-func boolsSet(flags ...bool) int {
-	n := 0
-	for _, f := range flags {
-		if f {
-			n++
-		}
-	}
-	return n
-}
-
 // emitNDJSON writes one compact JSON object per event line. We re-marshal the typed events (rather
 // than passing the server's wrapping {run_id,events:[...]} through) precisely to get the NDJSON shape
 // the spec asks for: `| jq` over a stream, no enclosing array.

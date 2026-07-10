@@ -44,17 +44,6 @@ func newProjectsCmd(e *env) *cobra.Command {
 	}
 }
 
-// newProjectCmd builds the singular project-management surface. `rc projects` remains the read-only
-// fleet list; singular verbs act on one active project.
-func newProjectCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "project",
-		Short: "Manage the active project",
-	}
-	cmd.AddCommand(projectRenameCmd(e))
-	return cmd
-}
-
 func projectRenameCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "rename <new-name>",
@@ -88,7 +77,7 @@ func warnBrainMarkerRename(e *env, resp *client.ProjectRenameResponse) {
 		return
 	}
 	if _, err := config.UpdateBrainProject(e.resolved.Brain, resp.PreviousName, resp.Name); err != nil {
-		fmt.Fprintf(e.err, "warning: project renamed on server, but updating %s failed: %v\n", config.MarkerFileName, err)
+		_, _ = fmt.Fprintf(e.err, "warning: project renamed on server, but updating %s failed: %v\n", config.MarkerFileName, err)
 	}
 }
 

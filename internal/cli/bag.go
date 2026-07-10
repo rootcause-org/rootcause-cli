@@ -90,19 +90,6 @@ func newBagSetCmd(e *env, base string) *cobra.Command {
 	}
 }
 
-// newKBCmd builds `rc kb get|set` over GET/PATCH /api/v1/kb — the external KB-sync connection config.
-func newKBCmd(e *env, version string) *cobra.Command {
-	cmd := &cobra.Command{Use: "kb", Short: "Search KB content and manage KB-sync config"}
-	cmd.AddCommand(
-		newKBListCmd(e),
-		newKBSearchCmd(e, version),
-		newKBExportCmd(e, version),
-		newBagGetCmd(e, "/api/v1/kb"),
-		newBagSetCmd(e, "/api/v1/kb"),
-	)
-	return cmd
-}
-
 // newBrandingCmd builds `rc branding get|set` over GET/PATCH /api/v1/branding — white-label appearance
 // + public base URL. (The logo binary is its own endpoint, not part of this bag.)
 func newBrandingCmd(e *env) *cobra.Command {
