@@ -87,15 +87,16 @@ Usage:
   rc run [command]
 
 Available Commands:
-  list        List recent runs (filterable)
-  show        Show one run
-  events      Show the full per-event trace
-  trace       Show the whole run bundle
-  debug       Decompose a run into local debug artifacts
-  brain-diff  Show the brain commit written by a run
-  thread      Trace one thread/session: every run for it, with placement + a why-no-draft hint
-  feedback    Record score/comment feedback on a run's trace
-  retry       Re-run a run (optionally at a different tier); prints the new run id
+  list           List recent runs (filterable)
+  show           Show one run
+  events         Show the full per-event trace
+  trace          Show the whole run bundle
+  debug          Decompose a run into local debug artifacts
+  brain-diff     Show the brain commit written by a run
+  thread         Trace one thread/session: every run for it, with placement + a why-no-draft hint
+  feedback       Record score/comment feedback on a run's trace
+  retry          Re-run a run (optionally at a different tier); prints the new run id
+  process-thread Process a triage-skipped or security-blocked inbox thread
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -254,6 +255,21 @@ Usage:
 
 Flags:
       --tier string   model tier for the retry: standard|pro|max
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --tenant string    override the login tenant where supported
+
+$ rc run process-thread --help
+Process a triage-skipped or security-blocked inbox thread
+
+Usage:
+  rc run process-thread <thread-id> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

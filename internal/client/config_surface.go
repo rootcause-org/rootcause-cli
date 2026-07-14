@@ -161,6 +161,15 @@ func (c *Client) RunRetry(ctx context.Context, id string, body map[string]any, p
 	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/retry", body, project, tenant)
 }
 
+// ProcessInboxThread resumes a triage-skipped or security-blocked thread through the canonical project tree.
+func (c *Client) ProcessInboxThread(ctx context.Context, id, project, tenant string) (json.RawMessage, error) {
+	if project == "" {
+		return nil, fmt.Errorf("--project <project> is required to process an inbox thread")
+	}
+	path := scopedTreePath(project, tenant, "/inbox/threads/"+url.PathEscape(id)+"/process", "")
+	return c.Raw(ctx, http.MethodPost, path, map[string]any{})
+}
+
 // --- Database controls (GET/PATCH /api/v1/databases/{dsn}/controls) ---
 
 // DatabaseControls fetches a database's controls sub-resource.

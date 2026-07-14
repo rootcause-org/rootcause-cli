@@ -1094,6 +1094,15 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"run_id":"99999999-9999-9999-9999-999999999999","status":"queued"}`))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/inbox/threads/{id}/process", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("project") != "alpha" {
+			t.Fatalf("process thread project = %q", r.PathValue("project"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"job_id":"42","status":"queued","status_url":"/api/v1/projects/alpha/inbox/threads/thread-1"}`))
+	})
 
 	// admin: users / projects / catalog.
 	mux.HandleFunc("GET /api/v1/admin/users", func(w http.ResponseWriter, r *http.Request) {

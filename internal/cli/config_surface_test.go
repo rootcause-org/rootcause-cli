@@ -456,6 +456,18 @@ func TestRunRetryPrintsNewID(t *testing.T) {
 	}
 }
 
+func TestRunProcessThreadPrintsStatusURL(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "process-thread", "thread-1"); err != nil {
+		t.Fatalf("run process-thread: %v", err)
+	}
+	if got := out.String(); got != "/api/v1/projects/alpha/inbox/threads/thread-1\n" {
+		t.Errorf("run process-thread output = %q", got)
+	}
+}
+
 // --- admin ---
 
 func TestAdminUserListTable(t *testing.T) {

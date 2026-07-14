@@ -52,6 +52,7 @@ output starts with `Scope: <project> / <tenant>`; JSON remains the raw server bo
 | `rc run events <id>` | `GET /api/v1/runs/{id}/events` | full per-event trace (NDJSON in JSON mode) |
 | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
 | `rc run debug <id>` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
+| `rc run process-thread <thread-id>` | `POST /api/v1/projects/{project}[/tenants/{slug}]/inbox/threads/{id}/process` | resume a triage-skipped or security-blocked mail thread; requires an explicit or brain-derived project |
 | `rc dev learning evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit evidence for local dream-cycle passes; JSON is the primary surface |
 | `rc project settings runtime get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
 | `rc project knowledge content list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc project knowledge sync get/set` still owns KB sync config over `/api/v1/kb` |

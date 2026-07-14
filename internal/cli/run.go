@@ -43,6 +43,7 @@ func newRunCmd(e *env) *cobra.Command {
 		newThreadCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),
+		runProcessThreadCmd(e),
 	)
 	return cmd
 }
@@ -222,6 +223,38 @@ func runRetryCmd(e *env) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&tier, "tier", "", "model tier for the retry: standard|pro|max")
 	return cmd
+}
+
+// runProcessThreadCmd is the machine twin of Inbox's Process now button.
+func runProcessThreadCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "process-thread <thread-id>",
+		Short: "Process a triage-skipped or security-blocked inbox thread",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			raw, err := c.ProcessInboxThread(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			it := asItem(raw)
+			if statusURL := cellOf(it, "status_url"); statusURL != "" {
+				_, _ = fmt.Fprintln(e.out, statusURL)
+				return nil
+			}
+			render.Item(e.out, it)
+			return nil
+		},
+	}
 }
 
 // cellOf extracts a string field from an Item (the new run id, etc.); "" if absent or non-string.
