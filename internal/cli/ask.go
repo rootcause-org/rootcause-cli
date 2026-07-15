@@ -50,10 +50,6 @@ func newAskCmd(e *env) *cobra.Command {
 		Short: "Trigger a run from a question and wait for the answer",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c, err := e.newClient()
-			if err != nil {
-				return err
-			}
 			jsonMode := render.IsJSON(e.mode(), e.out)
 
 			effort, err := normalizeAskEffort(f.effort, cmd.Flags().Changed("effort"))
@@ -69,6 +65,10 @@ func newAskCmd(e *env) *cobra.Command {
 				return err
 			}
 			attachments, err := readAskAttachments(f.attachPaths)
+			if err != nil {
+				return err
+			}
+			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
