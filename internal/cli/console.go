@@ -108,6 +108,7 @@ func newDBSchemaCmd(e *env) *cobra.Command {
 
 func newDBQueryCmd(e *env) *cobra.Command {
 	var limit int
+	var write bool
 	cmd := &cobra.Command{
 		Use:   "query <db> <sql>",
 		Short: "Run a read-only SQL query through rootcause scoping",
@@ -121,6 +122,9 @@ func newDBQueryCmd(e *env) *cobra.Command {
 			if limit > 0 {
 				req["limit"] = limit
 			}
+			if write {
+				req["write"] = true
+			}
 			path := "/api/v1/console/db/" + url.PathEscape(args[0]) + "/query" + consoleScope(e.scopeProject(), e.scopeTenant())
 			if e.jsonOut() {
 				raw, err := c.Raw(e.ctx(), http.MethodPost, path, req)
@@ -129,7 +133,7 @@ func newDBQueryCmd(e *env) *cobra.Command {
 				}
 				return e.renderJSON("console-db-query", raw)
 			}
-			resp, err := c.DBQuery(e.ctx(), args[0], client.DBQueryRequest{SQL: args[1], Limit: limit}, e.scopeProject(), e.scopeTenant())
+			resp, err := c.DBQuery(e.ctx(), args[0], client.DBQueryRequest{SQL: args[1], Limit: limit, Write: write}, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -138,6 +142,7 @@ func newDBQueryCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVar(&limit, "limit", 0, "max rows to return inline (server cap 500)")
+	cmd.Flags().BoolVar(&write, "write", false, "execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write")
 	return cmd
 }
 

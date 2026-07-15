@@ -104,3 +104,28 @@ func TestDatabasePreviewPrincipalPairValidated(t *testing.T) {
 		t.Fatalf("lone principal-kind = %v, want a pair error", err)
 	}
 }
+
+// TestConsoleDBQueryWriteForwardsFlag: `dev console database query --write` carries write:true to the
+// console endpoint (the flag is the consent, no prompt), and the table view leads with the commit count.
+func TestConsoleDBQueryWriteForwardsFlag(t *testing.T) {
+	var gotBody map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"project":"pro-backup","db":"backups","run_id":"run-1","columns":["id"],"rows":[{"id":7}],"row_count":1,"rows_affected":1,"write":true,"duration_ms":12}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "console", "database", "query", "backups", "update backups set x=1 where id=7 returning id", "--write"); err != nil {
+		t.Fatalf("console db query --write: %v", err)
+	}
+	if gotBody["write"] != true {
+		t.Errorf("write flag not forwarded in body: %v", gotBody)
+	}
+	if got := out.String(); !strings.Contains(got, "rows affected: 1") {
+		t.Errorf("render missing rows-affected line:\n%s", got)
+	}
+}

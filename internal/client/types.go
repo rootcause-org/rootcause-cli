@@ -15,6 +15,9 @@ type ConsoleDBInfo struct {
 	Description string `json:"description,omitempty"`
 	Scoped      bool   `json:"scoped"`
 	PIIMasked   bool   `json:"pii_masked"`
+	// Writable is true when the project has sealed a <X>_WRITE_DSN for this database in .env.action —
+	// the presence of write-plane credentials that `query --write` (scope console:db:write) commits to.
+	Writable bool `json:"writable,omitempty"`
 }
 
 type ConsoleScriptInfo struct {
@@ -174,18 +177,26 @@ type DBSchemaColumn struct {
 type DBQueryRequest struct {
 	SQL   string `json:"sql"`
 	Limit int    `json:"limit,omitempty"`
+	// Write routes the statement to the project's sealed write-plane DSN and COMMITs (scope
+	// console:db:write); omitempty so a plain read never carries it.
+	Write bool `json:"write,omitempty"`
 }
 
 type DBQueryResponse struct {
-	Project    string           `json:"project"`
-	Tenant     string           `json:"tenant,omitempty"`
-	DB         string           `json:"db"`
-	RunID      string           `json:"run_id"`
-	Columns    []string         `json:"columns"`
-	Rows       []map[string]any `json:"rows"`
-	RowCount   int              `json:"row_count"`
-	Truncated  bool             `json:"truncated"`
-	DurationMs int64            `json:"duration_ms"`
+	Project string           `json:"project"`
+	Tenant  string           `json:"tenant,omitempty"`
+	DB      string           `json:"db"`
+	RunID   string           `json:"run_id"`
+	Columns []string         `json:"columns"`
+	Rows    []map[string]any `json:"rows"`
+	// RowsAffected is the write's CommandTag row count; a pointer because it is present only on a write
+	// response (absent on a read), distinct from a real 0-row write. Write echoes that the statement ran
+	// on the write plane.
+	RowsAffected *int64 `json:"rows_affected,omitempty"`
+	Write        bool   `json:"write,omitempty"`
+	RowCount     int    `json:"row_count"`
+	Truncated    bool   `json:"truncated"`
+	DurationMs   int64  `json:"duration_ms"`
 }
 
 type BashListResponse struct {

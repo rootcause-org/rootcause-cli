@@ -42,9 +42,9 @@ func DBList(w io.Writer, r *client.DBListResponse) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "NAME\tENV\tSCOPED\tPII\tDESCRIPTION")
+	_, _ = fmt.Fprintln(tw, "NAME\tENV\tSCOPED\tPII\tWRITABLE\tDESCRIPTION")
 	for _, d := range r.Databases {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", d.Name, d.Env, yesNo(d.Scoped), yesNo(d.PIIMasked), d.Description)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", d.Name, d.Env, yesNo(d.Scoped), yesNo(d.PIIMasked), yesNo(d.Writable), d.Description)
 	}
 	_ = tw.Flush()
 }
@@ -69,6 +69,11 @@ func DBSchema(w io.Writer, r *client.DBSchemaResponse) {
 }
 
 func DBQuery(w io.Writer, r *client.DBQueryResponse) {
+	// A write (rows_affected present) leads with its commit count; the RETURNING rows, if any, still
+	// render below through the same row table.
+	if r.RowsAffected != nil {
+		_, _ = fmt.Fprintf(w, "rows affected: %d\n", *r.RowsAffected)
+	}
 	if len(r.Rows) == 0 {
 		_, _ = fmt.Fprintf(w, "0 rows (%d ms)\n", r.DurationMs)
 		return

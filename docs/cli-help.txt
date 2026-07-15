@@ -2549,6 +2549,7 @@ Usage:
 
 Flags:
       --limit int   max rows to return inline (server cap 500)
+      --write       execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
