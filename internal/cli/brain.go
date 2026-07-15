@@ -2,23 +2,25 @@ package cli
 
 import (
 	"errors"
+	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 // errEmptyInstruction is the clear "nothing to do" error when no instruction arrives via args or stdin.
 var errEmptyInstruction = errors.New("empty instruction — pass it as args or pipe it on stdin")
 
-// newBrainCmd builds `rc dev brain edit <instruction>` and `rc dev brain consolidate` over the out-of-band
-// brain-write queue (POST /api/v1/brain/{edit,consolidate}). Both are async — they return
-// {queued, job_id}; the durable write lands later (the run is read-only to the brain). The instruction
-// is joined from the args, or read from STDIN when none are given (so a long instruction can be piped).
+// newBrainCmd groups project-brain cache inspection/promotion with the out-of-band edit/consolidation
+// queue. Promotion is the synchronous, exact-SHA exception; edits remain async and durable writes land
+// outside a run. Long edit instructions can be piped on STDIN.
 func newBrainCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "brain", Short: "Inspect, sync, and queue out-of-band brain work"}
-	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainEditCmd(e), brainConsolidateCmd(e))
+	cmd := &cobra.Command{Use: "brain", Short: "Inspect, sync, promote, and queue out-of-band brain work"}
+	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPromoteCmd(e), brainEditCmd(e), brainConsolidateCmd(e))
 	return cmd
 }
 
@@ -66,6 +68,46 @@ func brainSyncCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+var fullGitSHA = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
+
+func brainPromoteCmd(e *env) *cobra.Command {
+	var channel, sha string
+	cmd := &cobra.Command{
+		Use:   "promote --channel stable|edge --sha <commit>",
+		Short: "Promote an exact tested commit to a project brain channel",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if channel != "stable" && channel != "edge" {
+				return fmt.Errorf("--channel must be stable or edge")
+			}
+			if !fullGitSHA.MatchString(sha) {
+				return fmt.Errorf("--sha must be an exact full 40-character commit SHA")
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			resp, raw, err := c.BrainPromote(e.ctx(), e.scopeProject(), client.BrainPromoteRequest{Channel: channel, SHA: strings.ToLower(sha)})
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.BrainPromote(e.out, resp)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&channel, "channel", "", "managed channel to move (stable or edge)")
+	cmd.Flags().StringVar(&sha, "sha", "", "exact full 40-character commit SHA")
+	_ = cmd.MarkFlagRequired("channel")
+	_ = cmd.MarkFlagRequired("sha")
+	return cmd
 }
 
 func brainEditCmd(e *env) *cobra.Command {

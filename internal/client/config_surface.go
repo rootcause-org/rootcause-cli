@@ -81,7 +81,7 @@ func (c *Client) GitHubStatus(ctx context.Context, project string) (json.RawMess
 	return c.RawScoped(ctx, http.MethodGet, "/api/v1/github/status", nil, project, "")
 }
 
-// --- Brain status / sync / edit / consolidate (/api/v1/brain/*) ---
+// --- Brain status / sync / promote / edit / consolidate ---
 
 // BrainStatus fetches the on-box brain cache status relative to origin/main.
 func (c *Client) BrainStatus(ctx context.Context, project, tenant string) (*BrainStatusResponse, json.RawMessage, error) {
@@ -109,6 +109,24 @@ func (c *Client) BrainSync(ctx context.Context, project, tenant string) (*BrainS
 		return nil, nil, err
 	}
 	var out BrainSyncResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
+// BrainPromote moves one managed project channel to an exact tested commit. Promotion has no tenant
+// route: tenant overlays always use main, and a tenant-scoped principal must not move a shared channel.
+func (c *Client) BrainPromote(ctx context.Context, project string, req BrainPromoteRequest) (*BrainPromoteResponse, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required to promote a brain channel"}
+	}
+	var raw json.RawMessage
+	path := "/api/v1/projects/" + url.PathEscape(project) + "/brain/promote"
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out BrainPromoteResponse
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, nil, err
 	}

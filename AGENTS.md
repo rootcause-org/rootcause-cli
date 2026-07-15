@@ -39,5 +39,6 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 No MCP in v1, no direct DB access (data comes via `/api/v1`), no interactive TUI. Client-side analysis is
 fine; keep the server endpoints thin and raw. Auth is **OAuth only** against the
 server's existing `/oauth/*` (the CLI invents no auth of its own). Server writes are limited to public
-config/run surfaces: `rc project settings runtime set`, `rc project env set/rm`, and `rc ask`; `rc project env pull` writes a local `./.env`
+config/run/brain surfaces: `rc project settings runtime set`, `rc project env set/rm`, `rc ask`, and
+the exact-SHA project-channel `rc dev brain promote`; `rc project env pull` writes a local `./.env`
 only and never prints secret values.

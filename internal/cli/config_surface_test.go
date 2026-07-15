@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -347,6 +349,69 @@ func TestBrainSyncTable(t *testing.T) {
 		t.Fatalf("dev brain sync: %v", err)
 	}
 	assertGolden(t, "brain_sync.golden", out.String())
+}
+
+func TestBrainPromoteTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "brain", "promote", "--channel", "stable", "--sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE"); err != nil {
+		t.Fatalf("dev brain promote: %v", err)
+	}
+	assertGolden(t, "brain_promote.golden", out.String())
+}
+
+func TestBrainPromoteJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "dev", "brain", "promote", "--channel", "stable", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"); err != nil {
+		t.Fatalf("dev brain promote -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "brain_promote.json"), out.Bytes())
+}
+
+func TestBrainPromoteRejectsInvalidInputsAndTenantSelector(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"channel", []string{"dev", "brain", "promote", "--channel", "main", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "stable or edge"},
+		{"short sha", []string{"dev", "brain", "promote", "--channel", "stable", "--sha", "222222222222"}, "full 40-character"},
+		{"tenant selector", []string{"--tenant", "de-kies", "dev", "brain", "promote", "--channel", "stable", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "--tenant is not supported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenOvr: "test", baseURLOvr: "http://127.0.0.1:1", output: "table"}
+			err := run(t, e, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestBrainPromoteTenantPinnedLoginUsesOnlyProjectRoute(t *testing.T) {
+	called := false
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"email":"maintainer@example.test","project":{"id":"p1","name":"dentai"},"tenant":{"id":"t1","slug":"de-kies"}}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/dentai/brain/promote", func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":{"code":"NOT_FOUND","message":"not found"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "dev", "brain", "promote", "--channel", "stable", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce")
+	if err == nil {
+		t.Fatal("expected tenant-pinned promotion denial")
+	}
+	if !called {
+		t.Fatal("promotion did not use canonical project route")
+	}
 }
 
 func TestBrainEditTable(t *testing.T) {

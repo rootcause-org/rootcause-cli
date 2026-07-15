@@ -1000,6 +1000,24 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "brain_sync.json"))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/promote", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if got := r.PathValue("project"); got != "alpha" {
+			t.Fatalf("brain promote project = %q, want alpha", got)
+		}
+		var body struct {
+			Channel string `json:"channel"`
+			SHA     string `json:"sha"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode brain promote body: %v", err)
+		}
+		if body.Channel != "stable" || body.SHA != "d2f9de784ab7cded001f2b6ac86892795f58a8ce" {
+			t.Fatalf("brain promote body = %+v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "brain_promote.json"))
+	})
 	mux.HandleFunc("POST /api/v1/brain/edit", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

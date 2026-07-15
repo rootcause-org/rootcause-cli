@@ -21,6 +21,9 @@ $ rc run list --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run events <id>        # full per-iteration trace (NDJSON when piped)
 $ rc run trace <id>          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
 $ rc dev learning evidence --limit 50 -o json
+$ rc dev brain sync
+$ rc dev brain promote --channel stable --sha "$(git rev-parse HEAD)"
+$ rc dev brain status                 # verify stable/edge resolved SHAs before claiming success
 $ rc project settings runtime set max_run_usd=5 default_tier=pro
 $ rc project settings behavior set persona.tone=warm channel.labeling_enabled=true
 $ rc project triage policy get -o json
@@ -123,6 +126,14 @@ admin can keep one all-projects token in `default` and still have each brain che
 own project. Main intent: the checkout chooses the project context; the profile only chooses which
 local token to use.
 
+Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
+sync`, then `rc dev brain promote --channel stable --sha <full-40-character-SHA>`. Promotion moves only
+the named managed channel to that commit; it never promotes an ambient `main` tip. Finish with `rc dev
+brain status` and confirm the channel's **resolved** SHA. Tenant overlays always run from their own
+`main` and have no promotion route. A tenant-scoped login cannot move the shared project channel; sign
+in with an authorized project-maintainer login instead. Explicitly narrowed tokens need the dedicated
+`brain:promote` OAuth scope in addition to that project-level admin authority.
+
 **Base URL** is deliberately boring: production is hardcoded to `https://app.replypen.com`. The only
 runtime override is `ROOTCAUSE_BASE_URL`, for deliberate staging/dev work. `rc auth login` uses the same
 resolution, and `rc auth status` prints both the URL and its source (`built-in production` or
@@ -201,9 +212,10 @@ help using `go test ./internal/cli -update`.
 | `rc dev api` | Inspect the public API contract |
 | `rc dev brain consolidate` | Queue the consolidation cron on demand |
 | `rc dev brain edit` | Queue a brain edit from a plain-language instruction (or STDIN) |
+| `rc dev brain promote` | Promote an exact tested commit to a project brain channel |
 | `rc dev brain status` | Show deployed brain cache status |
 | `rc dev brain sync` | Fetch origin/main and refresh deployed brain cache |
-| `rc dev brain` | Inspect, sync, and queue out-of-band brain work |
+| `rc dev brain` | Inspect, sync, promote, and queue out-of-band brain work |
 | `rc dev console action list` | List available actions |
 | `rc dev console action preflight` | Run action preflight/dry-run |
 | `rc dev console action run` | Execute an action |

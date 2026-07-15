@@ -5,3 +5,8 @@ Origin:  222222222222
 State:   behind (ahead 0, behind 1) stale
 Synced:  2026-07-01T10:44:34Z
 Note:    origin/main has commits not deployed on this box
+
+Channels:
+CHANNEL  RESOLVED      ORIGIN        MAIN          ORIGIN?  MAIN?  STATE        PROVENANCE
+stable   333333333333  444444444444  222222222222  no       no     behind_main  refs/heads/stable
+edge     222222222222  222222222222  222222222222  yes      yes    current      refs/heads/edge

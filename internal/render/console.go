@@ -251,6 +251,17 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 	if st.Message != "" {
 		_, _ = fmt.Fprintf(w, "Note:    %s\n", st.Message)
 	}
+	if len(st.Channels) > 0 {
+		_, _ = fmt.Fprintln(w, "\nChannels:")
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "CHANNEL\tRESOLVED\tORIGIN\tMAIN\tORIGIN?\tMAIN?\tSTATE\tPROVENANCE")
+		for _, ch := range st.Channels {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+				ch.Channel, dash(shortGit(ch.ResolvedSHA)), dash(shortGit(ch.OriginSHA)), dash(shortGit(ch.MainSHA)),
+				yesNo(ch.MatchesOrigin), yesNo(ch.MatchesMain), dash(ch.State), dash(ch.Provenance))
+		}
+		_ = tw.Flush()
+	}
 }
 
 func BrainSync(w io.Writer, r *client.BrainSyncResponse) {
@@ -269,6 +280,18 @@ func BrainSync(w io.Writer, r *client.BrainSyncResponse) {
 	}
 	_, _ = fmt.Fprintln(w)
 	BrainStatus(w, &client.BrainStatusResponse{Project: r.Project, Status: st})
+}
+
+func BrainPromote(w io.Writer, r *client.BrainPromoteResponse) {
+	state := "changed"
+	if r.Idempotent || !r.Changed {
+		state = "idempotent"
+	}
+	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
+	_, _ = fmt.Fprintf(w, "Channel: %s\n", r.Channel)
+	_, _ = fmt.Fprintf(w, "Old:     %s\n", dash(shortGit(r.OldSHA)))
+	_, _ = fmt.Fprintf(w, "New:     %s\n", dash(shortGit(r.NewSHA)))
+	_, _ = fmt.Fprintf(w, "State:   %s\n", state)
 }
 
 func ActionList(w io.Writer, r *client.ActionListResponse) {

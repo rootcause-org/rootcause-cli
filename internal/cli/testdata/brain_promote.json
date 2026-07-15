@@ -1,0 +1,9 @@
+{
+  "project": "alpha",
+  "channel": "stable",
+  "old_sha": "3333333333333333333333333333333333333333",
+  "new_sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
+  "changed": true,
+  "idempotent": false,
+  "audit_id": "audit-extra-field-kept-in-json"
+}

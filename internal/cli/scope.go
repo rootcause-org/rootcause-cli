@@ -55,6 +55,9 @@ func commandScope(path string) scopeSpec {
 	path = strings.TrimSpace(strings.TrimPrefix(path, "rc "))
 	projectTenant := scopeSpec{Project: true, Tenant: true}
 	projectOnly := scopeSpec{Project: true}
+	if path == "dev brain promote" {
+		return projectOnly
+	}
 
 	// Tenant-capable runtime and inherited-resource surfaces. Positional tenant-record commands are
 	// deliberately excluded: their slug argument is the target, never ambient --tenant context.

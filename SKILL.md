@@ -66,7 +66,8 @@ output starts with `Scope: <project> / <tenant>`; JSON remains the raw server bo
 | `rc project corpus ls` / `get <id>` | `GET /api/v1/exports[/{id}]` | list/read the harvest/survey corpus exports (newest-first) |
 | `rc project corpus download <id> [--out f] [--split dir]` | `GET /api/v1/exports/{id}/download` | download the raw Markdown corpus (stdout/`--out`), or `--split` it into an `INDEX.md` + per-thread tree the local dream-cycle greps (default `.rootcause/exports/<id>/`, auto-gitignored). Marks the export consumed |
 | `rc dev api routes` / `rc dev api openapi` | `GET /api/v1/meta/routes` / `GET /api/v1/meta/openapi.json` | canonical route manifest + generated OpenAPI |
-| `rc dev brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
+| `rc dev brain status` / `sync` | `GET` / `POST /api/v1/brain/{status,sync}` | inspect/refresh the deployed on-box brain cache; status includes stable/edge resolved, origin, and main SHAs; sync fetches origin/main, fast-forwards when safe, and expires warm bash workspaces |
+| `rc dev brain promote --channel stable|edge --sha <full-SHA>` | `POST /api/v1/projects/{project}/brain/promote` | move one managed project-brain channel to the exact tested commit; project-admin authority + `brain:promote` when explicitly scope-limited, never tenant scope |
 | `rc project repo ls/add/set/rm` | `GET/POST/PATCH/DELETE /api/v1/repos` | source repos (mirrors + per-repo PR config); id = repo name |
 | `rc project tenant ls/add/get/set` | `GET/POST/GET/PATCH /api/v1/tenants[/{slug}]` | manage project tenant rows; archive with `set <slug> status=archived` |
 | `rc project connection ls/add/reveal/rotate/rm` | `/api/v1/connections` (+ `/{id}/reveal\|rotate\|revoke`) | outbound integration connections; `reveal` prints the secret to stdout ONCE; `rm` = revoke then DELETE |
@@ -122,21 +123,16 @@ prints a value, with a stderr warning, for intentional copy/pipe use. `--plane g
 normal read-only run env (`env_grounding`); `--plane action` targets `.env.action` (`env_action`), an
 operator-only write-plane collection that is never mounted into normal runs.
 
-`rc dev brain status` and `rc dev brain sync` are the public brain-cache loop for project brain developers:
-`status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
-state; `sync` fetches origin/main, fast-forwards local main only when safe, and refreshes warm
-Developer Console bash workspaces so the next `rc dev console bash run` remounts `/brain`. If local main is
-ahead/diverged/dirty, the server refuses to reconcile and returns the current/deployed SHAs so an
-operator can handle it explicitly. `rc dev console bash list`, `rc dev console bash run`, and `rc dev console capabilities` echo brain
-status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
-
-`rc dev brain status` and `rc dev brain sync` are the public brain-cache loop for project brain developers:
-`status` reports the deployed local SHA, origin/main SHA, ref, sync time, and stale/manual-reconcile
-state; `sync` fetches origin/main, fast-forwards local main only when safe, and refreshes warm
-Developer Console bash workspaces so the next `rc dev console bash run` remounts `/brain`. If local main is
-ahead/diverged/dirty, the server refuses to reconcile and returns the current/deployed SHAs so an
-operator can handle it explicitly. `rc dev console bash list`, `rc dev console bash run`, and `rc dev console capabilities` echo brain
-status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
+`rc dev brain status`, `sync`, and `promote` are the public project-brain publishing loop. Push the
+tested commit, `sync` origin/main into the on-box cache, promote its **exact full SHA** to `stable` or
+`edge`, then use `status` to verify the channel's on-box `resolved_sha` plus its fetched
+`origin_sha`/`main_sha`, comparison state, and ref provenance. Never infer a live channel from
+main=`current`: a managed channel can still be stale. Promotion retries are idempotent. The canonical
+route is project-only; tenant overlays use main and have no channels, and tenant-scoped principals must
+be denied rather than redirected to a tenant brain route. If local main is ahead/diverged/dirty, sync
+refuses to reconcile and returns the current/deployed SHAs for explicit handling. Sync refreshes warm
+Developer Console bash workspaces so the next bash run remounts `/brain`; console surfaces also echo
+brain status/resolution so a pushed brain commit cannot fail silently behind an old catalog.
 
 `rc run trace` and `rc run debug` treat historical snapshots as authoritative: `brain_resolved`,
 `tenant_settings`, and `grounding_sources` come from `/trace`; current tenant/source state is only a drift
@@ -350,8 +346,9 @@ verified by hand against a real release. Keep this the *only* command that reach
 No MCP in v1 (a future layer over the same endpoints). Client-side analysis/rendering is fine, but **no
 direct DB access** — data comes only through `/api/v1`, and the endpoints behind it stay thin (raw rows,
 not server-computed views), with `-o json` always exposing those rows. Server writes are limited to
-public config/run surfaces: `rc project settings runtime set` (settings whitelist), `rc project env set/rm` (sealed per-key secret
-collections), and `rc ask` (triggers a run via `POST /api/v1/runs`; the CLI still holds no run logic).
+public config/run/brain surfaces: `rc project settings runtime set` (settings whitelist), `rc project env set/rm` (sealed per-key secret
+collections), `rc ask` (triggers a run via `POST /api/v1/runs`; the CLI still holds no run logic), and
+the project-only exact-SHA `rc dev brain promote`.
 `rc project env pull` writes a LOCAL `./.env` only — still a GET against the API. Auth is **OAuth only**, against the server's existing `/oauth/*`
 endpoints + the static first-party CLI client — the CLI invents no auth of its own (no new grant types,
 no token minting beyond the standard flows). No interactive TUI/dashboard — scriptable, pipe-first,

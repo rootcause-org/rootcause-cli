@@ -12,6 +12,28 @@
     "stale": true,
     "state": "behind",
     "synced_at": "2026-07-01T10:44:34Z",
-    "message": "origin/main has commits not deployed on this box"
+    "message": "origin/main has commits not deployed on this box",
+    "channels": [
+      {
+        "channel": "stable",
+        "resolved_sha": "3333333333333333333333333333333333333333",
+        "origin_sha": "4444444444444444444444444444444444444444",
+        "main_sha": "2222222222222222222222222222222222222222",
+        "matches_origin": false,
+        "matches_main": false,
+        "state": "behind_main",
+        "provenance": "refs/heads/stable"
+      },
+      {
+        "channel": "edge",
+        "resolved_sha": "2222222222222222222222222222222222222222",
+        "origin_sha": "2222222222222222222222222222222222222222",
+        "main_sha": "2222222222222222222222222222222222222222",
+        "matches_origin": true,
+        "matches_main": true,
+        "state": "current",
+        "provenance": "refs/heads/edge"
+      }
+    ]
   }
 }

@@ -75,18 +75,30 @@ type ActionStats struct {
 }
 
 type BrainStatus struct {
-	Available bool   `json:"available"`
-	Dir       string `json:"dir,omitempty"`
-	Ref       string `json:"ref"`
-	LocalSHA  string `json:"local_sha,omitempty"`
-	RemoteSHA string `json:"remote_sha,omitempty"`
-	Ahead     int    `json:"ahead"`
-	Behind    int    `json:"behind"`
-	Dirty     bool   `json:"dirty"`
-	Stale     bool   `json:"stale"`
-	State     string `json:"state"`
-	SyncedAt  string `json:"synced_at,omitempty"`
-	Message   string `json:"message,omitempty"`
+	Available bool                 `json:"available"`
+	Dir       string               `json:"dir,omitempty"`
+	Ref       string               `json:"ref"`
+	LocalSHA  string               `json:"local_sha,omitempty"`
+	RemoteSHA string               `json:"remote_sha,omitempty"`
+	Ahead     int                  `json:"ahead"`
+	Behind    int                  `json:"behind"`
+	Dirty     bool                 `json:"dirty"`
+	Stale     bool                 `json:"stale"`
+	State     string               `json:"state"`
+	SyncedAt  string               `json:"synced_at,omitempty"`
+	Message   string               `json:"message,omitempty"`
+	Channels  []BrainChannelStatus `json:"channels,omitempty"`
+}
+
+type BrainChannelStatus struct {
+	Channel       string `json:"channel"`
+	ResolvedSHA   string `json:"resolved_sha,omitempty"`
+	OriginSHA     string `json:"origin_sha,omitempty"`
+	MainSHA       string `json:"main_sha,omitempty"`
+	MatchesOrigin bool   `json:"matches_origin"`
+	MatchesMain   bool   `json:"matches_main"`
+	State         string `json:"state"`
+	Provenance    string `json:"provenance,omitempty"`
 }
 
 type BrainStatusResponse struct {
@@ -107,6 +119,20 @@ type BrainSyncResult struct {
 type BrainSyncResponse struct {
 	Project string          `json:"project"`
 	Sync    BrainSyncResult `json:"sync"`
+}
+
+type BrainPromoteRequest struct {
+	Channel string `json:"channel"`
+	SHA     string `json:"sha"`
+}
+
+type BrainPromoteResponse struct {
+	Project    string `json:"project"`
+	Channel    string `json:"channel"`
+	OldSHA     string `json:"old_sha"`
+	NewSHA     string `json:"new_sha"`
+	Changed    bool   `json:"changed"`
+	Idempotent bool   `json:"idempotent"`
 }
 
 type CapabilitiesResponse struct {
