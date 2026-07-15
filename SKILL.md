@@ -342,7 +342,7 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   it falls back to a static known-key set (`egress.allowlist`, `pr.triggers` as lists; `max_run_usd` as a
   number). The server is always the final validator.
 
-## The one non-API command: `rc self update`
+## Local installation commands: `rc self update` / `rc self doctor`
 
 [`internal/cli/upgrade.go`](internal/cli/upgrade.go) is the deliberate exception to "every command is
 one API call": it talks to the **GitHub releases** API (not the rootcause API, no bearer key), then
@@ -351,7 +351,12 @@ the release's `checksums.txt`, atomic same-dir rename). It's CLI plumbing, not b
 Homebrew install (`isHomebrewManaged` — path under `/Caskroom/` or `/Cellar/`) it refuses and defers to
 `brew upgrade rc`, so it never desyncs the cask manifest. The pure helpers (version compare, asset name,
 checksum parse, brew-path detection) are unit-tested in `upgrade_test.go`; the network/replace path is
-verified by hand against a real release. Keep this the *only* command that reaches outside `/api/v1`.
+verified by hand against a real release. `rc self doctor` reads every PATH copy with Go build info
+(never executes it), reports the shared auth-status scope resolution, and only treats
+divergent/non-release PATH installs as findings; update-check failures stay informational. Never `go
+install` rc outside rootcause-cli development—use a prebuilt binary, then diagnose surprises with `rc
+self doctor`. Keep external network access confined to this self-installation plumbing and `/api/v1`
+commands.
 
 ## Scope guards (push back if asked)
 

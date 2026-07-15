@@ -76,6 +76,9 @@ Linux one-liner above — WSL is Linux.)
 go install github.com/rootcause-org/rootcause-cli/cmd/rc@latest
 ```
 
+`go install` lands in mise's per-Go-version GOBIN and copies can shadow each other across repos; use a
+prebuilt binary day to day, and run `rc self doctor` if `rc --version` looks wrong.
+
 **Manual** — grab a tarball/zip from the [latest release](https://github.com/rootcause-org/rootcause-cli/releases/latest)
 (`darwin`/`linux`/`windows` × `amd64`/`arm64`), extract `rc`, and put it on your PATH. On macOS, an
 unsigned binary may be quarantined: `xattr -d com.apple.quarantine $(which rc)`.
@@ -85,7 +88,8 @@ unsigned binary may be quarantined: `xattr -d com.apple.quarantine $(which rc)`.
 ```bash
 rc self update            # self-update to the latest release (Linux / WSL / Windows)
 rc self update --check    # just say whether a newer version exists
-brew upgrade rc       # macOS (Homebrew) — rc self update detects this and points you here
+rc self doctor            # diagnose the active binary, shadowed PATH copies, scope, and updates
+brew upgrade rc           # macOS (Homebrew) — rc self update detects this and points you here
 ```
 
 `rc self update` replaces its own binary with the latest release for your OS/arch (verifying the published
@@ -380,6 +384,7 @@ help using `go test ./internal/cli -update`.
 | `rc run trace` | Show the whole run bundle |
 | `rc run` | Inspect and manage the run lifecycle |
 | `rc self completion` | Generate a shell completion script |
+| `rc self doctor` | Diagnose the active rc install, PATH copies, scope, and updates |
 | `rc self update` | Update rc to the latest release (self-update) |
 | `rc self` | Manage the rc installation and shell integration |
 | `rc status` | Health summary + recent runs |

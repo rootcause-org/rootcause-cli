@@ -13,8 +13,10 @@ func TestCompareVersions(t *testing.T) {
 		{"0.5.1", "0.5.0", 1},
 		{"0.4.9", "0.5.0", -1},
 		{"1.0.0", "0.9.9", 1},
-		{"0.10.0", "0.9.0", 1},    // numeric, not lexical
-		{"0.1.0", "v0.5.1", -1},   // default dev build sees an upgrade
+		{"0.10.0", "0.9.0", 1},  // numeric, not lexical
+		{"0.1.0", "v0.5.1", -1}, // default dev build sees an upgrade
+		{"v1.1.3 (go install)", "v1.1.3", -1},
+		{"devel (abcdef123456)", "v1.1.3", -1},
 		{"weird", "0.5.1", -1},    // unparseable current → assume update available
 		{"0.5.1", "0.5.1-rc1", 0}, // pre-release suffix tolerated; same numeric patch → no downgrade
 	}

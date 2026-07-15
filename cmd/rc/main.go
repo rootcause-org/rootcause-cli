@@ -11,8 +11,8 @@ import (
 
 // version is the CLI version string surfaced by `rc --version`. Overridable at build time via
 // -ldflags "-X main.version=…".
-var version = "0.1.0"
+var version = ""
 
 func main() {
-	os.Exit(cli.Execute(version))
+	os.Exit(cli.Execute(cli.ResolveVersion(version)))
 }

@@ -44,6 +44,9 @@ type env struct {
 	// drives the loopback callback so the flow runs without a real browser.
 	openBrowser func(string) error
 
+	// latestRelease is the self-doctor test seam; nil uses the GitHub releases API.
+	latestRelease func(context.Context) (string, error)
+
 	// resolved is the config resolved by the last newClient call, so a command can read local overrides
 	// and the resolved profile without re-loading.
 	resolved config.Resolved

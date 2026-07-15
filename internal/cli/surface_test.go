@@ -75,6 +75,9 @@ func TestCommandSurface(t *testing.T) {
 	if cmd, _, err := root.Find([]string{"self", "completion"}); err != nil || cmd.Name() != "completion" {
 		t.Fatalf("self completion missing: cmd=%v err=%v", cmd, err)
 	}
+	if cmd, _, err := root.Find([]string{"self", "doctor"}); err != nil || cmd.Name() != "doctor" {
+		t.Fatalf("self doctor missing: cmd=%v err=%v", cmd, err)
+	}
 	var help bytes.Buffer
 	root.SetOut(&help)
 	if err := root.Help(); err != nil {

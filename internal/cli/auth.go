@@ -17,6 +17,29 @@ import (
 // up (a generous window — the device flow's own expiry usually fires first).
 const loginTimeout = 10 * time.Minute
 
+// scopeResolution is the shared local/login scope view used by auth status and self doctor. Token
+// details stay private to auth status; doctor only consumes the resolved routing fields.
+type scopeResolution struct {
+	resolved config.Resolved
+	token    token.Token
+	loggedIn bool
+
+	Profile       string
+	Project       string
+	ProjectSource string
+	Tenant        string
+	TenantSource  string
+	BaseURL       string
+	BaseURLSource string
+	BrainDir      string
+
+	LoginProject     string
+	LoginTenant      string
+	LoginAllProjects bool
+	LoginScopeError  string
+	autoProject      string
+}
+
 // newLoginCmd builds `rc auth login` — the OAuth sign-in. By default it runs the PKCE loopback flow (opens a
 // browser, catches the redirect on a localhost port); --device runs the RFC 8628 device flow for an
 // SSH/headless box (print a code, approve it in a browser anywhere). The resulting access + refresh
@@ -143,31 +166,12 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 		Short: "Show the resolved profile/project/login tenant + sign-in status",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile)
+			scope, err := e.resolveScope(true)
 			if err != nil {
 				return err
 			}
-			base := res.BaseURL
-			if e.baseURLOvr != "" {
-				base = e.baseURLOvr
-				res.BaseURLSource = "test override"
-			}
-
-			t, loggedIn, err := token.Load(res.Profile)
-			if err != nil {
-				return err
-			}
-			autoProject := ""
-			if !loggedIn && e.profile == "" && res.Brain != nil {
-				if fallback, ok, ferr := token.Load(config.DefaultProfile); ferr != nil {
-					return ferr
-				} else if ok {
-					t = fallback
-					loggedIn = true
-					res.Profile = config.DefaultProfile
-					autoProject = res.Brain.Project
-				}
-			}
+			res, t, loggedIn := scope.resolved, scope.token, scope.loggedIn
+			base, autoProject := scope.BaseURL, scope.autoProject
 			status, expiry := "not logged in — run `rc auth login`", ""
 			if loggedIn {
 				status = "logged in"
@@ -180,14 +184,9 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 				}
 			}
 
-			scope, scopeErr := e.loginScope(res.Profile, base, loggedIn)
-			loginProject, loginTenant, loginAllProjects := loginScopeLabels(scope)
-			tenant := e.scopeTenantFromResolved(res)
-			tenantSource := e.tenantSourceFromResolved(res)
-			if tenant == "" && loginTenant != "" {
-				tenant = loginTenant
-				tenantSource = "login"
-			}
+			loginProject, loginTenant, loginAllProjects := scope.LoginProject, scope.LoginTenant, scope.LoginAllProjects
+			scopeErr := scope.LoginScopeError
+			tenant, tenantSource := scope.Tenant, scope.TenantSource
 			// --project is a server-side SCOPE (not a profile): when set it names the project each read
 			// request targets. A brain fallback to the default profile does the same automatically.
 			if loggedIn && (e.project != "" || autoProject != "") {
@@ -197,15 +196,7 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 					return err
 				}
 			}
-			project := res.Project
-			if e.project != "" {
-				project = e.project
-			} else if autoProject != "" {
-				project = autoProject
-			}
-			if loginProject != "" && project == "" {
-				project = loginProject
-			}
+			project := scope.Project
 			if e.jsonOut() {
 				return writeJSON(e, map[string]any{
 					"profile":            res.Profile,
@@ -217,8 +208,8 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 					"login_all_projects": loginAllProjects,
 					"login_scope_error":  scopeErr,
 					"base_url":           base,
-					"base_url_source":    res.BaseURLSource,
-					"brain_dir":          brainDir(res),
+					"base_url_source":    scope.BaseURLSource,
+					"brain_dir":          scope.BrainDir,
 					"logged_in":          loggedIn,
 					"expires_at":         tokenExpiry(t, loggedIn),
 				})
@@ -245,6 +236,8 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 				if loginTenant != "" && tenant != loginTenant {
 					_, _ = fmt.Fprintf(e.out, "login:     tenant %s\n", loginTenant)
 				}
+			} else if e.scope == scopeSelectorProject {
+				_, _ = fmt.Fprintf(e.out, "tenant:    - (--scope project)\n")
 			} else if loggedIn {
 				if scopeErr != "" {
 					_, _ = fmt.Fprintf(e.out, "tenant:    - (login scope unavailable)\n")
@@ -252,7 +245,7 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 					_, _ = fmt.Fprintf(e.out, "tenant:    - (login has no tenant)\n")
 				}
 			}
-			_, _ = fmt.Fprintf(e.out, "base URL:  %s (%s)\n", base, emptyDash(res.BaseURLSource))
+			_, _ = fmt.Fprintf(e.out, "base URL:  %s (%s)\n", base, emptyDash(scope.BaseURLSource))
 			if res.Brain != nil {
 				_, _ = fmt.Fprintf(e.out, "brain:     %s\n", res.Brain.Dir)
 			}
@@ -264,6 +257,77 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+// resolveScope centralizes the exact profile/project/tenant/base-URL precedence. Auth status opts
+// into the soft login lookup; local diagnostics leave it off and never contact the rootcause API.
+func (e *env) resolveScope(includeLogin bool) (scopeResolution, error) {
+	res, err := config.Load(e.profile)
+	if err != nil {
+		return scopeResolution{}, err
+	}
+	base := res.BaseURL
+	if e.baseURLOvr != "" {
+		base = e.baseURLOvr
+		res.BaseURLSource = "test override"
+	}
+
+	t, loggedIn, err := token.Load(res.Profile)
+	if err != nil {
+		return scopeResolution{}, err
+	}
+	autoProject := ""
+	if !loggedIn && e.profile == "" && res.Brain != nil {
+		if fallback, ok, ferr := token.Load(config.DefaultProfile); ferr != nil {
+			return scopeResolution{}, ferr
+		} else if ok {
+			t = fallback
+			loggedIn = true
+			res.Profile = config.DefaultProfile
+			autoProject = res.Brain.Project
+		}
+	}
+
+	var login *client.WhoamiResponse
+	scopeErr := ""
+	if includeLogin {
+		login, scopeErr = e.loginScope(res.Profile, base, loggedIn)
+	}
+	loginProject, loginTenant, loginAllProjects := loginScopeLabels(login)
+	tenant := e.scopeTenantFromResolved(res)
+	tenantSource := e.tenantSourceFromResolved(res)
+	if e.scope == scopeSelectorProject {
+		tenant = ""
+		tenantSource = "--scope project"
+	} else if tenant == "" && loginTenant != "" {
+		tenant = loginTenant
+		tenantSource = "login"
+	} else if e.scope == scopeSelectorTenant && tenant == "" {
+		tenantSource = "--scope tenant (unresolved)"
+	}
+
+	project, projectSource := res.Project, ""
+	if project != "" {
+		projectSource = config.MarkerFileName
+	}
+	if e.project != "" {
+		project, projectSource = e.project, "--project"
+	} else if autoProject != "" {
+		project, projectSource = autoProject, "brain scope via default profile"
+	} else if loginProject != "" && project == "" {
+		project, projectSource = loginProject, "login"
+	}
+
+	e.resolved = res
+	e.autoProject = autoProject
+	return scopeResolution{
+		resolved: res, token: t, loggedIn: loggedIn,
+		Profile: res.Profile, Project: project, ProjectSource: projectSource,
+		Tenant: tenant, TenantSource: tenantSource,
+		BaseURL: base, BaseURLSource: res.BaseURLSource, BrainDir: brainDir(res),
+		LoginProject: loginProject, LoginTenant: loginTenant, LoginAllProjects: loginAllProjects,
+		LoginScopeError: scopeErr, autoProject: autoProject,
+	}, nil
 }
 
 func (e *env) loginScope(profile, base string, loggedIn bool) (*client.WhoamiResponse, string) {

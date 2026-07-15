@@ -3510,6 +3510,7 @@ Usage:
 
 Available Commands:
   update      Update rc to the latest release (self-update)
+  doctor      Diagnose the active rc install, PATH copies, scope, and updates
   completion  Generate a shell completion script
 
 Global Flags:
@@ -3535,6 +3536,22 @@ Usage:
 
 Flags:
       --check   only report whether a newer version exists; install nothing
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc self doctor --help
+Diagnose the active rc install, PATH copies, scope, and updates
+
+Usage:
+  rc self doctor [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

@@ -89,7 +89,7 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	case strings.HasPrefix(path, "dev console database "), strings.HasPrefix(path, "dev console bash "), path == "dev console capabilities":
 		return projectTenant
-	case path == "dev learning evidence", path == "auth status":
+	case path == "dev learning evidence", path == "auth status", path == "self doctor":
 		return projectTenant
 	}
 

@@ -107,7 +107,7 @@ func newAuthCmd(e *env) *cobra.Command {
 
 func newSelfCmd(e *env, root *cobra.Command, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "self", Short: "Manage the rc installation and shell integration"}
-	cmd.AddCommand(newSelfUpdateCmd(e, version), newCompletionCmd(root))
+	cmd.AddCommand(newSelfUpdateCmd(e, version), newSelfDoctorCmd(e, version), newCompletionCmd(root))
 	return cmd
 }
 

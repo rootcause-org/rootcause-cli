@@ -109,7 +109,11 @@ func httpGet(ctx context.Context, url string) (*http.Response, error) {
 }
 
 func latestReleaseTag(ctx context.Context) (string, error) {
-	resp, err := httpGet(ctx, ghLatestAPI)
+	return latestReleaseTagAt(ctx, ghLatestAPI)
+}
+
+func latestReleaseTagAt(ctx context.Context, url string) (string, error) {
+	resp, err := httpGet(ctx, url)
 	if err != nil {
 		return "", fmt.Errorf("checking the latest release: %w", err)
 	}
@@ -216,6 +220,9 @@ func isHomebrewManaged(path string) bool {
 func compareVersions(a, b string) int {
 	if normVersion(a) == normVersion(b) {
 		return 0
+	}
+	if strings.Contains(a, " (go install)") || strings.HasPrefix(a, "devel (") {
+		return -1
 	}
 	pa, oka := parseVersion(a)
 	pb, okb := parseVersion(b)
