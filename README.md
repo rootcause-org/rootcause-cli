@@ -224,6 +224,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev brain consolidate` | Queue the consolidation cron on demand |
 | `rc dev brain edit` | Queue a brain edit from a plain-language instruction (or STDIN) |
 | `rc dev brain promote` | Promote an exact tested commit to a project brain channel |
+| `rc dev brain publish` | Sync, promote an exact tested commit, and verify one project brain channel |
 | `rc dev brain status` | Show deployed brain cache status |
 | `rc dev brain sync` | Fetch origin/main and refresh deployed brain cache |
 | `rc dev brain` | Inspect, sync, promote, and queue out-of-band brain work |

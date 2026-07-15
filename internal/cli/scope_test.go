@@ -233,6 +233,54 @@ func TestPinnedTenantTableOutputStartsWithScope(t *testing.T) {
 	}
 }
 
+func TestScopeProjectClearsAmbientTenant(t *testing.T) {
+	ambient := config.Resolved{Tenant: "acme", Project: "alpha"}
+	if e := (&env{resolved: ambient}); e.scopeTenant() != "acme" {
+		t.Fatalf("baseline scopeTenant = %q, want acme", e.scopeTenant())
+	}
+	e := &env{scope: scopeSelectorProject, resolved: ambient, loginTenant: "acme"}
+	if got := e.scopeTenant(); got != "" {
+		t.Fatalf("--scope project scopeTenant = %q, want empty", got)
+	}
+}
+
+func TestScopeTenantRequiresResolvableTenant(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		whoami  string
+		wantErr bool
+	}{
+		{name: "no tenant anywhere", whoami: `{"project":{"name":"alpha"}}`, wantErr: true},
+		{name: "login-bound tenant", whoami: `{"project":{"name":"alpha"},"tenant":{"slug":"acme"}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tc.whoami))
+			})
+			mux.HandleFunc("GET /api/v1/brain/status", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"project":"alpha","status":{"available":true}}`))
+			})
+			mux.HandleFunc("GET /api/v1/projects/alpha/tenants/acme/brain/status", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(`{"project":"alpha","status":{"available":true}}`))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+			e := &env{output: "json", baseURLOvr: srv.URL, tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+			err := run(t, e, "--scope", "tenant", "dev", "brain", "status")
+			if tc.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "--scope tenant requires a resolvable tenant") {
+					t.Fatalf("error = %v, want resolvable-tenant error", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestResolveProjectForTenantFromLogin(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

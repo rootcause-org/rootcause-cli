@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -411,6 +413,143 @@ func TestBrainPromoteTenantPinnedLoginUsesOnlyProjectRoute(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("promotion did not use canonical project route")
+	}
+}
+
+// publishSHA is the canonical 40-hex commit the publish tests promote + verify against.
+const publishSHA = "d2f9de784ab7cded001f2b6ac86892795f58a8ce"
+
+// publishStub wires the three endpoints `dev brain publish` chains. syncBody/statusBody are the raw
+// JSON each returns; a non-nil promoteErr makes promote fail with that envelope code. Each hit flips
+// the matching seen flag so a test can assert the chain stopped at the right gate.
+type publishSeen struct{ sync, promote, status bool }
+
+func publishStub(t *testing.T, syncBody, statusBody, promoteCode string) (*httptest.Server, *publishSeen) {
+	t.Helper()
+	seen := &publishSeen{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":{"id":"p1","name":"alpha"}}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/brain/sync", func(w http.ResponseWriter, _ *http.Request) {
+		seen.sync = true
+		_, _ = w.Write([]byte(syncBody))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/brain/promote", func(w http.ResponseWriter, r *http.Request) {
+		seen.promote = true
+		var body struct{ Channel, SHA string }
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body.SHA != publishSHA {
+			t.Fatalf("promote sha = %q, want %q", body.SHA, publishSHA)
+		}
+		if promoteCode != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintf(w, `{"error":{"code":%q,"message":"unreachable"}}`, promoteCode)
+			return
+		}
+		_, _ = w.Write([]byte(`{"project":"alpha","channel":"stable","old_sha":"3333333333333333333333333333333333333333","new_sha":"` + publishSHA + `","changed":true,"idempotent":false}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/brain/status", func(w http.ResponseWriter, _ *http.Request) {
+		seen.status = true
+		_, _ = w.Write([]byte(statusBody))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv, seen
+}
+
+const publishSyncOK = `{"project":"alpha","sync":{"fetched":true,"fast_forwarded":true,"manual_reconcile":false,"after":{"available":true,"state":"current"}}}`
+
+func publishStatus(resolved string, matchesOrigin bool) string {
+	return fmt.Sprintf(`{"project":"alpha","status":{"available":true,"ref":"main","state":"current","channels":[{"channel":"stable","resolved_sha":%q,"matches_origin":%t,"state":"current"}]}}`, resolved, matchesOrigin)
+}
+
+func TestBrainPublishHappyPathJSONEnvelope(t *testing.T) {
+	srv, seen := publishStub(t, publishSyncOK, publishStatus(publishSHA, true), "")
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "brain", "publish", "--channel", "stable", "--sha", strings.ToUpper(publishSHA)); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	if !seen.sync || !seen.promote || !seen.status {
+		t.Fatalf("chain incomplete: %+v", *seen)
+	}
+	var env struct {
+		Project  string `json:"project"`
+		Channel  string `json:"channel"`
+		SHA      string `json:"sha"`
+		OldSHA   string `json:"old_sha"`
+		Verified bool   `json:"verified"`
+		Sync     struct {
+			FastForwarded bool `json:"fast_forwarded"`
+		} `json:"sync"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v\n%s", err, out.String())
+	}
+	if env.Project != "alpha" || env.Channel != "stable" || env.SHA != publishSHA || env.OldSHA == "" || !env.Verified || !env.Sync.FastForwarded {
+		t.Fatalf("envelope = %+v", env)
+	}
+}
+
+func TestBrainPublishManualReconcileStopsBeforePromote(t *testing.T) {
+	syncReconcile := `{"project":"alpha","sync":{"manual_reconcile":true,"after":{"state":"diverged"}}}`
+	srv, seen := publishStub(t, syncReconcile, publishStatus(publishSHA, true), "")
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA)
+	if err == nil || !strings.Contains(err.Error(), "diverged") {
+		t.Fatalf("error = %v, want manual-reconcile", err)
+	}
+	if seen.promote {
+		t.Fatal("promote ran despite manual reconcile")
+	}
+}
+
+func TestBrainPublishPromoteUnreachableStopsBeforeVerify(t *testing.T) {
+	srv, seen := publishStub(t, publishSyncOK, publishStatus(publishSHA, true), "BRAIN_SHA_UNREACHABLE")
+	e, _, errb := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA)
+	if err == nil {
+		t.Fatal("expected promote failure")
+	}
+	if seen.status {
+		t.Fatal("verify ran despite promote failure")
+	}
+	printError(errb, err)
+	if !strings.Contains(errb.String(), "did you `git push`") {
+		t.Fatalf("missing push hint: %q", errb.String())
+	}
+}
+
+func TestBrainPublishVerifyMismatchFails(t *testing.T) {
+	srv, seen := publishStub(t, publishSyncOK, publishStatus("aaaa000000000000000000000000000000000000", true), "")
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA)
+	if err == nil || !strings.Contains(err.Error(), "verify failed") {
+		t.Fatalf("error = %v, want verify failure", err)
+	}
+	if !seen.promote {
+		t.Fatal("promote should have run before verify")
+	}
+}
+
+func TestBrainPublishRejectsInvalidInputsAndTenantSelectors(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"channel", []string{"dev", "brain", "publish", "--channel", "main", "--sha", publishSHA}, "stable or edge"},
+		{"short sha", []string{"dev", "brain", "publish", "--channel", "stable", "--sha", "222222222222"}, "full 40-character"},
+		{"tenant flag", []string{"--tenant", "de-kies", "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA}, "--tenant is not supported"},
+		{"scope tenant", []string{"--scope", "tenant", "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA}, "--scope tenant is not supported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenOvr: "test", baseURLOvr: "http://127.0.0.1:1", output: "table"}
+			err := run(t, e, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 

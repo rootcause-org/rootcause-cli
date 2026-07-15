@@ -19,6 +19,12 @@ type scopeSpec struct {
 
 const scopeAnnotation = "rootcause.dev/scope"
 
+// --scope selector values: force a tenant-capable request onto the project route, or require a tenant.
+const (
+	scopeSelectorProject = "project"
+	scopeSelectorTenant  = "tenant"
+)
+
 // annotateCommandScopes stamps every executable node once the tree is assembled. Keeping this
 // cross-cutting contract here prevents persistent selectors from becoming silently accepted by a new
 // command: the safe default is rejection until commandScope explicitly opts the path in.
@@ -55,7 +61,7 @@ func commandScope(path string) scopeSpec {
 	path = strings.TrimSpace(strings.TrimPrefix(path, "rc "))
 	projectTenant := scopeSpec{Project: true, Tenant: true}
 	projectOnly := scopeSpec{Project: true}
-	if path == "dev brain promote" {
+	if path == "dev brain promote" || path == "dev brain publish" {
 		return projectOnly
 	}
 
@@ -122,6 +128,14 @@ func validateCommandScope(e *env, cmd *cobra.Command) error {
 	}
 	if e.tenant != "" && !spec.Tenant {
 		return fmt.Errorf("--tenant is not supported by `%s`", cmd.CommandPath())
+	}
+	switch e.scope {
+	case "", scopeSelectorProject, scopeSelectorTenant:
+	default:
+		return fmt.Errorf("--scope must be %s or %s", scopeSelectorProject, scopeSelectorTenant)
+	}
+	if e.scope == scopeSelectorTenant && !spec.Tenant {
+		return fmt.Errorf("--scope tenant is not supported by `%s`", cmd.CommandPath())
 	}
 	if cmd.Flags().Lookup("all") != nil && cmd.Flags().Changed("all") {
 		all, err := cmd.Flags().GetBool("all")

@@ -30,6 +30,7 @@ Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc [command] --help" for more information about a command.
@@ -47,6 +48,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc ask --help
@@ -77,6 +79,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run --help
@@ -105,6 +108,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc run [command] --help" for more information about a command.
@@ -130,6 +134,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run show --help
@@ -145,6 +150,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run events --help
@@ -163,6 +169,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run trace --help
@@ -181,6 +188,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run debug --help
@@ -196,6 +204,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run brain-diff --help
@@ -211,6 +220,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run thread --help
@@ -228,6 +238,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run feedback --help
@@ -247,6 +258,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run retry --help
@@ -265,6 +277,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc run process-thread --help
@@ -280,6 +293,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project --help
@@ -317,6 +331,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project [command] --help" for more information about a command.
@@ -334,6 +349,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project rename --help
@@ -349,6 +365,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project settings --help
@@ -371,6 +388,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project settings [command] --help" for more information about a command.
@@ -393,6 +411,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project settings runtime [command] --help" for more information about a command.
@@ -410,6 +429,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project settings runtime set --help
@@ -425,6 +445,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project settings behavior --help
@@ -445,6 +466,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project settings behavior [command] --help" for more information about a command.
@@ -462,6 +484,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project settings behavior set --help
@@ -480,6 +503,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project settings describe --help
@@ -495,6 +519,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project settings schema --help
@@ -510,6 +535,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant --help
@@ -534,6 +560,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project tenant [command] --help" for more information about a command.
@@ -557,6 +584,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project tenant settings [command] --help" for more information about a command.
@@ -574,6 +602,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant settings set --help
@@ -592,6 +621,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant settings schema --help
@@ -607,6 +637,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant profile --help
@@ -628,6 +659,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project tenant profile [command] --help" for more information about a command.
@@ -645,6 +677,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant profile set --help
@@ -663,6 +696,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant profile schema --help
@@ -678,6 +712,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant ls --help
@@ -693,6 +728,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant add --help
@@ -708,6 +744,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant get --help
@@ -723,6 +760,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project tenant set --help
@@ -738,6 +776,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox --help
@@ -763,6 +802,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project mailbox [command] --help" for more information about a command.
@@ -780,6 +820,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox mode --help
@@ -795,6 +836,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox harvest --help
@@ -816,6 +858,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox imap-env --help
@@ -834,6 +877,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox settings --help
@@ -854,6 +898,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project mailbox settings [command] --help" for more information about a command.
@@ -871,6 +916,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox settings set --help
@@ -889,6 +935,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox connect --help
@@ -907,6 +954,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project mailbox connect-imap --help
@@ -935,6 +983,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project triage --help
@@ -955,6 +1004,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project triage [command] --help" for more information about a command.
@@ -977,6 +1027,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project triage policy [command] --help" for more information about a command.
@@ -994,6 +1045,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project triage policy set --help
@@ -1009,6 +1061,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project triage rules --help
@@ -1031,6 +1084,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project triage rules [command] --help" for more information about a command.
@@ -1048,6 +1102,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project triage rules add --help
@@ -1063,6 +1118,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project triage rules set --help
@@ -1078,6 +1134,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project triage rules rm --help
@@ -1093,6 +1150,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project senders --help
@@ -1115,6 +1173,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project senders [command] --help" for more information about a command.
@@ -1135,6 +1194,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project senders allow --help
@@ -1154,6 +1214,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project senders block --help
@@ -1173,6 +1234,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project senders rm --help
@@ -1191,6 +1253,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project model-key --help
@@ -1210,6 +1273,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project model-key [command] --help" for more information about a command.
@@ -1233,6 +1297,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project model-key openrouter [command] --help" for more information about a command.
@@ -1250,6 +1315,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project model-key openrouter clear --help
@@ -1265,6 +1331,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project model-key openrouter reveal --help
@@ -1280,6 +1347,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project connection --help
@@ -1304,6 +1372,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project connection [command] --help" for more information about a command.
@@ -1321,6 +1390,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project connection add --help
@@ -1336,6 +1406,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project connection probe --help
@@ -1357,6 +1428,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project connection reveal --help
@@ -1372,6 +1444,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project connection rotate --help
@@ -1387,6 +1460,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project connection rm --help
@@ -1402,6 +1476,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project knowledge --help
@@ -1422,6 +1497,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project knowledge [command] --help" for more information about a command.
@@ -1445,6 +1521,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project knowledge content [command] --help" for more information about a command.
@@ -1467,6 +1544,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project knowledge content search --help
@@ -1488,6 +1566,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project knowledge content export --help
@@ -1510,6 +1589,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project knowledge sync --help
@@ -1530,6 +1610,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project knowledge sync [command] --help" for more information about a command.
@@ -1547,6 +1628,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project knowledge sync set --help
@@ -1562,6 +1644,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project corpus --help
@@ -1584,6 +1667,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project corpus [command] --help" for more information about a command.
@@ -1601,6 +1685,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project corpus get --help
@@ -1616,6 +1701,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project corpus download --help
@@ -1635,6 +1721,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project corpus mine-settings --help
@@ -1650,6 +1737,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project database --help
@@ -1673,6 +1761,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project database [command] --help" for more information about a command.
@@ -1690,6 +1779,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project database get --help
@@ -1705,6 +1795,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project database set --help
@@ -1720,6 +1811,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project database controls --help
@@ -1740,6 +1832,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project database controls [command] --help" for more information about a command.
@@ -1757,6 +1850,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project database controls set --help
@@ -1772,6 +1866,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project database preview --help
@@ -1793,6 +1888,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
 
 $ rc project repo --help
 Manage source repos (mirrors + per-repo PR config)
@@ -1814,6 +1910,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project repo [command] --help" for more information about a command.
@@ -1831,6 +1928,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project repo add --help
@@ -1846,6 +1944,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project repo set --help
@@ -1861,6 +1960,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project repo rm --help
@@ -1876,6 +1976,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project member --help
@@ -1897,6 +1998,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project member [command] --help" for more information about a command.
@@ -1914,6 +2016,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project member add --help
@@ -1929,6 +2032,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project member rm --help
@@ -1944,6 +2048,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project token --help
@@ -1965,6 +2070,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project token [command] --help" for more information about a command.
@@ -1982,6 +2088,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project token mint --help
@@ -1997,6 +2104,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project token revoke --help
@@ -2012,6 +2120,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project branding --help
@@ -2033,6 +2142,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project branding [command] --help" for more information about a command.
@@ -2050,6 +2160,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project branding set --help
@@ -2065,6 +2176,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project branding logo --help
@@ -2085,6 +2197,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project branding logo [command] --help" for more information about a command.
@@ -2102,6 +2215,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project branding logo clear --help
@@ -2117,6 +2231,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project env --help
@@ -2141,6 +2256,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project env [command] --help" for more information about a command.
@@ -2158,6 +2274,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project env diff --help
@@ -2173,6 +2290,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project env keys --help
@@ -2188,6 +2306,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project env set --help
@@ -2206,6 +2325,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project env rm --help
@@ -2224,6 +2344,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project env reveal --help
@@ -2242,6 +2363,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project github --help
@@ -2261,6 +2383,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project github [command] --help" for more information about a command.
@@ -2278,6 +2401,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project action-settings --help
@@ -2298,6 +2422,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc project action-settings [command] --help" for more information about a command.
@@ -2315,6 +2440,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc project action-settings set --help
@@ -2330,6 +2456,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev --help
@@ -2353,6 +2480,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev [command] --help" for more information about a command.
@@ -2368,6 +2496,7 @@ Available Commands:
   status      Show deployed brain cache status
   sync        Fetch origin/main and refresh deployed brain cache
   promote     Promote an exact tested commit to a project brain channel
+  publish     Sync, promote an exact tested commit, and verify one project brain channel
   edit        Queue a brain edit from a plain-language instruction (or STDIN)
   consolidate Queue the consolidation cron on demand
 
@@ -2378,6 +2507,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev brain [command] --help" for more information about a command.
@@ -2395,6 +2525,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev brain sync --help
@@ -2410,6 +2541,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev brain promote --help
@@ -2429,6 +2561,27 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc dev brain publish --help
+Sync, promote an exact tested commit, and verify one project brain channel
+
+Usage:
+  rc dev brain publish --channel stable|edge --sha <commit> [flags]
+
+Flags:
+      --channel string   managed channel to publish (stable or edge)
+      --sha string       exact full 40-character commit SHA (must be pushed to the brain origin)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev brain edit --help
@@ -2444,6 +2597,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev brain consolidate --help
@@ -2459,6 +2613,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console --help
@@ -2481,6 +2636,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev console [command] --help" for more information about a command.
@@ -2504,6 +2660,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev console database [command] --help" for more information about a command.
@@ -2521,6 +2678,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console database schema --help
@@ -2539,6 +2697,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console database query --help
@@ -2558,6 +2717,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console bash --help
@@ -2578,6 +2738,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev console bash [command] --help" for more information about a command.
@@ -2595,6 +2756,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console bash run --help
@@ -2613,6 +2775,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console action --help
@@ -2635,6 +2798,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev console action [command] --help" for more information about a command.
@@ -2652,6 +2816,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console action show --help
@@ -2667,6 +2832,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console action preflight --help
@@ -2685,6 +2851,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console action run --help
@@ -2703,6 +2870,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev console capabilities --help
@@ -2718,6 +2886,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev learning --help
@@ -2737,6 +2906,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev learning [command] --help" for more information about a command.
@@ -2759,6 +2929,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev api --help
@@ -2779,6 +2950,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev api [command] --help" for more information about a command.
@@ -2796,6 +2968,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev api openapi --help
@@ -2811,6 +2984,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev tools --help
@@ -2831,6 +3005,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev tools [command] --help" for more information about a command.
@@ -2853,6 +3028,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev tools id [command] --help" for more information about a command.
@@ -2873,6 +3049,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev tools id outlook --help
@@ -2888,6 +3065,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc dev tools provider --help
@@ -2907,6 +3085,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc dev tools provider [command] --help" for more information about a command.
@@ -2924,6 +3103,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc fleet --help
@@ -2945,6 +3125,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc fleet [command] --help" for more information about a command.
@@ -2972,6 +3153,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc fleet health --help
@@ -2991,6 +3173,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc fleet patterns --help
@@ -3012,6 +3195,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin --help
@@ -3033,6 +3217,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc admin [command] --help" for more information about a command.
@@ -3056,6 +3241,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc admin user [command] --help" for more information about a command.
@@ -3073,6 +3259,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin user add --help
@@ -3088,6 +3275,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin user set --help
@@ -3103,6 +3291,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin project --help
@@ -3123,6 +3312,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc admin project [command] --help" for more information about a command.
@@ -3140,6 +3330,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin project add --help
@@ -3155,6 +3346,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin catalog --help
@@ -3175,6 +3367,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc admin catalog [command] --help" for more information about a command.
@@ -3192,6 +3385,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc admin catalog upsert --help
@@ -3207,6 +3401,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc auth --help
@@ -3229,6 +3424,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc auth [command] --help" for more information about a command.
@@ -3254,6 +3450,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc auth logout --help
@@ -3269,6 +3466,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc auth status --help
@@ -3284,6 +3482,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc auth access --help
@@ -3299,6 +3498,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc self --help
@@ -3319,6 +3519,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 Use "rc self [command] --help" for more information about a command.
@@ -3342,6 +3543,7 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
 $ rc self completion --help
@@ -3357,5 +3559,6 @@ Global Flags:
       --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
       --project string   scope the request to one project by name or id (requires an all-projects token)
       --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 

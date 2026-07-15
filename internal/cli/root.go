@@ -28,6 +28,7 @@ type env struct {
 	profile    string // --profile: an explicit token-store profile (AWS-style override)
 	project    string // --project: server-side project scope; it never selects a token profile
 	tenant     string // --tenant: explicit tenant override where an endpoint accepts it
+	scope      string // --scope: "project" clears any resolved tenant; "tenant" requires one (see scopeTenant)
 	output     string // "", "json", or "table" (from -o/--output)
 	outDir     string // --out-dir: local artifact directory for large stdout/JSON payloads
 	noPreview  bool   // --no-preview: suppress head/tail previews in spill manifests
@@ -97,6 +98,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
 	root.PersistentFlags().StringVar(&e.project, "project", "", "scope the request to one project by name or id (requires an all-projects token)")
 	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "override the login tenant where supported")
+	root.PersistentFlags().StringVar(&e.scope, "scope", "", "force request routing: project|tenant. \"project\" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; \"tenant\" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
 	root.PersistentFlags().StringVar(&e.outDir, "out-dir", "", "directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)")
 	root.PersistentFlags().BoolVar(&e.noPreview, "no-preview", false, "write large output artifacts but omit head/tail previews")
@@ -177,6 +179,9 @@ func (e *env) newClient() (*client.Client, error) {
 		if err := e.validateProjectScope(c); err != nil {
 			return nil, err
 		}
+		if err := e.enforceScopeSelector(c); err != nil {
+			return nil, err
+		}
 		return c, nil
 	}
 
@@ -207,7 +212,25 @@ func (e *env) newClient() (*client.Client, error) {
 	if err := e.validateProjectScope(c); err != nil {
 		return nil, err
 	}
+	if err := e.enforceScopeSelector(c); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+// enforceScopeSelector fails closed when --scope tenant is set but no tenant is resolvable. It runs
+// after newClient so a tenant-bound login (only knowable from the server) still counts. It only
+// verifies resolvability — a login-bound tenant stays empty here so the flat route lets the server
+// apply it, matching the no-scope path. --scope project's clearing lives in scopeTenant().
+func (e *env) enforceScopeSelector(c *client.Client) error {
+	if e.scope != scopeSelectorTenant || e.scopeTenant() != "" {
+		return nil
+	}
+	if scope, err := c.Whoami(e.ctx()); err == nil && scope != nil && scope.Tenant != nil &&
+		(scope.Tenant.Slug != "" || scope.Tenant.Name != "") {
+		return nil
+	}
+	return fmt.Errorf("--scope tenant requires a resolvable tenant (via --tenant, a brain checkout, or a tenant-bound login)")
 }
 
 // resolveScopeHeader learns an implicit tenant pin only for human output. Failure is non-fatal: the
@@ -286,8 +309,13 @@ func (e *env) tenantOr(flag string) string {
 }
 
 // scopeTenant is the explicit/local tenant override for a request. Empty lets the login-bound tenant win
-// server-side on tenant-enabled projects.
+// server-side on tenant-enabled projects. --scope project forces empty here — the one way to route a
+// tenant-capable command to the project even inside a tenant-overlay checkout. This is the clearing the
+// scope contract can't do: it runs before newClient resolves the ambient/login tenant.
 func (e *env) scopeTenant() string {
+	if e.scope == scopeSelectorProject {
+		return ""
+	}
 	if tenant := e.tenantOr(e.tenant); tenant != "" {
 		return tenant
 	}
@@ -357,6 +385,10 @@ func printError(w io.Writer, err error) {
 		// A rejected --brain-ref usually means the ref isn't on the project's brain origin yet.
 		if apiErr.Code == "BAD_BRAIN_REF" {
 			_, _ = fmt.Fprintln(w, "  push the ref to your project's brain first: git push origin <ref>")
+		}
+		// An unreachable promote SHA means the tested commit never reached the brain origin.
+		if apiErr.Code == "BRAIN_SHA_UNREACHABLE" {
+			_, _ = fmt.Fprintln(w, "  SHA not reachable from origin/main — did you `git push` the brain repo?")
 		}
 		return
 	}

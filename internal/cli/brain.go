@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -20,7 +21,7 @@ var errEmptyInstruction = errors.New("empty instruction — pass it as args or p
 // outside a run. Long edit instructions can be piped on STDIN.
 func newBrainCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "brain", Short: "Inspect, sync, promote, and queue out-of-band brain work"}
-	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPromoteCmd(e), brainEditCmd(e), brainConsolidateCmd(e))
+	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e))
 	return cmd
 }
 
@@ -108,6 +109,110 @@ func brainPromoteCmd(e *env) *cobra.Command {
 	_ = cmd.MarkFlagRequired("channel")
 	_ = cmd.MarkFlagRequired("sha")
 	return cmd
+}
+
+// brainPublishResult is the -o json receipt: it lets an agent gate on exit code alone, with the raw
+// sync result and the resolved channel SHA carried through for logging.
+type brainPublishResult struct {
+	Project  string                 `json:"project"`
+	Channel  string                 `json:"channel"`
+	SHA      string                 `json:"sha"`
+	OldSHA   string                 `json:"old_sha"`
+	Sync     client.BrainSyncResult `json:"sync"`
+	Verified bool                   `json:"verified"`
+}
+
+// brainPublishCmd chains sync → promote → status-verify with gating between them — the one rc command
+// that fans a single intent across three server calls, replacing the by-hand choreography operators ran
+// against `rc dev brain {sync,promote,status}`. Sync and status are forced to project scope (tenant="")
+// so an ambient tenant can never split them onto the overlay while promote moves the project channel.
+func brainPublishCmd(e *env) *cobra.Command {
+	var channel, sha string
+	cmd := &cobra.Command{
+		Use:   "publish --channel stable|edge --sha <commit>",
+		Short: "Sync, promote an exact tested commit, and verify one project brain channel",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if channel != "stable" && channel != "edge" {
+				return fmt.Errorf("--channel must be stable or edge")
+			}
+			if !fullGitSHA.MatchString(sha) {
+				return fmt.Errorf("--sha must be an exact full 40-character commit SHA")
+			}
+			sha = strings.ToLower(sha)
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			project := e.scopeProject()
+
+			syncResp, _, err := c.BrainSync(e.ctx(), project, "")
+			if err != nil {
+				return err
+			}
+			if syncResp.Sync.ManualReconcile {
+				return fmt.Errorf("brain box clone is %q and needs manual reconcile — reconcile the box clone, see `rc dev brain status`", syncResp.Sync.After.State)
+			}
+
+			promoteResp, _, err := c.BrainPromote(e.ctx(), project, client.BrainPromoteRequest{Channel: channel, SHA: sha})
+			if err != nil {
+				return err
+			}
+
+			statusResp, _, err := c.BrainStatus(e.ctx(), project, "")
+			if err != nil {
+				return err
+			}
+			ch := findBrainChannel(statusResp.Status.Channels, channel)
+			if ch == nil {
+				return fmt.Errorf("verify failed: brain status did not report channel %q", channel)
+			}
+			if ch.ResolvedSHA != sha || !ch.MatchesOrigin {
+				return fmt.Errorf("verify failed: channel %q resolved %s (matches origin: %t), want %s", channel, dashOr(ch.ResolvedSHA), ch.MatchesOrigin, sha)
+			}
+
+			if e.jsonOut() {
+				raw, err := json.Marshal(brainPublishResult{
+					Project:  statusResp.Project,
+					Channel:  channel,
+					SHA:      sha,
+					OldSHA:   promoteResp.OldSHA,
+					Sync:     syncResp.Sync,
+					Verified: true,
+				})
+				if err != nil {
+					return err
+				}
+				return render.JSON(e.out, raw)
+			}
+			render.BrainStatus(e.out, statusResp)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&channel, "channel", "", "managed channel to publish (stable or edge)")
+	cmd.Flags().StringVar(&sha, "sha", "", "exact full 40-character commit SHA (must be pushed to the brain origin)")
+	_ = cmd.MarkFlagRequired("channel")
+	_ = cmd.MarkFlagRequired("sha")
+	return cmd
+}
+
+func findBrainChannel(channels []client.BrainChannelStatus, name string) *client.BrainChannelStatus {
+	for i := range channels {
+		if channels[i].Channel == name {
+			return &channels[i]
+		}
+	}
+	return nil
+}
+
+func dashOr(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
 }
 
 func brainEditCmd(e *env) *cobra.Command {
