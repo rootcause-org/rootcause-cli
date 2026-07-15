@@ -45,12 +45,14 @@ You do **not** need Go installed — grab a prebuilt binary with the one-liner f
 **macOS — Homebrew:**
 
 ```bash
-brew install rootcause-org/tap/rc      # then: brew upgrade rc
+brew install rootcause-org/tap/rc      # then: rc self update
 ```
 
 > This is a **cask** (a prebuilt binary), not a source formula — it sidesteps the Homebrew sandbox/PTY
 > install that fails on some macOS setups with `can't get Master/Slave device`. Quarantine is stripped
 > automatically, so `rc` runs without a Gatekeeper prompt.
+> Homebrew is the canonical macOS installation. Do not also install `rc` with Go or a standalone
+> script; migrate an existing mixed setup with `rc self update --migrate`.
 
 **Linux / WSL — install script** (no Homebrew or Go required):
 
@@ -59,7 +61,8 @@ curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/sc
 ```
 
 Detects your arch, installs `rc` to `/usr/local/bin` (or `~/.local/bin`), and is idempotent — re-run to
-upgrade. Knobs: `RC_VERSION=v0.5.1` to pin, `RC_INSTALL_DIR=…` to choose where. Works on macOS too.
+upgrade. Knobs: `RC_VERSION=v0.5.1` to pin, `RC_INSTALL_DIR=…` to choose where. On macOS the script
+uses Homebrew unless `RC_INSTALL_DIR` is explicitly set.
 
 **Windows (native PowerShell):**
 
@@ -70,14 +73,14 @@ irm https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/i
 Installs `rc.exe` under `%LOCALAPPDATA%\Programs\rc` and adds it to your user PATH. (On **WSL**, use the
 Linux one-liner above — WSL is Linux.)
 
-**From source (Go devs, any OS):**
+**From source (Go developers, development builds only):**
 
 ```bash
 go install github.com/rootcause-org/rootcause-cli/cmd/rc@latest
 ```
 
-`go install` lands in mise's per-Go-version GOBIN and copies can shadow each other across repos; use a
-prebuilt binary day to day, and run `rc self doctor` if `rc --version` looks wrong.
+Tagged Go installs report the embedded module version correctly, but Homebrew remains the one supported
+end-user installation on macOS.
 
 **Manual** — grab a tarball/zip from the [latest release](https://github.com/rootcause-org/rootcause-cli/releases/latest)
 (`darwin`/`linux`/`windows` × `amd64`/`arm64`), extract `rc`, and put it on your PATH. On macOS, an
@@ -88,13 +91,18 @@ unsigned binary may be quarantined: `xattr -d com.apple.quarantine $(which rc)`.
 ```bash
 rc self update            # self-update to the latest release (Linux / WSL / Windows)
 rc self update --check    # just say whether a newer version exists
-rc self doctor            # diagnose the active binary, shadowed PATH copies, scope, and updates
-brew upgrade rc           # macOS (Homebrew) — rc self update detects this and points you here
+rc self doctor            # show executing binary, PATH selection, install kind, duplicates
+rc self update --migrate  # macOS: canonicalize on Homebrew; remove verified legacy Go copies
 ```
 
 `rc self update` replaces its own binary with the latest release for your OS/arch (verifying the published
-checksum first). On a Homebrew install it defers to `brew upgrade rc` so it doesn't fight brew. (`go
-install …@latest` re-installs the latest for Go users.)
+checksum first). On macOS it runs the Homebrew updater; a standalone or duplicate setup requires the
+explicit, idempotent `--migrate` path. Migration installs/upgrades the cask, verifies its version, removes
+only binaries whose Go build metadata proves they are legacy rootcause-cli installs, reshims mise, and
+then verifies PATH selects the cask. Unknown binaries are reported for manual review, never deleted.
+
+After installing or migrating, `which -a rc`, `rc --version`, `rc self update --check`, and
+`rc self doctor` should all describe one PATH-visible binary at the latest published version.
 
 ## Sign in
 

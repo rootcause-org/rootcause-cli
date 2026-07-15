@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# install.sh — install the `rc` CLI on Linux, WSL, or macOS without Homebrew or Go.
+# install.sh — install the `rc` CLI on Linux/WSL, or explicitly to RC_INSTALL_DIR.
 #
 # Detects your OS/arch, downloads the matching prebuilt binary from the latest GitHub Release,
 # and drops `rc` somewhere on your PATH. Idempotent: re-run it any time to upgrade.
@@ -28,6 +28,25 @@ case "$os" in
   Darwin) os=darwin ;;
   *) err "unsupported OS '$os' — on native Windows use scripts/install.ps1, or 'go install $REPO/cmd/rc@latest'" ;;
 esac
+
+# Homebrew is the one canonical macOS installation. An explicit RC_INSTALL_DIR remains available for
+# managed/portable environments, but the default path must never create a second copy beside a cask.
+if [ "$os" = darwin ] && [ "${RC_INSTALL_DIR:-}" = "" ]; then
+  [ "${RC_VERSION:-}" = "" ] || err "RC_VERSION pinning requires an explicit RC_INSTALL_DIR on macOS; canonical Homebrew tracks latest"
+  command -v brew >/dev/null 2>&1 || err "Homebrew is required for the canonical macOS install (or set RC_INSTALL_DIR explicitly)"
+  info "updating the canonical Homebrew installation"
+  brew update
+  if brew list --cask rc >/dev/null 2>&1; then
+    brew upgrade --cask rootcause-org/tap/rc
+  else
+    brew install --cask rootcause-org/tap/rc
+  fi
+  canonical="$(brew --prefix)/bin/rc"
+  [ -x "$canonical" ] || err "Homebrew completed but $canonical is missing"
+  "$canonical" self update --migrate
+  "$canonical" --version
+  exit 0
+fi
 
 arch="$(uname -m)"
 case "$arch" in
@@ -64,12 +83,31 @@ else
 fi
 : "${sudo:=}"
 
+# Never create a second, shadowed copy. Re-running against the selected target is idempotent; choosing
+# a different directory requires the operator to resolve the existing installation first.
+selected_before="$(command -v rc 2>/dev/null || true)"
+if [ -n "$selected_before" ] && { [ ! -e "$bindir/rc" ] || ! [ "$selected_before" -ef "$bindir/rc" ]; }; then
+  err "PATH already selects $selected_before; refusing to create a second rc at $bindir/rc (run 'rc self doctor')"
+fi
+
 # --- download + extract + install --------------------------------------------
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
 info "downloading $asset ($tag)"
 curl -fsSL "$url" -o "$tmp/rc.tar.gz" || err "download failed: $url"
+curl -fsSL "https://github.com/$REPO/releases/download/$tag/checksums.txt" -o "$tmp/checksums.txt" \
+  || err "checksums download failed"
+want="$(awk -v asset="$asset" '$2 == asset {print $1; exit}' "$tmp/checksums.txt")"
+[ -n "$want" ] || err "checksums.txt has no entry for $asset"
+if command -v sha256sum >/dev/null 2>&1; then
+  got="$(sha256sum "$tmp/rc.tar.gz" | awk '{print $1}')"
+elif command -v shasum >/dev/null 2>&1; then
+  got="$(shasum -a 256 "$tmp/rc.tar.gz" | awk '{print $1}')"
+else
+  err "sha256sum or shasum is required to verify the download"
+fi
+[ "$got" = "$want" ] || err "checksum mismatch for $asset — refusing to install"
 tar -xzf "$tmp/rc.tar.gz" -C "$tmp" rc || err "archive did not contain an 'rc' binary"
 chmod +x "$tmp/rc"
 
@@ -78,6 +116,11 @@ $sudo mv "$tmp/rc" "$bindir/rc"
 
 info "installed rc $version → $bindir/rc"
 "$bindir/rc" --version >/dev/null 2>&1 && info "$("$bindir/rc" --version)"
+
+selected="$(command -v rc 2>/dev/null || true)"
+if [ -n "$selected" ] && ! [ "$selected" -ef "$bindir/rc" ]; then
+  err "installed $bindir/rc, but PATH still selects $selected; run '$bindir/rc self doctor' and remove the shadowing install"
+fi
 
 # --- PATH hint ---------------------------------------------------------------
 case ":$PATH:" in

@@ -10,6 +10,10 @@ on:
 permissions:
   contents: write # upload release assets
 
+concurrency:
+  group: rootcause-cli-release
+  cancel-in-progress: false
+
 jobs:
   goreleaser:
     runs-on: ubuntu-latest

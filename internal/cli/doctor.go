@@ -103,7 +103,7 @@ func collectDoctorReport(e *env, version string) (doctorReport, error) {
 		return doctorReport{}, err
 	}
 	pathCopies := scanPathBinaries(os.Getenv("PATH"), current, runtime.GOOS)
-	findings := analyzePathBinaries(pathCopies)
+	findings := analyzePathBinaries(pathCopies, current, runtime.GOOS)
 
 	scope, err := e.resolveScope(false)
 	if err != nil {
@@ -293,7 +293,7 @@ func isMiseInstalledRC(path string) bool {
 }
 
 // analyzePathBinaries is pure so findings and exit behavior are testable without touching PATH.
-func analyzePathBinaries(copies []binaryInfo) []doctorFinding {
+func analyzePathBinaries(copies []binaryInfo, current binaryInfo, goos string) []doctorFinding {
 	var active *binaryInfo
 	for i := range copies {
 		if copies[i].Active {
@@ -303,25 +303,65 @@ func analyzePathBinaries(copies []binaryInfo) []doctorFinding {
 	}
 	findings := make([]doctorFinding, 0)
 	if active == nil {
-		return findings
+		return []doctorFinding{{
+			Code: "active_missing", Path: current.Path,
+			Message: "the running rc is not reachable as `rc` on PATH",
+			Hint:    "put the canonical rc directory on PATH, then run `rc self doctor` again",
+		}}
 	}
-	if active.Install != "release" && active.Install != "homebrew" {
+	if physicalBinaryKey(*active) != physicalBinaryKey(current) {
+		hint := "invoke the PATH-selected rc and remove the non-selected copy"
+		if goos == "darwin" {
+			hint = "rc self update --migrate"
+		}
+		findings = append(findings, doctorFinding{
+			Code: "running_not_selected", Path: current.Path,
+			Message: fmt.Sprintf("running binary differs from PATH-selected %s", active.Path), Hint: hint,
+		})
+	}
+	if goos == "darwin" && active.Install != "homebrew" {
+		findings = append(findings, doctorFinding{
+			Code: "active_noncanonical", Path: active.Path,
+			Message: "macOS canonical installation is Homebrew", Hint: "rc self update --migrate",
+		})
+	} else if active.Install != "release" && active.Install != "homebrew" {
 		findings = append(findings, doctorFinding{
 			Code: "active_non_release", Path: active.Path,
 			Message: fmt.Sprintf("active PATH copy is %s, not a release/homebrew build", active.Install), Hint: active.Hint,
 		})
 	}
 	activeVersion := comparableBinaryVersion(*active)
+	activeKey := physicalBinaryKey(*active)
+	seen := map[string]bool{activeKey: true}
 	for _, copy := range copies {
-		if copy.Active || comparableBinaryVersion(copy) == activeVersion {
+		key := physicalBinaryKey(copy)
+		if copy.Active || seen[key] {
 			continue
 		}
+		seen[key] = true
+		copyVersion := comparableBinaryVersion(copy)
+		code := "duplicate_copy"
+		message := fmt.Sprintf("duplicate PATH copy reports %s", copy.Version)
+		if copyVersion != activeVersion {
+			code = "divergent_copy"
+			message = fmt.Sprintf("shadowed copy reports %s; active reports %s", copy.Version, active.Version)
+		}
+		hint := copy.Hint
+		if goos == "darwin" {
+			hint = "rc self update --migrate"
+		}
 		findings = append(findings, doctorFinding{
-			Code: "divergent_copy", Path: copy.Path,
-			Message: fmt.Sprintf("shadowed copy reports %s; active reports %s", copy.Version, active.Version), Hint: copy.Hint,
+			Code: code, Path: copy.Path, Message: message, Hint: hint,
 		})
 	}
 	return findings
+}
+
+func physicalBinaryKey(info binaryInfo) string {
+	if info.ResolvedPath != "" {
+		return filepath.Clean(info.ResolvedPath)
+	}
+	return filepath.Clean(info.Path)
 }
 
 func comparableBinaryVersion(info binaryInfo) string {

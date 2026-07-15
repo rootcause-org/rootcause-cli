@@ -3528,14 +3528,15 @@ Use "rc self [command] --help" for more information about a command.
 $ rc self update --help
 Update rc to the latest GitHub release for this OS/arch.
 
-On Linux/WSL/Windows this replaces the running binary in place. On a Homebrew install it
-defers to `brew upgrade rc` instead, so it doesn't fight Homebrew's bookkeeping.
+On Linux/WSL/Windows this replaces one unambiguous running binary in place. On macOS it
+updates the canonical Homebrew cask; use --migrate to canonicalize a mixed installation.
 
 Usage:
   rc self update [flags]
 
 Flags:
-      --check   only report whether a newer version exists; install nothing
+      --check     only report whether a newer version exists; install nothing
+      --migrate   on macOS, canonicalize onto Homebrew and remove verified legacy Go installs
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

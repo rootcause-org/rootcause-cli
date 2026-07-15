@@ -7,12 +7,14 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"debug/buildinfo"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -35,52 +37,67 @@ const (
 
 func newSelfUpdateCmd(e *env, version string) *cobra.Command {
 	var checkOnly bool
+	var migrate bool
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update rc to the latest release (self-update)",
 		Long: "Update rc to the latest GitHub release for this OS/arch.\n\n" +
-			"On Linux/WSL/Windows this replaces the running binary in place. On a Homebrew install it\n" +
-			"defers to `brew upgrade rc` instead, so it doesn't fight Homebrew's bookkeeping.",
+			"On Linux/WSL/Windows this replaces one unambiguous running binary in place. On macOS it\n" +
+			"updates the canonical Homebrew cask; use --migrate to canonicalize a mixed installation.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return runSelfUpdate(e, version, checkOnly)
+			return runSelfUpdate(e, version, checkOnly, migrate)
 		},
 	}
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "only report whether a newer version exists; install nothing")
+	cmd.Flags().BoolVar(&migrate, "migrate", false, "on macOS, canonicalize onto Homebrew and remove verified legacy Go installs")
 	return cmd
 }
 
-func runSelfUpdate(e *env, current string, checkOnly bool) error {
+func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
+	running, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("cannot locate the running rc binary: %w", err)
+	}
+	inv := inspectRCInstallations(running, os.Getenv("PATH"), runtime.GOOS)
 	latest, err := latestReleaseTag(e.ctx())
 	if err != nil {
 		return err
 	}
-	// Compare without the leading "v" — main.version is injected as "0.5.1", the tag is "v0.5.1".
-	if compareVersions(current, latest) >= 0 {
-		_, _ = fmt.Fprintf(e.out, "rc is already up to date (%s)\n", normVersion(current))
-		return nil
-	}
 
 	if checkOnly {
-		_, _ = fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n  run: rc self update\n", normVersion(current), normVersion(latest))
+		renderUpdateCheck(e, current, latest, inv)
 		return nil
 	}
 
-	// Resolve the real binary path (follow the symlink Homebrew/installers may leave on PATH).
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("cannot locate the running rc binary: %w", err)
+	if migrate {
+		if runtime.GOOS != "darwin" {
+			return fmt.Errorf("--migrate is only for the canonical Homebrew installation on macOS")
+		}
+		return migrateToHomebrew(e, latest, inv)
 	}
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
+
+	if runtime.GOOS == "darwin" {
+		runningInstall := findRunningInstall(inv.Paths)
+		if runningInstall.Kind != installHomebrew || inv.HasDuplicates || inv.RunningShadowed {
+			return fmt.Errorf("macOS uses one canonical Homebrew rc; run `rc self update --migrate` (inspect first with `rc self doctor`)")
+		}
+		if err := updateHomebrew(e); err != nil {
+			return err
+		}
+		canonical, gotVersion, err := verifyHomebrewLatest(e.ctx(), latest)
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(e.out, "Homebrew rc updated and verified (%s, %s); run `rc self doctor` to verify PATH\n", normVersion(gotVersion), canonical)
+		return nil
 	}
-	if isHomebrewManaged(exe) {
-		// `brew update` FIRST, always: we already know (from the GitHub releases API) that a newer
-		// version exists, so the only reason a bare `brew upgrade rc` would say "already latest" is a
-		// stale local tap clone — Homebrew's auto-update refreshes the core JSON API but can skip a
-		// git tap. Pairing the two means a stale tap can never mask a release we just detected.
-		_, _ = fmt.Fprintf(e.out, "a newer rc is available: %s → %s\n"+
-			"  this rc was installed with Homebrew — upgrade with: brew update && brew upgrade rc\n", normVersion(current), normVersion(latest))
+
+	if inv.HasDuplicates || inv.RunningShadowed {
+		return fmt.Errorf("refusing to update a shadowed or duplicate binary; run `rc self doctor` and keep one rc on PATH")
+	}
+	if compareVersions(current, latest) >= 0 {
+		_, _ = fmt.Fprintf(e.out, "rc is already up to date (%s)\n", normVersion(current))
 		return nil
 	}
 
@@ -89,11 +106,209 @@ func runSelfUpdate(e *env, current string, checkOnly bool) error {
 	if err != nil {
 		return err
 	}
-	if err := replaceBinary(exe, bin); err != nil {
+	if err := replaceBinary(inv.RunningPath, bin); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(e.out, "upgraded rc → %s (%s)\n", normVersion(latest), exe)
+	_, _ = fmt.Fprintf(e.out, "upgraded rc → %s (%s)\n", normVersion(latest), inv.RunningPath)
 	return nil
+}
+
+func renderUpdateCheck(e *env, current, latest string, inv rcInstallInventory) {
+	running := findRunningInstall(inv.Paths)
+	_, _ = fmt.Fprintf(e.out, "running rc: %s (%s, %s)\n", inv.RunningPath, running.Kind, normVersion(current))
+	if compareVersions(current, latest) < 0 {
+		_, _ = fmt.Fprintf(e.out, "latest rc:  %s (update available)\n", normVersion(latest))
+	} else {
+		_, _ = fmt.Fprintf(e.out, "latest rc:  %s (up to date)\n", normVersion(latest))
+	}
+	if inv.HasDuplicates || inv.RunningShadowed {
+		_, _ = fmt.Fprintf(e.out, "installation problem: %d distinct binaries; run `rc self doctor`\n", inv.Installations)
+		if runtime.GOOS == "darwin" {
+			_, _ = fmt.Fprintln(e.out, "migration: rc self update --migrate")
+		}
+		return
+	}
+	if runtime.GOOS == "darwin" && running.Kind != installHomebrew {
+		_, _ = fmt.Fprintln(e.out, "installation problem: macOS canonical install is Homebrew")
+		_, _ = fmt.Fprintln(e.out, "migration: rc self update --migrate")
+	}
+}
+
+func updateHomebrew(e *env) error {
+	brew, err := exec.LookPath("brew")
+	if err != nil {
+		return fmt.Errorf("Homebrew is required for the canonical macOS rc: %w", err)
+	}
+	if err := runUpgradeCommand(e, brew, "update"); err != nil {
+		return err
+	}
+	installed := exec.CommandContext(e.ctx(), brew, "list", "--cask", "rc").Run() == nil
+	if installed {
+		if err := runUpgradeCommand(e, brew, "upgrade", "--cask", "rc"); err != nil {
+			return err
+		}
+	} else if err := runUpgradeCommand(e, brew, "install", "--cask", "rootcause-org/tap/rc"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func runUpgradeCommand(e *env, name string, args ...string) error {
+	_, _ = fmt.Fprintf(e.err, "==> %s %s\n", filepath.Base(name), strings.Join(args, " "))
+	cmd := exec.CommandContext(e.ctx(), name, args...)
+	cmd.Stdout = e.out
+	cmd.Stderr = e.err
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("%s %s: %w", filepath.Base(name), strings.Join(args, " "), err)
+	}
+	return nil
+}
+
+func migrateToHomebrew(e *env, latest string, inv rcInstallInventory) error {
+	if err := updateHomebrew(e); err != nil {
+		return err
+	}
+	canonical, gotVersion, err := verifyHomebrewLatest(e.ctx(), latest)
+	if err != nil {
+		return err
+	}
+	brew, err := exec.LookPath("brew")
+	if err != nil {
+		return err
+	}
+	prefixCmd := exec.CommandContext(e.ctx(), brew, "--prefix")
+	prefix, err := prefixCmd.Output()
+	if err != nil {
+		return fmt.Errorf("brew --prefix: %w", err)
+	}
+	canonicalLink := filepath.Join(strings.TrimSpace(string(prefix)), "bin", binaryName(runtime.GOOS))
+
+	removed, err := removeVerifiedLegacyGoBinaries(legacyGoBinaryCandidates(inv), canonical, isRootcauseGoBinary, os.Remove)
+	if err != nil {
+		return err
+	}
+	for _, path := range removed {
+		_, _ = fmt.Fprintf(e.out, "removed legacy Go rc: %s\n", path)
+	}
+	if len(removed) > 0 {
+		if mise, lookErr := exec.LookPath("mise"); lookErr == nil {
+			if err := runUpgradeCommand(e, mise, "reshim"); err != nil {
+				return err
+			}
+		}
+	}
+
+	after := inspectRCInstallations(canonical, os.Getenv("PATH"), runtime.GOOS)
+	selected := findSelectedInstall(after.Paths)
+	if selected == nil || selected.Shim || !samePath(selected.ResolvedPath, canonical) || after.Installations != 1 {
+		return fmt.Errorf("Homebrew rc %s is verified, but another rc still shadows or duplicates it; run `%s self doctor` and remove only the reported unknown install", canonical, canonicalLink)
+	}
+	_, _ = fmt.Fprintf(e.out, "rc is canonical on Homebrew (%s, %s)\n", normVersion(gotVersion), canonical)
+	return nil
+}
+
+func verifyHomebrewLatest(ctx context.Context, latest string) (string, string, error) {
+	brew, err := exec.LookPath("brew")
+	if err != nil {
+		return "", "", err
+	}
+	prefixCmd := exec.CommandContext(ctx, brew, "--prefix")
+	prefix, err := prefixCmd.Output()
+	if err != nil {
+		return "", "", fmt.Errorf("brew --prefix: %w", err)
+	}
+	canonicalLink := filepath.Join(strings.TrimSpace(string(prefix)), "bin", binaryName(runtime.GOOS))
+	canonical := resolvePath(canonicalLink)
+	gotVersion, err := installedBinaryVersion(ctx, canonicalLink)
+	if err != nil {
+		return "", "", fmt.Errorf("verifying Homebrew rc at %s: %w", canonicalLink, err)
+	}
+	if compareVersions(gotVersion, latest) != 0 {
+		return "", "", fmt.Errorf("Homebrew rc is %s after upgrade, but GitHub latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest))
+	}
+	return canonical, gotVersion, nil
+}
+
+func installedBinaryVersion(ctx context.Context, path string) (string, error) {
+	cmd := exec.CommandContext(ctx, path, "--version")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	fields := strings.Fields(string(out))
+	if len(fields) == 0 {
+		return "", fmt.Errorf("empty --version output")
+	}
+	return fields[len(fields)-1], nil
+}
+
+func legacyGoBinaryCandidates(inv rcInstallInventory) []string {
+	paths := make([]string, 0)
+	for _, candidate := range inv.Paths {
+		// Build metadata is the authority. Include every non-Homebrew physical candidate here so a
+		// custom GOBIN (for example ~/bin) is migratable; removeVerifiedLegacyGoBinaries filters out
+		// symlinks, the protected cask, and anything not proven to be rootcause-cli.
+		if candidate.Kind != installHomebrew && !candidate.Shim {
+			paths = append(paths, candidate.ResolvedPath)
+		}
+	}
+	home, _ := os.UserHomeDir()
+	miseData := os.Getenv("MISE_DATA_DIR")
+	if miseData == "" && home != "" {
+		miseData = filepath.Join(home, ".local", "share", "mise")
+	}
+	if miseData != "" {
+		matches, _ := filepath.Glob(filepath.Join(miseData, "installs", "go", "*", "bin", binaryName(runtime.GOOS)))
+		paths = append(paths, matches...)
+	}
+	if goBin := os.Getenv("GOBIN"); goBin != "" {
+		paths = append(paths, filepath.Join(goBin, binaryName(runtime.GOOS)))
+	}
+	goPath := os.Getenv("GOPATH")
+	if goPath == "" && home != "" {
+		goPath = filepath.Join(home, "go")
+	}
+	for _, root := range filepath.SplitList(goPath) {
+		if root != "" {
+			paths = append(paths, filepath.Join(root, "bin", binaryName(runtime.GOOS)))
+		}
+	}
+	return paths
+}
+
+func isRootcauseGoBinary(path string) bool {
+	info, err := buildinfo.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return info.Path == "github.com/rootcause-org/rootcause-cli/cmd/rc" ||
+		info.Main.Path == "github.com/rootcause-org/rootcause-cli"
+}
+
+func removeVerifiedLegacyGoBinaries(paths []string, protected string, verified func(string) bool, remove func(string) error) ([]string, error) {
+	seen := make(map[string]bool)
+	removed := make([]string, 0)
+	protected = resolvePath(protected)
+	for _, candidate := range paths {
+		candidate = absoluteClean(candidate)
+		info, err := os.Lstat(candidate)
+		if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			continue
+		}
+		resolved := resolvePath(candidate)
+		if samePath(resolved, protected) || seen[resolved] || !verified(resolved) {
+			continue
+		}
+		seen[resolved] = true
+		if err := remove(candidate); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return removed, fmt.Errorf("removing verified legacy Go rc %s: %w", candidate, err)
+		}
+		removed = append(removed, candidate)
+	}
+	return removed, nil
 }
 
 // --- GitHub release resolution ----------------------------------------------------------------------
@@ -129,6 +344,10 @@ func latestReleaseTagAt(ctx context.Context, url string) (string, error) {
 	}
 	if rel.TagName == "" {
 		return "", fmt.Errorf("the latest release has no tag_name")
+	}
+	parsed, ok := parseVersion(rel.TagName)
+	if !ok || parsed.prerelease != "" || rel.TagName != fmt.Sprintf("v%d.%d.%d", parsed.major, parsed.minor, parsed.patch) {
+		return "", fmt.Errorf("the latest release tag %q is not a stable vX.Y.Z version", rel.TagName)
 	}
 	return rel.TagName, nil
 }
@@ -214,9 +433,8 @@ func isHomebrewManaged(path string) bool {
 	return strings.Contains(path, "/Caskroom/") || strings.Contains(path, "/Cellar/")
 }
 
-// compareVersions compares dotted numeric versions (leading "v" optional). Returns -1 if a<b, 0 if
-// equal, 1 if a>b. Non-numeric or malformed parts make it conservative: it treats unequal strings as
-// "a is older" (compare returns -1) so a dev build always sees an upgrade rather than wrongly skipping.
+// compareVersions compares semantic versions (leading "v" optional). Malformed current versions are
+// conservatively older; latestReleaseTag separately rejects malformed published tags.
 func compareVersions(a, b string) int {
 	if normVersion(a) == normVersion(b) {
 		return 0
@@ -229,41 +447,107 @@ func compareVersions(a, b string) int {
 	if !oka || !okb {
 		return -1 // can't parse → assume an update is available
 	}
-	for i := 0; i < 3; i++ {
-		if pa[i] != pb[i] {
-			if pa[i] < pb[i] {
+	av := []int{pa.major, pa.minor, pa.patch}
+	bv := []int{pb.major, pb.minor, pb.patch}
+	for i := range av {
+		if av[i] != bv[i] {
+			if av[i] < bv[i] {
 				return -1
 			}
 			return 1
 		}
 	}
-	return 0
+	return comparePrerelease(pa.prerelease, pb.prerelease)
 }
 
-func parseVersion(v string) ([3]int, bool) {
-	var out [3]int
-	parts := strings.SplitN(normVersion(v), ".", 3)
+type semanticVersion struct {
+	major, minor, patch int
+	prerelease          string
+}
+
+func parseVersion(v string) (semanticVersion, bool) {
+	var out semanticVersion
+	v = normVersion(v)
+	if strings.Count(v, "+") > 1 {
+		return out, false
+	}
+	v, _, _ = strings.Cut(v, "+")
+	core, prerelease, hasPrerelease := strings.Cut(v, "-")
+	parts := strings.Split(core, ".")
 	if len(parts) != 3 {
 		return out, false
 	}
+	values := []*int{&out.major, &out.minor, &out.patch}
 	for i, p := range parts {
-		// Tolerate a pre-release/build suffix on the patch (e.g. "1-rc1") by cutting at the first non-digit.
-		n, err := strconv.Atoi(leadingDigits(p))
+		if p == "" || len(p) > 1 && p[0] == '0' {
+			return out, false
+		}
+		n, err := strconv.Atoi(p)
 		if err != nil {
 			return out, false
 		}
-		out[i] = n
+		*values[i] = n
+	}
+	if hasPrerelease {
+		if prerelease == "" {
+			return out, false
+		}
+		for _, id := range strings.Split(prerelease, ".") {
+			if id == "" || !validSemverIdentifier(id) {
+				return out, false
+			}
+		}
+		out.prerelease = prerelease
 	}
 	return out, true
 }
 
-func leadingDigits(s string) string {
-	for i, r := range s {
-		if r < '0' || r > '9' {
-			return s[:i]
+func validSemverIdentifier(s string) bool {
+	for _, r := range s {
+		if r != '-' && (r < '0' || r > '9') && (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') {
+			return false
 		}
 	}
-	return s
+	return true
+}
+
+func comparePrerelease(a, b string) int {
+	if a == b {
+		return 0
+	}
+	if a == "" {
+		return 1
+	}
+	if b == "" {
+		return -1
+	}
+	aa, bb := strings.Split(a, "."), strings.Split(b, ".")
+	for i := 0; i < len(aa) && i < len(bb); i++ {
+		if aa[i] == bb[i] {
+			continue
+		}
+		an, aerr := strconv.Atoi(aa[i])
+		bn, berr := strconv.Atoi(bb[i])
+		switch {
+		case aerr == nil && berr == nil:
+			if an < bn {
+				return -1
+			}
+			return 1
+		case aerr == nil:
+			return -1
+		case berr == nil:
+			return 1
+		case aa[i] < bb[i]:
+			return -1
+		default:
+			return 1
+		}
+	}
+	if len(aa) < len(bb) {
+		return -1
+	}
+	return 1
 }
 
 // --- archive extraction + atomic replace ------------------------------------------------------------

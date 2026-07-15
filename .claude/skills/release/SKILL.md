@@ -7,14 +7,15 @@ description: Cut a rootcause-cli release so consuming projects can pull the late
 
 ## Intent
 
-A release here is **four things landing together**, not just a git tag:
+A release here is **five things landing together**, not just a git tag:
 
 1. **The exact tested `HEAD` on `origin/main`**, pushed and read back before tagging so GitHub never trails a published binary.
 2. **The git tag** `vX.Y.Z` (annotated at that exact commit).
 3. **The GitHub Release** with prebuilt binaries — built by [GoReleaser](https://goreleaser.com) via [`.github/workflows/release.yml`](../../../.github/workflows/release.yml) when the tag is pushed. This is what lets people install `rc` without Go.
-4. **The Go module proxy** (`proxy.golang.org`) ingesting the tag — this is the step that's easy to forget. Until the proxy has it, a consuming project's `go get github.com/rootcause-org/rootcause-cli@latest` keeps resolving the **old pseudo-version**, so they silently *don't* get your release.
+4. **The Homebrew cask** in `rootcause-org/homebrew-tap` at that same version, so macOS upgrades agree with GitHub latest.
+5. **The Go module proxy** (`proxy.golang.org`) ingesting the tag — this is the step that's easy to forget. Until the proxy has it, a consuming project's `go get github.com/rootcause-org/rootcause-cli@latest` keeps resolving the **old pseudo-version**, so they silently *don't* get your release.
 
-[`scripts/release.sh`](../../../scripts/release.sh) does and verifies all four. Always prefer it over
+[`scripts/release.sh`](../../../scripts/release.sh) does and verifies all five. Always prefer it over
 running the steps by hand — the hand path is how the main push or proxy warmup gets skipped.
 
 ## How to release
@@ -34,7 +35,8 @@ origin, or a version whose tag already exists — so a release is always reprodu
 commit. A local `main` ahead of origin is valid. It captures the SHA, runs `go build/vet/test` as hard
 gates (lint is advisory — see below), refuses if HEAD/worktree changed during those gates, pushes that
 SHA to `origin/main`, verifies the remote ref equals it, then tags the same SHA. Finally it waits for
-the GitHub Release assets and warms the proxy.
+the exact tag/SHA workflow, verifies GitHub latest plus the tap cask agree, and verifies both explicit
+and `@latest` proxy resolution.
 
 **Before running:** commit the release-worthy change on local `main`; do not manually push it. The
 script publishes and verifies `main` as part of the release. Typical flow: land the fix →
@@ -63,13 +65,17 @@ and can lag a few minutes after the explicit `@vX.Y.Z` already works. That lag i
   a formula named `rc` would shadow the cask on bare `brew install` and reintroduce the bug. Linux/WSL
   and Windows use [`scripts/install.sh`](../../../scripts/install.sh) /
   [`scripts/install.ps1`](../../../scripts/install.ps1); `go install` works everywhere.
-- **Manual fallback** (if `scripts/release.sh` is unavailable) — do all four steps, especially the
-  main verification and proxy warmup:
+- **Manual fallback** (if `scripts/release.sh` is unavailable) — do all five steps, especially the
+  main, cask, and proxy verification:
   ```bash
   sha="$(git rev-parse HEAD)"
   git push origin "$sha:refs/heads/main"
   test "$(git ls-remote --exit-code origin refs/heads/main | awk '{print $1}')" = "$sha"
   git tag -a vX.Y.Z "$sha" -m "rootcause-cli vX.Y.Z" && git push origin vX.Y.Z
-  gh run watch $(gh run list --workflow=release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+  run_id="$(gh run list --workflow=release.yml --branch vX.Y.Z --json databaseId,headSha --jq ".[] | select(.headSha == \"$sha\") | .databaseId" | head -1)"
+  gh run watch "$run_id" --exit-status
+  test "$(gh api repos/rootcause-org/rootcause-cli/releases/latest --jq .tag_name)" = vX.Y.Z
+  gh api -H 'Accept: application/vnd.github.raw+json' repos/rootcause-org/homebrew-tap/contents/Casks/rc.rb | grep 'version "X.Y.Z"'
   GOPROXY=https://proxy.golang.org go list -m github.com/rootcause-org/rootcause-cli@vX.Y.Z   # warm the proxy
+  test "$(GOPROXY=https://proxy.golang.org go list -m -f '{{.Version}}' github.com/rootcause-org/rootcause-cli@latest)" = vX.Y.Z
   ```

@@ -342,21 +342,27 @@ A non-decodable body falls back to `error: HTTP <status>` — still a clean non-
   it falls back to a static known-key set (`egress.allowlist`, `pr.triggers` as lists; `max_run_usd` as a
   number). The server is always the final validator.
 
-## Local installation commands: `rc self update` / `rc self doctor`
+## Local installation plumbing: `rc self doctor` / `rc self update`
+
+[`internal/cli/doctor.go`](internal/cli/doctor.go) inventories the running executable and every PATH
+candidate in order, reads embedded build metadata without executing shadowed candidates, distinguishes
+a mise selector from its dispatched Go binary, and reports install/version/PATH findings alongside
+local scope and update state. [`internal/cli/buildversion.go`](internal/cli/buildversion.go) makes
+Go-installed binaries report their embedded module version when release ldflags are absent.
+[`internal/cli/install.go`](internal/cli/install.go) is the updater's stricter physical inventory and
+migration guard. macOS has one canonical install: the `rootcause-org/tap/rc` Homebrew cask.
 
 [`internal/cli/upgrade.go`](internal/cli/upgrade.go) is the deliberate exception to "every command is
 one API call": it talks to the **GitHub releases** API (not the rootcause API, no bearer key), then
 self-replaces its own binary with the latest archive for the running OS/arch (sha256-verified against
-the release's `checksums.txt`, atomic same-dir rename). It's CLI plumbing, not business logic. On a
-Homebrew install (`isHomebrewManaged` — path under `/Caskroom/` or `/Cellar/`) it refuses and defers to
-`brew upgrade rc`, so it never desyncs the cask manifest. The pure helpers (version compare, asset name,
-checksum parse, brew-path detection) are unit-tested in `upgrade_test.go`; the network/replace path is
-verified by hand against a real release. `rc self doctor` reads every PATH copy with Go build info
-(never executes it), reports the shared auth-status scope resolution, and only treats
-divergent/non-release PATH installs as findings; update-check failures stay informational. Never `go
-install` rc outside rootcause-cli development—use a prebuilt binary, then diagnose surprises with `rc
-self doctor`. Keep external network access confined to this self-installation plumbing and `/api/v1`
-commands.
+the release's `checksums.txt`, atomic same-dir rename). It's CLI plumbing, not business logic. On macOS
+it runs Homebrew's updater rather than overwriting the cask. `--migrate` explicitly and idempotently
+canonicalizes a mixed setup: verify the updated cask first, remove only Go binaries whose embedded build
+metadata identifies rootcause-cli, run `mise reshim`, then require PATH to resolve solely to Homebrew.
+Unknown binaries fail closed and remain untouched. Checks inspect installation state even when the
+running version is already latest, so duplicates cannot hide behind an early return. The version parser,
+inventory, migration safety/idempotency, asset/checksum helpers, and messaging are unit-tested. Keep
+this the *only* command that reaches outside `/api/v1`.
 
 ## Scope guards (push back if asked)
 

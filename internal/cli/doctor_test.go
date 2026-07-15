@@ -31,11 +31,11 @@ func TestAnalyzePathBinaries(t *testing.T) {
 			codes: []string{"divergent_copy"},
 		},
 		{
-			name: "same tag different provenance",
+			name: "same tag duplicate still reported",
 			copies: []binaryInfo{
 				{Path: "/usr/local/bin/rc", Version: "1.2.3", LDFlagsVersion: "1.2.3", Install: "release", Active: true},
 				{Path: "/home/me/go/bin/rc", Version: "v1.2.3 (go install)", ModuleVersion: "v1.2.3", Install: "go-install"},
-			},
+			}, codes: []string{"duplicate_copy"},
 		},
 		{name: "single release", copies: []binaryInfo{{Path: "/usr/local/bin/rc", Version: "1.2.3", Install: "release", Active: true}}},
 		{name: "active go install", copies: []binaryInfo{{Path: "/home/me/go/bin/rc", Version: "v1.2.3 (go install)", Install: "go-install", Active: true}}, codes: []string{"active_non_release"}},
@@ -43,7 +43,7 @@ func TestAnalyzePathBinaries(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			findings := analyzePathBinaries(tt.copies)
+			findings := analyzePathBinaries(tt.copies, tt.copies[0], "linux")
 			if len(findings) != len(tt.codes) {
 				t.Fatalf("findings = %#v, want codes %v", findings, tt.codes)
 			}
@@ -53,6 +53,37 @@ func TestAnalyzePathBinaries(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAnalyzePathBinariesMacRequiresHomebrewAndDeduplicatesDispatcherTarget(t *testing.T) {
+	goBinary := "/Users/me/.local/share/mise/installs/go/1.25/bin/rc"
+	copies := []binaryInfo{
+		{Path: "/Users/me/.local/share/mise/shims/rc", ResolvedPath: goBinary, Version: "v1.2.3 (go install)", ModuleVersion: "v1.2.3", Install: "go-install", Active: true, Dispatcher: true},
+		{Path: goBinary, Version: "v1.2.3 (go install)", ModuleVersion: "v1.2.3", Install: "go-install"},
+		{Path: "/opt/homebrew/bin/rc", ResolvedPath: "/opt/homebrew/Caskroom/rc/1.2.3/rc", Version: "1.2.3", LDFlagsVersion: "1.2.3", Install: "homebrew"},
+	}
+	findings := analyzePathBinaries(copies, copies[0], "darwin")
+	if len(findings) != 2 || findings[0].Code != "active_noncanonical" || findings[1].Code != "duplicate_copy" {
+		t.Fatalf("findings = %#v, want noncanonical + one physical Homebrew duplicate", findings)
+	}
+	for _, finding := range findings {
+		if finding.Hint != "rc self update --migrate" {
+			t.Fatalf("mac remediation = %q, want migration", finding.Hint)
+		}
+	}
+}
+
+func TestAnalyzePathBinariesReportsRunningBinaryMissingOrDifferentFromPATH(t *testing.T) {
+	current := binaryInfo{Path: "/tmp/rc", ResolvedPath: "/private/tmp/rc", Version: "1.2.3", Install: "release"}
+	findings := analyzePathBinaries(nil, current, "linux")
+	if len(findings) != 1 || findings[0].Code != "active_missing" {
+		t.Fatalf("missing PATH findings = %#v", findings)
+	}
+	selected := binaryInfo{Path: "/usr/local/bin/rc", Version: "1.2.3", Install: "release", Active: true}
+	findings = analyzePathBinaries([]binaryInfo{selected}, current, "linux")
+	if len(findings) != 1 || findings[0].Code != "running_not_selected" {
+		t.Fatalf("absolute invocation findings = %#v", findings)
 	}
 }
 
@@ -157,7 +188,10 @@ func TestDoctorUpdateCheckAndOfflineAreInformational(t *testing.T) {
 		e := &env{profile: "default", output: "json", out: &out, err: &errOut,
 			latestRelease: func(ctx context.Context) (string, error) { return latestReleaseTagAt(ctx, srv.URL) }}
 		if err := run(t, e, "self", "doctor"); err != nil {
-			t.Fatalf("doctor with fake release server: %v", err)
+			var findingErr doctorFindingsError
+			if !errors.As(err, &findingErr) {
+				t.Fatalf("doctor with fake release server: %v", err)
+			}
 		}
 		var report doctorReport
 		if err := json.Unmarshal(out.Bytes(), &report); err != nil {
@@ -173,13 +207,16 @@ func TestDoctorUpdateCheckAndOfflineAreInformational(t *testing.T) {
 		e := &env{profile: "default", output: "json", out: &out, err: &errOut,
 			latestRelease: func(context.Context) (string, error) { return "", errors.New("offline") }}
 		if err := run(t, e, "self", "doctor"); err != nil {
-			t.Fatalf("offline update check changed exit behavior: %v", err)
+			var findingErr doctorFindingsError
+			if !errors.As(err, &findingErr) {
+				t.Fatalf("offline doctor: %v", err)
+			}
 		}
 		var report doctorReport
 		if err := json.Unmarshal(out.Bytes(), &report); err != nil {
 			t.Fatal(err)
 		}
-		if report.Update.Note != "update check skipped: offline" || len(report.Findings) != 0 {
+		if report.Update.Note != "update check skipped: offline" {
 			t.Fatalf("offline report = %#v", report)
 		}
 	})

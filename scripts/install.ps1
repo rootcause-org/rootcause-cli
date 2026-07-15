@@ -38,6 +38,11 @@ $url   = "https://github.com/$repo/releases/download/$tag/$asset"
 # --- install dir -------------------------------------------------------------
 $bindir = if ($env:RC_INSTALL_DIR) { $env:RC_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA "Programs\rc" }
 New-Item -ItemType Directory -Force -Path $bindir | Out-Null
+$target = Join-Path $bindir "rc.exe"
+$selectedBefore = (Get-Command rc.exe -ErrorAction SilentlyContinue).Source
+if ($selectedBefore -and ((-not (Test-Path $target)) -or ((Resolve-Path $selectedBefore).Path -ne (Resolve-Path $target).Path))) {
+  throw "PATH already selects $selectedBefore; refusing to create a second rc at $target (run 'rc self doctor')"
+}
 
 # --- download + extract ------------------------------------------------------
 $tmp = Join-Path $env:TEMP ("rc-" + [guid]::NewGuid())
@@ -46,6 +51,12 @@ try {
   Write-Host "==> downloading $asset ($tag)" -ForegroundColor Cyan
   $zip = Join-Path $tmp "rc.zip"
   Invoke-WebRequest -Uri $url -OutFile $zip
+  $checksums = Invoke-WebRequest -Uri "https://github.com/$repo/releases/download/$tag/checksums.txt"
+  $line = ($checksums.Content -split "`n" | Where-Object { $_ -match "\s+$([regex]::Escape($asset))\s*$" } | Select-Object -First 1)
+  if (-not $line) { throw "checksums.txt has no entry for $asset" }
+  $want = ($line.Trim() -split "\s+")[0].ToLowerInvariant()
+  $got = (Get-FileHash -Algorithm SHA256 -Path $zip).Hash.ToLowerInvariant()
+  if ($got -ne $want) { throw "checksum mismatch for $asset — refusing to install" }
   Expand-Archive -Path $zip -DestinationPath $tmp -Force
   Copy-Item -Path (Join-Path $tmp "rc.exe") -Destination (Join-Path $bindir "rc.exe") -Force
 } finally {
@@ -62,3 +73,8 @@ if (($userPath -split ";") -notcontains $bindir) {
 }
 $env:Path = "$env:Path;$bindir"
 & (Join-Path $bindir "rc.exe") --version
+$selected = (Get-Command rc.exe -ErrorAction SilentlyContinue).Source
+$installed = (Resolve-Path (Join-Path $bindir "rc.exe")).Path
+if ($selected -and ((Resolve-Path $selected).Path -ne $installed)) {
+  throw "installed $installed, but PATH still selects $selected; run '$installed self doctor' and remove the shadowing install"
+}

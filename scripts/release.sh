@@ -5,7 +5,8 @@
 # WHY THIS EXISTS: a release here is more than "git tag". For consumers and collaborators to see the
 # exact same tested code, four things must land together: (1) the tested HEAD on origin/main, (2) the
 # git tag, (3) the GitHub Release with prebuilt binaries (GoReleaser, via
-# .github/workflows/release.yml), and (4) the Go module proxy ingesting the tag. Miss the main push and
+# .github/workflows/release.yml), (4) the Homebrew cask at that same version, and (5) the Go module
+# proxy ingesting the tag. Miss the main push and
 # GitHub appears behind the published binary; miss the proxy warmup and consumers keep resolving a
 # stale pseudo-version. This script performs and verifies the whole transaction.
 #
@@ -25,6 +26,8 @@
 set -euo pipefail
 
 MODULE="github.com/rootcause-org/rootcause-cli"
+GH_REPO="rootcause-org/rootcause-cli"
+HOMEBREW_CASK_PATH="repos/rootcause-org/homebrew-tap/contents/Casks/rc.rb"
 MAIN_BRANCH="main"
 GOPROXY_URL="https://proxy.golang.org"
 EXPECTED_ASSETS=7 # 6 OS/arch archives + checksums.txt — keep in sync with .goreleaser.yaml
@@ -49,7 +52,20 @@ done
 
 # --- resolve the target version -------------------------------------------------------------------
 
+# Tags are part of version resolution. Fetch them before computing a bump so a stale local tag set can
+# never reuse or undercut an already-published version.
+git fetch --quiet origin "$MAIN_BRANCH" --tags
+
 latest_tag() { git tag -l 'v*' --sort=-v:refname | head -1; }
+
+version_gt() {
+  local a="$1" b="$2" amaj amin apat bmaj bmin bpat
+  [[ "$a" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
+  amaj="${BASH_REMATCH[1]}"; amin="${BASH_REMATCH[2]}"; apat="${BASH_REMATCH[3]}"
+  [[ "$b" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || return 1
+  bmaj="${BASH_REMATCH[1]}"; bmin="${BASH_REMATCH[2]}"; bpat="${BASH_REMATCH[3]}"
+  (( amaj > bmaj || amaj == bmaj && amin > bmin || amaj == bmaj && amin == bmin && apat > bpat ))
+}
 
 bump() {
   local part="$1" cur v major rest minor patch
@@ -73,6 +89,9 @@ case "$ARG" in
   *) die "version must be vX.Y.Z or one of: patch|minor|major (got: $ARG)" ;;
 esac
 [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "invalid version: $VERSION (want vX.Y.Z)"
+PUBLISHED_LATEST="$(latest_tag || true)"
+[ -z "$PUBLISHED_LATEST" ] || version_gt "$VERSION" "$PUBLISHED_LATEST" \
+  || die "version $VERSION must be newer than the highest fetched tag $PUBLISHED_LATEST"
 
 step "Releasing $MODULE $VERSION (latest tag: $(latest_tag || echo none))"
 
@@ -88,7 +107,6 @@ cur_branch="$(git rev-parse --abbrev-ref HEAD)"
 [ "$cur_branch" = "$MAIN_BRANCH" ] || die "not on $MAIN_BRANCH (on $cur_branch)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty — commit or stash first"
 
-git fetch --quiet origin "$MAIN_BRANCH"
 RELEASE_SHA="$(git rev-parse HEAD)"
 ORIGIN_SHA="$(git rev-parse "origin/$MAIN_BRANCH")"
 git merge-base --is-ancestor "$ORIGIN_SHA" "$RELEASE_SHA" \
@@ -99,6 +117,8 @@ ok "clean, on $MAIN_BRANCH, not behind origin ($ahead_count commit(s) to publish
 # --- quality gates --------------------------------------------------------------------------------
 
 step "Quality gates (build / vet / test)"
+go mod tidy
+[ -z "$(git status --porcelain -- go.mod go.sum)" ] || die "go mod tidy changed go.mod/go.sum — commit the dependency metadata and rerun"
 go build ./... && ok "build"
 go vet ./...   && ok "vet"
 go test ./...  && ok "test"
@@ -135,17 +155,39 @@ ok "created annotated tag $VERSION"
 git push origin "$VERSION"
 ok "pushed tag (triggers .github/workflows/release.yml → GoReleaser)"
 
-# --- wait for the GitHub Release ------------------------------------------------------------------
+# Wait for the workflow attached to this exact tag/SHA. Asset count alone is insufficient: GitHub may
+# expose archives before GoReleaser finishes publishing the Homebrew cask.
+step "Waiting for the exact release workflow — up to ${RELEASE_TIMEOUT}s"
+deadline=$(( $(date +%s) + RELEASE_TIMEOUT ))
+while :; do
+  run_state="$(gh run list --workflow=release.yml --branch "$VERSION" --limit 10 \
+    --json headSha,status,conclusion --jq ".[] | select(.headSha == \"$RELEASE_SHA\") | [.status,.conclusion] | @tsv" 2>/dev/null | head -1 || true)"
+  if [ "$run_state" = $'completed\tsuccess' ]; then
+    ok "release workflow completed successfully for $(git rev-parse --short "$RELEASE_SHA")"
+    break
+  fi
+  case "$run_state" in
+    $'completed\t'*) die "release workflow failed for $VERSION ($run_state)" ;;
+  esac
+  [ "$(date +%s)" -lt "$deadline" ] || die "timed out waiting for release workflow for $VERSION"
+  sleep 10
+done
 
-step "Waiting for the GitHub Release (binaries) — up to ${RELEASE_TIMEOUT}s"
+# --- wait for the GitHub Release + Homebrew cask --------------------------------------------------
+
+step "Waiting for release binaries + Homebrew cask — up to ${RELEASE_TIMEOUT}s"
 deadline=$(( $(date +%s) + RELEASE_TIMEOUT ))
 while :; do
   count="$(gh release view "$VERSION" --json assets --jq '.assets | length' 2>/dev/null || echo 0)"
-  if [ "${count:-0}" -ge "$EXPECTED_ASSETS" ]; then
-    ok "release published with $count assets"
+  latest_release="$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name 2>/dev/null || true)"
+  cask_body="$(gh api -H 'Accept: application/vnd.github.raw+json' "$HOMEBREW_CASK_PATH" 2>/dev/null || true)"
+  cask_version="$(printf '%s\n' "$cask_body" | sed -n 's/^[[:space:]]*version "\([^"]*\)".*/\1/p' | head -1)"
+  if [ "${count:-0}" -ge "$EXPECTED_ASSETS" ] && [ "$latest_release" = "$VERSION" ] && [ "$cask_version" = "${VERSION#v}" ]; then
+    ok "latest release is $VERSION with $count assets"
+    ok "Homebrew cask is ${VERSION#v}"
     break
   fi
-  [ "$(date +%s)" -lt "$deadline" ] || die "timed out waiting for release assets (have ${count:-0}/$EXPECTED_ASSETS) — check: gh run list --workflow=release.yml"
+  [ "$(date +%s)" -lt "$deadline" ] || die "timed out waiting for consistent distribution state (assets=${count:-0}/$EXPECTED_ASSETS latest=${latest_release:-missing} cask=${cask_version:-missing}) — check: gh run list --workflow=release.yml"
   sleep 10
 done
 
@@ -162,6 +204,16 @@ for attempt in 1 2 3 4 5; do
     break
   fi
   [ "$attempt" -lt 5 ] || die "proxy did not ingest $VERSION after 5 tries — retry later: GOPROXY=$GOPROXY_URL go list -m $MODULE@$VERSION"
+  sleep 6
+done
+
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  proxy_latest="$(GOPROXY="$GOPROXY_URL" go list -m -f '{{.Version}}' "$MODULE@latest" 2>/dev/null || true)"
+  if [ "$proxy_latest" = "$VERSION" ]; then
+    ok "proxy latest is $VERSION"
+    break
+  fi
+  [ "$attempt" -lt 10 ] || die "proxy @latest is ${proxy_latest:-missing}, want $VERSION — retry the release verification later"
   sleep 6
 done
 

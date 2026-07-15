@@ -45,7 +45,12 @@ func TestReleasePublishesMainBeforeTag(t *testing.T) {
 	if err := os.Mkdir(fakeBin, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	write(t, filepath.Join(fakeBin, "go"), "#!/usr/bin/env bash\nexit 0\n", 0o755)
+	write(t, filepath.Join(fakeBin, "go"), `#!/usr/bin/env bash
+if [[ "$*" == *"rootcause-org/rootcause-cli@latest"* ]]; then
+  printf 'v9.9.9\n'
+fi
+exit 0
+`, 0o755)
 	write(t, filepath.Join(fakeBin, "gh"), `#!/usr/bin/env bash
 if [[ "$1 $2" == "auth status" ]]; then
   exit 0
@@ -56,6 +61,18 @@ if [[ "$1 $2" == "release view" && "$*" == *"--json assets"* ]]; then
 fi
 if [[ "$1 $2" == "release view" && "$*" == *"--json url"* ]]; then
   printf 'https://example.test/releases/v9.9.9\n'
+  exit 0
+fi
+if [[ "$1" == "api" && "$*" == *"rootcause-cli/releases/latest"* ]]; then
+  printf 'v9.9.9\n'
+  exit 0
+fi
+if [[ "$1" == "api" && "$*" == *"homebrew-tap/contents/Casks/rc.rb"* ]]; then
+  printf '  version "9.9.9"\n'
+  exit 0
+fi
+if [[ "$1 $2" == "run list" ]]; then
+  printf 'completed\tsuccess\n'
   exit 0
 fi
 exit 0
@@ -70,6 +87,9 @@ exit 0
 	}
 	if !strings.Contains(string(out), "origin/main verified") {
 		t.Fatalf("release output omitted remote-main verification:\n%s", out)
+	}
+	if !strings.Contains(string(out), "Homebrew cask is 9.9.9") {
+		t.Fatalf("release output omitted Homebrew verification:\n%s", out)
 	}
 
 	gotMain := strings.TrimSpace(run(t, tmp, "git", "--git-dir", origin, "rev-parse", "refs/heads/main"))
