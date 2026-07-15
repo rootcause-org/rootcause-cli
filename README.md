@@ -469,17 +469,20 @@ Use the script — it does the whole cycle reliably and verifies each part:
 scripts/release.sh patch     # 0.1.0 -> 0.1.1  (also: minor | major | vX.Y.Z | --dry-run)
 ```
 
-A release is **three things that must land together**, which is why a bare `git tag` isn't enough:
+A release is **four things that must land together**, which is why a bare `git tag` isn't enough:
 
-1. the **git tag** `vX.Y.Z` on `main`;
-2. the **GitHub Release** + prebuilt binaries — the [release workflow](.github/workflows/release.yml)
+1. the exact tested commit pushed and verified on **`origin/main`**;
+2. the **git tag** `vX.Y.Z` at that exact commit;
+3. the **GitHub Release** + prebuilt binaries — the [release workflow](.github/workflows/release.yml)
    builds every OS/arch via [GoReleaser](https://goreleaser.com) and attaches archives + checksums;
-3. the **Go module proxy** ingesting the tag, so consumers' `go get …@latest` resolves the new version
+4. the **Go module proxy** ingesting the tag, so consumers' `go get …@latest` resolves the new version
    instead of a stale pseudo-version (the step that's easy to forget by hand).
 
-The script gates on `go build/vet/test`, refuses a dirty/behind checkout, tags + pushes, waits for the
-binaries, then warms the proxy. See [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md)
-for the full runbook and manual fallback.
+The script gates on `go build/vet/test`, refuses a dirty/behind/diverged checkout, then explicitly
+pushes the tested SHA to `origin/main` and verifies the remote ref before it creates the tag. It waits
+for binaries and warms the proxy afterward. Local `main` may be ahead of origin; publishing it is part
+of the release. See [`.claude/skills/release/SKILL.md`](.claude/skills/release/SKILL.md) for the full
+runbook and manual fallback.
 
 **Homebrew** is wired up: each release, GoReleaser commits an updated `Casks/rc.rb` **cask** to the
 public [`rootcause-org/homebrew-tap`](https://github.com/rootcause-org/homebrew-tap) repo (the

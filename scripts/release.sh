@@ -2,12 +2,12 @@
 #
 # release.sh — cut a rootcause-cli release, end to end, the same way every time.
 #
-# WHY THIS EXISTS: a release here is more than "git tag". For consumers to actually pull the new
-# version we need three things to land together: (1) the GitHub Release with prebuilt binaries
-# (GoReleaser, via .github/workflows/release.yml), (2) the git tag itself, and (3) the Go module
-# proxy must have ingested the tag so `go get <module>@latest` resolves it. Miss step 3 and consuming
-# projects keep getting a stale pseudo-version even though the tag exists. This script does all three
-# and verifies them, so nobody has to remember the ritual.
+# WHY THIS EXISTS: a release here is more than "git tag". For consumers and collaborators to see the
+# exact same tested code, four things must land together: (1) the tested HEAD on origin/main, (2) the
+# git tag, (3) the GitHub Release with prebuilt binaries (GoReleaser, via
+# .github/workflows/release.yml), and (4) the Go module proxy ingesting the tag. Miss the main push and
+# GitHub appears behind the published binary; miss the proxy warmup and consumers keep resolving a
+# stale pseudo-version. This script performs and verifies the whole transaction.
 #
 # USAGE:
 #   scripts/release.sh v0.2.0      # explicit version
@@ -18,8 +18,9 @@
 # FLAGS:
 #   --dry-run   run the quality gates and print the plan, but do not tag/push/release.
 #
-# PRECONDITIONS (checked, not assumed): clean tree, on the default branch, in sync with origin,
-# `gh` authenticated, `go` available. The script refuses to release a dirty or behind checkout.
+# PRECONDITIONS (checked, not assumed): clean tree, on the default branch, not behind/diverged from
+# origin, `gh` authenticated, `go` available. A local main ahead of origin is expected: publishing it
+# is part of this script, before the release tag is created.
 
 set -euo pipefail
 
@@ -88,9 +89,12 @@ cur_branch="$(git rev-parse --abbrev-ref HEAD)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty — commit or stash first"
 
 git fetch --quiet origin "$MAIN_BRANCH"
-[ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$MAIN_BRANCH")" ] \
-  || die "local $MAIN_BRANCH is not in sync with origin/$MAIN_BRANCH — push/pull first"
-ok "clean, on $MAIN_BRANCH, in sync with origin"
+RELEASE_SHA="$(git rev-parse HEAD)"
+ORIGIN_SHA="$(git rev-parse "origin/$MAIN_BRANCH")"
+git merge-base --is-ancestor "$ORIGIN_SHA" "$RELEASE_SHA" \
+  || die "local $MAIN_BRANCH is behind or diverged from origin/$MAIN_BRANCH — reconcile first"
+ahead_count="$(git rev-list --count "$ORIGIN_SHA..$RELEASE_SHA")"
+ok "clean, on $MAIN_BRANCH, not behind origin ($ahead_count commit(s) to publish)"
 
 # --- quality gates --------------------------------------------------------------------------------
 
@@ -104,15 +108,29 @@ if command -v golangci-lint >/dev/null; then
   golangci-lint run >/dev/null 2>&1 && ok "lint (clean)" || printf '\033[33m  ! lint reported findings (advisory, not blocking) — run: golangci-lint run\033[0m\n'
 fi
 
+# The gates above covered RELEASE_SHA. Refuse to publish a moving target if another process changed
+# HEAD or the worktree while they ran.
+[ "$(git rev-parse HEAD)" = "$RELEASE_SHA" ] || die "HEAD changed during quality gates — rerun the release"
+[ -z "$(git status --porcelain)" ] || die "working tree changed during quality gates — rerun the release"
+
 if [ "$DRY_RUN" = 1 ]; then
-  step "Dry run — would tag $VERSION on $(git rev-parse --short HEAD), push, release, and warm the proxy."
+  step "Dry run — would push and verify $(git rev-parse --short "$RELEASE_SHA") on origin/$MAIN_BRANCH, tag $VERSION, release, and warm the proxy."
   exit 0
 fi
+
+# --- publish tested main --------------------------------------------------------------------------
+
+step "Publish main"
+git push origin "$RELEASE_SHA:refs/heads/$MAIN_BRANCH"
+PUBLISHED_SHA="$(git ls-remote --exit-code origin "refs/heads/$MAIN_BRANCH" | awk 'NR == 1 {print $1}')"
+[ "$PUBLISHED_SHA" = "$RELEASE_SHA" ] \
+  || die "origin/$MAIN_BRANCH verification failed (expected $RELEASE_SHA, got ${PUBLISHED_SHA:-missing})"
+ok "origin/$MAIN_BRANCH verified at $(git rev-parse --short "$RELEASE_SHA")"
 
 # --- tag + push -----------------------------------------------------------------------------------
 
 step "Tag + push"
-git tag -a "$VERSION" -m "rootcause-cli $VERSION"
+git tag -a "$VERSION" "$RELEASE_SHA" -m "rootcause-cli $VERSION"
 ok "created annotated tag $VERSION"
 git push origin "$VERSION"
 ok "pushed tag (triggers .github/workflows/release.yml → GoReleaser)"
