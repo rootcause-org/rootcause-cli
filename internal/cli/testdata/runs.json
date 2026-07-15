@@ -11,7 +11,13 @@
       "finished_at": "2026-06-19T09:01:30Z",
       "duration_ms": 90000,
       "has_draft": true,
-      "has_note": false
+      "has_note": false,
+      "learning": {
+        "feedback": true,
+        "sent_delta": true,
+        "triage_skipped": false,
+        "triage_corrected": false
+      }
     },
     {
       "run_id": "22222222-2222-2222-2222-222222222222",

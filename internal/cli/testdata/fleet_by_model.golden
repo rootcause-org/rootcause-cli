@@ -1,9 +1,9 @@
 Fleet digest — last 7 days · fleet · 4 runs
 
-Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=failing bash · BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn · FB=model fallback (planned model failed)
+Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=failing bash · BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn · FB=model fallback (planned model failed) · LRN=dream-cycle learning signal
 
 RUN8      KIND      STATUS  DURATION  COST     CTX  FLAGS
-aaaaaaaa  analysis  error   3m20s     $0.9200  64k  GD J0 ERR×3 BIG×1 $! EGR×2 CTX·64k FB
+aaaaaaaa  analysis  error   3m20s     $0.9200  64k  GD J0 ERR×3 BIG×1 $! EGR×2 CTX·64k FB LRN:feedback+triage_corrected
 aaaaaaaa  analysis  done    40.0s     $0.0500  12k  
 aaaaaaaa  analysis  done    30.0s     $0.0400  9k   
 aaaaaaaa  analysis  done    25.0s     $0.0300  8k   

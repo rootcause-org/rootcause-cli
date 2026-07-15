@@ -58,6 +58,8 @@ type RunsParams struct {
 	Days     int
 	Kind     string
 	Category string
+	Outcome  string
+	Learning string
 	Before   string
 	Project  string
 	Tenant   string
@@ -77,6 +79,12 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 	}
 	if p.Category != "" {
 		q.Set("category", p.Category)
+	}
+	if p.Outcome != "" {
+		q.Set("outcome", p.Outcome)
+	}
+	if p.Learning != "" {
+		q.Set("learning", p.Learning)
 	}
 	if p.Before != "" {
 		q.Set("before", p.Before)

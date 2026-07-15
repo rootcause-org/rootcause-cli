@@ -20,10 +20,11 @@ import (
 
 // FleetOptions carries the rendered window's scope for the headers (mirrors runs_digest.py's args).
 type FleetOptions struct {
-	Days    int
-	Kind    string // "" = all kinds
-	Format  string // "human" | "agent"
-	CtxWarn int    // peak-context token threshold for the CTX flag + shortlist weight (0 disables)
+	Days     int
+	Kind     string // "" = all kinds
+	Learning string // "" = all runs; otherwise the server-side learning filter
+	Format   string // "human" | "agent"
+	CtxWarn  int    // peak-context token threshold for the CTX flag + shortlist weight (0 disables)
 	// ByModel / Timeline gate the heavier breakdowns out of the default human digest so it stays
 	// scannable; -o json always carries them. ByModel = the model×cost×fallback table (which model
 	// burned the spend, and how much was a fallback). Timeline = the per-day runs/errors/cost histogram.
@@ -43,7 +44,7 @@ const DefaultCtxWarn = 50_000
 // fleetLegend is the human flag legend (runs_digest.py FLAG_LEGEND, condensed for the terminal).
 const fleetLegend = `Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=failing bash · ` +
 	`BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn · ` +
-	`FB=model fallback (planned model failed)`
+	`FB=model fallback (planned model failed) · LRN=dream-cycle learning signal`
 
 // FleetGroup is one project's slice of the fan-out: its name + its paged run rows. The cross-project
 // `rc fleet runs --all` builds one per project.
@@ -244,34 +245,36 @@ func costSpikes(runs []client.RunSummary) map[string]bool {
 func flags(r client.RunSummary, spikes map[string]bool, ctxWarn int) []string {
 	var f []string
 	h := r.Health
-	if h == nil {
-		// No health block (baseline bearer): only the safe error flag is derivable; everything else needs
-		// the view's counts. Return nothing — the digest still shows status/kind.
-		return f
-	}
-	if h.GroundingDiscarded {
-		f = append(f, "GD")
-	}
-	if r.Kind == "analysis" && h.NoJournal {
-		f = append(f, "J0")
-	}
-	if h.BashErrCount > 0 {
-		f = append(f, fmt.Sprintf("ERR×%d", h.BashErrCount))
-	}
-	if h.BigStdoutCount > 0 {
-		f = append(f, fmt.Sprintf("BIG×%d", h.BigStdoutCount))
+	if h != nil {
+		if h.GroundingDiscarded {
+			f = append(f, "GD")
+		}
+		if r.Kind == "analysis" && h.NoJournal {
+			f = append(f, "J0")
+		}
+		if h.BashErrCount > 0 {
+			f = append(f, fmt.Sprintf("ERR×%d", h.BashErrCount))
+		}
+		if h.BigStdoutCount > 0 {
+			f = append(f, fmt.Sprintf("BIG×%d", h.BigStdoutCount))
+		}
 	}
 	if spikes[r.RunID] {
 		f = append(f, "$!")
 	}
-	if h.BlockedEgress > 0 {
-		f = append(f, fmt.Sprintf("EGR×%d", h.BlockedEgress))
+	if h != nil {
+		if h.BlockedEgress > 0 {
+			f = append(f, fmt.Sprintf("EGR×%d", h.BlockedEgress))
+		}
 	}
 	if ctxWarn > 0 && peakCtx(r) >= int64(ctxWarn) {
 		f = append(f, "CTX·"+tokens(peakCtx(r)))
 	}
-	if h.IsFallback {
+	if h != nil && h.IsFallback {
 		f = append(f, "FB")
+	}
+	if learning := learningLabel(r.Learning); learning != "-" {
+		f = append(f, "LRN:"+strings.ReplaceAll(learning, ",", "+"))
 	}
 	return f
 }
@@ -315,7 +318,7 @@ func fleetHuman(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	if kinds == "" {
 		kinds = "all kinds"
 	}
-	_, _ = fmt.Fprintf(w, "Fleet digest — last %d days · %s · %d runs\n\n", opt.Days, kinds, len(runs))
+	_, _ = fmt.Fprintf(w, "Fleet digest — last %d days · %s%s · %d runs\n\n", opt.Days, kinds, learningScope(opt.Learning), len(runs))
 	_, _ = fmt.Fprintln(w, fleetLegend)
 	_, _ = fmt.Fprintln(w)
 
@@ -669,7 +672,7 @@ func offenderTail(r client.RunSummary) string {
 
 func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	spikes := costSpikes(runs)
-	_, _ = fmt.Fprintf(w, "runs — last %dd · %d runs\n\n", opt.Days, len(runs))
+	_, _ = fmt.Fprintf(w, "runs — last %dd%s · %d runs\n\n", opt.Days, learningScope(opt.Learning), len(runs))
 	if len(runs) == 0 {
 		_, _ = fmt.Fprintln(w, "(no runs in window)")
 		return
@@ -709,6 +712,13 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 			r.RunID, r.Kind, r.Status, costCell(cost(r)), tokens(peakCtx(r)), flagStr(r, spikes, opt.CtxWarn))
 	}
 	_, _ = fmt.Fprintln(w, "\ndrill: rc run debug <id>")
+}
+
+func learningScope(learning string) string {
+	if learning == "" {
+		return ""
+	}
+	return " · learning=" + learning
 }
 
 // --- sorting helpers ---

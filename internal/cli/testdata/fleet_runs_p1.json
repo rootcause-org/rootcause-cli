@@ -13,6 +13,12 @@
       "has_draft": false,
       "has_note": true,
       "topic": "vendor sync failing",
+      "learning": {
+        "feedback": true,
+        "sent_delta": false,
+        "triage_skipped": false,
+        "triage_corrected": true
+      },
       "health": {
         "turns": 14,
         "grounding_turns": 2,

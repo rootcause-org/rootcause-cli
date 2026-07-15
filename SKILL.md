@@ -53,7 +53,7 @@ output starts with `Scope: <project> / <tenant>`; JSON remains the raw server bo
 | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` | the whole bundle (header + per-event trace + cost); JSONL in JSON mode |
 | `rc run debug <id>` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
 | `rc run process-thread <thread-id>` | `POST /api/v1/projects/{project}[/tenants/{slug}]/inbox/threads/{id}/process` | resume a triage-skipped or security-blocked mail thread; requires an explicit or brain-derived project |
-| `rc dev learning evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit evidence for local dream-cycle passes; JSON is the primary surface |
+| `rc dev learning evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit + triage evidence for local dream-cycle passes; JSON-only because planes are heterogeneous; `--plane`, body detail opt-in |
 | `rc project settings runtime get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
 | `rc project knowledge content list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc project knowledge sync get/set` still owns KB sync config over `/api/v1/kb` |
 | `rc project settings behavior get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
@@ -80,7 +80,16 @@ output starts with `Scope: <project> / <tenant>`; JSON remains the raw server bo
 
 `rc status` and `rc run list` are the **same endpoint** — status requests a fixed five-row at-a-glance
 page and leads with the health summary; `run list` owns the filterable table
-(`--limit`/`--kind`/`--category`/`--before`).
+(`--limit`/`--kind`/`--category`/`--outcome`/`--learning[=signal]`/`--before`). Outcome and learning
+filters are server-side so cursor pagination remains correct. Bare `--learning` means `any`; explicit
+values are `feedback`, `sent_delta`, `triage_skipped`, and `triage_corrected`. The table exposes the
+safe learning booleans; JSON remains verbatim.
+
+`rc dev learning evidence` stays JSON-only: feedback, sent deltas, and triage corrections are
+heterogeneous evidence records, so a single table would discard useful plane-specific fields.
+`--plane feedback|deltas|triage` narrows the response; proposed/sent bodies remain excluded unless
+`--include-bodies` sets the API's `include_bodies=true`. There is no `--since` until the endpoint owns
+that filter.
 
 `rc ask` ([ask.go](internal/cli/ask.go)) is the one **trigger**: it `POST`s the prompt to `/api/v1/runs`,
 then by default polls `/runs/{id}` to a terminal status and renders by scenario (`--no-wait` prints the
@@ -256,6 +265,9 @@ runs/errors/cost histogram. Stuck/running runs and a `FB` model-fallback flag ar
 lines carry the full triage tail. The fallback signal is the server's clean `run_health.is_fallback`
 boolean (it bakes around the `runs.model_fallback_from` empty-string-vs-NULL trap — see the `support`
 skill's `db-reference.md`); each row's `is_fallback`/`planned_model` ride raw in `-o json`.
+`--learning` uses the same bare-`any` / explicit signal semantics as `run list` and is passed through on
+every page and every `--all` project request. Human and agent renderers add an `LRN:` flag naming the
+safe signals; learning does not affect operational severity or worst-offender ranking.
 
 Base URL resolution is exactly `ROOTCAUSE_BASE_URL` > built-in production default
 (`https://app.replypen.com`). `ROOTCAUSE_BASE_URL` is the deliberate staging/dev escape hatch; otherwise

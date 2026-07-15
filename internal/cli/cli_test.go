@@ -1039,6 +1039,12 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		if got := r.URL.Query().Get("limit"); got != "7" {
 			t.Fatalf("dream evidence limit = %q, want 7", got)
 		}
+		if got := r.URL.Query().Get("plane"); got != "triage" {
+			t.Fatalf("dream evidence plane = %q, want triage", got)
+		}
+		if got := r.URL.Query().Get("include_bodies"); got != "true" {
+			t.Fatalf("dream evidence include_bodies = %q, want true", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"project":"acme","feedback":[{"run_id":"run1","score":2,"comment":"missed policy"}],"deltas":[{"id":"delta1","related_run_id":"run2","similarity":0.41,"changed_chars":120}]}`))
 	})

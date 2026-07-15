@@ -107,6 +107,83 @@ func TestFleetDaysRidesAsQueryParam(t *testing.T) {
 	}
 }
 
+func TestRunLearningFiltersRideAsQueryParams(t *testing.T) {
+	var queries []map[string]string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		queries = append(queries, map[string]string{
+			"outcome":  q.Get("outcome"),
+			"learning": q.Get("learning"),
+			"days":     q.Get("days"),
+		})
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "list", "--outcome", "failed", "--learning=feedback"); err != nil {
+		t.Fatalf("run list learning filters: %v", err)
+	}
+	e, _, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "runs", "--learning"); err != nil {
+		t.Fatalf("fleet runs bare --learning: %v", err)
+	}
+
+	if len(queries) != 2 {
+		t.Fatalf("run filter requests = %d, want 2", len(queries))
+	}
+	if got := queries[0]; got["outcome"] != "failed" || got["learning"] != "feedback" || got["days"] != "" {
+		t.Fatalf("run list query = %#v", got)
+	}
+	if got := queries[1]; got["outcome"] != "" || got["learning"] != "any" || got["days"] != "7" {
+		t.Fatalf("fleet runs query = %#v", got)
+	}
+}
+
+func TestFleetLearningFilterLabelsDigestPopulation(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("learning"); got != "any" {
+			t.Fatalf("fleet learning query = %q, want any", got)
+		}
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "runs", "--learning"); err != nil {
+		t.Fatalf("fleet runs bare --learning: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "learning=any") {
+		t.Fatalf("filtered fleet digest did not label population:\n%s", got)
+	}
+}
+
+func TestRunLearningFiltersRejectUnknownValues(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "outcome", args: []string{"run", "list", "--outcome", "ok"}, want: `invalid --outcome "ok"`},
+		{name: "run learning", args: []string{"run", "list", "--learning=journal"}, want: `invalid --learning "journal"`},
+		{name: "fleet learning", args: []string{"fleet", "runs", "--learning=journal"}, want: `invalid --learning "journal"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, _, _ := newTestEnv(t, srv, "json")
+			err := run(t, e, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestBrainDefaultProfileFallbackAddsProjectScope(t *testing.T) {
 	isolatedConfig(t)
 	dir := t.TempDir()
@@ -272,6 +349,10 @@ func TestFleetJSONPassthrough(t *testing.T) {
 	// No client-side digest leaked into JSON mode: the rows are the wire struct (run_id + health present).
 	if got.Runs[0]["run_id"] == nil || got.Runs[0]["health"] == nil {
 		t.Errorf("json rows reshaped — want verbatim wire rows, got %+v", got.Runs[0])
+	}
+	learning, ok := got.Runs[0]["learning"].(map[string]any)
+	if !ok || learning["feedback"] != true || learning["triage_corrected"] != true {
+		t.Errorf("json learning fields lost — got %+v", got.Runs[0]["learning"])
 	}
 }
 

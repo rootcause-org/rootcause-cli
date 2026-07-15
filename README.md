@@ -18,9 +18,11 @@ $ rc ask "Do I still have open invoices?"   # simulate a support email, wait, pr
 $ rc ask --scenario raw "How many active subscriptions are past due?"
 $ rc ask --effort pro "Retry this with a stronger model tier"
 $ rc run list --kind prompt --limit 5 | jq '.runs[].run_id'
+$ rc run list --outcome failed --learning             # learning candidates with failed verdicts
 $ rc run events <id>        # full per-iteration trace (NDJSON when piped)
 $ rc run trace <id>          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
-$ rc dev learning evidence --limit 50 -o json
+$ rc dev learning evidence --plane triage --limit 50 -o json
+$ rc dev learning evidence --plane deltas --include-bodies -o json
 $ rc dev brain sync
 $ rc dev brain promote --channel stable --sha "$(git rev-parse HEAD)"
 $ rc dev brain status                 # verify stable/edge resolved SHAs before claiming success
@@ -177,6 +179,15 @@ runs/errors/cost). Both off by default to keep the digest scannable; the per-run
 a 30m clock with no finish) and a `FB` model-fallback flag are surfaced inline; every worst-offender
 line carries the full triage tail (cost · secs · turns · bash_err · ctx · FB).
 
+Use bare **`--learning`** to keep runs with any dream-cycle signal, or select one with
+`--learning=feedback|sent_delta|triage_skipped|triage_corrected`; the same filter works on
+`rc run list`. Run-list tables show the matching safe boolean signals, and fleet tables/agent output
+carry them as `LRN:` flags. JSON keeps the server rows unchanged.
+
+`rc dev learning evidence` is intentionally JSON-only because feedback, deltas, and triage evidence
+have different wire shapes. `--plane feedback|deltas|triage` narrows the corpus; delta bodies stay
+omitted unless `--include-bodies` is explicit.
+
 **`.rootcause.toml`** (committed, per brain) names the project + endpoint — no secret, safe to commit,
 ships the binding with a clone. Optional gitignored **`.rootcause/local.toml`** can still set a local
 tenant override for debugging. There is no longer any `.rootcause.secret.toml` — credentials live only
@@ -230,7 +241,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev console database schema` | Fetch database schema, optionally one table |
 | `rc dev console database` | Run guarded production database reads |
 | `rc dev console` | Use guarded production consoles |
-| `rc dev learning evidence` | List feedback and sent-edit evidence for consolidation |
+| `rc dev learning evidence` | List feedback, sent-edit, and triage evidence for consolidation |
 | `rc dev learning` | Inspect learning and consolidation inputs |
 | `rc dev tools id gmail` | Translate Gmail hex/decimal/thread-f: ids + build a clickable URL |
 | `rc dev tools id outlook` | Classify an Outlook/Graph id + tell you which DB column matches it |

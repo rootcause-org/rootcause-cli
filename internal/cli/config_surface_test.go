@@ -440,11 +440,21 @@ func TestDreamEvidenceJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "dev", "learning", "evidence", "--limit", "7"); err != nil {
+	if err := run(t, e, "dev", "learning", "evidence", "--limit", "7", "--plane", "triage", "--include-bodies"); err != nil {
 		t.Fatalf("dream evidence: %v", err)
 	}
 	if got := out.String(); !strings.Contains(got, `"feedback"`) || !strings.Contains(got, `"deltas"`) {
 		t.Fatalf("dream evidence output missing planes: %s", got)
+	}
+}
+
+func TestDreamEvidenceRejectsUnknownPlane(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "learning", "evidence", "--plane", "journal")
+	if err == nil || !strings.Contains(err.Error(), `invalid --plane "journal"`) {
+		t.Fatalf("dream evidence bad plane error = %v", err)
 	}
 }
 

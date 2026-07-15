@@ -96,15 +96,35 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSOURCE\tSTATUS\tOUTCOME\tCATEGORY\tDURATION\tCREATED")
+	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSOURCE\tSTATUS\tOUTCOME\tCATEGORY\tLEARNING\tDURATION\tCREATED")
 	for _, r := range resp.Runs {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			r.RunID, r.Kind, r.Source, r.Status, r.Outcome, r.Category, duration(r.DurationMs), r.CreatedAt)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			r.RunID, r.Kind, r.Source, r.Status, r.Outcome, r.Category, learningLabel(r.Learning), duration(r.DurationMs), r.CreatedAt)
 	}
 	_ = tw.Flush()
 	if resp.NextBefore != "" {
 		_, _ = fmt.Fprintf(w, "\nMore: rc run list --before %s\n", resp.NextBefore)
 	}
+}
+
+func learningLabel(l client.Learning) string {
+	var signals []string
+	if l.Feedback {
+		signals = append(signals, "feedback")
+	}
+	if l.SentDelta {
+		signals = append(signals, "sent_delta")
+	}
+	if l.TriageSkipped {
+		signals = append(signals, "triage_skipped")
+	}
+	if l.TriageCorrected {
+		signals = append(signals, "triage_corrected")
+	}
+	if len(signals) == 0 {
+		return "-"
+	}
+	return strings.Join(signals, ",")
 }
 
 // Run renders one run's high-level view — the promised set: status, category, draft?/note?, cost,

@@ -116,10 +116,12 @@ Usage:
   rc run list [flags]
 
 Flags:
-      --before string     cursor: run_id to page to the next (older) page
-      --category string   filter by category (e.g. ok, timeout, cost_cap)
-      --kind string       filter by kind: email|prompt|mcp|analysis|console
-      --limit int         max runs to return (1..100, server default 50)
+      --before string             cursor: run_id to page to the next (older) page
+      --category string           filter by category (e.g. ok, timeout, cost_cap)
+      --kind string               filter by kind: email|prompt|mcp|analysis|console
+      --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
+      --limit int                 max runs to return (1..100, server default 50)
+      --outcome string            filter by outcome: answered|declined|failed|error|stuck|running|interrupted
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2725,7 +2727,7 @@ Usage:
   rc dev learning [command]
 
 Available Commands:
-  evidence    List feedback and sent-edit evidence for consolidation
+  evidence    List feedback, sent-edit, and triage evidence for consolidation
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2739,13 +2741,15 @@ Global Flags:
 Use "rc dev learning [command] --help" for more information about a command.
 
 $ rc dev learning evidence --help
-List feedback and sent-edit evidence for consolidation
+List feedback, sent-edit, and triage evidence for consolidation
 
 Usage:
   rc dev learning evidence [flags]
 
 Flags:
-      --limit int   max rows per evidence plane (server default 20, cap 100)
+      --include-bodies   include proposed and sent bodies in delta evidence
+      --limit int        max rows per evidence plane (server default 20, cap 100)
+      --plane string     evidence plane: feedback|deltas|triage (default all)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2951,13 +2955,14 @@ Usage:
   rc fleet runs [flags]
 
 Flags:
-      --all             fan out across every project (requires an all-projects token)
-      --by-model        add the model×cost×fallback breakdown (which model burned the spend, how much was a fallback)
-      --ctx-warn int    peak-context tokens at/above which a run gets the CTX flag (0 disables) (default 50000)
-      --days int        window label for the digest header (days) (default 7)
-      --format string   output style: human|agent (default "human")
-      --kind string     filter by kind: email|prompt|mcp|analysis
-      --timeline        add the per-day runs/errors/cost timeline
+      --all                       fan out across every project (requires an all-projects token)
+      --by-model                  add the model×cost×fallback breakdown (which model burned the spend, how much was a fallback)
+      --ctx-warn int              peak-context tokens at/above which a run gets the CTX flag (0 disables) (default 50000)
+      --days int                  window label for the digest header (days) (default 7)
+      --format string             output style: human|agent (default "human")
+      --kind string               filter by kind: email|prompt|mcp|analysis
+      --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
+      --timeline                  add the per-day runs/errors/cost timeline
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

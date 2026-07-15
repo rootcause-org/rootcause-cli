@@ -183,6 +183,28 @@ func TestFleetAllJSON(t *testing.T) {
 	}
 }
 
+func TestFleetAllLearningFilterScopesEveryProject(t *testing.T) {
+	var got []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p1","name":"alpha"},{"id":"p2","name":"bravo"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.URL.Query().Get("project")+":"+r.URL.Query().Get("learning"))
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "runs", "--all", "--learning=triage_corrected"); err != nil {
+		t.Fatalf("fleet --all --learning: %v", err)
+	}
+	if strings.Join(got, ",") != "p1:triage_corrected,p2:triage_corrected" {
+		t.Fatalf("fleet --all learning queries = %v", got)
+	}
+}
+
 // TestFleetAllScopedTokenErrors: `--all` against a project-scoped token (the fleet list returns just one
 // project) is a friendly client-side error, not a stack trace — it names the project and the fix.
 func TestFleetAllScopedTokenErrors(t *testing.T) {

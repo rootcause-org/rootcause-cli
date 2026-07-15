@@ -266,6 +266,7 @@ type RunSummary struct {
 	DeclinedReason string     `json:"declined_reason,omitempty"`
 	Topic          string     `json:"topic,omitempty"`
 	Health         *RunHealth `json:"health,omitempty"`
+	Learning       Learning   `json:"learning"`
 	raw            json.RawMessage
 }
 
@@ -313,6 +314,15 @@ type RunHealth struct {
 	// PlannedModel is the model the loop planned but that failed (run_health.model_fallback_from), set
 	// only when IsFallback. Operator-tier like Model — omitted for a baseline bearer.
 	PlannedModel string `json:"planned_model,omitempty"`
+}
+
+// Learning is the privacy-safe dream-cycle pointer attached to a run index row. It carries only
+// booleans; the evidence endpoint owns comments, bodies, deltas, and triage detail.
+type Learning struct {
+	Feedback        bool `json:"feedback"`
+	SentDelta       bool `json:"sent_delta"`
+	TriageSkipped   bool `json:"triage_skipped"`
+	TriageCorrected bool `json:"triage_corrected"`
 }
 
 // SourceCount is the per-source tally inside the health summary.
