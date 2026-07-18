@@ -129,3 +129,39 @@ func TestConsoleDBQueryWriteForwardsFlag(t *testing.T) {
 		t.Errorf("render missing rows-affected line:\n%s", got)
 	}
 }
+
+func TestConsoleDBQueryDryRunRequiresWrite(t *testing.T) {
+	srv := httptest.NewServer(http.NewServeMux())
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "dev", "console", "database", "query", "backups", "select 1", "--dry-run")
+	if err == nil || err.Error() != "--dry-run requires --write; reads are already side-effect free" {
+		t.Fatalf("dry-run without write = %v", err)
+	}
+}
+
+func TestConsoleDBQueryDryRunRenderAndJSON(t *testing.T) {
+	const response = `{"project":"pro-backup","db":"backups","run_id":"run-1","columns":["id","plan"],"rows":[{"id":7,"plan":"pro"}],"row_count":1,"rows_affected":1,"write":true,"dry_run":true,"duration_ms":12}`
+	var bodies []map[string]any
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		bodies = append(bodies, body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(response))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	for _, output := range []string{"table", "json"} {
+		e, out, _ := newTestEnv(t, srv, output)
+		if err := run(t, e, "dev", "console", "database", "query", "backups", "update users set plan='pro' where id=7 returning id, plan", "--write", "--dry-run"); err != nil {
+			t.Fatalf("console db dry-run (%s): %v", output, err)
+		}
+		assertGolden(t, "console_db_dry_run_"+output+".golden", out.String())
+	}
+	if len(bodies) != 2 || bodies[0]["write"] != true || bodies[0]["dry_run"] != true || bodies[1]["write"] != true || bodies[1]["dry_run"] != true {
+		t.Fatalf("write/dry_run flags not forwarded in both output modes: %v", bodies)
+	}
+}

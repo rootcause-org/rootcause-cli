@@ -69,6 +69,9 @@ func DBSchema(w io.Writer, r *client.DBSchemaResponse) {
 }
 
 func DBQuery(w io.Writer, r *client.DBQueryResponse) {
+	if r.DryRun {
+		_, _ = fmt.Fprintln(w, "DRY RUN — rolled back, nothing committed")
+	}
 	// A write (rows_affected present) leads with its commit count; the RETURNING rows, if any, still
 	// render below through the same row table.
 	if r.RowsAffected != nil {

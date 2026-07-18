@@ -1,0 +1,20 @@
+{
+  "columns": [
+    "id",
+    "plan"
+  ],
+  "db": "backups",
+  "dry_run": true,
+  "duration_ms": 12,
+  "project": "pro-backup",
+  "row_count": 1,
+  "rows": [
+    {
+      "id": 7,
+      "plan": "pro"
+    }
+  ],
+  "rows_affected": 1,
+  "run_id": "run-1",
+  "write": true
+}

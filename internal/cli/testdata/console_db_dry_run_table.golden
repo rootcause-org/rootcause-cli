@@ -1,0 +1,6 @@
+DRY RUN — rolled back, nothing committed
+rows affected: 1
+id  plan
+7   pro
+
+1 rows (12 ms) run=run-1

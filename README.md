@@ -250,9 +250,9 @@ help using `go test ./internal/cli -update`.
 | `rc dev console bash` | List or run workspace console commands |
 | `rc dev console capabilities` | List direct production primitives available to this login |
 | `rc dev console database list` | List available databases |
-| `rc dev console database query` | Run a read-only SQL query through rootcause scoping |
+| `rc dev console database query` | Run a guarded production database query |
 | `rc dev console database schema` | Fetch database schema, optionally one table |
-| `rc dev console database` | Run guarded production database reads |
+| `rc dev console database` | Access guarded production databases |
 | `rc dev console` | Use guarded production consoles |
 | `rc dev learning evidence` | List feedback, sent-edit, and triage evidence for consolidation |
 | `rc dev learning` | Inspect learning and consolidation inputs |

@@ -177,9 +177,11 @@ type DBSchemaColumn struct {
 type DBQueryRequest struct {
 	SQL   string `json:"sql"`
 	Limit int    `json:"limit,omitempty"`
-	// Write routes the statement to the project's sealed write-plane DSN and COMMITs (scope
-	// console:db:write); omitempty so a plain read never carries it.
+	// Write routes the statement to the project's sealed write-plane DSN (scope console:db:write) and
+	// commits unless DryRun is set; omitempty so a plain read never carries it.
 	Write bool `json:"write,omitempty"`
+	// DryRun preserves the write plane and authorization but rolls the transaction back.
+	DryRun bool `json:"dry_run,omitempty"`
 }
 
 type DBQueryResponse struct {
@@ -194,6 +196,7 @@ type DBQueryResponse struct {
 	// on the write plane.
 	RowsAffected *int64 `json:"rows_affected,omitempty"`
 	Write        bool   `json:"write,omitempty"`
+	DryRun       bool   `json:"dry_run,omitempty"`
 	RowCount     int    `json:"row_count"`
 	Truncated    bool   `json:"truncated"`
 	DurationMs   int64  `json:"duration_ms"`

@@ -54,6 +54,7 @@ output starts with `Scope: <project> / <tenant>`; JSON remains the raw server bo
 | `rc run debug <id>` | `GET /api/v1/runs/{id}/trace` | decompose to a jq-able JSONL + thin markdown index on disk (see below) |
 | `rc run process-thread <thread-id>` | `POST /api/v1/projects/{project}[/tenants/{slug}]/inbox/threads/{id}/process` | resume a triage-skipped or security-blocked mail thread; requires an explicit or brain-derived project |
 | `rc dev learning evidence` | `GET /api/v1/dream/evidence` | feedback + sent-edit + triage evidence for local dream-cycle passes; JSON-only because planes are heterogeneous; `--plane`, body detail opt-in |
+| `rc dev console database query <db> <sql>` | `POST /api/v1/console/db/{db}/query` | read through the scoped/masked plane by default; `--write` uses the project-level unmasked write plane and commits, while `--write --dry-run` executes with identical authorization and rolls the transaction back after reporting `rows affected` + explicit `RETURNING` rows |
 | `rc project settings runtime get` / `set k=v` | `GET` / `PATCH /api/v1/settings` | read / change the self-service settings whitelist (list keys like `pr.triggers=inbound,mcp` comma-split to a JSON array — see below) |
 | `rc project knowledge content list` / `search` / `export` | `POST /api/v1/console/bash/run` | first-class KB article discovery over the mounted `/kb/<provider>` snapshot: stdout stays compact; search/export write timestamped local artifacts under `.rootcause/tmp/kb-searches/...` with `manifest.json`, `hits.md`, and matched article markdown files. `rc project knowledge sync get/set` still owns KB sync config over `/api/v1/kb` |
 | `rc project settings behavior get/set` | `GET/PATCH /api/v1/projects/{project}/settings?resolved=true` | read/change nested project hierarchy settings (`persona.*`, `channel.*`) |
@@ -84,6 +85,31 @@ page and leads with the health summary; `run list` owns the filterable table
 filters are server-side so cursor pagination remains correct. Bare `--learning` means `any`; explicit
 values are `feedback`, `sent_delta`, `triage_skipped`, and `triage_corrected`. The table exposes the
 safe learning booleans; JSON remains verbatim.
+
+### Database writes: rehearse, then commit
+
+Always rehearse production SQL on the real write plane before committing it. Include the key and every
+changed column in `RETURNING`; use `RETURNING *` for DELETE so the disappearing row can be archived.
+Treat an unexpected `rows affected` count as a hard stop.
+
+```bash
+# 1. Rehearse — see exactly which rows change and their new values
+rc dev console database query backups \
+  "UPDATE users SET plan = 'pro' WHERE email = 'x@y.com' RETURNING id, email, plan" \
+  --write --dry-run
+# → DRY RUN — rolled back, nothing committed
+# → rows affected: 1   (expected 1? if 500, your WHERE is wrong — nothing happened)
+
+# 2. Commit — same statement, drop --dry-run
+rc dev console database query backups "UPDATE … RETURNING id, email, plan" --write
+```
+
+Dry-run has the same write-grade authorization and unmasked project-level DSN as a commit: it is a
+safety net, not a weaker privilege. Rollback undoes row changes and transactional side effects such as
+`NOTIFY`, but sequence increments remain and volatile functions still execute. Locks remain held until
+rollback, bounded by the server's 30-second statement timeout. `UPDATE ... RETURNING` exposes new values;
+capture old and new values with a self-join when needed. Rehearsal and commit are two executions, so
+production may change between them—confirm the commit run's row count still matches.
 
 `rc dev learning evidence` stays JSON-only: feedback, sent deltas, and triage corrections are
 heterogeneous evidence records, so a single table would discard useful plane-specific fields.
