@@ -141,9 +141,11 @@ own project. Main intent: the checkout chooses the project context; the profile 
 local token to use.
 
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
-sync`, then `rc dev brain promote --channel stable --sha <full-40-character-SHA>`. Promotion moves only
-the named managed channel to that commit; it never promotes an ambient `main` tip. Finish with `rc dev
-brain status` and confirm the channel's **resolved** SHA. Tenant overlays always run from their own
+sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. Promotion moves
+only the named managed channel to that commit; it never promotes an ambient `main` tip. Finish with `rc
+dev brain status` and confirm the channel's **resolved** SHA. `rc dev brain publish --channel … --sha …`
+does the whole choreography in one gated command — sync, promote, then verify the channel resolved to
+that exact SHA — and exits non-zero on any mismatch (`-o json` carries the receipt). Tenant overlays always run from their own
 `main` and have no promotion route. A tenant-scoped login cannot move the shared project channel; sign
 in with an authorized project-maintainer login instead. Explicitly narrowed tokens need the dedicated
 `brain:promote` OAuth scope in addition to that project-level admin authority.
@@ -403,9 +405,12 @@ requests to one project server-side and is validated against `rc project list` b
 all-projects tokens outside a brain checkout or as an override; inside a brain checkout the
 `.rootcause.toml` project is used automatically when falling back to `default`);
 `--tenant <slug>` explicitly selects a tenant where supported; it is required for workspace-producing
-commands when a tenant-enabled project login is project-pinned. `-o json|table` forces output. Large
-output spills to `.rootcause/output/` by default; use `--out-dir <dir>` or `RC_OUTPUT_DIR` to change
-that, `--no-preview` to print paths/metadata only, and `--raw-output` to preserve exact full stdout.
+commands when a tenant-enabled project login is project-pinned. `--scope project|tenant` forces request
+routing: `project` clears any resolved tenant (a `--tenant`, a brain checkout, or a tenant-bound login)
+so a tenant-capable command hits the project route; `tenant` requires a resolvable tenant. `-o json|table`
+forces output. Large output spills to `.rootcause/output/` by default; use `--out-dir <dir>` or
+`RC_OUTPUT_DIR` to change that, `--no-preview` to print paths/metadata only, and `--raw-output` to
+preserve exact full stdout.
 
 `rc ask --brain-ref dev/<branch>` runs the question against a **non-main brain ref** — the project
 dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin

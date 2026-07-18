@@ -1,95 +1,46 @@
-# Spec - CLI progressive output disclosure
+# Spec — CLI progressive output disclosure
 
-**Repo:** `rootcause-cli`.
+**Status: shipped.** Package [`internal/outputspill`](../../internal/outputspill/outputspill.go) +
+per-command wiring in [`internal/cli/outputspill.go`](../../internal/cli/outputspill.go)
+(`env.renderJSON` / `env.renderBytes`). [`SKILL.md`](../../SKILL.md) has the one-paragraph summary and
+the flag/env knobs; this file keeps the durable contract (policy, manifest shape, thresholds, detection,
+hints) that the code and its golden tests hold to.
 
-`rc` stays a fat client over a thin server: API endpoints keep returning the full token-scoped payload.
-The CLI decides how much to print, when to spill large payloads to local files, and how to guide the
-caller to inspect those files without flooding a terminal, pipe, or LLM context.
+## Intent
 
-## Problem
+`rc` is a fat client over a thin server: endpoints keep returning the full token-scoped payload. The CLI
+decides how much to print, spills large payloads to local files, and guides the caller to inspect them
+without flooding a terminal, pipe, or LLM context. This mirrors hosted agent bash, which already writes
+large stdout/stderr to disk and hands the model a head/tail preview + path + `sed`/`rg`/`jq` hints.
 
-Hosted agent bash already has good progressive disclosure: large stdout/stderr is written to
-`/tmp/rc-bash/<seq>.<stream>.txt`, while the model receives a head/tail preview, a path, and concrete
-`sed`/`rg`/`jq` hints.
+Server APIs stay raw and complete (no server-side summarization); no DB/infra access; no TUI.
 
-`rc dev console bash run` and other CLI commands do not have an equivalent client-side layer:
+## Output policy
 
-- table output can print large blobs inline;
-- `-o json` pretty-prints whatever the server returned;
-- truncated server-side console fields only tell us truncation happened, without a local drill-down
-  file;
-- callers often need to manually rerun commands with `jq`, `rg`, `sed`, or output redirection.
-
-## Goals
-
-- Keep server APIs raw and complete. No new server summarization requirement.
-- Make `rc` safe to use from an LLM/coding-agent loop without dumping huge blobs into context.
-- Apply to table, JSON, NDJSON, and plain/text-ish outputs, not only `rc dev console bash run`.
-- Preserve full data locally whenever stdout is suppressed or previewed.
-- Print concise, copyable drill-down hints.
-- Keep pipe-first scripting usable.
-
-## Non-goals
-
-- No server-side output rewriting.
-- No database or direct infrastructure access in the CLI.
-- No TUI.
-- No attempt to parse every platform's domain-specific JSON.
-
-## Output Policy
-
-Add a shared CLI output-spill package used by renderers and JSON passthrough paths.
-
-Default policy:
+The response is still fetched fully. The CLI decides whether stdout is a preview/manifest or the raw
+payload:
 
 | Output shape | Small output | Large output |
 |---|---|---|
-| TTY table/text | print inline | print head/tail preview + spill path + hints |
-| `-o json` / piped JSON object | print compact manifest JSON with spill path(s), preview, size, hints | write full JSON to disk |
-| NDJSON streams | stream small lines inline | write full stream to disk; stdout prints a manifest JSON object unless `--stream` is explicitly requested |
-| Explicit raw mode | print exactly as today | never spill |
+| TTY table/text | print inline | head/tail preview + spill path + hints |
+| `-o json` / piped JSON | print inline | write full JSON to disk; stdout gets a manifest JSON (path(s), preview, size, hints) |
+| NDJSON streams | stream inline | write full stream to disk; stdout gets a manifest unless `--stream` |
+| `--raw-output` | print exactly as today | never spill |
 
-The server response is still fetched fully. The CLI decides whether stdout is a preview/manifest or the
-raw payload.
+## Local spill location
 
-## Local Spill Location
+Default `.rootcause/output/` (brain repos wholesale-ignore `.rootcause/`, keeping run/customer data out
+of git). Per-artifact subfolders use command-specific names when known, e.g.
+`bash-run-<run8>-seq-<seq>/stdout.txt`, `run-<run8>/trace.jsonl`, `env-keys/response.json`. Files:
+`response.json`, `stdout.txt`, `stderr.txt`, `events.jsonl`, `INDEX.md` as applicable.
 
-Default local directory:
+Flags/env: `--out-dir <dir>` / `RC_OUTPUT_DIR` (spill dir), `--raw-output` (disable spill, raw stdout),
+`--no-preview` (write files, print only paths/metadata).
 
-```text
-.rootcause/output/
-```
+## Manifest contract
 
-Rationale: existing `rc run debug` already writes local artifacts under `.rootcause/debug/`, and brain
-repos wholesale-ignore `.rootcause/`. This keeps sensitive run/customer data out of git.
-
-Flags/env:
-
-- `--out-dir <dir>`: override for commands that can spill.
-- `RC_OUTPUT_DIR=<dir>`: default spill dir override.
-- `--raw-output`: disable spill and print current raw behavior.
-- `--no-preview`: write files and print only paths/metadata.
-
-File naming:
-
-```text
-.rootcause/output/<timestamp>-<command>-<short-id>/
-  response.json
-  stdout.txt
-  stderr.txt
-  events.jsonl
-  INDEX.md
-```
-
-Use command-specific names when known:
-
-- `bash-run-<run8>-seq-<seq>/stdout.txt`
-- `run-<run8>/trace.jsonl`
-- `env-keys/response.json`
-
-## Manifest Contract
-
-When `-o json` spills, stdout should be valid JSON, but not the huge payload:
+When `-o json` spills, stdout is valid JSON but not the huge payload (`Manifest` in
+[`outputspill.go`](../../internal/outputspill/outputspill.go)):
 
 ```json
 {
@@ -98,10 +49,7 @@ When `-o json` spills, stdout should be valid JSON, but not the huge payload:
   "format": "text",
   "bytes": 82144,
   "lines": 1290,
-  "preview": {
-    "head": "first lines...",
-    "tail": "last lines..."
-  },
+  "preview": {"head": "first lines...", "tail": "last lines..."},
   "hints": [
     "sed -n '1,120p' .rootcause/output/bash-run-22222222-seq-3/stdout.txt",
     "rg 'PATTERN' .rootcause/output/bash-run-22222222-seq-3/stdout.txt",
@@ -111,164 +59,36 @@ When `-o json` spills, stdout should be valid JSON, but not the huge payload:
 }
 ```
 
-For multi-part output:
+Multi-part output uses `"artifacts": {"response": {...}, "stdout": {...}, "stderr": {...}}` instead of a
+single `path`. A stream the server itself truncated is still spilled and marked `"server_truncated": true`
+(a separate concern — the CLI cannot recover bytes the server did not return).
 
-```json
-{
-  "spilled": true,
-  "artifacts": {
-    "response": {"path": ".../response.json", "format": "json", "bytes": 120044},
-    "stdout": {"path": ".../stdout.txt", "format": "text", "bytes": 65536},
-    "stderr": {"path": ".../stderr.txt", "format": "text", "bytes": 812}
-  },
-  "hints": ["jq '.stdout' .../response.json", "sed -n '1,120p' .../stdout.txt"]
-}
-```
+## Thresholds & detection
 
-## Thresholds
+Byte thresholds, not token estimates:
 
-Use byte thresholds, not token estimates:
+- `RC_OUTPUT_SPILL_THRESHOLD` (default `6000`) — per field/stream.
+- `RC_OUTPUT_INLINE_MAX` (default `20000`) — whole compact JSON before stdout becomes a manifest.
+- Preview: head `2000` bytes, tail `1000` bytes.
 
-- `RC_OUTPUT_SPILL_THRESHOLD`, default `6000` bytes per field/stream.
-- `RC_OUTPUT_INLINE_MAX`, default `20000` bytes for whole JSON response before replacing stdout with a
-  manifest.
-- Keep previews close to hosted bash behavior: head `2000` bytes, tail `1000` bytes.
-
-Detection:
-
-- Spill individual fields named `stdout`, `stderr`, `body`, `draft`, `notes`, `system_prompt`,
-  `events`, `response`, or any string over threshold.
-- Spill whole JSON responses when compact JSON exceeds `RC_OUTPUT_INLINE_MAX`.
-- For binary/non-UTF8 payloads, write bytes and mark `format: "binary"`.
+Spill individual fields named `stdout`, `stderr`, `body`, `draft`, `notes`, `system_prompt`, `events`,
+`response`, or any string over threshold; spill whole responses over `RC_OUTPUT_INLINE_MAX`;
+binary/non-UTF8 payloads are written and marked `format: "binary"`.
 
 ## Hints
 
-Generate hints from detected format:
+Generated from detected format — every manifest carries ≥3 useful commands (preview range, search,
+structured query when applicable):
 
 | Format | Hints |
 |---|---|
 | JSON object/array | `jq '.' FILE`, `jq 'keys' FILE`, `jq -r '.. \| strings' FILE \| rg PATTERN` |
 | JSONL/NDJSON | `jq -r 'select(...)' FILE`, `jq -r '.stdout? // empty' FILE` |
 | Text | `sed -n 'A,Bp' FILE`, `rg PATTERN FILE`, `tail -n 120 FILE` |
-| CSV/TSV | `xsv headers FILE` when available, else `sed -n '1,20p' FILE` |
 
-Every manifest should include at least three useful commands: preview range, search, structured query
-when applicable.
+## Coverage
 
-## Command Coverage
-
-Phase 1:
-
-- `rc dev console bash run`
-- raw JSON passthrough in `internal/cli/console.go`
-- `rc run events`
-- `rc run trace`
-- `rc run debug` alignment: keep current files, but emit the same manifest shape when `-o json`
-
-Phase 2:
-
-- `rc fleet runs`, `rc fleet patterns`, `rc fleet health` when `--all` produces huge merged JSON
-- `rc project corpus download` when stdout target is omitted and body is large
-- `rc dev api routes` / `rc dev api openapi`
-- collection commands with large values
-
-## Bash-Specific Behavior
-
-For `rc dev console bash run`:
-
-- server still returns its current response body;
-- CLI writes the response JSON to `response.json`;
-- if `stdout` or `stderr` is large, write each stream to `stdout.txt` / `stderr.txt`;
-- table mode shows:
-
-```text
-stdout: [output too large: 82144 bytes, 1290 lines - full output saved to .../stdout.txt]
-<head>
-...[middle omitted]...
-<tail>
-
-Hints:
-  sed -n '1,120p' .../stdout.txt
-  rg PATTERN .../stdout.txt
-  jq '.' .../stdout.txt
-```
-
-- JSON mode shows the manifest rather than the full response, unless `--raw-output` is passed.
-
-If the server response indicates `stdout_truncated=true`, the CLI cannot recover bytes the server did
-not return. It should still spill the captured stream to disk and mark:
-
-```json
-"server_truncated": true
-```
-
-That is a separate concern from client-side progressive disclosure. A later server/console change may
-increase or remove the capture cap; this spec does not require it.
-
-## Full-output mode
-
-Because `rc` is pipe-first, callers need an escape hatch:
-
-```bash
-rc dev console bash run '...' -o json --raw-output
-rc run trace <id> -o json --raw-output
-```
-
-`--raw-output` means exactly current behavior: write the complete response to stdout and no spill
-manifest. It is intentionally loud in docs because it can flood LLM context.
-
-## Implementation Plan
-
-1. Add `internal/outputspill`:
-   - threshold config from env + flags;
-   - `MaybeSpillBytes`, `MaybeSpillJSON`, `Manifest`;
-   - path builder under `.rootcause/output/`;
-   - preview and hint generation.
-
-2. Add root-level flags shared by commands:
-   - `--raw-output`
-   - `--out-dir`
-   - `--no-preview`
-
-3. Wire `rc dev console bash run` first:
-   - typed response path and raw JSON path both call outputspill;
-   - table renderer receives artifact metadata;
-   - JSON mode writes manifest.
-
-4. Wire run trace paths:
-   - `rc run events`, `rc run trace`, `rc run debug`;
-   - normalize debug's current path printing into the manifest shape in JSON mode.
-
-5. Extend high-volume commands.
-
-## Tests
-
-Golden/unit tests:
-
-- small table output unchanged;
-- large table output contains preview, path, hints, no full middle;
-- large `-o json` writes full file and prints manifest JSON;
-- `--raw-output` preserves exact previous JSON fixture;
-- server-truncated response marks `server_truncated`;
-- JSON hints use `jq`, text hints use `sed`/`rg`;
-- output files are created under `.rootcause/output/` or `--out-dir`;
-- no secrets are copied into filenames.
-
-Use existing `internal/cli/golden_test.go` style. For file paths, golden file contents rather than full
-temp paths where possible, like `rc run debug` tests already do.
-
-## Release / Docs
-
-- Update `README.md` command docs for `--raw-output`, `--out-dir`, and spill manifests.
-- Update `SKILL.md` output section: JSON remains raw-source-backed, but may be returned by local path
-  when large.
-- Update brain skills docs once released so agents learn to read manifests first, then `jq` local files.
-
-## Open Questions
-
-- Should spill be default for piped stdout, or only when stdout is a terminal/LLM context? Proposed:
-  default everywhere except `--raw-output`, because Codex often captures piped output too.
-- Should `-o json` ever write NDJSON directly for large streams? Proposed: no; emit manifest JSON so
-  the caller has one stable shape.
-- Should spilled files be automatically cleaned? Proposed: no automatic deletion; `.rootcause/` is
-  local scratch and useful during the session.
+Wired through `env.renderJSON` / `env.renderBytes`: `rc dev console bash run` + console JSON passthrough,
+`rc run events|trace|debug`, `rc fleet runs|patterns|health` (incl. `--all`), `rc dev api routes|openapi`,
+collection CRUD with large values, and `rc project corpus download` stdout. Intentional one-time secret
+reveals (`rc project connection reveal`, `rc project token mint`) stay raw so capture/copy is unchanged.

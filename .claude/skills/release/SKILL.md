@@ -31,8 +31,9 @@ scripts/release.sh patch --dry-run   # run gates + print the plan, change nothin
 Pick the bump by what changed in the surface (semver): patch = fixes, minor = additive, major = breaking.
 
 The script **refuses to release** a dirty tree, a non-`main` branch, a checkout behind/diverged from
-origin, or a version whose tag already exists — so a release is always reproducible from a known good
-commit. A local `main` ahead of origin is valid. It captures the SHA, runs `go build/vet/test` as hard
+origin, or a version not strictly newer than the highest published tag (it fetches tags first) — so a
+release is always reproducible from a known good commit. A local `main` ahead of origin is valid. It
+captures the SHA, runs `go mod tidy` (must be a no-op) then `go build/vet/test` as hard
 gates (lint is advisory — see below), refuses if HEAD/worktree changed during those gates, pushes that
 SHA to `origin/main`, verifies the remote ref equals it, then tags the same SHA. Finally it waits for
 the exact tag/SHA workflow, verifies GitHub latest plus the tap cask agree, and verifies both explicit
