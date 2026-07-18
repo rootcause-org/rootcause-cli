@@ -51,6 +51,7 @@ func newProjectSurfaceCmd(e *env, version string) *cobra.Command {
 		newEnvCmd(e),
 		newGitHubCmd(e),
 		newActionConfigCmd(e),
+		newProjectEgressCmd(e),
 	)
 	return cmd
 }

@@ -266,7 +266,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev tools` | Use local provider and identifier utilities |
 | `rc dev` | Develop and inspect project behavior |
 | `rc fleet health` | Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy |
-| `rc fleet patterns` | Cluster recent failures into ranked patterns (bash + blocked egress) |
+| `rc fleet patterns` | Cluster recent failures and outbound endpoint patterns |
 | `rc fleet runs` | Fleet digest of recent runs (flags, rates, worst offenders) |
 | `rc fleet` | Operate and inspect project health |
 | `rc project action-settings get` | Show current values (value / effective / default) |
@@ -298,6 +298,7 @@ help using `go test ./internal/cli -update`.
 | `rc project database preview` | Preview the scoped rows a (tenant, principal) would see |
 | `rc project database set` | Update a database |
 | `rc project database` | Manage registered databases (list/read/update + access controls) |
+| `rc project egress` | Inspect outbound endpoints, volume, and unattributed traffic |
 | `rc project env diff` | Compare local ./.env to the server (NAMES-only drift); nonzero exit on drift |
 | `rc project env keys` | List the key NAMES of the server's grounding env (log-safe, no values) |
 | `rc project env pull` | Fetch the production grounding env and write ./.env (0600); prints NAMES + count, never values |
@@ -382,8 +383,10 @@ help using `go test ./internal/cli -update`.
 | `rc project triage rules` | Read or edit deterministic triage rules |
 | `rc project triage` | Read or change mail triage policy and hard rules |
 | `rc project` | Manage project configuration and resources |
+| `rc run actions` | Show the safe action lifecycle history |
 | `rc run brain-diff` | Show the brain commit written by a run |
 | `rc run debug` | Decompose a run into local debug artifacts |
+| `rc run egress` | Show outbound gateway connections and HTTP attempts |
 | `rc run events` | Show the full per-event trace |
 | `rc run feedback` | Record score/comment feedback on a run's trace |
 | `rc run list` | List recent runs (filterable) |

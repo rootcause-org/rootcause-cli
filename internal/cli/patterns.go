@@ -25,11 +25,11 @@ func newPatternsCmd(e *env) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "patterns",
-		Short: "Cluster recent failures into ranked patterns (bash + blocked egress)",
-		Long: "Page GET /api/v1/run-events and /api/v1/egress-log and cluster them like run_patterns: bash-failure " +
-			"signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix " +
+		Short: "Cluster recent failures and outbound endpoint patterns",
+		Long: "Page GET /api/v1/run-events, /api/v1/egress-log, and /api/v1/api-log and cluster them like run_patterns: bash-failure " +
+			"signatures, blocked-egress hosts, allowed endpoint use, and abnormal write volume, with suggested-fix " +
 			"stub. --all fans out across every project (all-projects token), one clustered section per project. " +
-			"-o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).",
+			"-o json is a raw passthrough of all three paged feeds (keyed by project under --all).",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
@@ -41,15 +41,15 @@ func newPatternsCmd(e *env) *cobra.Command {
 			}
 
 			fp := client.FeedParams{Days: days, Kind: kind, Project: e.scopeProject(), Tenant: e.scopeTenant()}
-			events, egress, err := fetchPatternsFeeds(e, c, fp, "patterns")
+			events, egress, httpRows, err := fetchPatternsFeeds(e, c, fp, "patterns")
 			if err != nil {
 				return err
 			}
 
 			if e.jsonOut() {
-				return emitPatternsJSON(e, events, egress)
+				return emitPatternsJSON(e, events, egress, httpRows)
 			}
-			render.Patterns(e.out, events, egress, render.PatternsOptions{Days: days, Top: top, Kind: kind})
+			render.Patterns(e.out, events, egress, httpRows, render.PatternsOptions{Days: days, Top: top, Kind: kind})
 			return nil
 		},
 	}
@@ -62,22 +62,49 @@ func newPatternsCmd(e *env) *cobra.Command {
 
 // fetchPatternsFeeds pages the two raw feeds (events + egress) for one scope, warning (never failing) on
 // a page-cap hit. label namespaces the cap warning so a fan-out names the project.
-func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label string) ([]client.RunEvent, []client.EgressRow, error) {
+func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label string) ([]client.RunEvent, []client.EgressRow, []client.HTTPAuditRow, error) {
 	events, capE, err := c.AllEvents(e.ctx(), fp)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if capE {
 		warnCapped(e, label+": hit the events page cap — older events omitted; narrow --kind/--days")
 	}
 	egress, capG, err := c.AllEgress(e.ctx(), fp)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if capG {
 		warnCapped(e, label+": hit the egress page cap — older rows omitted; narrow --kind/--days")
 	}
-	return events, egress, nil
+	httpRows, capH, err := c.AllHTTPAudit(e.ctx(), client.HTTPAuditParams{
+		Days: fp.Days, Project: fp.Project, Tenant: fp.Tenant,
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	if capH {
+		warnCapped(e, label+": hit the HTTP audit page cap — older rows omitted; narrow --days")
+	}
+	// The HTTP feed has no run-kind column. When --kind is active, retain only rows joined to the
+	// kind-filtered run ids present in either thin feed.
+	if fp.Kind != "" {
+		runs := map[string]bool{}
+		for _, event := range events {
+			runs[event.RunID] = true
+		}
+		for _, row := range egress {
+			runs[row.RunID] = true
+		}
+		filtered := httpRows[:0]
+		for _, row := range httpRows {
+			if runs[row.RunID] {
+				filtered = append(filtered, row)
+			}
+		}
+		httpRows = filtered
+	}
+	return events, egress, httpRows, nil
 }
 
 // runPatternsAll fans the pattern mining out across the fleet: page each project's feeds with an explicit
@@ -90,14 +117,15 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error 
 	}
 
 	type entry struct {
-		Project string             `json:"project"`
-		Events  []client.RunEvent  `json:"events"`
-		Egress  []client.EgressRow `json:"egress"`
+		Project string                `json:"project"`
+		Events  []client.RunEvent     `json:"events"`
+		Egress  []client.EgressRow    `json:"egress"`
+		HTTP    []client.HTTPAuditRow `json:"http"`
 	}
 	entries := make([]entry, 0, len(projects))
 	for _, proj := range projects {
 		fp := client.FeedParams{Days: days, Kind: kind, Project: proj.ID}
-		events, egress, ferr := fetchPatternsFeeds(e, c, fp, "patterns --all ("+proj.Name+")")
+		events, egress, httpRows, ferr := fetchPatternsFeeds(e, c, fp, "patterns --all ("+proj.Name+")")
 		if ferr != nil {
 			return fmt.Errorf("patterns --all: project %s: %w", proj.Name, ferr)
 		}
@@ -107,10 +135,13 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error 
 		if egress == nil {
 			egress = []client.EgressRow{}
 		}
-		entries = append(entries, entry{Project: proj.Name, Events: events, Egress: egress})
+		if httpRows == nil {
+			httpRows = []client.HTTPAuditRow{}
+		}
+		entries = append(entries, entry{Project: proj.Name, Events: events, Egress: egress, HTTP: httpRows})
 		if !e.jsonOut() {
 			_, _ = fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
-			render.Patterns(e.out, events, egress, render.PatternsOptions{Days: days, Top: top, Kind: kind})
+			render.Patterns(e.out, events, egress, httpRows, render.PatternsOptions{Days: days, Top: top, Kind: kind})
 			_, _ = fmt.Fprintln(e.out)
 		}
 	}
@@ -127,14 +158,17 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error 
 
 // emitPatternsJSON emits the paged raw inputs as one {events:[…],egress:[…]} object — the passthrough
 // contract: the rows are the wire structs, reassembled across pages, no clustering applied.
-func emitPatternsJSON(e *env, events []client.RunEvent, egress []client.EgressRow) error {
+func emitPatternsJSON(e *env, events []client.RunEvent, egress []client.EgressRow, httpRows []client.HTTPAuditRow) error {
 	if events == nil {
 		events = []client.RunEvent{}
 	}
 	if egress == nil {
 		egress = []client.EgressRow{}
 	}
-	b, err := json.Marshal(map[string]any{"events": events, "egress": egress})
+	if httpRows == nil {
+		httpRows = []client.HTTPAuditRow{}
+	}
+	b, err := json.Marshal(map[string]any{"events": events, "egress": egress, "http": httpRows})
 	if err != nil {
 		return err
 	}

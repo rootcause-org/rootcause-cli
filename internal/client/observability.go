@@ -12,12 +12,15 @@ import (
 // CLI loops on it internally; a caller never sets it. Project is the explicit scope an all-projects admin
 // token names per request (the `--all` fan-out); a pinned token ignores it server-side.
 type FeedParams struct {
-	Days    int
-	Kind    string
-	Limit   int
-	Before  string
-	Project string
-	Tenant  string
+	Days     int
+	Kind     string
+	Limit    int
+	Before   string
+	RunID    string
+	Host     string
+	Decision string
+	Project  string
+	Tenant   string
 }
 
 // query renders the params into a URL query string (leading "?" when non-empty), so the JSON-passthrough
@@ -35,6 +38,15 @@ func (p FeedParams) query() string {
 	}
 	if p.Before != "" {
 		q.Set("before", p.Before)
+	}
+	if p.RunID != "" {
+		q.Set("run_id", p.RunID)
+	}
+	if p.Host != "" {
+		q.Set("host", p.Host)
+	}
+	if p.Decision != "" {
+		q.Set("decision", p.Decision)
 	}
 	if p.Project != "" {
 		q.Set("project", p.Project)

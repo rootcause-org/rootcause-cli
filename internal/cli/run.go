@@ -23,6 +23,8 @@ const (
 	runViewTrace
 	runViewDebug
 	runViewBrainDiff
+	runViewEgress
+	runViewActions
 )
 
 // newRunCmd owns the explicit run lifecycle verbs. The group itself accepts no positional shorthand;
@@ -40,6 +42,8 @@ func newRunCmd(e *env) *cobra.Command {
 		newRunViewCmd(e, "trace <id>", "Show the whole run bundle", runViewTrace),
 		newRunViewCmd(e, "debug <id>", "Decompose a run into local debug artifacts", runViewDebug),
 		newRunViewCmd(e, "brain-diff <id>", "Show the brain commit written by a run", runViewBrainDiff),
+		newRunViewCmd(e, "egress <id>", "Show outbound gateway connections and HTTP attempts", runViewEgress),
+		newRunViewCmd(e, "actions <id>", "Show the safe action lifecycle history", runViewActions),
 		newThreadCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),
@@ -118,6 +122,47 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 					return err
 				}
 				render.BrainDiff(e.out, resp)
+				return nil
+			}
+
+			if view == runViewEgress {
+				resp, err := c.RunEgress(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+				if err != nil {
+					return err
+				}
+				if resp.HTTPTruncated {
+					warnCapped(e, "run egress: hit the HTTP page cap — older attempts omitted")
+				}
+				if jsonMode {
+					raw, err := json.Marshal(resp)
+					if err != nil {
+						return err
+					}
+					return e.renderJSON("run-egress-"+id, raw)
+				}
+				render.RunEgress(e.out, resp)
+				return nil
+			}
+
+			if view == runViewActions {
+				rows, capped, err := c.AllActionHistory(e.ctx(), id, client.HTTPAuditParams{
+					Project: e.scopeProject(), Tenant: e.scopeTenant(),
+				})
+				if err != nil {
+					return err
+				}
+				if capped {
+					warnCapped(e, "run actions: hit the page cap — older rows omitted")
+				}
+				resp := &client.ActionHistoryResponse{Items: rows}
+				if jsonMode {
+					raw, err := json.Marshal(resp)
+					if err != nil {
+						return err
+					}
+					return e.renderJSON("run-actions-"+id, raw)
+				}
+				render.ActionHistory(e.out, resp.Items)
 				return nil
 			}
 

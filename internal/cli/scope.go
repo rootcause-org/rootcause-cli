@@ -85,6 +85,8 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	case strings.HasPrefix(path, "project knowledge content "):
 		return projectTenant
+	case path == "project egress":
+		return projectTenant
 	case strings.HasPrefix(path, "dev brain "):
 		return projectTenant
 	case strings.HasPrefix(path, "dev console database "), strings.HasPrefix(path, "dev console bash "), path == "dev console capabilities":

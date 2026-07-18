@@ -366,12 +366,37 @@ func TestPatternsJSONPassthrough(t *testing.T) {
 	var got struct {
 		Events []map[string]any `json:"events"`
 		Egress []map[string]any `json:"egress"`
+		HTTP   []map[string]any `json:"http"`
 	}
 	decodeJSON(t, out.Bytes(), &got)
 	// All 4 events ride through verbatim (the ok `ls /brain` too — passthrough does NOT filter; clustering
 	// is a render-only concern).
-	if len(got.Events) != 4 || len(got.Egress) != 2 {
-		t.Fatalf("patterns json = %d events / %d egress, want 4/2; body=%s", len(got.Events), len(got.Egress), out.String())
+	if len(got.Events) != 4 || len(got.Egress) != 2 || len(got.HTTP) != 2 {
+		t.Fatalf("patterns json = %d events / %d egress / %d HTTP, want 4/2/2; body=%s", len(got.Events), len(got.Egress), len(got.HTTP), out.String())
+	}
+}
+
+func TestEgressInspectionCommands(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "run egress", args: []string{"run", "egress", "run-1"}, want: "HTTP attempts"},
+		{name: "run actions", args: []string{"run", "actions", "run-1"}, want: "create_order"},
+		{name: "project egress", args: []string{"project", "egress"}, want: "Unattributed gateway connections"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, out, _ := newTestEnv(t, srv, "table")
+			if err := run(t, e, tc.args...); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), tc.want) {
+				t.Fatalf("output missing %q:\n%s", tc.want, out.String())
+			}
+		})
 	}
 }
 

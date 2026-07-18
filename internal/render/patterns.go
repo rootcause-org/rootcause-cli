@@ -254,12 +254,20 @@ func clusterEgress(rows []client.EgressRow) []*egressCluster {
 
 // Patterns renders the clustered failure report (markdown, like run_patterns.py). failingBash is the
 // COUNT of failing bash events scanned (for the header); the caller computes it.
-func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, opt PatternsOptions) {
+func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, httpRows []client.HTTPAuditRow, opt PatternsOptions) {
 	if opt.Top <= 0 {
 		opt.Top = 15
 	}
 	bash := clusterBash(events)
 	egr := clusterEgress(egress)
+	allowedRows := make([]client.HTTPAuditRow, 0, len(httpRows))
+	for _, row := range httpRows {
+		if row.Decision != "block" {
+			allowedRows = append(allowedRows, row)
+		}
+	}
+	endpoints := rollupHTTP(allowedRows)
+	abnormalWrites := abnormalWriteRollups(endpoints)
 
 	failing := 0
 	for _, e := range events {
@@ -275,8 +283,8 @@ func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, 
 	}
 
 	_, _ = fmt.Fprintf(w, "# Run patterns — last %d days\n\n", opt.Days)
-	_, _ = fmt.Fprintf(w, "%d failing bash events · %d blocked egress rows · %d events scanned\n", failing, blocked, len(events))
-	_, _ = fmt.Fprintln(w, "Rank by: cross-run reach · frequency. Every pattern ends in a suggested-fix stub.")
+	_, _ = fmt.Fprintf(w, "%d failing bash events · %d blocked egress rows · %d HTTP attempts · %d events scanned\n", failing, blocked, len(httpRows), len(events))
+	_, _ = fmt.Fprintln(w, "Rank by: cross-run reach · frequency. Failure and anomaly patterns end in a suggested-fix stub.")
 	_, _ = fmt.Fprintln(w)
 
 	anything := false
@@ -318,13 +326,81 @@ func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, 
 		}
 	}
 
-	truncated := (len(bash) - min(len(bash), opt.Top)) + (len(egr) - min(len(egr), opt.Top))
+	if len(endpoints) > 0 {
+		anything = true
+		_, _ = fmt.Fprintln(w, "## Allowed endpoint clusters")
+		_, _ = fmt.Fprintln(w)
+		for i, group := range clipEndpoints(endpoints, opt.Top) {
+			_, _ = fmt.Fprintf(w, "### H%d. %s %s%s — %d× across %d run(s)\n",
+				i+1, group.method, hostPrefix(group.host), group.endpoint, group.count, len(group.runs))
+			_, _ = fmt.Fprintf(w, "- source: `%s` · errors: %d · retries: %d\n\n", group.source, group.errors, group.retries)
+		}
+	}
+
+	if len(abnormalWrites) > 0 {
+		anything = true
+		_, _ = fmt.Fprintln(w, "## Abnormal write volume")
+		_, _ = fmt.Fprintln(w)
+		for i, group := range clipEndpoints(abnormalWrites, opt.Top) {
+			_, _ = fmt.Fprintf(w, "### W%d. %s %s%s — %d× across %d run(s)\n",
+				i+1, group.method, hostPrefix(group.host), group.endpoint, group.count, len(group.runs))
+			_, _ = fmt.Fprintf(w, "- signal: %s\n", writeVolumeSignal(group))
+			_, _ = fmt.Fprintln(w, "- suggested fix:")
+			_, _ = fmt.Fprintln(w)
+		}
+	}
+
+	truncated := (len(bash) - min(len(bash), opt.Top)) +
+		(len(egr) - min(len(egr), opt.Top)) +
+		(len(endpoints) - min(len(endpoints), opt.Top)) +
+		(len(abnormalWrites) - min(len(abnormalWrites), opt.Top))
 	if truncated > 0 {
 		_, _ = fmt.Fprintf(w, "_(%d lower-ranked pattern(s) dropped — raise --top/--days)_\n", truncated)
 	}
 	if !anything {
 		_, _ = fmt.Fprintln(w, "_(no failure patterns in window — a clean fleet)_")
 	}
+}
+
+func abnormalWriteRollups(groups []*endpointRollup) []*endpointRollup {
+	var out []*endpointRollup
+	for _, group := range groups {
+		switch strings.ToUpper(group.method) {
+		case "GET", "HEAD", "OPTIONS":
+			continue
+		}
+		runCount := max(1, len(group.runs))
+		if group.count >= 10 || group.count > runCount*3 || group.retries > 0 {
+			out = append(out, group)
+		}
+	}
+	return out
+}
+
+func writeVolumeSignal(group *endpointRollup) string {
+	runCount := max(1, len(group.runs))
+	parts := []string{fmt.Sprintf("%.1f attempts/run", float64(group.count)/float64(runCount))}
+	if group.retries > 0 {
+		parts = append(parts, fmt.Sprintf("%d retries", group.retries))
+	}
+	if group.errors > 0 {
+		parts = append(parts, fmt.Sprintf("%d errors", group.errors))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func hostPrefix(host string) string {
+	if host == "" {
+		return ""
+	}
+	return host
+}
+
+func clipEndpoints(s []*endpointRollup, n int) []*endpointRollup {
+	if len(s) > n {
+		return s[:n]
+	}
+	return s
 }
 
 func clipBash(s []*bashCluster, n int) []*bashCluster {

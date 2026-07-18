@@ -892,6 +892,7 @@ type RunEventsResponse struct {
 // EgressRow is one raw egress_log row from GET /api/v1/egress-log — the bulk feed `rc fleet patterns`
 // clusters into blocked-host signatures. Decision is "block" for a blocked attempt.
 type EgressRow struct {
+	ID           string `json:"id,omitempty"`
 	RunID        string `json:"run_id"`
 	RunKind      string `json:"run_kind"`
 	RunCreatedAt string `json:"run_created_at"`
@@ -928,6 +929,104 @@ func (e EgressRow) MarshalJSON() ([]byte, error) {
 type EgressResponse struct {
 	Egress     []EgressRow `json:"egress"`
 	NextBefore string      `json:"next_before,omitempty"`
+}
+
+// HTTPAuditRow is one client-cooperative or broker HTTP attempt from api_log. RequestBody is already
+// redacted in-container; the host overwrites all correlation fields before persistence.
+type HTTPAuditRow struct {
+	ID             string          `json:"id"`
+	RunID          string          `json:"run_id,omitempty"`
+	ActionRunID    string          `json:"action_run_id,omitempty"`
+	Source         string          `json:"source"`
+	Method         string          `json:"method"`
+	Endpoint       string          `json:"endpoint"`
+	Path           string          `json:"path"`
+	Host           string          `json:"host,omitempty"`
+	StatusCode     int32           `json:"status_code"`
+	Decision       string          `json:"decision"`
+	PayloadSHA256  string          `json:"payload_sha256,omitempty"`
+	RequestBody    json.RawMessage `json:"request_body,omitempty"`
+	RequestBytes   int64           `json:"request_bytes"`
+	ResponseBytes  int64           `json:"response_bytes"`
+	DurationMs     int64           `json:"duration_ms"`
+	Attempt        int32           `json:"attempt"`
+	Reason         string          `json:"reason,omitempty"`
+	RequestID      string          `json:"request_id,omitempty"`
+	IntegrationKey string          `json:"integration_key,omitempty"`
+	At             string          `json:"at"`
+	raw            json.RawMessage
+}
+
+func (h *HTTPAuditRow) UnmarshalJSON(data []byte) error {
+	type wire HTTPAuditRow
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*h = HTTPAuditRow(decoded)
+	h.raw = append(h.raw[:0], data...)
+	return nil
+}
+
+func (h HTTPAuditRow) MarshalJSON() ([]byte, error) {
+	if len(h.raw) > 0 {
+		return append([]byte(nil), h.raw...), nil
+	}
+	type wire HTTPAuditRow
+	return json.Marshal(wire(h))
+}
+
+type HTTPAuditResponse struct {
+	Items      []HTTPAuditRow `json:"items"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+}
+
+type RunEgressResponse struct {
+	RunID          string         `json:"run_id"`
+	Egress         []EgressRow    `json:"egress"`
+	HTTP           []HTTPAuditRow `json:"http"`
+	HTTPNextCursor string         `json:"http_next_cursor,omitempty"`
+	HTTPTruncated  bool           `json:"http_truncated,omitempty"`
+}
+
+// ActionHistoryRow is the customer-safe action lifecycle projection. Grounded params, raw result,
+// and errors are intentionally absent from the wire contract.
+type ActionHistoryRow struct {
+	ID          string `json:"id"`
+	RunID       string `json:"run_id,omitempty"`
+	TenantID    string `json:"tenant_id,omitempty"`
+	ActionID    string `json:"action_id"`
+	Status      string `json:"status"`
+	Digest      string `json:"digest"`
+	ParamsHash  string `json:"params_hash"`
+	DurationMs  *int64 `json:"duration_ms,omitempty"`
+	CreatedAt   string `json:"created_at"`
+	CompletedAt string `json:"completed_at,omitempty"`
+	raw         json.RawMessage
+}
+
+func (a *ActionHistoryRow) UnmarshalJSON(data []byte) error {
+	type wire ActionHistoryRow
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*a = ActionHistoryRow(decoded)
+	a.raw = append(a.raw[:0], data...)
+	return nil
+}
+
+func (a ActionHistoryRow) MarshalJSON() ([]byte, error) {
+	if len(a.raw) > 0 {
+		return append([]byte(nil), a.raw...), nil
+	}
+	type wire ActionHistoryRow
+	return json.Marshal(wire(a))
+}
+
+type ActionHistoryResponse struct {
+	Items      []ActionHistoryRow `json:"items"`
+	NextCursor string             `json:"next_cursor,omitempty"`
 }
 
 // HealthMirror is one raw mirror_health row from GET /api/v1/health — the input `rc fleet health` applies its

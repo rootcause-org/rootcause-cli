@@ -1,7 +1,7 @@
 # Run patterns — last 14 days
 
-3 failing bash events · 2 blocked egress rows · 4 events scanned
-Rank by: cross-run reach · frequency. Every pattern ends in a suggested-fix stub.
+3 failing bash events · 2 blocked egress rows · 2 HTTP attempts · 4 events scanned
+Rank by: cross-run reach · frequency. Failure and anomaly patterns end in a suggested-fix stub.
 
 ## Bash failure clusters
 
@@ -23,5 +23,19 @@ Rank by: cross-run reach · frequency. Every pattern ends in a suggested-fix stu
 
 ### E1. egress: `api.blocked-vendor.test` — blocked 2× across 2 run(s)
 - example runs: `aaaaaaaa-0000-0000-0000-000000000001` · `aaaaaaaa-0000-0000-0000-000000000002`
+- suggested fix:
+
+## Allowed endpoint clusters
+
+### H1. POST api.example.com/v1/orders — 1× across 1 run(s)
+- source: `action` · errors: 1 · retries: 1
+
+### H2. GET api.example.com/v1/orders/{order_id} — 1× across 1 run(s)
+- source: `runtime_lib` · errors: 0 · retries: 0
+
+## Abnormal write volume
+
+### W1. POST api.example.com/v1/orders — 1× across 1 run(s)
+- signal: 1.0 attempts/run · 1 retries · 1 errors
 - suggested fix:
 

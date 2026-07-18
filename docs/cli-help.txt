@@ -96,6 +96,8 @@ Available Commands:
   trace          Show the whole run bundle
   debug          Decompose a run into local debug artifacts
   brain-diff     Show the brain commit written by a run
+  egress         Show outbound gateway connections and HTTP attempts
+  actions        Show the safe action lifecycle history
   thread         Trace one thread/session: every run for it, with placement + a why-no-draft hint
   feedback       Record score/comment feedback on a run's trace
   retry          Re-run a run (optionally at a different tier); prints the new run id
@@ -223,6 +225,38 @@ Global Flags:
       --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
+$ rc run egress --help
+Show outbound gateway connections and HTTP attempts
+
+Usage:
+  rc run egress <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc run actions --help
+Show the safe action lifecycle history
+
+Usage:
+  rc run actions <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
 $ rc run thread --help
 Trace a thread or session id: every run for it (newest first), each with status, health flags, what was placed (draft/note), and — when the newest run errored or declined — a deterministic hint at where it likely failed.
 
@@ -323,6 +357,7 @@ Available Commands:
   env             Manage this project's sealed env secrets
   github          Inspect the GitHub App install for this project
   action-settings Read or change action-plane config (operator-tier)
+  egress          Inspect outbound endpoints, volume, and unattributed traffic
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2459,6 +2494,27 @@ Global Flags:
       --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
       --tenant string    override the login tenant where supported
 
+$ rc project egress --help
+Inspect outbound endpoints, volume, and unattributed traffic
+
+Usage:
+  rc project egress [flags]
+
+Flags:
+      --days int          window in days (default 14)
+      --decision string   filter by decision: allow|block|error
+      --host string       filter by exact destination host
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
 $ rc dev --help
 Develop and inspect project behavior
 
@@ -3117,7 +3173,7 @@ Usage:
 Available Commands:
   runs        Fleet digest of recent runs (flags, rates, worst offenders)
   health      Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy
-  patterns    Cluster recent failures into ranked patterns (bash + blocked egress)
+  patterns    Cluster recent failures and outbound endpoint patterns
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3178,7 +3234,7 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc fleet patterns --help
-Page GET /api/v1/run-events and /api/v1/egress-log and cluster them like run_patterns: bash-failure signatures (label + exit + masked stderr) and blocked-egress hosts, each ending in a suggested-fix stub. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of the paged event + egress rows (keyed by project under --all).
+Page GET /api/v1/run-events, /api/v1/egress-log, and /api/v1/api-log and cluster them like run_patterns: bash-failure signatures, blocked-egress hosts, allowed endpoint use, and abnormal write volume, with suggested-fix stub. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of all three paged feeds (keyed by project under --all).
 
 Usage:
   rc fleet patterns [flags]

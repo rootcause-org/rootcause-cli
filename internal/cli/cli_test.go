@@ -75,6 +75,21 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "egress_feed.json"))
 	})
+	mux.HandleFunc("GET /api/v1/api-log", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"http-1","run_id":"run-1","source":"runtime_lib","method":"GET","host":"api.example.com","endpoint":"/v1/orders/{order_id}","status_code":200,"decision":"allow","request_bytes":0,"response_bytes":42,"duration_ms":17,"attempt":1,"request_id":"req-1","at":"2026-06-19T09:01:00Z"},{"id":"http-2","run_id":"run-1","source":"action","method":"POST","host":"api.example.com","endpoint":"/v1/orders","status_code":503,"decision":"allow","payload_sha256":"abc123","request_body":{"customer":"[REDACTED]"},"request_bytes":25,"response_bytes":12,"duration_ms":40,"attempt":2,"reason":"retry_status","request_id":"req-2","at":"2026-06-19T09:01:01Z"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/runs/{id}/egress", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"run_id":"` + r.PathValue("id") + `","egress":[{"id":"egr-1","run_id":"` + r.PathValue("id") + `","host":"api.example.com","port":443,"scheme":"https","bytes_out":25,"decision":"allow","at":"2026-06-19T09:01:01Z"}],"http":[{"id":"http-2","run_id":"` + r.PathValue("id") + `","source":"action","method":"POST","host":"api.example.com","endpoint":"/v1/orders","status_code":201,"decision":"allow","payload_sha256":"abc123","request_body":{"customer":"[REDACTED]"},"request_bytes":25,"duration_ms":40,"attempt":1,"reason":"initial","request_id":"req-2","at":"2026-06-19T09:01:01Z"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/runs/{id}/actions", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"action-run-1","run_id":"` + r.PathValue("id") + `","action_id":"create_order","status":"succeeded","digest":"sha256:action","params_hash":"sha256:params","duration_ms":320,"created_at":"2026-06-19T09:01:00Z","completed_at":"2026-06-19T09:01:01Z"}]}`))
+	})
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
