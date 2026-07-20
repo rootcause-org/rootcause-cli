@@ -666,7 +666,19 @@ func offenderTail(r client.RunSummary) string {
 	if isFallback(r) {
 		parts = append(parts, "FB")
 	}
+	if h := errorHead(r); h != "" {
+		parts = append(parts, `"`+h+`"`)
+	}
 	return strings.Join(parts, " · ")
+}
+
+// errorHead is the run's 120-char host-error head (run_health.error_head) — the error-class
+// discriminator that saves a per-run `rc run debug` drill; '' when the run has no error.
+func errorHead(r client.RunSummary) string {
+	if r.Health == nil {
+		return ""
+	}
+	return r.Health.ErrorHead
 }
 
 // --- agent (token-lean) digest ---
@@ -706,6 +718,9 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 			reason := flagStr(r, spikes, opt.CtxWarn)
 			if r.Status == "error" {
 				reason = strings.TrimSpace("err " + reason)
+				if h := errorHead(r); h != "" {
+					reason += ` "` + h + `"`
+				}
 			}
 			_, _ = fmt.Fprintf(w, "  %s  %s\n", r.RunID, reason)
 		}

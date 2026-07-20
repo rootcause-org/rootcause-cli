@@ -328,6 +328,10 @@ type RunHealth struct {
 	// PlannedModel is the model the loop planned but that failed (run_health.model_fallback_from), set
 	// only when IsFallback. Operator-tier like Model — omitted for a baseline bearer.
 	PlannedModel string `json:"planned_model,omitempty"`
+	// ErrorHead is the first 120 chars of the run's host-side error (run_health.error_head), '' when
+	// none — the index-level class discriminator (DSN outage vs OAuth burst vs dead-letter) so a burst
+	// doesn't cost one `rc run debug` drill per run. Same tier as the full error on the per-run rung.
+	ErrorHead string `json:"error_head,omitempty"`
 }
 
 // Learning is the privacy-safe dream-cycle pointer attached to a run index row. It carries only
