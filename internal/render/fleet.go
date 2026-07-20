@@ -3,8 +3,9 @@
 // The server ships raw per-run health numbers + the view's own boolean flags; the ONE derived flag the
 // view can't precompute — $! cost-spike (needs a per-kind median over the window) — is computed HERE, the
 // same place runs_digest.py computes it. Two formats mirror the script: "human" (legend + table +
-// aggregate + offenders) and "agent" (a token-lean index: full ids + a ranked "look here first"
-// shortlist). Pure functions of the rows so golden tests pin them.
+// aggregate + offenders) and "agent" (the full computed digest in token-lean form: ranked "look here
+// first" shortlist, aggregate, model×cost×fallback, daily timeline, worst offenders — all with full
+// ids — plus the per-run index). Pure functions of the rows so golden tests pin them.
 package render
 
 import (
@@ -668,8 +669,13 @@ func offenderTail(r client.RunSummary) string {
 	return strings.Join(parts, " · ")
 }
 
-// --- agent (token-lean) index ---
+// --- agent (token-lean) digest ---
 
+// fleetAgent emits the COMPUTED digest for an agent to read whole: the ranked shortlist, then the same
+// rollup blocks the human render computes (aggregate, model×cost×fallback, daily timeline, stuck runs,
+// worst offenders — reused, not re-derived), then the full per-run index. Every id is a full UUID so a
+// drill is one paste. Unlike the human digest, by-model and timeline are always on: an agent reads the
+// digest once instead of re-running with flags.
 func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	spikes := costSpikes(runs)
 	_, _ = fmt.Fprintf(w, "runs — last %dd%s · %d runs\n\n", opt.Days, learningScope(opt.Learning), len(runs))
@@ -703,10 +709,15 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 			}
 			_, _ = fmt.Fprintf(w, "  %s  %s\n", r.RunID, reason)
 		}
-		_, _ = fmt.Fprintln(w)
 	}
 
-	_, _ = fmt.Fprintln(w, "all runs (newest first):")
+	fleetAggregate(w, runs, opt)
+	fleetByModel(w, runs)
+	fleetTimeline(w, runs)
+	fleetStuck(w, runs)
+	fleetOffenders(w, runs, spikes, opt)
+
+	_, _ = fmt.Fprintln(w, "\nall runs (newest first):")
 	for _, r := range runs {
 		_, _ = fmt.Fprintf(w, "  %s  %s  %s  %s  c%s  %s\n",
 			r.RunID, r.Kind, r.Status, costCell(cost(r)), tokens(peakCtx(r)), flagStr(r, spikes, opt.CtxWarn))

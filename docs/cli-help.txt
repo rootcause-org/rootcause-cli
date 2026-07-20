@@ -3188,7 +3188,7 @@ Global Flags:
 Use "rc fleet [command] --help" for more information about a command.
 
 $ rc fleet runs --help
-Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + cost, the aggregate rates, and the worst-offender shortlists. --format agent gives a token-lean index for an agent to triage. --all fans out across every project (all-projects token), grouped per project with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by project under --all).
+Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + cost, the aggregate rates, and the worst-offender shortlists. --format agent gives the token-lean computed digest for an agent to triage; passing --format explicitly renders the digest even when stdout is piped. --all fans out across every project (all-projects token), grouped per project with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by project under --all) and takes precedence over --format.
 
 Usage:
   rc fleet runs [flags]
@@ -3234,16 +3234,17 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc fleet patterns --help
-Page GET /api/v1/run-events, /api/v1/egress-log, and /api/v1/api-log and cluster them like run_patterns: bash-failure signatures, blocked-egress hosts, allowed endpoint use, and abnormal write volume, with suggested-fix stub. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of all three paged feeds (keyed by project under --all).
+Page GET /api/v1/run-events, /api/v1/egress-log, and /api/v1/api-log and cluster them like run_patterns: bash-failure signatures, blocked-egress hosts, allowed endpoint use, and abnormal write volume, with suggested-fix stub. human and agent formats render the same clustered view; passing --format explicitly renders it even when stdout is piped. --all fans out across every project (all-projects token), one clustered section per project. -o json is a raw passthrough of all three paged feeds (keyed by project under --all) and takes precedence over --format.
 
 Usage:
   rc fleet patterns [flags]
 
 Flags:
-      --all           fan out across every project (requires an all-projects token)
-      --days int      window in days (default 14)
-      --kind string   filter by kind: email|prompt|mcp|analysis
-      --top int       max patterns per section (default 15)
+      --all             fan out across every project (requires an all-projects token)
+      --days int        window in days (default 14)
+      --format string   output style: human|agent (same clustered view; explicit --format forces it over a pipe) (default "human")
+      --kind string     filter by kind: email|prompt|mcp|analysis
+      --top int         max patterns per section (default 15)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

@@ -3,6 +3,37 @@ runs — last 7d · 4 runs
 look here first:
   aaaaaaaa-0000-0000-0000-000000000001  err GD J0 ERR×3 BIG×1 $! EGR×2 CTX·64k FB LRN:feedback+triage_corrected
 
+Aggregate:
+  runs: 4 — done 3 · error 1
+  grounding discarded: 1/4 (25%)
+  journal coverage (analyses): 3/4 (75%)
+  cost: total $1.0400 · median $0.0450
+  peak context: median 10k · max 64k · ≥50k: 1/4 (context-rot risk)
+  blocked-egress: 1 run(s) with blocked attempts
+
+By model (cost · fallbacks):
+  MODEL                      RUNS  COST     AVG      FALLBACK
+  anthropic/claude-opus-4    1     $0.9200  $0.9200  1 (100%)
+  anthropic/claude-sonnet-4  3     $0.1200  $0.0400  -
+
+Daily timeline:
+  DAY         RUNS  ERR  COST
+  2026-06-22  4     1    $1.0400
+
+Worst offenders (full ids — `rc run debug <id>`):
+  Top cost:
+    aaaaaaaa-0000-0000-0000-000000000001 $0.9200 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000002 $0.0500 — analysis, done · $0.0500 · 40s · 5t · ctx 12k
+    aaaaaaaa-0000-0000-0000-000000000003 $0.0400 — analysis, done · $0.0400 · 30s · 4t · ctx 9k
+  Top bash failures:
+    aaaaaaaa-0000-0000-0000-000000000001 ERR×3 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+  Top context (rot risk):
+    aaaaaaaa-0000-0000-0000-000000000001 ctx 64k — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+  Blocked egress:
+    aaaaaaaa-0000-0000-0000-000000000001 EGR×2 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+  Model fallbacks:
+    aaaaaaaa-0000-0000-0000-000000000001 anthropic/claude-opus-4←anthropic/claude-sonnet-4 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+
 all runs (newest first):
   aaaaaaaa-0000-0000-0000-000000000001  analysis  error  $0.9200  c64k  GD J0 ERR×3 BIG×1 $! EGR×2 CTX·64k FB LRN:feedback+triage_corrected
   aaaaaaaa-0000-0000-0000-000000000002  analysis  done  $0.0500  c12k  

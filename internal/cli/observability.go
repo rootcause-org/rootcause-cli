@@ -25,6 +25,18 @@ func errBadFormat(got string) error {
 	return fmt.Errorf("invalid --format %q: want human or agent", got)
 }
 
+// rawRowsJSON decides whether a --format-bearing observability command emits the raw-rows JSON
+// passthrough instead of its rendered digest. An explicit -o json always wins (the jq contract); an
+// EXPLICIT --format pins the rendered digest even when stdout is a pipe (agents read piped — auto mode
+// alone would spill the raw rows and defeat the token-lean digest); otherwise the pipe-first auto
+// default stands (TTY → digest, pipe → JSON).
+func rawRowsJSON(e *env, cmd *cobra.Command) bool {
+	if e.mode() == render.ModeJSON {
+		return true
+	}
+	return !cmd.Flags().Changed("format") && e.jsonOut()
+}
+
 // healthPath builds the /api/v1/health URL for the JSON-passthrough fetch — the same URL the typed
 // Health() fetch hits, so -o json and the verdict can't diverge. project is the explicit fan-out scope
 // ("" for a pinned token's own).

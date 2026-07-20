@@ -119,6 +119,12 @@ internal/render/      render.go (TTY-detect + JSON passthrough) + per-view table
 only) — the CLI cannot invent or drop a field. `rc run events <id> -o json` emits **NDJSON** (one event
 per line), not an array.
 
+One carve-out for the `--format`-bearing fleet views (`rc fleet runs|patterns`, `rawRowsJSON` in
+[`observability.go`](internal/cli/observability.go)): an **explicitly passed** `--format` pins the
+rendered digest even when stdout is a pipe — agents read piped, and the computed digest is the point of
+`--format agent`. Explicit `-o json` still beats `--format` (the raw-rows jq contract), and auto mode
+without `--format` keeps the pipe→JSON default.
+
 Large payloads spill to disk ([`internal/outputspill`](internal/outputspill/outputspill.go), wired via
 `env.renderJSON` / `env.renderBytes` in [`outputspill.go`](internal/cli/outputspill.go)): the response is
 still fetched fully, but full artifacts land under `.rootcause/output/` and stdout gets a small preview or

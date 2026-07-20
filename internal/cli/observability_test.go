@@ -282,13 +282,120 @@ func TestFleetAgentTable(t *testing.T) {
 	assertGolden(t, "fleet_agent.golden", out.String())
 }
 
-// TestFleetBadFormat: an unknown --format is a clear client-side error.
+// TestFleetBadFormat: an unknown --format is a clear client-side error (fleet runs + patterns).
 func TestFleetBadFormat(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "runs", "--format", "bogus"); err == nil {
-		t.Fatal("expected an error for --format bogus")
+	for _, args := range [][]string{
+		{"fleet", "runs", "--format", "bogus"},
+		{"fleet", "patterns", "--format", "bogus"},
+	} {
+		e, _, _ := newTestEnv(t, srv, "table")
+		if err := run(t, e, args...); err == nil {
+			t.Fatalf("%v: expected an error for --format bogus", args)
+		}
+	}
+}
+
+// TestFleetAgentDigestRendersWhenPiped pins the fleet-review fix: an EXPLICIT --format agent must emit
+// the computed digest (shortlist + aggregate + by-model + timeline + offenders, full UUIDs) even when
+// stdout is a pipe — auto mode used to fall through to the raw JSON passthrough and dump every row.
+// The env's "" output mode leaves -o unset; a test buffer is a non-TTY, i.e. exactly a pipe.
+func TestFleetAgentDigestRendersWhenPiped(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "")
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--format", "agent"); err != nil {
+		t.Fatalf("piped fleet --format agent: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{
+		"look here first:",
+		"Aggregate:",
+		"By model (cost · fallbacks):",
+		"Daily timeline:",
+		"Worst offenders (full ids",
+		"aaaaaaaa-0000-0000-0000-000000000001", // full UUID, one paste from rc run debug
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("piped agent digest missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"run_id"`) {
+		t.Errorf("piped agent digest leaked raw JSON rows:\n%s", got)
+	}
+}
+
+// TestFleetAllAgentDigestRendersWhenPiped: the --all fan-out honors an explicit --format over a pipe
+// too — per-project sections plus the fleet total with the per-project rollup table.
+func TestFleetAllAgentDigestRendersWhenPiped(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "")
+	if err := run(t, e, "fleet", "runs", "--all", "--kind", "fleet", "--format", "agent"); err != nil {
+		t.Fatalf("piped fleet --all --format agent: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"════ FLEET TOTAL ════", "PROJECT", "BASH_ERR", "look here first:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("piped --all agent digest missing %q:\n%s", want, got)
+		}
+	}
+}
+
+// TestFleetAutoPipeWithoutFormatStaysJSON: without an explicit --format, auto mode on a pipe keeps the
+// raw-rows JSON default — the load-bearing `| jq` contract must not regress.
+func TestFleetAutoPipeWithoutFormatStaysJSON(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "")
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet"); err != nil {
+		t.Fatalf("piped fleet (auto): %v", err)
+	}
+	var got struct {
+		Runs []map[string]any `json:"runs"`
+	}
+	decodeJSON(t, out.Bytes(), &got)
+	if len(got.Runs) != 4 {
+		t.Fatalf("auto-piped fleet json runs = %d, want 4; body=%s", len(got.Runs), out.String())
+	}
+}
+
+// TestFleetExplicitJSONWinsOverFormat: -o json is the explicit raw spill and takes precedence over
+// --format agent.
+func TestFleetExplicitJSONWinsOverFormat(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--format", "agent"); err != nil {
+		t.Fatalf("fleet -o json --format agent: %v", err)
+	}
+	var got struct {
+		Runs []map[string]any `json:"runs"`
+	}
+	decodeJSON(t, out.Bytes(), &got)
+	if len(got.Runs) != 4 {
+		t.Fatalf("-o json --format agent runs = %d, want 4 raw rows; body=%s", len(got.Runs), out.String())
+	}
+}
+
+// TestPatternsAgentRendersWhenPiped: `rc fleet patterns --format agent` emits the clustered view over a
+// pipe (it used to dump the raw high-volume feeds — the "table only" caveat this fix removes).
+func TestPatternsAgentRendersWhenPiped(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "")
+	if err := run(t, e, "fleet", "patterns", "--format", "agent"); err != nil {
+		t.Fatalf("piped patterns --format agent: %v", err)
+	}
+	got := out.String()
+	for _, want := range []string{"# Run patterns", "## Bash failure clusters", "suggested fix:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("piped patterns agent view missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"events"`) {
+		t.Errorf("piped patterns agent view leaked raw JSON feeds:\n%s", got)
 	}
 }
 

@@ -14,7 +14,9 @@ import (
 // per-run flag line + aggregate + worst offenders. The server ships raw per-run rows (+ the run_health
 // triage block for an operator bearer); the CLI computes the one derived flag the server can't (the $!
 // cost-spike, which needs a per-kind median) and renders the digest. --format agent emits the token-lean
-// index for an agent to triage. In -o json it's a raw passthrough of the paged run rows (no rendering).
+// computed digest for an agent to triage — and an EXPLICIT --format pins the rendered digest even when
+// stdout is a pipe (agents read piped; without this the auto mode would spill the raw rows instead).
+// -o json stays the explicit raw passthrough of the paged run rows (no rendering) and wins over --format.
 func newFleetRunsCmd(e *env) *cobra.Command {
 	var days int
 	var kind string
@@ -28,12 +30,13 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 		Use:   "runs",
 		Short: "Fleet digest of recent runs (flags, rates, worst offenders)",
 		Long: "Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + " +
-			"cost, the aggregate rates, and the worst-offender shortlists. --format agent gives a token-lean " +
-			"index for an agent to triage. --all fans out across every project (all-projects token), grouped " +
-			"per project with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by " +
-			"project under --all).",
+			"cost, the aggregate rates, and the worst-offender shortlists. --format agent gives the token-lean " +
+			"computed digest for an agent to triage; passing --format explicitly renders the digest even when " +
+			"stdout is piped. --all fans out across every project (all-projects token), grouped per project " +
+			"with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by project under " +
+			"--all) and takes precedence over --format.",
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			if format != "" && format != "human" && format != "agent" {
 				return errBadFormat(format)
 			}
@@ -45,9 +48,10 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 				return err
 			}
 			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Format: format, CtxWarn: ctxWarn, ByModel: byModel, Timeline: timeline}
+			rawJSON := rawRowsJSON(e, cmd)
 
 			if all {
-				return runFleetAll(e, c, kind, learning, opt)
+				return runFleetAll(e, c, kind, learning, opt, rawJSON)
 			}
 
 			// `days` is server-side so paging stops at the requested window instead of walking old history.
@@ -63,7 +67,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 				warnCapped(e, "fleet: hit the page cap — older runs omitted; narrow --kind or use rc run list --before")
 			}
 
-			if e.jsonOut() {
+			if rawJSON {
 				return emitRunsJSON(e, runs)
 			}
 			render.Fleet(e.out, runs, opt)
@@ -83,10 +87,10 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 }
 
 // runFleetAll fans the digest out across the whole fleet: list projects, page each one's runs with an
-// explicit ?project= scope, then render grouped-by-project with a fleet total. In -o json it emits the
-// merged structure {projects:[{project, runs:[…]}], total_runs}. A per-project fetch error aborts (the
-// digest is only honest if it's complete).
-func runFleetAll(e *env, c *client.Client, kind, learning string, opt render.FleetOptions) error {
+// explicit ?project= scope, then render grouped-by-project with a fleet total. When rawJSON (see
+// rawRowsJSON) it emits the merged structure {projects:[{project, runs:[…]}], total_runs}. A per-project
+// fetch error aborts (the digest is only honest if it's complete).
+func runFleetAll(e *env, c *client.Client, kind, learning string, opt render.FleetOptions, rawJSON bool) error {
 	projects, err := fanOutProjects(e, c)
 	if err != nil {
 		return err
@@ -104,7 +108,7 @@ func runFleetAll(e *env, c *client.Client, kind, learning string, opt render.Fle
 		groups = append(groups, render.FleetGroup{Project: proj.Name, Runs: runs})
 	}
 
-	if e.jsonOut() {
+	if rawJSON {
 		return emitFleetAllJSON(e, groups)
 	}
 	render.FleetAll(e.out, groups, opt)

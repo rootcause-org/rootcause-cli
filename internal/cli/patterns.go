@@ -13,7 +13,10 @@ import (
 // newPatternsCmd builds `rc fleet patterns`: the failure/pattern miner over the THIN /run-events + /egress-log
 // feeds (both paged), porting run_patterns.py's bash-failure + blocked-egress clustering with masked
 // signatures and a `suggested fix:` stub per cluster. The server ships raw rows; ALL masking/grouping/
-// ranking happens client-side. -o json is a raw passthrough of the paged event + egress rows.
+// ranking happens client-side. The clustered markdown is already agent-shaped, so human and agent formats
+// render the same view — the point of an EXPLICIT --format is pinning that render when stdout is a pipe
+// (auto mode alone would spill the raw high-volume rows). -o json stays the raw passthrough of the paged
+// event + egress rows and wins over --format.
 //
 // run_patterns.py's run-error-theme + repeated-question sections read run BODIES the thin API doesn't
 // expose (the index is category-only, by privacy design); the recurring-error signal is reconstructed
@@ -22,22 +25,29 @@ func newPatternsCmd(e *env) *cobra.Command {
 	var days int
 	var top int
 	var kind string
+	var format string
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "patterns",
 		Short: "Cluster recent failures and outbound endpoint patterns",
 		Long: "Page GET /api/v1/run-events, /api/v1/egress-log, and /api/v1/api-log and cluster them like run_patterns: bash-failure " +
 			"signatures, blocked-egress hosts, allowed endpoint use, and abnormal write volume, with suggested-fix " +
-			"stub. --all fans out across every project (all-projects token), one clustered section per project. " +
-			"-o json is a raw passthrough of all three paged feeds (keyed by project under --all).",
+			"stub. human and agent formats render the same clustered view; passing --format explicitly renders it " +
+			"even when stdout is piped. --all fans out across every project (all-projects token), one clustered " +
+			"section per project. -o json is a raw passthrough of all three paged feeds (keyed by project under " +
+			"--all) and takes precedence over --format.",
 		Args: cobra.NoArgs,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if format != "" && format != "human" && format != "agent" {
+				return errBadFormat(format)
+			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
+			rawJSON := rawRowsJSON(e, cmd)
 			if all {
-				return runPatternsAll(e, c, days, top, kind)
+				return runPatternsAll(e, c, days, top, kind, rawJSON)
 			}
 
 			fp := client.FeedParams{Days: days, Kind: kind, Project: e.scopeProject(), Tenant: e.scopeTenant()}
@@ -46,7 +56,7 @@ func newPatternsCmd(e *env) *cobra.Command {
 				return err
 			}
 
-			if e.jsonOut() {
+			if rawJSON {
 				return emitPatternsJSON(e, events, egress, httpRows)
 			}
 			render.Patterns(e.out, events, egress, httpRows, render.PatternsOptions{Days: days, Top: top, Kind: kind})
@@ -56,6 +66,7 @@ func newPatternsCmd(e *env) *cobra.Command {
 	cmd.Flags().IntVar(&days, "days", 14, "window in days")
 	cmd.Flags().IntVar(&top, "top", 15, "max patterns per section")
 	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
+	cmd.Flags().StringVar(&format, "format", "human", "output style: human|agent (same clustered view; explicit --format forces it over a pipe)")
 	cmd.Flags().BoolVar(&all, "all", false, "fan out across every project (requires an all-projects token)")
 	return cmd
 }
@@ -108,9 +119,9 @@ func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label st
 }
 
 // runPatternsAll fans the pattern mining out across the fleet: page each project's feeds with an explicit
-// ?project= scope and cluster them under a per-project header (table mode) or merge them into a
-// {project→{events,egress}} object (-o json). A per-project fetch error aborts.
-func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error {
+// ?project= scope and cluster them under a per-project header, or — when rawJSON (see rawRowsJSON) —
+// merge them into a {project→{events,egress}} object. A per-project fetch error aborts.
+func runPatternsAll(e *env, c *client.Client, days, top int, kind string, rawJSON bool) error {
 	projects, err := fanOutProjects(e, c)
 	if err != nil {
 		return err
@@ -139,14 +150,14 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string) error 
 			httpRows = []client.HTTPAuditRow{}
 		}
 		entries = append(entries, entry{Project: proj.Name, Events: events, Egress: egress, HTTP: httpRows})
-		if !e.jsonOut() {
+		if !rawJSON {
 			_, _ = fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
 			render.Patterns(e.out, events, egress, httpRows, render.PatternsOptions{Days: days, Top: top, Kind: kind})
 			_, _ = fmt.Fprintln(e.out)
 		}
 	}
 
-	if e.jsonOut() {
+	if rawJSON {
 		b, merr := json.Marshal(map[string]any{"projects": entries})
 		if merr != nil {
 			return merr
