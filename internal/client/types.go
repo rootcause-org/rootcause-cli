@@ -778,8 +778,9 @@ type HarvestAccepted struct {
 // always present (a harvest either hit its thread cap or didn't).
 type ExportItem struct {
 	ID          string `json:"id"`
-	Kind        string `json:"kind"`   // harvest|survey
-	Status      string `json:"status"` // pending|running|done|error|failed
+	Kind        string `json:"kind"`             // harvest|survey
+	Format      string `json:"format,omitempty"` // harvest corpus render version; absent for surveys/unfinished legacy rows
+	Status      string `json:"status"`           // pending|running|done|error|failed
 	MailboxID   string `json:"mailbox_id"`
 	Tenant      string `json:"tenant,omitempty"`
 	Cleaned     *bool  `json:"cleaned,omitempty"`

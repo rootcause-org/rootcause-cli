@@ -55,6 +55,19 @@ func TestExportGetJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "export_item.json"), out.Bytes())
 }
 
+func TestExportGetSurveyShowsBlankFormat(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "corpus", "get", "survey"); err != nil {
+		t.Fatalf("project corpus get survey: %v", err)
+	}
+	compact := strings.Join(strings.Fields(out.String()), " ")
+	if !strings.Contains(compact, "kind: survey format: -") {
+		t.Fatalf("survey human output missing blank format:\n%s", out.String())
+	}
+}
+
 // --- rc project mailbox harvest ---
 
 // TestMailboxHarvestAccepted: the no-wait path prints {export_id,status} and a poll hint on stderr.
@@ -258,15 +271,54 @@ func TestExportDownloadLargeStdoutSpillsUnlessOutOrRaw(t *testing.T) {
 	}
 }
 
-// TestExportDownloadOutSplitExclusive: --out and --split can't combine (--out would be silently
-// ignored otherwise).
-func TestExportDownloadOutSplitExclusive(t *testing.T) {
+// On format drift, --out + --split writes the raw bytes before parsing and reports both the rescue
+// path and the server's post-consume re-download window.
+func TestExportDownloadSplitFailurePreservesOut(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	dir := t.TempDir()
+	rawPath := filepath.Join(dir, "raw.md")
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "project", "corpus", "download", "unsupported", "--out", rawPath, "--split", filepath.Join(dir, "split"))
+	if err == nil || !strings.Contains(err.Error(), "unsupported harvest_format") ||
+		!strings.Contains(err.Error(), "raw download preserved at "+rawPath) || !strings.Contains(err.Error(), "~48h") {
+		t.Fatalf("split rescue error = %v", err)
+	}
+	raw, readErr := os.ReadFile(rawPath)
+	if readErr != nil {
+		t.Fatalf("read rescued raw corpus: %v", readErr)
+	}
+	if !strings.Contains(string(raw), "harvest_format: v3") || !strings.Contains(string(raw), "**Occurrences:** 2") {
+		t.Fatalf("rescued corpus does not match download:\n%s", raw)
+	}
+}
+
+func TestExportDownloadSplitFailureOffersOutRescue(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "project", "corpus", "download", "eeee1111-0000-0000-0000-000000000001", "--out", "x.md", "--split", "y")
-	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Fatalf("expected a mutually-exclusive error, got %v", err)
+	err := run(t, e, "project", "corpus", "download", "unsupported", "--split", t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "rc project corpus download unsupported --out <file>") ||
+		!strings.Contains(err.Error(), "~48h") || !strings.Contains(err.Error(), "server may evict") {
+		t.Fatalf("split rescue offer = %v", err)
+	}
+}
+
+func TestExportDownloadMalformedKnownFormatUsesOutRescue(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	dir := t.TempDir()
+	rawPath := filepath.Join(dir, "malformed.md")
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "project", "corpus", "download", "malformed", "--out", rawPath, "--split", filepath.Join(dir, "split"))
+	if err == nil || !strings.Contains(err.Error(), "declares 3 threads but 2 valid thread sections were found") ||
+		!strings.Contains(err.Error(), "raw download preserved at "+rawPath) || !strings.Contains(err.Error(), "~48h") {
+		t.Fatalf("malformed split rescue error = %v", err)
+	}
+	if raw, readErr := os.ReadFile(rawPath); readErr != nil {
+		t.Fatalf("read malformed rescue: %v", readErr)
+	} else if !strings.Contains(string(raw), "unique_content: 3") || !strings.Contains(string(raw), "## Steps") {
+		t.Fatalf("malformed raw download was not preserved:\n%s", raw)
 	}
 }
 
@@ -328,6 +380,53 @@ func TestExportDownloadSplit(t *testing.T) {
 	}
 	if !strings.Contains(fc, "## Re: Invoice #42 question — #1") {
 		t.Errorf("thread file missing original section body: %q", fc)
+	}
+	if !strings.Contains(fc, "## Steps") || !strings.Contains(fc, "corrected document") {
+		t.Errorf("thread file lost embedded H2 body: %q", fc)
+	}
+}
+
+// V2 is the current server download shape: no mailbox/participants/span metadata, role-based message
+// headers, and an Occurrences field. The splitter derives the file month from the first message date.
+func TestExportDownloadSplitV2(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	dir := filepath.Join(t.TempDir(), "split")
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "corpus", "download", "v2", "--split", dir); err != nil {
+		t.Fatalf("project corpus download v2 --split: %v", err)
+	}
+	if strings.TrimSpace(out.String()) != dir {
+		t.Errorf("v2 split stdout = %q, want %q", out.String(), dir)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "threads"))
+	if err != nil {
+		t.Fatalf("read v2 threads: %v", err)
+	}
+	wantNames := []string{"2025-02--re-invoice-42-question--1.md", "2025-03--another-subject--2.md"}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	if strings.Join(names, ",") != strings.Join(wantNames, ",") {
+		t.Errorf("v2 thread files = %v, want %v", names, wantNames)
+	}
+	index, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+	if err != nil {
+		t.Fatalf("read v2 INDEX.md: %v", err)
+	}
+	for _, want := range []string{"harvested_at: 2026-07-19T10:00:00Z", "| 2025-02-10 | - | Re: Invoice #42 question | 2 |"} {
+		if !strings.Contains(string(index), want) {
+			t.Errorf("v2 index missing %q:\n%s", want, index)
+		}
+	}
+	first, err := os.ReadFile(filepath.Join(dir, "threads", wantNames[0]))
+	if err != nil {
+		t.Fatalf("read v2 first thread: %v", err)
+	}
+	if !strings.Contains(string(first), "**Occurrences:** 2") || !strings.Contains(string(first), "**mailbox (2025-02-18):**") ||
+		!strings.Contains(string(first), "## Steps") {
+		t.Errorf("v2 thread body lost current-render fields:\n%s", first)
 	}
 }
 

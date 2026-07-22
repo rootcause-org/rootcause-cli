@@ -4,17 +4,19 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 )
 
 // The splitter turns a downloaded harvest corpus (front-matter + one `## ` section per thread) into a
 // per-thread file tree plus an INDEX. It is deterministic string processing kept out of the command so
-// it's unit-testable without a server. The corpus format is VERSIONED: harvestFormatVersion is the only
-// tag we parse; anything else fails loudly so a future server render change can't be silently
-// mis-parsed.
+// it's unit-testable without a server. The corpus format is VERSIONED: supportedHarvestCorpusFormats
+// enumerates the exact tags we parse; anything else fails loudly so a future server render change can't
+// be silently mis-parsed.
 
-// harvestFormatVersion is the corpus front-matter version tag this splitter understands.
-const harvestFormatVersion = "v1"
+// supportedHarvestCorpusFormats are the server render shapes this splitter understands. Keep this list
+// in sync with the parser fixtures and rc self doctor, which advertises the same local capability.
+var supportedHarvestCorpusFormats = [...]string{"v1", "v2"}
 
 // splitThread is one parsed `## ` section: its header index, subject, span/participants (for the
 // index), and the verbatim section body (header line included) to write out.
@@ -38,11 +40,14 @@ type splitCorpus struct {
 var (
 	// threadHeaderRe matches a section header line: `## <subject> — #<idx>`. The subject may itself
 	// contain `#`, so the idx is anchored to the trailing ` — #<n>` and the subject is everything before.
-	threadHeaderRe = regexp.MustCompile(`(?m)^## (.*) — #(\d+)\s*$`)
+	threadHeaderRe = regexp.MustCompile(`(?m)^## (.*) — #(\d+)[ \t\r]*$`)
 	// messageHeaderRe matches one message header inside a section: `**addr (date):**`.
 	messageHeaderRe = regexp.MustCompile(`(?m)^\*\*(.+?) \((.+?)\):\*\*`)
 	// spanRe pulls the span start date (yyyy-mm-dd) off a `**Span:** <start> → <end>` line.
 	spanRe = regexp.MustCompile(`(?m)^\*\*Span:\*\*\s*(\d{4}-\d{2}-\d{2})`)
+	// messageDateRe pulls the first rendered message date. V2 deliberately omits the v1 Span metadata,
+	// so its first chronological message supplies the index/file month.
+	messageDateRe = regexp.MustCompile(`(?m)^\*\*.+? \((\d{4}-\d{2}-\d{2})\):\*\*`)
 	// slugNonAlnumRe collapses any run of non-alphanumeric characters to a single `-` for the file slug.
 	slugNonAlnumRe = regexp.MustCompile(`[^a-z0-9]+`)
 )
@@ -55,11 +60,12 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 	if err != nil {
 		return nil, err
 	}
-	if v := fm["harvest_format"]; v != harvestFormatVersion {
-		if v == "" {
-			return nil, fmt.Errorf("corpus front-matter missing harvest_format (expected %s) — refusing to parse a possibly-drifted format", harvestFormatVersion)
-		}
-		return nil, fmt.Errorf("unsupported harvest_format %q (this CLI understands %s) — the server render changed; run `rc self update`", v, harvestFormatVersion)
+	format := fm["harvest_format"]
+	if format == "" {
+		return nil, fmt.Errorf("corpus front-matter missing harvest_format (expected one of %s) — refusing to parse a possibly-drifted format", supportedHarvestCorpusFormatList())
+	}
+	if !supportsHarvestCorpusFormat(format) {
+		return nil, fmt.Errorf("unsupported harvest_format %q (this CLI understands %s) — the server render changed; run `rc self update`", format, supportedHarvestCorpusFormatList())
 	}
 
 	out := &splitCorpus{
@@ -67,10 +73,21 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 		harvestedAt: fm["harvested_at"],
 		cleaned:     fm["cleaned"],
 	}
+	expected, err := expectedCorpusThreadCount(fm, format)
+	if err != nil {
+		return nil, err
+	}
 
-	// Split the body on the `\n## ` boundary so subjects containing `#` don't false-split. Each section
-	// is re-prefixed with "## " (stripped by the split) except a leading section already starting there.
+	// Only renderer thread headers (`## <subject> — #<n>`) begin sections. Message bodies are arbitrary
+	// Markdown and may contain ordinary H2 lines; those must stay inside their owning thread.
 	sections := splitThreadSections(body)
+	if first := threadHeaderRe.FindStringIndex(body); first != nil {
+		if strings.TrimSpace(body[:first[0]]) != "" {
+			return nil, fmt.Errorf("harvest_format %s has content before thread #1 — refusing a partial split", format)
+		}
+	} else if strings.TrimSpace(body) != "" {
+		return nil, fmt.Errorf("harvest_format %s declares %d threads but has no valid thread sections — refusing a partial split", format, expected)
+	}
 	for _, sec := range sections {
 		m := threadHeaderRe.FindStringSubmatch(sec)
 		if m == nil {
@@ -78,16 +95,56 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 			continue
 		}
 		idx := atoiSafe(m[2])
+		wantIdx := len(out.threads) + 1
+		if idx != wantIdx {
+			return nil, fmt.Errorf("harvest_format %s thread index is #%d, expected #%d — refusing a partial split", format, idx, wantIdx)
+		}
+		spanStart := firstSubmatch(spanRe, sec)
+		if format == "v2" && spanStart == "" {
+			spanStart = firstSubmatch(messageDateRe, sec)
+		}
 		out.threads = append(out.threads, splitThread{
 			idx:          idx,
 			subject:      strings.TrimSpace(m[1]),
-			spanStart:    firstSubmatch(spanRe, sec),
+			spanStart:    spanStart,
 			participants: parseParticipants(sec),
 			msgCount:     len(messageHeaderRe.FindAllStringIndex(sec, -1)),
 			body:         strings.TrimRight(sec, "\n") + "\n",
 		})
 	}
+	if len(out.threads) != expected {
+		return nil, fmt.Errorf("harvest_format %s declares %d threads but %d valid thread sections were found — refusing a partial split", format, expected, len(out.threads))
+	}
 	return out, nil
+}
+
+func expectedCorpusThreadCount(frontMatter map[string]string, format string) (int, error) {
+	field := "threads"
+	if format == "v2" {
+		field = "unique_content"
+	}
+	raw, ok := frontMatter[field]
+	if !ok || strings.TrimSpace(raw) == "" {
+		return 0, fmt.Errorf("harvest_format %s front-matter missing %s — refusing to split an incomplete corpus", format, field)
+	}
+	count, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || count < 0 {
+		return 0, fmt.Errorf("harvest_format %s front-matter has invalid %s %q — refusing to split an incomplete corpus", format, field, raw)
+	}
+	return count, nil
+}
+
+func supportsHarvestCorpusFormat(format string) bool {
+	for _, supported := range supportedHarvestCorpusFormats {
+		if format == supported {
+			return true
+		}
+	}
+	return false
+}
+
+func supportedHarvestCorpusFormatList() string {
+	return strings.Join(supportedHarvestCorpusFormats[:], ", ")
 }
 
 // splitFrontMatter separates a leading `---\n…\n---` YAML front-matter block from the body, returning
@@ -125,23 +182,21 @@ func splitFrontMatter(corpus string) (map[string]string, string, error) {
 	return fm, body, nil
 }
 
-// splitThreadSections splits the corpus body into thread sections on the `## ` boundary. It splits on
-// the `\n## ` boundary (so a `#` inside a subject never false-splits) and keeps the `## ` prefix on
-// each section.
+// splitThreadSections splits only at anchored renderer thread headers. Arbitrary Markdown H2 lines in a
+// message body remain part of the section. parseCorpus separately rejects non-whitespace text before
+// the first header and validates the complete section count.
 func splitThreadSections(body string) []string {
-	body = strings.TrimLeft(body, "\r\n")
-	if body == "" {
+	matches := threadHeaderRe.FindAllStringIndex(body, -1)
+	if len(matches) == 0 {
 		return nil
 	}
-	// Normalize so the first section (which starts at "## " with no preceding newline) is handled the
-	// same as the rest: prepend a newline, then split on "\n## ".
-	parts := strings.Split("\n"+body, "\n## ")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if strings.TrimSpace(p) == "" {
-			continue
+	out := make([]string, 0, len(matches))
+	for i, match := range matches {
+		end := len(body)
+		if i+1 < len(matches) {
+			end = matches[i+1][0]
 		}
-		out = append(out, "## "+strings.TrimLeft(p, "\n"))
+		out = append(out, body[match[0]:end])
 	}
 	return out
 }

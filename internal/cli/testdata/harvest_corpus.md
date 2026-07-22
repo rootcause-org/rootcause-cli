@@ -13,6 +13,10 @@ truncated: false
 
 **alice@acme.com (2025-02-18):**
 Where is my invoice?
+
+## Steps
+
+Please check the account, then send the corrected document.
 _[attachment: foo.pdf]_
 
 **owner@x.com (2025-02-18):**

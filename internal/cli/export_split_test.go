@@ -22,6 +22,10 @@ truncated: false
 
 **alice@acme.com (2025-02-18):**
 Where is my invoice?
+
+## Steps
+
+Please check the account, then send the corrected document.
 _[attachment: foo.pdf]_
 
 **owner@x.com (2025-02-18):**
@@ -64,6 +68,9 @@ func TestParseCorpusSplitsThreads(t *testing.T) {
 	if !strings.HasPrefix(t0.body, "## Re: Invoice #42 question — #1") {
 		t.Errorf("thread 0 body should start at the header: %q", t0.body)
 	}
+	if !strings.Contains(t0.body, "## Steps") || !strings.Contains(t0.body, "corrected document") {
+		t.Errorf("thread 0 body lost embedded H2 content: %q", t0.body)
+	}
 
 	t1 := c.threads[1]
 	if t1.idx != 2 || t1.spanStart != "2025-03-01" {
@@ -104,12 +111,91 @@ func TestParticipantDomains(t *testing.T) {
 	}
 }
 
-// TestParseCorpusRejectsVersionDrift is the load-bearing guard: a v2 (or missing) harvest_format must
-// fail loudly so a future server render change can't be silently mis-parsed.
+func TestParseCorpusV2CurrentServerShape(t *testing.T) {
+	c, err := parseCorpus(string(fixture(t, "harvest_corpus_v2.md")))
+	if err != nil {
+		t.Fatalf("parseCorpus v2: %v", err)
+	}
+	if c.mailbox != "" || c.harvestedAt != "2026-07-19T10:00:00Z" || c.cleaned != "" {
+		t.Errorf("v2 front-matter = %+v", c)
+	}
+	if len(c.threads) != 2 {
+		t.Fatalf("v2 threads = %d, want 2", len(c.threads))
+	}
+	first := c.threads[0]
+	if first.subject != "Re: Invoice #42 question" || first.idx != 1 || first.spanStart != "2025-02-10" {
+		t.Errorf("v2 first thread = %+v", first)
+	}
+	if first.msgCount != 2 || len(first.participants) != 0 {
+		t.Errorf("v2 messages/participants = %d/%v, want 2/none", first.msgCount, first.participants)
+	}
+	if !strings.Contains(first.body, "**Occurrences:** 2") || !strings.Contains(first.body, "**mailbox (2025-02-18):**") ||
+		!strings.Contains(first.body, "## Steps") {
+		t.Errorf("v2 original section not preserved: %q", first.body)
+	}
+}
+
+func TestParseCorpusValidatesDeclaredThreadCount(t *testing.T) {
+	for _, tt := range []struct {
+		name, corpus, oldCount, newCount, want string
+	}{
+		{name: "v1 mismatch", corpus: splitTestCorpus, oldCount: "threads: 2", newCount: "threads: 3", want: "refusing a partial split"},
+		{name: "v2 mismatch", corpus: string(fixture(t, "harvest_corpus_v2.md")), oldCount: "unique_content: 2", newCount: "unique_content: 3", want: "refusing a partial split"},
+		{name: "v1 missing", corpus: splitTestCorpus, oldCount: "threads: 2\n", newCount: "", want: "missing threads"},
+		{name: "v2 invalid", corpus: string(fixture(t, "harvest_corpus_v2.md")), oldCount: "unique_content: 2", newCount: "unique_content: -1", want: "invalid unique_content"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			corpus := strings.Replace(tt.corpus, tt.oldCount, tt.newCount, 1)
+			if _, err := parseCorpus(corpus); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("count drift error = %v", err)
+			}
+		})
+	}
+}
+
+func TestParseCorpusRequiresSequentialThreadIndices(t *testing.T) {
+	for _, tt := range []struct {
+		name, corpus string
+	}{
+		{name: "v1", corpus: strings.Replace(splitTestCorpus, "Another subject — #2", "Another subject — #3", 1)},
+		{name: "v2", corpus: strings.Replace(string(fixture(t, "harvest_corpus_v2.md")), "Another subject — #2", "Another subject — #3", 1)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseCorpus(tt.corpus); err == nil || !strings.Contains(err.Error(), "thread index is #3, expected #2") {
+				t.Fatalf("index drift error = %v", err)
+			}
+		})
+	}
+}
+
+func TestParseCorpusAllowsLegitimateZeroThreads(t *testing.T) {
+	for _, corpus := range []string{
+		"---\nharvest_format: v1\nthreads: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n",
+		"---\nharvest_format: v2\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n",
+	} {
+		parsed, err := parseCorpus(corpus)
+		if err != nil {
+			t.Fatalf("parse legitimate empty corpus: %v", err)
+		}
+		if len(parsed.threads) != 0 {
+			t.Fatalf("empty corpus threads = %d", len(parsed.threads))
+		}
+	}
+}
+
+func TestParseCorpusRejectsBodyForDeclaredZeroThreads(t *testing.T) {
+	corpus := "---\nharvest_format: v2\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n\n## Steps\nnot a thread"
+	if _, err := parseCorpus(corpus); err == nil || !strings.Contains(err.Error(), "has no valid thread sections") {
+		t.Fatalf("zero-count body error = %v", err)
+	}
+}
+
+// TestParseCorpusRejectsVersionDrift is the load-bearing guard: an unknown (or missing)
+// harvest_format must fail loudly so a future server render change can't be silently mis-parsed.
 func TestParseCorpusRejectsVersionDrift(t *testing.T) {
-	v2 := strings.Replace(splitTestCorpus, "harvest_format: v1", "harvest_format: v2", 1)
-	if _, err := parseCorpus(v2); err == nil || !strings.Contains(err.Error(), "unsupported harvest_format") {
-		t.Fatalf("expected an unsupported-version error for v2, got %v", err)
+	v3 := strings.Replace(splitTestCorpus, "harvest_format: v1", "harvest_format: v3", 1)
+	if _, err := parseCorpus(v3); err == nil || !strings.Contains(err.Error(), "unsupported harvest_format") {
+		t.Fatalf("expected an unsupported-version error for v3, got %v", err)
 	}
 
 	missing := strings.Replace(splitTestCorpus, "harvest_format: v1\n", "", 1)

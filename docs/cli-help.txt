@@ -1690,9 +1690,9 @@ Usage:
   rc project corpus [command]
 
 Available Commands:
-  ls            List exports (id, kind, status, threads, truncated, created/completed)
+  ls            List exports (id, kind, format, status, threads, truncated, created/completed)
   get           Show one export
-  download      Download the export's Markdown corpus (stdout, --out <file>, or --split <dir>)
+  download      Download the export's Markdown corpus (stdout, raw file, and/or split tree)
   mine-settings Mine a completed harvest for persona/triage setting proposals
 
 Global Flags:
@@ -1708,7 +1708,7 @@ Global Flags:
 Use "rc project corpus [command] --help" for more information about a command.
 
 $ rc project corpus ls --help
-List exports (id, kind, status, threads, truncated, created/completed)
+List exports (id, kind, format, status, threads, truncated, created/completed)
 
 Usage:
   rc project corpus ls [flags]
@@ -1740,13 +1740,13 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc project corpus download --help
-Download the export's Markdown corpus (stdout, --out <file>, or --split <dir>)
+Download the export's Markdown corpus (stdout, raw file, and/or split tree)
 
 Usage:
   rc project corpus download <export-id> [flags]
 
 Flags:
-      --out string     write the corpus to this file instead of stdout
+      --out string     write the raw corpus to this file (may be combined with --split)
       --split string   split into a per-thread tree under this dir (empty → .rootcause/exports/<id>/)
 
 Global Flags:

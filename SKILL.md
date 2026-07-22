@@ -133,6 +133,15 @@ manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir` / `RC_OU
 `--no-preview`, `--raw-output` (exact full stdout, no spill). Intentional one-time secret reveals stay
 raw. Contract detail: [docs/specs/progressive-output-disclosure.md](docs/specs/progressive-output-disclosure.md).
 
+Harvest corpus downloads (`rc project corpus download`, [`export.go`](internal/cli/export.go)) support
+both server Markdown formats `v1` and `v2` in the client-side `--split` convenience path. `corpus ls|get`
+show the server's `format` projection before download, while `rc self doctor` advertises the formats the
+local splitter supports. The parser recognizes only anchored server thread headers and verifies their
+declared count and sequential indices before writing a tree. `--out` may be combined with `--split`; raw
+bytes are written before parsing, so an unknown or malformed future format remains recoverable even when
+splitting fails. Without `--out`, the split error points to a rescue download and names the server's
+roughly 48-hour post-consume re-download window.
+
 ### Auth (OAuth) — login, token store, transparent refresh
 OAuth is the **only** bearer credential (no legacy API key or env token). The flow in
 [`internal/cli/auth.go`](internal/cli/auth.go) runs `internal/oauth` against the static first-party client

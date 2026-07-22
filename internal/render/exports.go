@@ -12,18 +12,18 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
-// Exports renders the export set as a table: id, kind, status, thread count, truncated, created, and
-// completed. Empty → "(none)".
+// Exports renders the export set as a table: id, kind, corpus format, status, thread count, truncated,
+// created, and completed. Empty → "(none)".
 func Exports(w io.Writer, l *client.ExportList) {
 	if l == nil || len(l.Exports) == 0 {
 		_, _ = fmt.Fprintln(w, "(none)")
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ID\tKIND\tSTATUS\tTHREADS\tTRUNCATED\tCREATED\tCOMPLETED")
+	_, _ = fmt.Fprintln(tw, "ID\tKIND\tFORMAT\tSTATUS\tTHREADS\tTRUNCATED\tCREATED\tCOMPLETED")
 	for _, x := range l.Exports {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			x.ID, x.Kind, x.Status, intPtrOrBlank(x.ThreadCount), boolLabel(x.Truncated),
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			x.ID, x.Kind, strOrBlank(x.Format), x.Status, intPtrOrBlank(x.ThreadCount), boolLabel(x.Truncated),
 			strOrBlank(x.CreatedAt), strOrBlank(x.CompletedAt))
 	}
 	_ = tw.Flush()
@@ -38,6 +38,7 @@ func Export(w io.Writer, x *client.ExportItem) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintf(tw, "id:\t%s\n", x.ID)
 	_, _ = fmt.Fprintf(tw, "kind:\t%s\n", x.Kind)
+	_, _ = fmt.Fprintf(tw, "format:\t%s\n", strOrBlank(x.Format))
 	_, _ = fmt.Fprintf(tw, "status:\t%s\n", x.Status)
 	if x.MailboxID != "" {
 		_, _ = fmt.Fprintf(tw, "mailbox:\t%s\n", x.MailboxID)

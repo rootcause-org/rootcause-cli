@@ -1,5 +1,6 @@
 id:         eeee1111-0000-0000-0000-000000000001
 kind:       harvest
+format:     v2
 status:     done
 mailbox:    11111111-1111-1111-1111-111111111111
 cleaned:    yes

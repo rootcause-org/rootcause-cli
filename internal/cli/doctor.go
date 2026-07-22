@@ -57,12 +57,17 @@ type doctorUpdate struct {
 	Note      string `json:"note,omitempty"`
 }
 
+type doctorCapabilities struct {
+	HarvestCorpusFormats []string `json:"harvest_corpus_formats"`
+}
+
 type doctorReport struct {
-	Binary   binaryInfo      `json:"binary"`
-	Path     []binaryInfo    `json:"path"`
-	Scope    doctorScope     `json:"scope"`
-	Update   doctorUpdate    `json:"update"`
-	Findings []doctorFinding `json:"findings"`
+	Binary       binaryInfo         `json:"binary"`
+	Path         []binaryInfo       `json:"path"`
+	Scope        doctorScope        `json:"scope"`
+	Capabilities doctorCapabilities `json:"capabilities"`
+	Update       doctorUpdate       `json:"update"`
+	Findings     []doctorFinding    `json:"findings"`
 }
 
 type doctorFindingsError struct{ count int }
@@ -133,7 +138,12 @@ func collectDoctorReport(e *env, version string) (doctorReport, error) {
 		update.Available = compareVersions(current.Version, latest) < 0
 	}
 
-	return doctorReport{Binary: current, Path: pathCopies, Scope: doctorScope, Update: update, Findings: findings}, nil
+	formats := append([]string(nil), supportedHarvestCorpusFormats[:]...)
+	return doctorReport{
+		Binary: current, Path: pathCopies, Scope: doctorScope,
+		Capabilities: doctorCapabilities{HarvestCorpusFormats: formats},
+		Update:       update, Findings: findings,
+	}, nil
 }
 
 func currentBinaryInfo(version string) (binaryInfo, error) {
@@ -452,6 +462,9 @@ func renderDoctorHuman(w interface{ Write([]byte) (int, error) }, report doctorR
 	}
 	_, _ = fmt.Fprintln(tw, "  auth details:\trc auth status")
 	_, _ = fmt.Fprintln(tw)
+
+	_, _ = fmt.Fprintln(tw, "Capabilities")
+	_, _ = fmt.Fprintf(tw, "  harvest corpus formats:\t%s\n\n", strings.Join(report.Capabilities.HarvestCorpusFormats, ", "))
 
 	_, _ = fmt.Fprintln(tw, "Update")
 	if report.Update.Note != "" {

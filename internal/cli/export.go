@@ -56,7 +56,7 @@ func exportMineSettingsCmd(e *env) *cobra.Command {
 func exportLsCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "ls",
-		Short: "List exports (id, kind, status, threads, truncated, created/completed)",
+		Short: "List exports (id, kind, format, status, threads, truncated, created/completed)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
@@ -101,22 +101,20 @@ func exportGetCmd(e *env) *cobra.Command {
 }
 
 // exportDownloadCmd: GET /api/v1/exports/{id}/download → the Markdown corpus. By default it writes to
-// stdout (or --out <file>). --split <dir> instead runs the client-side splitter, materializing an
+// stdout (or --out <file>). --split <dir> runs the client-side splitter, materializing an
 // INDEX.md + per-thread files under <dir> (default .rootcause/exports/<id>/ when --split is given the
-// empty string). The download marks the export consumed server-side.
+// empty string). --out and --split may be combined: the raw corpus is written before parsing so a
+// format-drift failure cannot discard the downloaded bytes. The download marks the export consumed
+// server-side, but remains re-downloadable for about 48 hours before eviction.
 func exportDownloadCmd(e *env) *cobra.Command {
 	var out string
 	var split string
-	var splitSet bool
 	cmd := &cobra.Command{
 		Use:   "download <export-id>",
-		Short: "Download the export's Markdown corpus (stdout, --out <file>, or --split <dir>)",
+		Short: "Download the export's Markdown corpus (stdout, raw file, and/or split tree)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			splitSet = cmd.Flags().Changed("split")
-			if splitSet && out != "" {
-				return fmt.Errorf("--out and --split are mutually exclusive")
-			}
+			splitSet := cmd.Flags().Changed("split")
 			c, err := e.newClient()
 			if err != nil {
 				return err
@@ -126,6 +124,13 @@ func exportDownloadCmd(e *env) *cobra.Command {
 				return err
 			}
 
+			if out != "" {
+				if err := os.WriteFile(out, body, 0o644); err != nil {
+					return fmt.Errorf("write %s: %w", out, err)
+				}
+				_, _ = fmt.Fprintf(e.err, "wrote %d bytes → %s\n", len(body), out)
+			}
+
 			if splitSet {
 				dir := strings.TrimSpace(split)
 				if dir == "" {
@@ -133,7 +138,7 @@ func exportDownloadCmd(e *env) *cobra.Command {
 				}
 				res, err := splitExport(args[0], body, dir)
 				if err != nil {
-					return err
+					return splitExportRescueError(args[0], out, err)
 				}
 				_, _ = fmt.Fprintf(e.out, "%s\n", res.dir)
 				_, _ = fmt.Fprintf(e.err, "wrote %d threads → %s (INDEX.md + threads/)\n", res.threadCount, res.dir)
@@ -141,18 +146,21 @@ func exportDownloadCmd(e *env) *cobra.Command {
 			}
 
 			if out != "" {
-				if err := os.WriteFile(out, body, 0o644); err != nil {
-					return fmt.Errorf("write %s: %w", out, err)
-				}
-				_, _ = fmt.Fprintf(e.err, "wrote %d bytes → %s\n", len(body), out)
 				return nil
 			}
 			return e.renderBytes("export-download-"+args[0], "body.md", body, "text")
 		},
 	}
-	cmd.Flags().StringVar(&out, "out", "", "write the corpus to this file instead of stdout")
+	cmd.Flags().StringVar(&out, "out", "", "write the raw corpus to this file (may be combined with --split)")
 	cmd.Flags().StringVar(&split, "split", "", "split into a per-thread tree under this dir (empty → .rootcause/exports/<id>/)")
 	return cmd
+}
+
+func splitExportRescueError(exportID, out string, splitErr error) error {
+	if out != "" {
+		return fmt.Errorf("split corpus: %w; raw download preserved at %s (the export can also be re-downloaded for ~48h after first download, before server eviction)", splitErr, out)
+	}
+	return fmt.Errorf("split corpus: %w; raw bytes were not saved — re-download within ~48h using `rc project corpus download %s --out <file>` (the server may evict the export after that window)", splitErr, exportID)
 }
 
 // splitResult reports where the split wrote and how many threads it materialized.
