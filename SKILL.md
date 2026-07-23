@@ -42,6 +42,10 @@ server-side so cursor pagination stays correct. Bare `--learning` means `any`; e
 keep the raw rows reachable via `-o json`:
 - `rc fleet runs|patterns|health` — observability digests ([`internal/render/fleet.go`](internal/render/fleet.go),
   `patterns.go`, `health.go`); pure functions of the `/api/v1/{runs,health}` rows.
+- `rc fleet actions` — operator-only, cursor-paged cross-run action discovery over `GET /api/v1/actions`;
+  repeatable exact action/status filters, with exact grounded params and the freshly tokenized run URL
+  present by default. `--format agent` pins a one-line complete view over a pipe; JSON preserves every
+  raw item field. Execution result/error remain a run drill-down.
 - `rc run thread <id>` / `rc run process-thread <id>` — thread/session trace and set-aside-thread resume.
 - `rc dev learning evidence` — heterogeneous dream-cycle evidence, **JSON-only** (`--plane`, `--include-bodies`).
 - `rc project knowledge content search|export` — progressive KB discovery over the guarded bash workspace
@@ -132,6 +136,12 @@ manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir` / `RC_OU
 `RC_OUTPUT_SPILL_THRESHOLD` (per field/stream, 6000 B), `RC_OUTPUT_INLINE_MAX` (whole JSON/JSONL, 20000 B),
 `--no-preview`, `--raw-output` (exact full stdout, no spill). Intentional one-time secret reveals stay
 raw. Contract detail: [docs/specs/progressive-output-disclosure.md](docs/specs/progressive-output-disclosure.md).
+
+`rc fleet actions` follows the same progressive-output path: it exhausts the opaque cursor over the
+requested window, warns on stderr if the client page cap is reached, then emits/spills one raw
+`{"items":[…]}` envelope in JSON mode. Human output keeps each row compact but never truncates its exact
+`params` or tokenized `run_url`; oversized output spills as text with a preview. Use
+`rc run show|trace|debug <run-id>` for execution detail rather than widening the action index.
 
 Harvest corpus downloads (`rc project corpus download`, [`export.go`](internal/cli/export.go)) support
 both server Markdown formats `v1` and `v2` in the client-side `--split` convenience path. `corpus ls|get`

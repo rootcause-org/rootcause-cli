@@ -39,6 +39,7 @@ func TestCanonicalScopeContracts(t *testing.T) {
 	for path, want := range map[string]scopeSpec{
 		"status":                        {Project: true, Tenant: true},
 		"run trace":                     {Project: true, Tenant: true},
+		"fleet actions":                 {Project: true, Tenant: true, AllProjects: true},
 		"fleet health":                  {Project: true, Tenant: true, AllProjects: true},
 		"project connection add":        {Project: true, Tenant: true},
 		"project mailbox mode":          {Project: true, Tenant: true},

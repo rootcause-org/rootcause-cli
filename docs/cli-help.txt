@@ -3172,6 +3172,7 @@ Usage:
 
 Available Commands:
   runs        Fleet digest of recent runs (flags, rates, worst offenders)
+  actions     Find actions across recent runs with exact params and run URLs
   health      Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy
   patterns    Cluster recent failures and outbound endpoint patterns
 
@@ -3202,6 +3203,28 @@ Flags:
       --kind string               filter by kind: email|prompt|mcp|analysis
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
       --timeline                  add the per-day runs/errors/cost timeline
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc fleet actions --help
+Find operator-visible actions across recent runs without downloading the fleet event feed. Repeat --action and --status to OR exact values. Results are cursor-paged automatically. Human output includes exact structured params and the full tokenized run URL; JSON preserves the complete raw server rows.
+
+Usage:
+  rc fleet actions [flags]
+
+Flags:
+      --action stringArray   filter by exact action id (repeatable; OR)
+      --days int             lookback window in days (positive; server clamps above 14) (default 14)
+      --format string        output style: human|agent (default "human")
+      --status stringArray   filter by status: proposed|executing|succeeded|failed|canceled (repeatable; OR)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

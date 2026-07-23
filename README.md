@@ -21,6 +21,7 @@ $ rc run list --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run list --outcome failed --learning             # learning candidates with failed verdicts
 $ rc run events <id>        # full per-iteration trace (NDJSON when piped)
 $ rc run trace <id>          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
+$ rc fleet actions --days 14 --action create_appointment --action update_appointment
 $ rc dev learning evidence --plane triage --limit 50 -o json
 $ rc dev learning evidence --plane deltas --include-bodies -o json
 $ rc dev brain sync
@@ -193,6 +194,15 @@ runs/errors/cost). Both off by default to keep the digest scannable; the per-run
 a 30m clock with no finish) and a `FB` model-fallback flag are surfaced inline; every worst-offender
 line carries the full triage tail (cost · secs · turns · bash_err · ctx · FB).
 
+`rc fleet actions` is the operator-only cross-run action index. It automatically pages a recent window
+without downloading the much larger event feed or calling every run separately. Repeat `--action` and
+`--status` to OR exact filters; statuses are `proposed`, `executing`, `succeeded`, `failed`, and
+`canceled`. Human output includes each action-run/run id, timestamps and duration, exact structured
+params, and the full freshly tokenized run URL by default. Piped/`-o json` output preserves the complete
+raw action rows; explicit `--format agent` pins a one-line-per-action complete view even through a pipe.
+The endpoint needs `console:action` plus operator/admin action-view authority because grounded params may
+contain customer values.
+
 Use bare **`--learning`** to keep runs with any dream-cycle signal, or select one with
 `--learning=feedback|sent_delta|triage_skipped|triage_corrected`; the same filter works on
 `rc run list`. Run-list tables show the matching safe boolean signals, and fleet tables/agent output
@@ -265,6 +275,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev tools provider` | Provider (channel) utilities |
 | `rc dev tools` | Use local provider and identifier utilities |
 | `rc dev` | Develop and inspect project behavior |
+| `rc fleet actions` | Find actions across recent runs with exact params and run URLs |
 | `rc fleet health` | Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy |
 | `rc fleet patterns` | Cluster recent failures and outbound endpoint patterns |
 | `rc fleet runs` | Fleet digest of recent runs (flags, rates, worst offenders) |

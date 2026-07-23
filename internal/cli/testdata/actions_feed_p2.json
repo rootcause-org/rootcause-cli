@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "id": "96fc4444-4444-4444-8444-444444444444",
+      "run_id": null,
+      "tenant_id": null,
+      "action_id": "update_appointment",
+      "status": "proposed",
+      "params": {
+        "appointment_id": 987,
+        "starts_at": "2026-07-23T11:30:00+02:00",
+        "notes": "patient requested later slot"
+      },
+      "duration_ms": null,
+      "proposed_at": "2026-07-21T10:20:30Z",
+      "executed_at": null,
+      "run_url": null
+    }
+  ]
+}

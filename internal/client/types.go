@@ -1034,6 +1034,49 @@ type ActionHistoryResponse struct {
 	NextCursor string             `json:"next_cursor,omitempty"`
 }
 
+// ActionFeedItem is one operator-only cross-run action row from GET /api/v1/actions. Unlike the
+// customer-safe per-run lifecycle projection above, this feed intentionally includes the exact
+// grounded params and a freshly minted tokenized run URL. Nullable wire fields use pointers so a
+// synthesized value still marshals as JSON null. raw preserves future server fields through paging.
+type ActionFeedItem struct {
+	ID         string          `json:"id"`
+	RunID      *string         `json:"run_id"`
+	TenantID   *string         `json:"tenant_id"`
+	ActionID   string          `json:"action_id"`
+	Status     string          `json:"status"`
+	Params     json.RawMessage `json:"params"`
+	DurationMs *int64          `json:"duration_ms"`
+	ProposedAt string          `json:"proposed_at"`
+	ExecutedAt *string         `json:"executed_at"`
+	RunURL     *string         `json:"run_url"`
+	raw        json.RawMessage
+}
+
+func (a *ActionFeedItem) UnmarshalJSON(data []byte) error {
+	type wire ActionFeedItem
+	var decoded wire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*a = ActionFeedItem(decoded)
+	a.raw = append(a.raw[:0], data...)
+	return nil
+}
+
+func (a ActionFeedItem) MarshalJSON() ([]byte, error) {
+	if len(a.raw) > 0 {
+		return append([]byte(nil), a.raw...), nil
+	}
+	type wire ActionFeedItem
+	return json.Marshal(wire(a))
+}
+
+// ActionFeedResponse is one keyset-paginated page from GET /api/v1/actions.
+type ActionFeedResponse struct {
+	Items      []ActionFeedItem `json:"items"`
+	NextCursor string           `json:"next_cursor,omitempty"`
+}
+
 // HealthMirror is one raw mirror_health row from GET /api/v1/health — the input `rc fleet health` applies its
 // staleness/state rule to. HoursSinceOK is nil when the mirror never succeeded (the CLI renders "never").
 type HealthMirror struct {
