@@ -223,6 +223,28 @@ func TestMailboxSettingsSetTable(t *testing.T) {
 	}
 }
 
+func TestBuildHierarchyPatchAcceptsFollowUpSettings(t *testing.T) {
+	patch, err := buildHierarchyPatch([]string{
+		"channel.follow_up_enabled=true",
+		"channel.follow_up_max_steps=2",
+		"channel.follow_up_max_horizon_days=14",
+	}, nil)
+	if err != nil {
+		t.Fatalf("build follow-up settings patch: %v", err)
+	}
+	got, err := json.Marshal(patch)
+	if err != nil {
+		t.Fatalf("marshal follow-up settings patch: %v", err)
+	}
+	assertJSONEqual(t, []byte(`{
+		"channel": {
+			"follow_up_enabled": true,
+			"follow_up_max_steps": 2,
+			"follow_up_max_horizon_days": 14
+		}
+	}`), got)
+}
+
 func TestRoutesTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

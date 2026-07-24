@@ -275,6 +275,9 @@ non-decodable body falls back to `error: HTTP <status>` — clean non-zero exit,
   `/meta/schema` ONCE and coerces each `k=v` by the field's declared type (a `list`/`array` comma-splits to
   a JSON array, empty → `[]`; a numeric type → a JSON number). On a schema miss it falls back to a static
   known-key set. The server is always the final validator.
+- **Hierarchy settings coercion:** [`hierarchy_settings.go`](internal/cli/hierarchy_settings.go) validates
+  `persona.*` and `channel.*` keys locally before sending the nested patch. Keep its field/type map aligned
+  with `/meta/schema`, including numeric follow-up guardrails; the server remains the final validator.
 
 ## Local installation plumbing: `rc self doctor` / `rc self update`
 

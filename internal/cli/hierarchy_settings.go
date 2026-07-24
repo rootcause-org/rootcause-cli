@@ -16,10 +16,13 @@ import (
 
 var hierarchyFields = map[string]map[string]valueKind{
 	"channel": {
-		"labeling_enabled":       kindBool,
-		"inbox_cleaning_enabled": kindBool,
-		"draft_font_css":         kindString,
-		"note_from_address":      kindString,
+		"labeling_enabled":           kindBool,
+		"inbox_cleaning_enabled":     kindBool,
+		"draft_font_css":             kindString,
+		"note_from_address":          kindString,
+		"follow_up_enabled":          kindBool,
+		"follow_up_max_steps":        kindNumber,
+		"follow_up_max_horizon_days": kindNumber,
 	},
 	"persona": {
 		"signature": kindString,
@@ -237,6 +240,14 @@ func putHierarchyValue(root map[string]any, dotted, val string, clear bool) erro
 			return fmt.Errorf("%s: %q is not a boolean (use true/false)", dotted, val)
 		}
 		bag[field] = b
+		return nil
+	}
+	if kind == kindNumber {
+		n, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return fmt.Errorf("%s: %q is not an integer", dotted, val)
+		}
+		bag[field] = n
 		return nil
 	}
 	bag[field] = val
