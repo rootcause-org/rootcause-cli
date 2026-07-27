@@ -334,6 +334,8 @@ help using `go test ./internal/cli -update`.
 | `rc project mailbox imap-env` | Write an IMAP mailbox env file for local deep harvest (0600; values never printed) |
 | `rc project mailbox ls` | List watched mailboxes (id, provider, email, status, tenant, expiry, error) |
 | `rc project mailbox mode` | Set the mailbox watch, processing, and delivery mode |
+| `rc project mailbox password-link` | Print the no-login password link for an IMAP mailbox (also used for rotation) |
+| `rc project mailbox seed-imap` | Store an IMAP mailbox's server settings without a password and print its no-login password link |
 | `rc project mailbox settings get` | Show settings with resolved provenance |
 | `rc project mailbox settings set` | Patch settings (nested; key= or --unset clears local override) |
 | `rc project mailbox settings` | Read or edit nested mailbox settings (persona/channel) |

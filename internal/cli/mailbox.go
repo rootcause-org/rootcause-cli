@@ -30,6 +30,8 @@ func newMailboxCmd(e *env) *cobra.Command {
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
 		mailboxConnectIMAPCmd(e),
+		mailboxSeedIMAPCmd(e),
+		mailboxPasswordLinkCmd(e),
 		mailboxTestCmd(e),
 	)
 	return cmd
@@ -316,6 +318,75 @@ const mailboxSMTPPasswordEnv = "RC_MAILBOX_SMTP_PASSWORD"
 // validTLSModes is the set `--imap-tls` / `--smtp-tls` accept, mirroring the server's channel.TLSMode.
 var validTLSModes = map[string]bool{"none": true, "starttls": true, "implicit": true}
 
+// imapServerFlags is the RESEARCHABLE half of an IMAP mailbox — everything an operator can work out
+// without the customer. It is shared verbatim by `connect-imap` (which adds the password) and
+// `seed-imap` (which hands the password step to the customer's no-login link), so the two can never
+// drift on flag names, validation, or defaults.
+type imapServerFlags struct {
+	email        string
+	username     string
+	imapHost     string
+	imapTLS      string
+	smtpHost     string
+	smtpTLS      string
+	smtpUsername string
+	imapPort     int
+	smtpPort     int
+}
+
+func (f *imapServerFlags) bind(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&f.email, "email", "", "mailbox email address (required)")
+	cmd.Flags().StringVar(&f.username, "username", "", "IMAP/SMTP login username (default: --email)")
+	cmd.Flags().StringVar(&f.imapHost, "imap-host", "", "IMAP server host (required)")
+	cmd.Flags().IntVar(&f.imapPort, "imap-port", 0, "IMAP server port (default: server 993)")
+	cmd.Flags().StringVar(&f.imapTLS, "imap-tls", "", "IMAP TLS mode: none|starttls|implicit (default: server implicit)")
+	cmd.Flags().StringVar(&f.smtpHost, "smtp-host", "", "SMTP server host (default: --imap-host)")
+	cmd.Flags().IntVar(&f.smtpPort, "smtp-port", 0, "SMTP server port (default: server 587)")
+	cmd.Flags().StringVar(&f.smtpTLS, "smtp-tls", "", "SMTP TLS mode: none|starttls|implicit (default: server starttls)")
+	cmd.Flags().StringVar(&f.smtpUsername, "smtp-username", "", "SMTP username override (default: --username)")
+}
+
+// normalize validates the flags and applies the client-side defaults the server also applies
+// (username→email, smtp-host→imap-host). Ports/TLS stay 0/"" so the SERVER default stays authoritative.
+func (f *imapServerFlags) normalize() error {
+	f.email = strings.TrimSpace(f.email)
+	if f.email == "" {
+		return fmt.Errorf("--email is required")
+	}
+	f.imapHost = strings.TrimSpace(f.imapHost)
+	if f.imapHost == "" {
+		return fmt.Errorf("--imap-host is required")
+	}
+	if f.imapTLS != "" && !validTLSModes[f.imapTLS] {
+		return fmt.Errorf("invalid --imap-tls %q (one of: none, starttls, implicit)", f.imapTLS)
+	}
+	if f.smtpTLS != "" && !validTLSModes[f.smtpTLS] {
+		return fmt.Errorf("invalid --smtp-tls %q (one of: none, starttls, implicit)", f.smtpTLS)
+	}
+	if f.username == "" {
+		f.username = f.email
+	}
+	if f.smtpHost == "" {
+		f.smtpHost = f.imapHost
+	}
+	return nil
+}
+
+func (f *imapServerFlags) request(tenant string) client.IMAPConnectRequest {
+	return client.IMAPConnectRequest{
+		Tenant:       tenant,
+		EmailAddress: f.email,
+		Username:     f.username,
+		IMAPHost:     f.imapHost,
+		IMAPPort:     f.imapPort,
+		IMAPTLS:      f.imapTLS,
+		SMTPHost:     f.smtpHost,
+		SMTPPort:     f.smtpPort,
+		SMTPTLS:      f.smtpTLS,
+		SMTPUsername: f.smtpUsername,
+	}
+}
+
 // mailboxConnectIMAPCmd connects a generic IMAP/SMTP mailbox (POST /mailboxes/imap/connect). Unlike
 // `mailbox connect` (browser OAuth), this is a direct state-changing API call: the server live-probes
 // IMAP login + SELECT INBOX + SMTP AUTH before persisting, so a bad config fails loud (IMAP_PROBE_FAILED
@@ -324,8 +395,7 @@ var validTLSModes = map[string]bool{"none": true, "starttls": true, "implicit": 
 // smtp-host→imap-host; ports/TLS left 0/"" so the server applies 993/implicit + 587/starttls). On success
 // it prints the mailbox id + status and a one-line hint for turning it on with `mailbox mode ... live`.
 func mailboxConnectIMAPCmd(e *env) *cobra.Command {
-	var email, username, imapHost, imapTLS, smtpHost, smtpTLS, smtpUsername string
-	var imapPort, smtpPort int
+	var f imapServerFlags
 	var promptSMTPPassword bool
 	cmd := &cobra.Command{
 		Use:   "connect-imap --email <addr> --imap-host <host> [flags]",
@@ -334,22 +404,13 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 			"IMAP, selects INBOX, and authenticates SMTP before persisting anything — a failure saves nothing.\n\n" +
 			"The password is read from $" + mailboxPasswordEnv + " or, if unset, prompted on stdin — never passed " +
 			"as an argument. Defaults mirror the server: --username defaults to --email, --smtp-host to --imap-host, " +
-			"and ports/TLS default to 993/implicit (IMAP) and 587/starttls (SMTP).",
+			"and ports/TLS default to 993/implicit (IMAP) and 587/starttls (SMTP).\n\n" +
+			"Don't have the password? Use `rc project mailbox seed-imap` instead and send the customer the " +
+			"no-login link it prints.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			email = strings.TrimSpace(email)
-			if email == "" {
-				return fmt.Errorf("--email is required")
-			}
-			imapHost = strings.TrimSpace(imapHost)
-			if imapHost == "" {
-				return fmt.Errorf("--imap-host is required")
-			}
-			if imapTLS != "" && !validTLSModes[imapTLS] {
-				return fmt.Errorf("invalid --imap-tls %q (one of: none, starttls, implicit)", imapTLS)
-			}
-			if smtpTLS != "" && !validTLSModes[smtpTLS] {
-				return fmt.Errorf("invalid --smtp-tls %q (one of: none, starttls, implicit)", smtpTLS)
+			if err := f.normalize(); err != nil {
+				return err
 			}
 
 			password := os.Getenv(mailboxPasswordEnv)
@@ -370,13 +431,6 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 				smtpPassword = p
 			}
 
-			if username == "" {
-				username = email
-			}
-			if smtpHost == "" {
-				smtpHost = imapHost
-			}
-
 			c, err := e.newClient()
 			if err != nil {
 				return err
@@ -384,20 +438,9 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 			if err := e.resolvePinnedProject(c); err != nil {
 				return err
 			}
-			req := client.IMAPConnectRequest{
-				Tenant:       e.scopeTenant(),
-				EmailAddress: email,
-				Username:     username,
-				Password:     password,
-				IMAPHost:     imapHost,
-				IMAPPort:     imapPort,
-				IMAPTLS:      imapTLS,
-				SMTPHost:     smtpHost,
-				SMTPPort:     smtpPort,
-				SMTPTLS:      smtpTLS,
-				SMTPUsername: smtpUsername,
-				SMTPPassword: smtpPassword,
-			}
+			req := f.request(e.scopeTenant())
+			req.Password = password
+			req.SMTPPassword = smtpPassword
 			m, raw, err := c.ConnectIMAPMailbox(e.ctx(), req, e.scopeProject())
 			if err != nil {
 				return err
@@ -418,17 +461,91 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&email, "email", "", "mailbox email address (required)")
-	cmd.Flags().StringVar(&username, "username", "", "IMAP/SMTP login username (default: --email)")
-	cmd.Flags().StringVar(&imapHost, "imap-host", "", "IMAP server host (required)")
-	cmd.Flags().IntVar(&imapPort, "imap-port", 0, "IMAP server port (default: server 993)")
-	cmd.Flags().StringVar(&imapTLS, "imap-tls", "", "IMAP TLS mode: none|starttls|implicit (default: server implicit)")
-	cmd.Flags().StringVar(&smtpHost, "smtp-host", "", "SMTP server host (default: --imap-host)")
-	cmd.Flags().IntVar(&smtpPort, "smtp-port", 0, "SMTP server port (default: server 587)")
-	cmd.Flags().StringVar(&smtpTLS, "smtp-tls", "", "SMTP TLS mode: none|starttls|implicit (default: server starttls)")
-	cmd.Flags().StringVar(&smtpUsername, "smtp-username", "", "SMTP username override (default: --username)")
+	f.bind(cmd)
 	cmd.Flags().BoolVar(&promptSMTPPassword, "smtp-password-prompt", false, "prompt for a separate SMTP password (else $"+mailboxSMTPPasswordEnv+", else the IMAP password)")
 	return cmd
+}
+
+// mailboxSeedIMAPCmd stores the researchable half of an IMAP mailbox WITHOUT a password (POST
+// .../mailboxes/imap/seed) and prints the no-login password link the customer (or their IT provider)
+// opens to supply it. This is the answer to the one setup step an operator cannot do for a customer;
+// the alternative — asking someone to email a password — is exactly what we should never encourage.
+// The mailbox parks in awaiting_credential (excluded from the poll sweep, so nothing fails in the
+// background) and goes live by itself once the entered password passes the server's live check.
+func mailboxSeedIMAPCmd(e *env) *cobra.Command {
+	var f imapServerFlags
+	cmd := &cobra.Command{
+		Use:   "seed-imap --email <addr> --imap-host <host> [flags]",
+		Short: "Store an IMAP mailbox's server settings without a password and print its no-login password link",
+		Long: "Save everything about a generic IMAP/SMTP mailbox except the password, then print a stable, " +
+			"no-login link to send to whoever holds that password.\n\n" +
+			"Nothing is probed yet — there is no credential to authenticate with. The mailbox sits in " +
+			"awaiting_credential (never polled, so it cannot fail in the background) until someone opens the " +
+			"link and enters the password; it goes live automatically when that password passes the live check.\n\n" +
+			"The link does not expire and is reusable: the same URL is how the customer rotates the password " +
+			"later. It can only SET the password for this one mailbox — never read one, and never reach another " +
+			"mailbox. Use `rc project mailbox password-link <id>` to print it again.",
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := f.normalize(); err != nil {
+				return err
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			m, raw, err := c.SeedIMAPMailbox(e.ctx(), f.request(e.scopeTenant()), e.scopeProject())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.WatchedMailbox(e.out, m)
+			if m != nil && m.PasswordLink != "" {
+				// stdout so it can be piped/copied; the instruction goes to stderr.
+				_, _ = fmt.Fprintf(e.out, "\n%s\n", m.PasswordLink)
+				_, _ = fmt.Fprintln(e.err, "send that link to whoever has the mailbox password — we start watching the inbox as soon as they enter it")
+			}
+			return nil
+		},
+	}
+	f.bind(cmd)
+	return cmd
+}
+
+// mailboxPasswordLinkCmd reprints the no-login password link for an existing IMAP mailbox — the seeded
+// one an operator misplaced, and the rotation link for a mailbox whose password has since changed.
+func mailboxPasswordLinkCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "password-link <mailbox-id>",
+		Short: "Print the no-login password link for an IMAP mailbox (also used for rotation)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			m, raw, err := c.MailboxPasswordLink(e.ctx(), strings.TrimSpace(args[0]), e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			if m == nil || m.PasswordLink == "" {
+				return fmt.Errorf("no password link available — the server has no signing key configured for this surface")
+			}
+			_, _ = fmt.Fprintln(e.out, m.PasswordLink)
+			return nil
+		},
+	}
 }
 
 // errMailboxUnreachable makes `mailbox test` script-usable: a failed checklist exits non-zero without

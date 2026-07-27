@@ -822,14 +822,16 @@ Usage:
   rc project mailbox [command]
 
 Available Commands:
-  ls           List watched mailboxes (id, provider, email, status, tenant, expiry, error)
-  mode         Set the mailbox watch, processing, and delivery mode
-  harvest      Start a local-synthesis harvest of a mailbox (optionally wait for the export)
-  imap-env     Write an IMAP mailbox env file for local deep harvest (0600; values never printed)
-  settings     Read or edit nested mailbox settings (persona/channel)
-  connect      Print the dashboard Connections URL to start a provider's browser OAuth
-  connect-imap Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)
-  test         Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist
+  ls            List watched mailboxes (id, provider, email, status, tenant, expiry, error)
+  mode          Set the mailbox watch, processing, and delivery mode
+  harvest       Start a local-synthesis harvest of a mailbox (optionally wait for the export)
+  imap-env      Write an IMAP mailbox env file for local deep harvest (0600; values never printed)
+  settings      Read or edit nested mailbox settings (persona/channel)
+  connect       Print the dashboard Connections URL to start a provider's browser OAuth
+  connect-imap  Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)
+  seed-imap     Store an IMAP mailbox's server settings without a password and print its no-login password link
+  password-link Print the no-login password link for an IMAP mailbox (also used for rotation)
+  test          Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -998,6 +1000,8 @@ Link a generic IMAP/SMTP mailbox to a project (or tenant with --tenant). The ser
 
 The password is read from $RC_MAILBOX_PASSWORD or, if unset, prompted on stdin — never passed as an argument. Defaults mirror the server: --username defaults to --email, --smtp-host to --imap-host, and ports/TLS default to 993/implicit (IMAP) and 587/starttls (SMTP).
 
+Don't have the password? Use `rc project mailbox seed-imap` instead and send the customer the no-login link it prints.
+
 Usage:
   rc project mailbox connect-imap --email <addr> --imap-host <host> [flags]
 
@@ -1012,6 +1016,53 @@ Flags:
       --smtp-tls string        SMTP TLS mode: none|starttls|implicit (default: server starttls)
       --smtp-username string   SMTP username override (default: --username)
       --username string        IMAP/SMTP login username (default: --email)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox seed-imap --help
+Save everything about a generic IMAP/SMTP mailbox except the password, then print a stable, no-login link to send to whoever holds that password.
+
+Nothing is probed yet — there is no credential to authenticate with. The mailbox sits in awaiting_credential (never polled, so it cannot fail in the background) until someone opens the link and enters the password; it goes live automatically when that password passes the live check.
+
+The link does not expire and is reusable: the same URL is how the customer rotates the password later. It can only SET the password for this one mailbox — never read one, and never reach another mailbox. Use `rc project mailbox password-link <id>` to print it again.
+
+Usage:
+  rc project mailbox seed-imap --email <addr> --imap-host <host> [flags]
+
+Flags:
+      --email string           mailbox email address (required)
+      --imap-host string       IMAP server host (required)
+      --imap-port int          IMAP server port (default: server 993)
+      --imap-tls string        IMAP TLS mode: none|starttls|implicit (default: server implicit)
+      --smtp-host string       SMTP server host (default: --imap-host)
+      --smtp-port int          SMTP server port (default: server 587)
+      --smtp-tls string        SMTP TLS mode: none|starttls|implicit (default: server starttls)
+      --smtp-username string   SMTP username override (default: --username)
+      --username string        IMAP/SMTP login username (default: --email)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox password-link --help
+Print the no-login password link for an IMAP mailbox (also used for rotation)
+
+Usage:
+  rc project mailbox password-link <mailbox-id> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

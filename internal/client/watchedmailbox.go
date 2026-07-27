@@ -85,6 +85,51 @@ func (c *Client) ConnectIMAPMailbox(ctx context.Context, req IMAPConnectRequest,
 	return &out, raw, nil
 }
 
+// SeedIMAPMailbox posts POST .../mailboxes/imap/seed — store the researchable half of an IMAP mailbox
+// (host/port/TLS/username) WITHOUT a password. The mailbox lands in awaiting_credential (excluded from
+// the poll sweep) and the response carries the no-login `password_link` to send to whoever holds the
+// credential. No probe runs: there is nothing to authenticate with yet. Any Password in req is ignored
+// server-side — use ConnectIMAPMailbox for a full credential.
+func (c *Client) SeedIMAPMailbox(ctx context.Context, req IMAPConnectRequest, project string) (*WatchedMailbox, json.RawMessage, error) {
+	path := watchedProjectPath(project, "/mailboxes/imap/seed")
+	if path == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "seeding a mailbox requires a project scope"}
+	}
+	req.Password = ""
+	req.SMTPPassword = ""
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out WatchedMailbox
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
+// MailboxPasswordLink fetches GET .../mailboxes/{id}/password-link — re-mint the stable no-login password
+// URL for an IMAP mailbox. Idempotent, and the same link a password ROTATION uses.
+func (c *Client) MailboxPasswordLink(ctx context.Context, id, project, tenant string) (*WatchedMailbox, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "a mailbox password link requires a project scope"}
+	}
+	if err := requireTenantProject(project, tenant, "mailboxes"); err != nil {
+		return nil, nil, err
+	}
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(id)+"/password-link")
+	path = collectionScopePath(path, "", tenant)
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out WatchedMailbox
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
 // ProbeIMAPMailbox posts POST .../mailboxes/{id}/probe — re-run the live connection check against the
 // mailbox's STORED credentials. A failing probe is still a 200: the checklist IS the answer, so the
 // caller reads mailbox.Probe rather than an error envelope.

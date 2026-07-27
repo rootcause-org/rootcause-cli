@@ -805,6 +805,31 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	}
 	mux.HandleFunc("POST /api/v1/mailboxes/imap/connect", imapConnect)
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/imap/connect", imapConnect)
+	// seed (rc project mailbox seed-imap): assert NO password rides along at all and echo the parked row
+	// plus the no-login password link — the link IS the deliverable of this call.
+	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/imap/seed", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		body := readBody(t, r)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode imap seed body: %v\n%s", err, body)
+		}
+		// The field exists on the shared request shape; what matters is that it is always EMPTY here —
+		// the seed path must never carry a credential.
+		if got["password"] != "" || (got["smtp_password"] != nil && got["smtp_password"] != "") {
+			t.Fatalf("imap seed body carried a password: %v", got)
+		}
+		if got["username"] != "info@acme.test" || got["smtp_host"] != "imap.acme.test" {
+			t.Fatalf("imap seed defaults = %v, want username=info@acme.test smtp_host=imap.acme.test", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"mb-imap-2","provider":"imap","email_address":"info@acme.test","status":"awaiting_credential","processing_enabled":false,"has_sync_cursor":false,"password_link":"https://rc.test/mailbox-password/mb-imap-2?sig=abc"}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes/{id}/password-link", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"imap","email_address":"info@acme.test","status":"awaiting_credential","processing_enabled":false,"has_sync_cursor":false,"password_link":"https://rc.test/mailbox-password/` + r.PathValue("id") + `?sig=abc"}`))
+	})
 	// mailbox probe: id "green" passes every stage; "warn" connects but cannot place drafts; "broken"
 	// fails a required stage (a 200 — the checklist IS the answer, not an error envelope).
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/probe", func(w http.ResponseWriter, r *http.Request) {

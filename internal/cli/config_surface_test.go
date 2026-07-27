@@ -774,3 +774,37 @@ func TestMailboxTestRendersChecklistAndExitCode(t *testing.T) {
 		})
 	}
 }
+
+// TestMailboxSeedIMAP: the seed path sends NO password at all (asserted server-side), reports the parked
+// awaiting_credential status, and prints the no-login password link on stdout so it can be piped.
+func TestMailboxSeedIMAP(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "mailbox", "seed-imap", "--email", "info@acme.test", "--imap-host", "imap.acme.test"); err != nil {
+		t.Fatalf("project mailbox seed-imap: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "awaiting_credential") {
+		t.Errorf("seed output missing the parked status: %q", got)
+	}
+	if !strings.Contains(got, "https://rc.test/mailbox-password/mb-imap-2?sig=abc") {
+		t.Errorf("seed output missing the password link: %q", got)
+	}
+	if !strings.Contains(errb.String(), "send that link") {
+		t.Errorf("expected a send-the-link hint on stderr, got: %q", errb.String())
+	}
+}
+
+// TestMailboxPasswordLink: the reprint command emits ONLY the URL on stdout, so it pipes cleanly.
+func TestMailboxPasswordLink(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "mailbox", "password-link", "mb-imap-2"); err != nil {
+		t.Fatalf("project mailbox password-link: %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "https://rc.test/mailbox-password/mb-imap-2?sig=abc" {
+		t.Errorf("password-link stdout = %q, want just the URL", got)
+	}
+}

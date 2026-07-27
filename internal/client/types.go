@@ -750,10 +750,11 @@ type ThreadTrace struct {
 // names mirror the server verbatim. Tenant/SubscriptionExpiresAt/ErrorMessage are omitempty: absent for
 // a non-tenant mailbox / a provider without a renewable subscription / a healthy mailbox.
 type WatchedMailbox struct {
-	ID                    string `json:"id"`
-	Provider              string `json:"provider"`
-	EmailAddress          string `json:"email_address"`
-	Status                string `json:"status"` // active|paused|connected|needs_attention
+	ID           string `json:"id"`
+	Provider     string `json:"provider"`
+	EmailAddress string `json:"email_address"`
+	// awaiting_credential = seeded without a password; the customer still has to open its password link.
+	Status                string `json:"status"` // active|paused|connected|needs_attention|awaiting_credential
 	Tenant                string `json:"tenant,omitempty"`
 	ProcessingEnabled     bool   `json:"processing_enabled"` // false = silent onboarding: polled, not processed
 	HasSyncCursor         bool   `json:"has_sync_cursor"`
@@ -765,6 +766,9 @@ type WatchedMailbox struct {
 	ConsecutiveSyncFailures int    `json:"consecutive_sync_failures"`
 	// Probe rides along on the connect + probe responses only, never on a list row.
 	Probe *IMAPProbe `json:"probe,omitempty"`
+	// PasswordLink rides along on the seed + password-link responses only. It is a no-login URL that can
+	// only SET this mailbox's password, never read it — safe to forward to whoever holds the credential.
+	PasswordLink string `json:"password_link,omitempty"`
 }
 
 // IMAPProbeStep is one stage of the live IMAP/SMTP connection check. Detail is a caller-safe hint that
