@@ -673,7 +673,7 @@ func offenderTail(r client.RunSummary) string {
 }
 
 // errorHead is the run's 120-char host-error head (run_health.error_head) — the error-class
-// discriminator that saves a per-run `rc run debug` drill; '' when the run has no error.
+// discriminator that saves a per-run `rc run debug` drill; empty when the run has no error.
 func errorHead(r client.RunSummary) string {
 	if r.Health == nil {
 		return ""
