@@ -85,6 +85,29 @@ func (c *Client) ConnectIMAPMailbox(ctx context.Context, req IMAPConnectRequest,
 	return &out, raw, nil
 }
 
+// ProbeIMAPMailbox posts POST .../mailboxes/{id}/probe — re-run the live connection check against the
+// mailbox's STORED credentials. A failing probe is still a 200: the checklist IS the answer, so the
+// caller reads mailbox.Probe rather than an error envelope.
+func (c *Client) ProbeIMAPMailbox(ctx context.Context, id, project, tenant string) (*WatchedMailbox, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "probing a mailbox requires a project scope"}
+	}
+	if err := requireTenantProject(project, tenant, "mailboxes"); err != nil {
+		return nil, nil, err
+	}
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(id)+"/probe")
+	path = collectionScopePath(path, "", tenant)
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, path, nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out WatchedMailbox
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
 // IMAPMailboxEnv fetches the scoped local-harvest env projection from the canonical project tree.
 func (c *Client) IMAPMailboxEnv(ctx context.Context, id, project, tenant string) (*IMAPEnvResponse, json.RawMessage, error) {
 	if project == "" {

@@ -15,6 +15,9 @@ type FieldError struct {
 	Key     string `json:"key"`
 	Field   string `json:"field,omitempty"`
 	Message string `json:"message"`
+	// Status turns a details list into a CHECKLIST (ok|failed|warning|skipped) — the IMAP connect probe
+	// reports every stage it ran, not just the one that broke.
+	Status string `json:"status,omitempty"`
 }
 
 // errorEnvelope is the decode target for a non-2xx body:

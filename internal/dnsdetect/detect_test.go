@@ -13,6 +13,7 @@ type fakeResolver struct {
 	cname map[string][]string
 	host  map[string][]string
 	addr  map[string][]string
+	srv   map[string][]string // "<service>._tcp.<domain>" → ["host:port", …]
 }
 
 func (f fakeResolver) LookupMX(_ context.Context, d string) ([]string, error) {
@@ -29,6 +30,9 @@ func (f fakeResolver) LookupHost(_ context.Context, h string) ([]string, error) 
 }
 func (f fakeResolver) LookupAddr(_ context.Context, ip string) ([]string, error) {
 	return f.addr[ip], nil
+}
+func (f fakeResolver) LookupSRV(_ context.Context, service, proto, domain string) ([]string, error) {
+	return f.srv[service+"._"+proto+"."+domain], nil
 }
 
 func TestDetect(t *testing.T) {
@@ -184,4 +188,70 @@ func indexOf(s, sub string) int {
 		}
 	}
 	return -1
+}
+
+// A domain with no native adapter is still onboardable over generic IMAP — the whole point of the
+// re-classification. RFC 6186 service records are authoritative, so they must outrank a name guess.
+func TestDetectProposesIMAPHostsForNonNativeDomains(t *testing.T) {
+	res := fakeResolver{
+		mx:   map[string][]string{"acme.test": {"mx.combell.test"}},
+		srv:  map[string][]string{"imaps._tcp.acme.test": {"imap.hosting.test:993"}, "submission._tcp.acme.test": {"smtp.hosting.test:587"}},
+		host: map[string][]string{"mail.acme.test": {"10.0.0.9"}},
+	}
+	r := Detect(context.Background(), res, "support@acme.test")
+	if !r.Supported {
+		t.Fatal("a self-hosted domain is not marked onboardable — generic IMAP covers it")
+	}
+	if r.SupportedProvider == nil || *r.SupportedProvider != "imap" {
+		t.Fatalf("supported_provider = %v, want imap", r.SupportedProvider)
+	}
+	if len(r.IMAPCandidates) == 0 {
+		t.Fatal("no IMAP candidates proposed")
+	}
+	first := r.IMAPCandidates[0]
+	if first.Source != "srv" || first.IMAPHost != "imap.hosting.test" || first.IMAPPort != 993 {
+		t.Fatalf("first candidate = %+v, want the authoritative SRV target", first)
+	}
+	if first.SMTPHost != "smtp.hosting.test" || first.SMTPPort != 587 {
+		t.Fatalf("candidate SMTP = %s:%d, want the submission SRV target", first.SMTPHost, first.SMTPPort)
+	}
+	// The conventional name that resolves is offered as a fallback behind the SRV target.
+	var sawDNSGuess bool
+	for _, c := range r.IMAPCandidates {
+		if c.Source == "dns" && c.IMAPHost == "mail.acme.test" {
+			sawDNSGuess = true
+		}
+	}
+	if !sawDNSGuess {
+		t.Fatalf("resolving conventional host not offered as a fallback: %+v", r.IMAPCandidates)
+	}
+}
+
+// A name that does NOT resolve must never be proposed — a candidate list full of dead hosts is worse
+// than none, because every one costs the user a failed connect attempt.
+func TestDetectSkipsNonResolvingHostGuesses(t *testing.T) {
+	res := fakeResolver{mx: map[string][]string{"acme.test": {"mx.combell.test"}}}
+	r := Detect(context.Background(), res, "acme.test")
+	if len(r.IMAPCandidates) != 0 {
+		t.Fatalf("proposed unresolvable hosts: %+v", r.IMAPCandidates)
+	}
+	if r.Supported {
+		t.Fatal("supported=true with no reachable candidate and no native adapter")
+	}
+}
+
+// A native Workspace/M365 domain connects over OAuth; proposing IMAP hosts there would send the user
+// down the wrong path.
+func TestDetectOmitsIMAPCandidatesForNativeProviders(t *testing.T) {
+	res := fakeResolver{
+		mx:   map[string][]string{"acme.test": {"aspmx.l.google.com"}},
+		host: map[string][]string{"imap.acme.test": {"10.0.0.1"}},
+	}
+	r := Detect(context.Background(), res, "acme.test")
+	if len(r.IMAPCandidates) != 0 {
+		t.Fatalf("IMAP candidates offered for a Google domain: %+v", r.IMAPCandidates)
+	}
+	if r.SupportedProvider == nil || *r.SupportedProvider != "google" {
+		t.Fatalf("supported_provider = %v, want google", r.SupportedProvider)
+	}
 }

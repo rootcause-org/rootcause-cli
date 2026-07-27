@@ -337,6 +337,7 @@ help using `go test ./internal/cli -update`.
 | `rc project mailbox settings get` | Show settings with resolved provenance |
 | `rc project mailbox settings set` | Patch settings (nested; key= or --unset clears local override) |
 | `rc project mailbox settings` | Read or edit nested mailbox settings (persona/channel) |
+| `rc project mailbox test` | Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist |
 | `rc project mailbox` | Manage watched mailboxes (the channel plane's inbox watch) |
 | `rc project member add` | Create a member |
 | `rc project member ls` | List members |

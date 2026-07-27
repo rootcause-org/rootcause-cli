@@ -30,6 +30,7 @@ func newMailboxCmd(e *env) *cobra.Command {
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
 		mailboxConnectIMAPCmd(e),
+		mailboxTestCmd(e),
 	)
 	return cmd
 }
@@ -273,8 +274,11 @@ func mailboxConnectCmd(e *env) *cobra.Command {
 			if provider == "" {
 				return fmt.Errorf("--provider is required (one of: google, microsoft, intercom)")
 			}
+			if provider == "imap" {
+				return fmt.Errorf("IMAP is not a browser-OAuth provider — connect it directly with: rc project mailbox connect-imap --email <addr> --imap-host <host>")
+			}
 			if !validConnectProviders[provider] {
-				return fmt.Errorf("invalid --provider %q (one of: google, microsoft, intercom)", provider)
+				return fmt.Errorf("invalid --provider %q (one of: google, microsoft, intercom; for a generic mailbox use `rc project mailbox connect-imap`)", provider)
 			}
 			c, err := e.newClient()
 			if err != nil {
@@ -304,6 +308,11 @@ func mailboxConnectCmd(e *env) *cobra.Command {
 // never lands in argv / the process table / shell history. Absent → interactive stdin prompt.
 const mailboxPasswordEnv = "RC_MAILBOX_PASSWORD"
 
+// mailboxSMTPPasswordEnv supplies a DISTINCT outgoing password for servers that don't accept the IMAP
+// one (a common shape: an IMAP app password plus a separate SMTP relay password). Same rule as the IMAP
+// password — env or prompt, never argv.
+const mailboxSMTPPasswordEnv = "RC_MAILBOX_SMTP_PASSWORD"
+
 // validTLSModes is the set `--imap-tls` / `--smtp-tls` accept, mirroring the server's channel.TLSMode.
 var validTLSModes = map[string]bool{"none": true, "starttls": true, "implicit": true}
 
@@ -317,6 +326,7 @@ var validTLSModes = map[string]bool{"none": true, "starttls": true, "implicit": 
 func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 	var email, username, imapHost, imapTLS, smtpHost, smtpTLS, smtpUsername string
 	var imapPort, smtpPort int
+	var promptSMTPPassword bool
 	cmd := &cobra.Command{
 		Use:   "connect-imap --email <addr> --imap-host <host> [flags]",
 		Short: "Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)",
@@ -351,6 +361,15 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 				password = p
 			}
 
+			smtpPassword := os.Getenv(mailboxSMTPPasswordEnv)
+			if smtpPassword == "" && promptSMTPPassword {
+				p, err := readSecretStdin(e, "SMTP password")
+				if err != nil {
+					return err
+				}
+				smtpPassword = p
+			}
+
 			if username == "" {
 				username = email
 			}
@@ -377,6 +396,7 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 				SMTPPort:     smtpPort,
 				SMTPTLS:      smtpTLS,
 				SMTPUsername: smtpUsername,
+				SMTPPassword: smtpPassword,
 			}
 			m, raw, err := c.ConnectIMAPMailbox(e.ctx(), req, e.scopeProject())
 			if err != nil {
@@ -386,6 +406,12 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 				return render.JSON(e.out, raw)
 			}
 			render.WatchedMailbox(e.out, m)
+			// A green connect can still carry a warning (typically: drafts can't be placed here), so the
+			// checklist is printed whenever the server sent one rather than only on failure.
+			if m != nil && m.Probe != nil {
+				_, _ = fmt.Fprintln(e.out)
+				render.IMAPProbeSteps(e.out, m.Probe.Steps)
+			}
 			if m != nil {
 				_, _ = fmt.Fprintf(e.err, "connected — start processing with: rc project mailbox mode %s live\n", m.ID)
 			}
@@ -401,6 +427,54 @@ func mailboxConnectIMAPCmd(e *env) *cobra.Command {
 	cmd.Flags().IntVar(&smtpPort, "smtp-port", 0, "SMTP server port (default: server 587)")
 	cmd.Flags().StringVar(&smtpTLS, "smtp-tls", "", "SMTP TLS mode: none|starttls|implicit (default: server starttls)")
 	cmd.Flags().StringVar(&smtpUsername, "smtp-username", "", "SMTP username override (default: --username)")
+	cmd.Flags().BoolVar(&promptSMTPPassword, "smtp-password-prompt", false, "prompt for a separate SMTP password (else $"+mailboxSMTPPasswordEnv+", else the IMAP password)")
+	return cmd
+}
+
+// errMailboxUnreachable makes `mailbox test` script-usable: a failed checklist exits non-zero without
+// printing a cobra usage block (the checklist above IS the message).
+var errMailboxUnreachable = fmt.Errorf("mailbox connection check failed")
+
+// mailboxTestCmd re-runs the live connection check against a CONNECTED mailbox's stored credentials
+// (POST .../mailboxes/{id}/probe) and prints the stage-by-stage checklist. It changes nothing except
+// clearing a stale failure notice when the mailbox comes back green — the loop for "connect, fix,
+// re-test" without re-entering credentials. Exits non-zero when a required stage failed, so it is
+// usable in a script.
+func mailboxTestCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "test <mailbox-id>",
+		Short: "Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			m, raw, err := c.ProbeIMAPMailbox(e.ctx(), strings.TrimSpace(args[0]), e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				if rerr := render.JSON(e.out, raw); rerr != nil {
+					return rerr
+				}
+			} else {
+				render.WatchedMailbox(e.out, m)
+				if m != nil && m.Probe != nil {
+					_, _ = fmt.Fprintln(e.out)
+					render.IMAPProbe(e.out, m.Probe)
+				}
+			}
+			if m != nil && m.Probe != nil && !m.Probe.OK {
+				silenceUsage(cmd)
+				return errMailboxUnreachable
+			}
+			return nil
+		},
+	}
 	return cmd
 }
 

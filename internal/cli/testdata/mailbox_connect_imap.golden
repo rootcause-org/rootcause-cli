@@ -3,3 +3,4 @@ provider:    imap
 email:       info@acme.test
 status:      connected
 processing:  silent
+last-sync:   never

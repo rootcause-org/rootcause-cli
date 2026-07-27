@@ -1,12 +1,14 @@
 // Package dnsdetect classifies which email backend a domain (or email address)
 // uses — and whether rootcause can onboard it.
 //
-// rootcause has exactly two DNS-detectable channel adapters: "google" (Gmail /
+// rootcause has two DNS-detectable NATIVE channel adapters: "google" (Gmail /
 // Google Workspace) and "microsoft" (Microsoft 365 / Graph). Everything else —
-// self-hosted IMAP/SMTP, cPanel/Plesk hosting, regional ISPs — is NOT supported.
+// self-hosted IMAP/SMTP, cPanel/Plesk hosting, regional ISPs — is still onboardable
+// over the GENERIC IMAP/SMTP adapter, which needs host/port/TLS/credentials instead
+// of OAuth; for those this also proposes the IMAP/SMTP hosts to try.
 // (Intercom is app-config, not DNS-detectable, so it never shows here.) The call
 // is made from public DNS so we know before a sales call whether a prospect is
-// onboardable.
+// onboardable, and with which adapter.
 //
 // Method (cheap → authoritative):
 //  1. MX     — where inbound mail lands. Direct hit for Google/Microsoft, but many
@@ -27,6 +29,7 @@ import (
 	"context"
 	"net"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -67,6 +70,9 @@ type Resolver interface {
 	LookupCNAME(ctx context.Context, host string) ([]string, error)
 	LookupHost(ctx context.Context, host string) ([]string, error) // A/AAAA
 	LookupAddr(ctx context.Context, ip string) ([]string, error)   // PTR
+	// LookupSRV returns service-record targets ("host:port"), lowercased, no trailing dot. The RFC 6186
+	// mail-autoconfiguration records are the only AUTHORITATIVE source of a domain's IMAP/SMTP hosts.
+	LookupSRV(ctx context.Context, service, proto, domain string) ([]string, error)
 }
 
 // Result is the structured verdict for one target. SupportedProvider is a pointer
@@ -83,6 +89,20 @@ type Result struct {
 	Autodiscover      []string `json:"autodiscover"`
 	Signals           []string `json:"signals"`
 	Notes             []string `json:"notes"`
+	// IMAPCandidates are host guesses for the GENERIC IMAP adapter, best-first. Present only when there
+	// is no native adapter — a Workspace/M365 domain connects over OAuth and never needs them. They are
+	// candidates, NOT verified: only `rc project mailbox connect-imap` proves a host actually works.
+	IMAPCandidates []IMAPCandidate `json:"imap_candidates,omitempty"`
+}
+
+// IMAPCandidate is one proposed IMAP/SMTP host pair and where it came from ("srv" = RFC 6186 service
+// record, authoritative; "dns" = a conventional name that actually resolves).
+type IMAPCandidate struct {
+	IMAPHost string `json:"imap_host"`
+	IMAPPort int    `json:"imap_port"`
+	SMTPHost string `json:"smtp_host"`
+	SMTPPort int    `json:"smtp_port"`
+	Source   string `json:"source"`
 }
 
 // Detect classifies one domain (or email address) into a structured verdict.
@@ -236,18 +256,31 @@ func Detect(ctx context.Context, r Resolver, target string) Result {
 		notes = append(notes, "Backend host suggests hosting/IMAP provider: "+backendHint)
 	}
 
-	supported := provider == "google" || provider == "microsoft"
-	var sp *string
+	native := provider == "google" || provider == "microsoft"
+	// Everything that receives mail at all is onboardable: natively over OAuth, otherwise over generic
+	// IMAP. "unknown" (no MX) is the only genuinely un-onboardable verdict — nothing is receiving there.
+	var candidates []IMAPCandidate
+	if !native && provider != "unknown" {
+		candidates = imapCandidates(ctx, r, domain)
+	}
+	supported := native || len(candidates) > 0
+	sp := provider
+	if !native {
+		sp = "imap"
+	}
+	var spPtr *string
 	if supported {
-		p := provider
-		sp = &p
+		spPtr = &sp
+	}
+	if !native && supported {
+		notes = append(notes, "No native adapter — connect over generic IMAP/SMTP with `rc project mailbox connect-imap`; the candidate hosts below are unverified guesses")
 	}
 
 	return Result{
 		Input:             target,
 		Domain:            domain,
 		Provider:          provider,
-		SupportedProvider: sp,
+		SupportedProvider: spPtr,
 		Supported:         supported,
 		Confidence:        confidence,
 		MX:                mxHosts,
@@ -255,7 +288,86 @@ func Detect(ctx context.Context, r Resolver, target string) Result {
 		Autodiscover:      autodiscover,
 		Signals:           signals,
 		Notes:             notes,
+		IMAPCandidates:    candidates,
 	}
+}
+
+// imapCandidates proposes IMAP/SMTP hosts for a domain with no native adapter. RFC 6186 SRV records are
+// authoritative and come first; otherwise the conventional names are offered ONLY when they actually
+// resolve, so the list never contains hosts that cannot possibly answer. Ports follow the SRV record, or
+// the implicit-TLS/STARTTLS defaults the connect command already applies.
+func imapCandidates(ctx context.Context, r Resolver, domain string) []IMAPCandidate {
+	const defaultIMAPPort, defaultSMTPPort = 993, 587
+	imapSRV := srvTargets(ctx, r, "imaps", domain)
+	if len(imapSRV) == 0 {
+		imapSRV = srvTargets(ctx, r, "imap", domain)
+	}
+	smtpSRV := srvTargets(ctx, r, "submission", domain)
+
+	var out []IMAPCandidate
+	seen := map[string]bool{}
+	add := func(c IMAPCandidate) {
+		if c.IMAPHost == "" || seen[c.IMAPHost] {
+			return
+		}
+		seen[c.IMAPHost] = true
+		out = append(out, c)
+	}
+
+	smtpHost, smtpPort := "", defaultSMTPPort
+	if len(smtpSRV) > 0 {
+		smtpHost, smtpPort = smtpSRV[0].host, smtpSRV[0].port
+	}
+	for _, t := range imapSRV {
+		sh, sp := smtpHost, smtpPort
+		if sh == "" {
+			sh = t.host
+		}
+		add(IMAPCandidate{IMAPHost: t.host, IMAPPort: t.port, SMTPHost: sh, SMTPPort: sp, Source: "srv"})
+	}
+	for _, prefix := range []string{"imap", "mail", "smtp"} {
+		host := prefix + "." + domain
+		if len(lookup(ctx, r.LookupHost, host)) == 0 {
+			continue
+		}
+		sh := smtpHost
+		if sh == "" {
+			sh = host
+		}
+		add(IMAPCandidate{IMAPHost: host, IMAPPort: defaultIMAPPort, SMTPHost: sh, SMTPPort: smtpPort, Source: "dns"})
+	}
+	return out
+}
+
+type srvTarget struct {
+	host string
+	port int
+}
+
+// srvTargets reads one _service._tcp.<domain> record set. A single "." target is RFC 6186's explicit
+// "this service is not offered" marker and is dropped rather than proposed.
+func srvTargets(ctx context.Context, r Resolver, service, domain string) []srvTarget {
+	raw, err := r.LookupSRV(ctx, service, "tcp", domain)
+	if err != nil {
+		return nil
+	}
+	var out []srvTarget
+	for _, entry := range raw {
+		host, portStr, found := strings.Cut(entry, ":")
+		host = strings.ToLower(strings.TrimRight(strings.TrimSpace(host), "."))
+		if host == "" || host == "." {
+			continue
+		}
+		port := 0
+		if found {
+			port, _ = strconv.Atoi(portStr)
+		}
+		if port <= 0 || port > 65535 {
+			continue
+		}
+		out = append(out, srvTarget{host: host, port: port})
+	}
+	return out
 }
 
 // --- helpers -----------------------------------------------------------------
@@ -367,6 +479,23 @@ func (n netResolver) LookupMX(ctx context.Context, domain string) ([]string, err
 	out := make([]string, 0, len(mxs))
 	for _, mx := range mxs {
 		out = append(out, strings.ToLower(strings.TrimRight(mx.Host, ".")))
+	}
+	return out, nil
+}
+
+// LookupSRV flattens net.SRV records into "host:port", priority-then-weight order (net already sorts
+// by priority and randomizes weight), so the caller sees the domain's preferred host first.
+func (n netResolver) LookupSRV(ctx context.Context, service, proto, domain string) ([]string, error) {
+	_, addrs, err := n.r.LookupSRV(ctx, service, proto, domain)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(addrs))
+	for _, a := range addrs {
+		if a == nil {
+			continue
+		}
+		out = append(out, strings.ToLower(strings.TrimRight(a.Target, "."))+":"+strconv.Itoa(int(a.Port)))
 	}
 	return out, nil
 }

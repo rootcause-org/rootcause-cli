@@ -829,6 +829,7 @@ Available Commands:
   settings     Read or edit nested mailbox settings (persona/channel)
   connect      Print the dashboard Connections URL to start a provider's browser OAuth
   connect-imap Connect a generic IMAP/SMTP mailbox (live-probed before it's saved)
+  test         Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -1006,10 +1007,27 @@ Flags:
       --imap-port int          IMAP server port (default: server 993)
       --imap-tls string        IMAP TLS mode: none|starttls|implicit (default: server implicit)
       --smtp-host string       SMTP server host (default: --imap-host)
+      --smtp-password-prompt   prompt for a separate SMTP password (else $RC_MAILBOX_SMTP_PASSWORD, else the IMAP password)
       --smtp-port int          SMTP server port (default: server 587)
       --smtp-tls string        SMTP TLS mode: none|starttls|implicit (default: server starttls)
       --smtp-username string   SMTP username override (default: --username)
       --username string        IMAP/SMTP login username (default: --email)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc project mailbox test --help
+Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist
+
+Usage:
+  rc project mailbox test <mailbox-id> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

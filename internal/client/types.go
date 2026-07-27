@@ -759,6 +759,27 @@ type WatchedMailbox struct {
 	HasSyncCursor         bool   `json:"has_sync_cursor"`
 	SubscriptionExpiresAt string `json:"subscription_expires_at,omitempty"`
 	ErrorMessage          string `json:"error_message,omitempty"`
+	// Ingest liveness — the only health signal a POLL mailbox (IMAP) has, since it never carries a
+	// subscription expiry. Empty LastSuccessfulSyncAt means it has not completed a sync yet.
+	LastSuccessfulSyncAt    string `json:"last_successful_sync_at,omitempty"`
+	ConsecutiveSyncFailures int    `json:"consecutive_sync_failures"`
+	// Probe rides along on the connect + probe responses only, never on a list row.
+	Probe *IMAPProbe `json:"probe,omitempty"`
+}
+
+// IMAPProbeStep is one stage of the live IMAP/SMTP connection check. Detail is a caller-safe hint that
+// names the fix, not the transport error.
+type IMAPProbeStep struct {
+	Name   string `json:"name"`
+	Status string `json:"status"` // ok | failed | warning | skipped
+	Detail string `json:"detail,omitempty"`
+}
+
+// IMAPProbe is the connection checklist. OK is false only when a REQUIRED stage failed — a warning
+// (typically: drafts cannot be placed) reports a limitation without blocking the mailbox.
+type IMAPProbe struct {
+	OK    bool            `json:"ok"`
+	Steps []IMAPProbeStep `json:"steps"`
 }
 
 // WatchedMailboxList is GET /api/v1/mailboxes/watched — the watched-mailbox set under its envelope key.
@@ -1099,6 +1120,11 @@ type HealthMailbox struct {
 	SpamSubscriptionExpiresAt string `json:"spam_subscription_expires_at,omitempty"`
 	ErrorMessage              string `json:"error_message,omitempty"`
 	UpdatedAt                 string `json:"updated_at,omitempty"`
+	// Ingest liveness. HoursSinceSync is nil when the mailbox never completed a sync — "no signal yet",
+	// which is not the same as stale.
+	LastSuccessfulSyncAt    string   `json:"last_successful_sync_at,omitempty"`
+	HoursSinceSync          *float64 `json:"hours_since_sync"`
+	ConsecutiveSyncFailures int      `json:"consecutive_sync_failures"`
 }
 
 // HealthDeadLetter is one terminally dead-lettered run from GET /api/v1/health.

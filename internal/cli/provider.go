@@ -72,6 +72,13 @@ func printDetect(e *env, r dnsdetect.Result) {
 	for _, n := range r.Notes {
 		_, _ = fmt.Fprintf(e.out, "  ! %s\n", n)
 	}
+	if len(r.IMAPCandidates) > 0 {
+		_, _ = fmt.Fprintf(e.out, "  imap hosts to try (unverified, best first):\n")
+		for _, c := range r.IMAPCandidates {
+			_, _ = fmt.Fprintf(e.out, "    rc project mailbox connect-imap --email you@%s --imap-host %s --imap-port %d --smtp-host %s --smtp-port %d  # %s\n",
+				r.Domain, c.IMAPHost, c.IMAPPort, c.SMTPHost, c.SMTPPort, c.Source)
+		}
+	}
 }
 
 func joinComma(xs []string) string {

@@ -381,6 +381,13 @@ func printError(w io.Writer, err error) {
 			return
 		}
 		_, _ = fmt.Fprintf(w, "%s: %s\n", apiErr.Code, apiErr.Message)
+		// A rejected IMAP connect ships the whole stage checklist in details, so the user sees how far it
+		// got and which setting to change — not just the first thing that broke.
+		if apiErr.Code == "IMAP_PROBE_FAILED" && len(apiErr.Fields) > 0 {
+			_, _ = fmt.Fprintln(w)
+			render.IMAPProbeSteps(w, probeStepsFromFields(apiErr.Fields))
+			return
+		}
 		// INVALID_SETTINGS carries per-field detail; print one line per field as specified.
 		for _, f := range apiErr.Fields {
 			_, _ = fmt.Fprintf(w, "  %s: %s\n", f.Key, f.Message)
@@ -396,6 +403,15 @@ func printError(w io.Writer, err error) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, "error: %s\n", err.Error())
+}
+
+// probeStepsFromFields reshapes the error envelope's details into the checklist the renderer draws.
+func probeStepsFromFields(fields []client.FieldError) []client.IMAPProbeStep {
+	steps := make([]client.IMAPProbeStep, 0, len(fields))
+	for _, f := range fields {
+		steps = append(steps, client.IMAPProbeStep{Name: f.Key, Status: f.Status, Detail: f.Message})
+	}
+	return steps
 }
 
 // printNonEnvelopeHTTPError renders a non-2xx with no decodable error envelope. The bare "HTTP 405"

@@ -3,3 +3,4 @@ provider:    google
 email:       ops@momentum.test
 status:      active
 processing:  silent
+last-sync:   never

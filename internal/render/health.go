@@ -74,7 +74,10 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 	if len(badMailboxes) > 0 {
 		unhealthy = true
 		for _, m := range badMailboxes {
-			line := fmt.Sprintf("  ! %s %s (%s) status=%s expires=%s", m.Provider, m.EmailAddress, mailboxTenant(m.Tenant), m.Status, mailboxExpiry(m))
+			line := fmt.Sprintf("  ! %s %s (%s) status=%s expires=%s synced=%s", m.Provider, m.EmailAddress, mailboxTenant(m.Tenant), m.Status, mailboxExpiry(m), ageOrNever(m.HoursSinceSync))
+			if m.ConsecutiveSyncFailures > 0 {
+				line += fmt.Sprintf(" fails=%d", m.ConsecutiveSyncFailures)
+			}
 			if msg := firstLine80(m.ErrorMessage); msg != "" {
 				line += " — " + msg
 			}
@@ -121,15 +124,31 @@ func mailboxTenant(tenant string) string {
 	return tenant
 }
 
+// staleSyncHours is when a mailbox that HAS synced before but has gone quiet counts as unhealthy. A
+// poll mailbox refreshes every ~90s and a push mailbox syncs on delivery, so a whole day of silence is
+// well past any normal gap while staying immune to a quiet weekend inbox — the signal is our OWN sync
+// completing, not mail arriving.
+const staleSyncHours = 24
+
 func mailboxNeedsAttention(m client.HealthMailbox) bool {
 	switch m.Status {
 	case "error", "needs_attention":
 		return true
 	case "active":
-		return expiredTime(m.SubscriptionExpiresAt) || expiredTime(m.SpamSubscriptionExpiresAt)
+		return expiredTime(m.SubscriptionExpiresAt) || expiredTime(m.SpamSubscriptionExpiresAt) || syncStalled(m)
 	default:
 		return false
 	}
+}
+
+// syncStalled reports whether ingest has actually stopped. A never-synced mailbox is deliberately NOT
+// stalled: it may have been connected seconds ago, and flagging it would make every fresh connect
+// trip the fleet gate. A live failure streak counts immediately — that is not silence, it is an error.
+func syncStalled(m client.HealthMailbox) bool {
+	if m.ConsecutiveSyncFailures >= 3 {
+		return true
+	}
+	return m.HoursSinceSync != nil && *m.HoursSinceSync > staleSyncHours
 }
 
 func mailboxExpiry(m client.HealthMailbox) string {

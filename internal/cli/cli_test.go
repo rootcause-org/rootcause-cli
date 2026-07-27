@@ -805,6 +805,21 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	}
 	mux.HandleFunc("POST /api/v1/mailboxes/imap/connect", imapConnect)
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/imap/connect", imapConnect)
+	// mailbox probe: id "green" passes every stage; "warn" connects but cannot place drafts; "broken"
+	// fails a required stage (a 200 — the checklist IS the answer, not an error envelope).
+	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/probe", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		base := `{"id":"` + r.PathValue("id") + `","provider":"imap","email_address":"info@acme.test","status":"connected","processing_enabled":false,"has_sync_cursor":false,`
+		switch r.PathValue("id") {
+		case "warn":
+			_, _ = w.Write([]byte(base + `"probe":{"ok":true,"steps":[{"name":"imap.connect","status":"ok"},{"name":"imap.login","status":"ok"},{"name":"imap.select_inbox","status":"ok"},{"name":"imap.drafts_append","status":"warning","detail":"could not save a test draft"},{"name":"smtp.connect","status":"ok"},{"name":"smtp.auth","status":"ok"}]}}`))
+		case "broken":
+			_, _ = w.Write([]byte(base + `"probe":{"ok":false,"steps":[{"name":"imap.connect","status":"ok"},{"name":"imap.login","status":"failed","detail":"the IMAP server rejected the username or password"},{"name":"imap.select_inbox","status":"skipped","detail":"not reached"}]}}`))
+		default:
+			_, _ = w.Write([]byte(base + `"probe":{"ok":true,"steps":[{"name":"imap.connect","status":"ok"},{"name":"imap.login","status":"ok"},{"name":"imap.select_inbox","status":"ok"},{"name":"imap.drafts_append","status":"ok"},{"name":"smtp.connect","status":"ok"},{"name":"smtp.auth","status":"ok"}]}}`))
+		}
+	})
 	imapEnv := func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

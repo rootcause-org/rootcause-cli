@@ -740,3 +740,37 @@ func TestAdminCatalogUpsertTable(t *testing.T) {
 	}
 	assertGolden(t, "admin_catalog_upsert.golden", out.String())
 }
+
+// `mailbox test` re-runs the live check on a CONNECTED mailbox: it renders the stage checklist and,
+// crucially, exits non-zero when a required stage failed so a script/CI can gate on it.
+func TestMailboxTestRendersChecklistAndExitCode(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+
+	for _, tc := range []struct {
+		name    string
+		id      string
+		wantErr bool
+		want    []string
+	}{
+		{name: "green", id: "green", want: []string{"[ok]   Sign in over IMAP", "connected — all checks passed"}},
+		{name: "warning is not a failure", id: "warn", want: []string{"[warn] Place a draft for review", "could not save a test draft", "connected, with a limitation"}},
+		{name: "failure exits non-zero", id: "broken", wantErr: true, want: []string{"[FAIL] Sign in over IMAP", "rejected the username or password", "[--]   Open the INBOX", "not connected"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, out, _ := newTestEnv(t, srv, "table")
+			err := run(t, e, "--project", "alpha", "project", "mailbox", "test", tc.id)
+			if tc.wantErr && err == nil {
+				t.Fatal("a failed connection check exited 0 — nothing would gate on it")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("mailbox test: %v", err)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(out.String(), want) {
+					t.Errorf("output missing %q:\n%s", want, out.String())
+				}
+			}
+		})
+	}
+}
