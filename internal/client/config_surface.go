@@ -81,7 +81,7 @@ func (c *Client) GitHubStatus(ctx context.Context, project string) (json.RawMess
 	return c.RawScoped(ctx, http.MethodGet, "/api/v1/github/status", nil, project, "")
 }
 
-// --- Brain status / sync / promote / edit / consolidate ---
+// --- Brain status / sync / promote / edit / consolidate / developer access ---
 
 // BrainStatus fetches the on-box brain cache status relative to origin/main.
 func (c *Client) BrainStatus(ctx context.Context, project, tenant string) (*BrainStatusResponse, json.RawMessage, error) {
@@ -147,6 +147,28 @@ func (c *Client) BrainConsolidate(ctx context.Context, project, tenant string) (
 		return nil, err
 	}
 	return c.Raw(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/consolidate", "/api/v1/brain/consolidate"), map[string]any{})
+}
+
+// InviteBrainDeveloper asks the server's GitHub App to grant one developer access to exactly one
+// tenant brain repository. Both canonical tree selectors are required: there is intentionally no
+// flat or project-wide fallback for this security-sensitive write.
+func (c *Client) InviteBrainDeveloper(ctx context.Context, project, tenant string, req BrainDeveloperInvitationRequest) (*BrainDeveloperInvitation, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required to invite a tenant brain developer"}
+	}
+	if tenant == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "TENANT_REQUIRED", Message: "tenant scope is required to invite a brain developer (use --tenant or a tenant brain checkout)"}
+	}
+	path := "/api/v1/projects/" + url.PathEscape(project) + "/tenants/" + url.PathEscape(tenant) + "/brain/developers/invitations"
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out BrainDeveloperInvitation
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
 }
 
 func scopedTreePath(project, tenant, suffix, fallback string) string {

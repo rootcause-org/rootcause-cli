@@ -302,6 +302,14 @@ func BrainPromote(w io.Writer, r *client.BrainPromoteResponse) {
 	_, _ = fmt.Fprintf(w, "State:   %s\n", state)
 }
 
+func BrainDeveloperInvitation(w io.Writer, r *client.BrainDeveloperInvitation) {
+	_, _ = fmt.Fprintf(w, "GitHub:         %s\n", r.GitHubHandle)
+	_, _ = fmt.Fprintf(w, "Repository:     %s\n", r.Repository)
+	_, _ = fmt.Fprintf(w, "Permission:     %s\n", r.Permission)
+	_, _ = fmt.Fprintf(w, "State:          %s\n", r.State)
+	_, _ = fmt.Fprintf(w, "Acceptance URL: %s\n", dash(r.InvitationURL))
+}
+
 func ActionList(w io.Writer, r *client.ActionListResponse) {
 	if len(r.Actions) == 0 {
 		_, _ = fmt.Fprintln(w, "(no actions)")

@@ -2592,7 +2592,7 @@ Usage:
   rc dev [command]
 
 Available Commands:
-  brain       Inspect, sync, promote, and queue out-of-band brain work
+  brain       Inspect, publish, and manage brain repositories
   console     Use guarded production consoles
   learning    Inspect learning and consolidation inputs
   api         Inspect the public API contract
@@ -2611,7 +2611,7 @@ Global Flags:
 Use "rc dev [command] --help" for more information about a command.
 
 $ rc dev brain --help
-Inspect, sync, promote, and queue out-of-band brain work
+Inspect, publish, and manage brain repositories
 
 Usage:
   rc dev brain [flags]
@@ -2624,6 +2624,7 @@ Available Commands:
   publish     Sync, promote an exact tested commit, and verify one project brain channel
   edit        Queue a brain edit from a plain-language instruction (or STDIN)
   consolidate Queue the consolidation cron on demand
+  developer   Manage tenant brain developer access
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2730,6 +2731,44 @@ Queue the consolidation cron on demand
 
 Usage:
   rc dev brain consolidate [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc dev brain developer --help
+Manage tenant brain developer access
+
+Usage:
+  rc dev brain developer [flags]
+  rc dev brain developer [command]
+
+Available Commands:
+  invite      Invite a GitHub user to this tenant brain repository
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+Use "rc dev brain developer [command] --help" for more information about a command.
+
+$ rc dev brain developer invite --help
+Invite a GitHub user to this tenant brain repository
+
+Usage:
+  rc dev brain developer invite <github-handle> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

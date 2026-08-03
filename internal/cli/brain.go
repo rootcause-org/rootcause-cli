@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -20,9 +21,80 @@ var errEmptyInstruction = errors.New("empty instruction — pass it as args or p
 // queue. Promotion is the synchronous, exact-SHA exception; edits remain async and durable writes land
 // outside a run. Long edit instructions can be piped on STDIN.
 func newBrainCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "brain", Short: "Inspect, sync, promote, and queue out-of-band brain work"}
-	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e))
+	cmd := &cobra.Command{Use: "brain", Short: "Inspect, publish, and manage brain repositories"}
+	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e), newBrainDeveloperCmd(e))
 	return cmd
+}
+
+func newBrainDeveloperCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{Use: "developer", Short: "Manage tenant brain developer access"}
+	cmd.AddCommand(brainDeveloperInviteCmd(e))
+	return cmd
+}
+
+func brainDeveloperInviteCmd(e *env) *cobra.Command {
+	return &cobra.Command{
+		Use:   "invite <github-handle>",
+		Short: "Invite a GitHub user to this tenant brain repository",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			project, tenant, err := e.requiredTenantBrainScope(c)
+			if err != nil {
+				return err
+			}
+			resp, raw, err := c.InviteBrainDeveloper(e.ctx(), project, tenant, client.BrainDeveloperInvitationRequest{GitHubHandle: args[0]})
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
+			}
+			render.BrainDeveloperInvitation(e.out, resp)
+			return nil
+		},
+	}
+}
+
+// requiredTenantBrainScope resolves the canonical project+tenant tree for the developer-access write.
+// Explicit selectors and checkout markers win; a tenant-pinned OAuth login fills only missing pieces.
+func (e *env) requiredTenantBrainScope(c *client.Client) (string, string, error) {
+	project := e.scopeProject()
+	if project == "" {
+		project = e.resolved.Project
+	}
+	tenant := e.scopeTenant()
+	projectRouteForced := e.scope == scopeSelectorProject
+	if project == "" || tenant == "" {
+		scope, err := c.Whoami(e.ctx())
+		if err != nil {
+			return "", "", err
+		}
+		if project == "" && scope.Project != nil {
+			project = scope.Project.Name
+			if project == "" {
+				project = scope.Project.ID
+			}
+		}
+		// `--scope project` is an explicit routing instruction. Never silently undo it from the
+		// tenant bound into whoami; this command has no project-wide form and must fail closed.
+		if tenant == "" && !projectRouteForced && scope.Tenant != nil {
+			tenant = scope.Tenant.Slug
+			if tenant == "" {
+				tenant = scope.Tenant.Name
+			}
+		}
+	}
+	if project == "" {
+		return "", "", &client.APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required for an all-projects login"}
+	}
+	if tenant == "" {
+		return "", "", &client.APIError{Status: http.StatusBadRequest, Code: "TENANT_REQUIRED", Message: "tenant scope is required to invite a brain developer (use --tenant or a tenant brain checkout)"}
+	}
+	return project, tenant, nil
 }
 
 func brainStatusCmd(e *env) *cobra.Command {

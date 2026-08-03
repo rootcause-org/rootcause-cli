@@ -138,6 +138,24 @@ type BrainPromoteResponse struct {
 	Idempotent bool   `json:"idempotent"`
 }
 
+// BrainDeveloperInvitationRequest grants one GitHub user access to one tenant brain repository.
+// The server owns GitHub App credentials; rc only forwards the handle in the JSON body.
+type BrainDeveloperInvitationRequest struct {
+	GitHubHandle string `json:"github_handle"`
+}
+
+// BrainDeveloperInvitation is the idempotent access receipt returned by the tenant-brain endpoint.
+// InvitationURL is empty once the developer already has active repository access.
+type BrainDeveloperInvitation struct {
+	Project       string `json:"project"`
+	Tenant        string `json:"tenant"`
+	Repository    string `json:"repository"`
+	GitHubHandle  string `json:"github_handle"`
+	Permission    string `json:"permission"`
+	State         string `json:"state"`
+	InvitationURL string `json:"invitation_url,omitempty"`
+}
+
 type CapabilitiesResponse struct {
 	Project    string                 `json:"project"`
 	Tenant     string                 `json:"tenant,omitempty"`

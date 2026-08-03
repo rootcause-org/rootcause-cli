@@ -321,7 +321,7 @@ func TestGitHubStatusJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "github_status.json"), out.Bytes())
 }
 
-// --- dev brain status / sync / edit / consolidate ---
+// --- dev brain status / sync / edit / consolidate / developer access ---
 
 func TestBrainStatusTable(t *testing.T) {
 	srv := stubServer(t)
@@ -571,6 +571,108 @@ func TestBrainConsolidateTable(t *testing.T) {
 		t.Fatalf("dev brain consolidate: %v", err)
 	}
 	assertGolden(t, "brain_consolidate.golden", out.String())
+}
+
+func TestBrainDeveloperInviteTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"); err != nil {
+		t.Fatalf("dev brain developer invite: %v", err)
+	}
+	assertGolden(t, "brain_developer_invitation.golden", out.String())
+}
+
+func TestBrainDeveloperInviteJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"); err != nil {
+		t.Fatalf("dev brain developer invite -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "brain_developer_invitation.json"), out.Bytes())
+}
+
+func TestBrainDeveloperInviteActiveOutput(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p1","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/tenants/evident/brain/developers/invitations", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":"alpha","tenant":"evident","repository":"rootcause-org/rootcause-brain-dentai-tenant-evident","github_handle":"ardeae-praktijk","permission":"write","state":"active"}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"); err != nil {
+		t.Fatal(err)
+	}
+	assertGolden(t, "brain_developer_invitation_active.golden", out.String())
+}
+
+func TestBrainDeveloperInviteUsesTenantBrainMarker(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"), []byte("project = \"dentai\"\ntenant = \"evident\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var gotPath string
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/projects/dentai/tenants/evident/brain/developers/invitations", func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		_, _ = w.Write(fixture(t, "brain_developer_invitation.json"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	e.profile = "" // auto mode discovers project+tenant from the checkout marker.
+	if err := run(t, e, "dev", "brain", "developer", "invite", "ardeae-praktijk"); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/v1/projects/dentai/tenants/evident/brain/developers/invitations" {
+		t.Fatalf("request path = %q", gotPath)
+	}
+}
+
+func TestBrainDeveloperInviteRequiresTenant(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p1","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":{"id":"p1","name":"alpha"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "--project", "alpha", "dev", "brain", "developer", "invite", "ardeae-praktijk")
+	if err == nil || !strings.Contains(err.Error(), "TENANT_REQUIRED") {
+		t.Fatalf("error = %v, want TENANT_REQUIRED", err)
+	}
+}
+
+func TestBrainDeveloperInviteScopeProjectDoesNotRefillTenantFromLogin(t *testing.T) {
+	posted := false
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":{"id":"p1","name":"alpha"},"tenant":{"id":"t1","slug":"evident"}}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p1","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/tenants/evident/brain/developers/invitations", func(http.ResponseWriter, *http.Request) {
+		posted = true
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "--scope", "project", "dev", "brain", "developer", "invite", "ardeae-praktijk")
+	if err == nil || !strings.Contains(err.Error(), "TENANT_REQUIRED") {
+		t.Fatalf("error = %v, want TENANT_REQUIRED", err)
+	}
+	if posted {
+		t.Fatal("tenant invitation POSTed despite --scope project")
+	}
 }
 
 // --- dream evidence / triage ---

@@ -1103,6 +1103,18 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_consolidate_001"}`))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/tenants/{tenant}/brain/developers/invitations", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body client.BrainDeveloperInvitationRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode brain developer invitation: %v", err)
+		}
+		if body.GitHubHandle != "ardeae-praktijk" {
+			t.Fatalf("github_handle = %q, want ardeae-praktijk", body.GitHubHandle)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "brain_developer_invitation.json"))
+	})
 
 	// dream evidence: query-scoped public consolidation corpus.
 	mux.HandleFunc("GET /api/v1/dream/evidence", func(w http.ResponseWriter, r *http.Request) {

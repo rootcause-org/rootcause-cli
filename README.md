@@ -151,6 +151,11 @@ that exact SHA — and exits non-zero on any mismatch (`-o json` carries the rec
 in with an authorized project-maintainer login instead. Explicitly narrowed tokens need the dedicated
 `brain:promote` OAuth scope in addition to that project-level admin authority.
 
+Tenant-brain repository access also stays server-side: from a tenant brain checkout, run
+`rc dev brain developer invite <github-handle>`. The rootcause GitHub App creates or reuses the
+repository invitation, and human output prints its acceptance URL; `-o json` returns the raw receipt.
+Outside a checkout, select the exact repository with `--project <project> --tenant <slug>`.
+
 **Base URL** is deliberately boring: production is hardcoded to `https://app.replypen.com`. The only
 runtime override is `ROOTCAUSE_BASE_URL`, for deliberate staging/dev work. `rc auth login` uses the same
 resolution, and `rc auth status` prints both the URL and its source (`built-in production` or
@@ -247,12 +252,14 @@ help using `go test ./internal/cli -update`.
 | `rc dev api routes` | Show the canonical API route manifest |
 | `rc dev api` | Inspect the public API contract |
 | `rc dev brain consolidate` | Queue the consolidation cron on demand |
+| `rc dev brain developer invite` | Invite a GitHub user to this tenant brain repository |
+| `rc dev brain developer` | Manage tenant brain developer access |
 | `rc dev brain edit` | Queue a brain edit from a plain-language instruction (or STDIN) |
 | `rc dev brain promote` | Promote an exact tested commit to a project brain channel |
 | `rc dev brain publish` | Sync, promote an exact tested commit, and verify one project brain channel |
 | `rc dev brain status` | Show deployed brain cache status |
 | `rc dev brain sync` | Fetch origin/main and refresh deployed brain cache |
-| `rc dev brain` | Inspect, sync, promote, and queue out-of-band brain work |
+| `rc dev brain` | Inspect, publish, and manage brain repositories |
 | `rc dev console action list` | List available actions |
 | `rc dev console action preflight` | Run action preflight/dry-run |
 | `rc dev console action run` | Execute an action |
