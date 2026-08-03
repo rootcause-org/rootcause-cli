@@ -425,6 +425,27 @@ func TestHealthTable(t *testing.T) {
 	assertGolden(t, "health.golden", out.String())
 }
 
+// TestHealthAllProjectsTokenFallsBackToFanOut: an all-projects token with no --project gets
+// NO_PROJECT_SCOPE from the flat route; the CLI falls back to the --all fan-out (with a stderr note)
+// instead of surfacing the server error, and the unhealthy verdict still drives the non-zero exit.
+func TestHealthAllProjectsTokenFallsBackToFanOut(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errOut := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "health", "--hours", "888"); !errors.Is(err, errUnhealthy) {
+		t.Fatalf("fallback fan-out on unhealthy fleet: err = %v, want errUnhealthy", err)
+	}
+	if !strings.Contains(errOut.String(), "as --all") {
+		t.Errorf("missing fan-out note on stderr:\n%s", errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{"════ alpha ════", "════ bravo ════", "════ FLEET ════"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("fallback fan-out output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 // TestHealthCleanExitsZero: a clean fleet renders healthy AND returns nil (zero exit).
 func TestHealthCleanExitsZero(t *testing.T) {
 	srv := stubServer(t)

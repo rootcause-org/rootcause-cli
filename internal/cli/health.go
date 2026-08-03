@@ -22,7 +22,8 @@ func newHealthCmd(e *env) *cobra.Command {
 		Short: "Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy",
 		Long: "Fetch GET /api/v1/health and render the healthy/unhealthy sections (stale/failing mirrors, " +
 			"dead-lettered runs). Exits non-zero when unhealthy, so it's usable in CI/cron. --all fans out " +
-			"across every project (all-projects token) and exits non-zero if ANY project is unhealthy. -o json " +
+			"across every project (all-projects token) and exits non-zero if ANY project is unhealthy; an " +
+			"all-projects token with no --project falls back to the fan-out automatically. -o json " +
 			"passes the raw server rows through; the exit code still reflects the verdict.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -39,6 +40,13 @@ func newHealthCmd(e *env) *cobra.Command {
 			// passthrough. Two independent reads could print one health snapshot and exit on another.
 			resp, raw, err := fetchHealth(e, c, hours, e.scopeProject(), e.scopeTenant())
 			if err != nil {
+				// An all-projects token names no single project, so the flat route can't serve it — the
+				// only health it can mean is the fleet's. Fan out instead of parroting the server error;
+				// the note keeps the switch visible (stderr, so JSON consumers are unaffected).
+				if isNoProjectScope(err) && e.scopeProject() == "" {
+					_, _ = fmt.Fprintln(e.err, "note: all-projects token — checking every project (as --all)")
+					return runHealthAll(e, cmd, c, hours)
+				}
 				return err
 			}
 			if e.jsonOut() {
@@ -119,6 +127,13 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 		return errUnhealthy
 	}
 	return nil
+}
+
+// isNoProjectScope matches the server's NO_PROJECT_SCOPE rejection of the flat health route on an
+// all-projects token — the trigger for the automatic --all fan-out.
+func isNoProjectScope(err error) bool {
+	var apiErr *client.APIError
+	return asAPIError(err, &apiErr) && apiErr.Code == "NO_PROJECT_SCOPE"
 }
 
 func fetchHealth(e *env, c *client.Client, hours int, project, tenant string) (*client.HealthResponse, json.RawMessage, error) {

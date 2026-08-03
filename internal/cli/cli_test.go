@@ -98,6 +98,13 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "health_clean.json"))
 			return
 		}
+		// hours=888 simulates an all-projects token: the flat route (no ?project=) is rejected with
+		// NO_PROJECT_SCOPE — the trigger for the CLI's automatic --all fan-out.
+		if r.URL.Query().Get("hours") == "888" && r.URL.Query().Get("project") == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":{"code":"NO_PROJECT_SCOPE","message":"this all-projects token names no project"}}`))
+			return
+		}
 		_, _ = w.Write(fixture(t, "health.json"))
 	})
 
