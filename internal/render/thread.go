@@ -116,6 +116,21 @@ func healthFlags(h *client.RunHealth) string {
 	return strings.Join(f, ",")
 }
 
+// budgetMarkers are lowercased substrings of the server's guardrail text for "the run ran out of
+// budget". The server reworded this ("cost budget" → "processing budget" / NL "verwerkingsbudget"), and
+// historical rows keep the old wording forever, so every generation stays matched. The bare "budget"
+// catch-all covers wordings we haven't seen; the specific entries document the ones we have.
+var budgetMarkers = []string{"cost budget", "processing budget", "verwerkingsbudget", "wall-clock", "budget"}
+
+func containsAny(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 // threadFailureHint is the deterministic "where it likely failed" verdict for the newest run, built only
 // from the safe projection the API ships (status / outcome / category / health flags + decline_reason).
 // It names the failure class AND the fix direction, never a body. Blank for a healthy answered run
@@ -155,7 +170,7 @@ func threadFailureHint(r *client.RunSummary) string {
 		switch {
 		case strings.Contains(why, "ended its turn") || strings.Contains(why, "reasoning steps") || strings.Contains(why, "model call failed"):
 			return "the model gave up without drafting (a guardrail fallback note) — NOT a budget issue; try a more capable tier or fix the brain skill that should have driven the tool calls."
-		case strings.Contains(why, "cost budget") || strings.Contains(why, "wall-clock") || strings.Contains(why, "budget"):
+		case containsAny(why, budgetMarkers...):
 			return "the run hit its budget (a guardrail fallback note) — raise the run's budget/time cap or tighten the brain skill so it answers in fewer steps."
 		default:
 			return "the run produced a guardrail fallback note, not a real answer — read `rc run trace <id>` to see which guardrail tripped."
