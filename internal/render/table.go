@@ -127,12 +127,10 @@ func learningLabel(l client.Learning) string {
 	return strings.Join(signals, ",")
 }
 
-// Run renders one run's high-level view — the promised set: status, category, draft?/note?, cost,
+// Run renders one run's high-level view — the promised set: status, category, draft?/note?, turns/bash,
 // duration (plus kind/created/finished and a link to the run page). category/has_draft/has_note are
-// top-level server fields now; cost prefers the run_health cost_usd and falls back to
-// metadata.total_cost_usd; duration prefers duration_ms and falls back to finished−created. Optional
-// rows (category, cost, turns, bash, run URL) print only when present so a running/incomplete run
-// stays clean.
+// top-level server fields now; duration prefers duration_ms and falls back to finished−created. Optional
+// rows (category, turns, bash, run URL) print only when present so a running/incomplete run stays clean.
 func Run(w io.Writer, r *client.RunDetail) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
@@ -156,9 +154,6 @@ func Run(w io.Writer, r *client.RunDetail) {
 	}
 	if d := runDetailDuration(r); d != "" {
 		_, _ = fmt.Fprintf(tw, "Duration:\t%s\n", d)
-	}
-	if cost := runCost(r); cost > 0 {
-		_, _ = fmt.Fprintf(tw, "Cost:\t$%.2f\n", cost)
 	}
 	if r.Turns > 0 {
 		_, _ = fmt.Fprintf(tw, "Turns:\t%d\n", r.Turns)
@@ -247,9 +242,6 @@ func renderAskHeader(w io.Writer, r *client.RunDetail, scenario string) {
 	}
 	if d := runDetailDuration(r); d != "" {
 		_, _ = fmt.Fprintf(tw, "Duration:\t%s\n", d)
-	}
-	if cost := runCost(r); cost > 0 {
-		_, _ = fmt.Fprintf(tw, "Cost:\t$%.2f\n", cost)
 	}
 	if r.Turns > 0 {
 		_, _ = fmt.Fprintf(tw, "Turns:\t%d\n", r.Turns)
@@ -507,18 +499,6 @@ func runDetailDuration(r *client.RunDetail) string {
 	return runDuration(r.CreatedAt, r.FinishedAt)
 }
 
-// runCost prefers the run_health cost_usd (the run's TOTAL spend), falling back to
-// metadata.total_cost_usd when the view row is missing. 0 ⇒ caller omits the row (no $0.00 line).
-func runCost(r *client.RunDetail) float64 {
-	if r.CostUSD > 0 {
-		return r.CostUSD
-	}
-	if c, ok := metaFloat(r.Metadata, "total_cost_usd"); ok {
-		return c
-	}
-	return 0
-}
-
 func yesNo(b bool) string {
 	if b {
 		return "yes"
@@ -668,12 +648,6 @@ func Full(w io.Writer, f *client.FullResponse) {
 	if r.FinishedAt != "" {
 		_, _ = fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
 	}
-	if r.RunCostUSD > 0 {
-		_, _ = fmt.Fprintf(tw, "Cost:\t$%.2f\n", r.RunCostUSD)
-	}
-	if r.RunTotalTokens > 0 {
-		_, _ = fmt.Fprintf(tw, "Tokens:\t%d\n", r.RunTotalTokens)
-	}
 	if r.Question != "" {
 		_, _ = fmt.Fprintf(tw, "Question:\t%s\n", r.Question)
 	}
@@ -711,7 +685,7 @@ func Full(w io.Writer, f *client.FullResponse) {
 	for i, e := range f.Events {
 		_, _ = fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
 			i+1, eventTool(e.Tool, e.Label), e.Status, e.ExitCode, duration(e.DurationMs), e.At)
-		if meta := eventCostLine(&e); meta != "" {
+		if meta := eventModelLine(&e); meta != "" {
 			_, _ = fmt.Fprintf(w, "    %s\n", meta)
 		}
 		if e.Command != "" {
@@ -885,20 +859,10 @@ func eventTool(tool, label string) string {
 	return tool
 }
 
-// eventCostLine summarizes the ai_usage join for one event: model, cost, tokens — only the parts that
-// are present. Blank when the event had no LLM usage (a plain tool call).
-func eventCostLine(e *client.EventItem) string {
-	var parts []string
-	if e.Model != "" {
-		parts = append(parts, e.Model)
-	}
-	if e.CostUSD > 0 {
-		parts = append(parts, fmt.Sprintf("$%.4f", e.CostUSD))
-	}
-	if e.TotalTokens > 0 {
-		parts = append(parts, fmt.Sprintf("%d tok", e.TotalTokens))
-	}
-	return strings.Join(parts, "  ")
+// eventModelLine names the model that answered this event — the per-event triage hint that survives the
+// no-spend rule. Blank when the event had no LLM call (a plain tool call).
+func eventModelLine(e *client.EventItem) string {
+	return e.Model
 }
 
 func projectionSummary(raw string) string {
@@ -1154,18 +1118,6 @@ func metaString(m map[string]any, key string) string {
 	return ""
 }
 
-// metaFloat reads a numeric value from the freeform run metadata map. JSON numbers decode to float64;
-// ok is false when the key is absent or not a number.
-func metaFloat(m map[string]any, key string) (float64, bool) {
-	if m == nil {
-		return 0, false
-	}
-	if f, ok := m[key].(float64); ok {
-		return f, true
-	}
-	return 0, false
-}
-
 func num(f float64) string { return fmt.Sprintf("%g", f) }
 func strOrBlank(s string) string {
 	if s == "" {
@@ -1195,14 +1147,23 @@ func sortedKeys(m map[string]client.SourceCount) []string {
 	return keys
 }
 
+// suppressedMetadataKeys never reach a rendered surface: outcome/run_url already have dedicated rows,
+// and the spend/token keys are barred product-wide (a server that still emits them must not leak them
+// through this passthrough).
+var suppressedMetadataKeys = map[string]bool{
+	"outcome": true, "run_url": true,
+	"total_cost_usd": true, "cost_usd": true, "run_cost_usd": true,
+	"tokens": true, "total_tokens": true, "run_total_tokens": true, "peak_context_tokens": true,
+}
+
 func sortedMetadataKeys(m map[string]any) []string {
 	if len(m) == 0 {
 		return nil
 	}
 	keys := make([]string, 0, len(m))
 	for k := range m {
-		switch k {
-		case "outcome", "run_url":
+		switch {
+		case suppressedMetadataKeys[k]:
 			continue
 		default:
 			keys = append(keys, k)

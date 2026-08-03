@@ -5,7 +5,7 @@
 - **Run page (human view):** https://trace.example/abc123
 - **Thread / Session:** `thr_abc` / `sess_xyz`
 - **Created / Finished:** 2026-06-19T09:00:00Z / 2026-06-19T09:01:30Z
-- **Model:** `claude-opus-4-8` · **Cost:** $1.0800 · **Tokens:** 4210
+- **Model:** `claude-opus-4-8`
 - **Steps:** 2 main + 1 grounding · **Egress:** 2 (1 blocked)
 - **Events (full, queryable):** `11111111-coca-cola.jsonl` — one JSON object per event; jq it (see Drill down).
 

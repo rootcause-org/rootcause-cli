@@ -85,8 +85,7 @@ func placement(r client.RunSummary) string {
 
 // healthFlags compresses the safe per-run health counts/flags into a terse triage cell — only the
 // signals that are ON show, so a clean run reads "-". These are the same fields the run index ships and
-// `rc fleet runs` flags on; the customer-safe subset (no spend) so this stays useful for a customer in their
-// brain. nil health (the server omitted the block) → "-".
+// `rc fleet runs` flags on. nil health (the server omitted the block) → "-".
 func healthFlags(h *client.RunHealth) string {
 	if h == nil {
 		return "-"
@@ -155,9 +154,9 @@ func threadFailureHint(r *client.RunSummary) string {
 		why := strings.ToLower(r.DeclinedReason)
 		switch {
 		case strings.Contains(why, "ended its turn") || strings.Contains(why, "reasoning steps") || strings.Contains(why, "model call failed"):
-			return "the model gave up without drafting (a guardrail fallback note) — NOT a budget issue (cost is usually trivial); try a more capable tier or fix the brain skill that should have driven the tool calls."
+			return "the model gave up without drafting (a guardrail fallback note) — NOT a budget issue; try a more capable tier or fix the brain skill that should have driven the tool calls."
 		case strings.Contains(why, "cost budget") || strings.Contains(why, "wall-clock") || strings.Contains(why, "budget"):
-			return "the run hit its budget (a guardrail fallback note) — raise the run's cost/time cap or tighten the brain skill so it answers in fewer steps."
+			return "the run hit its budget (a guardrail fallback note) — raise the run's budget/time cap or tighten the brain skill so it answers in fewer steps."
 		default:
 			return "the run produced a guardrail fallback note, not a real answer — read `rc run trace <id>` to see which guardrail tripped."
 		}

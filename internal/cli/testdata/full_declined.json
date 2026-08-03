@@ -8,8 +8,6 @@
     "created_at": "2026-06-19T09:00:00Z",
     "finished_at": "2026-06-19T09:00:42Z",
     "model": "google/gemini-3.5-flash",
-    "run_cost_usd": 0.21,
-    "run_total_tokens": 980,
     "question": "Any update on my refund?",
     "debug": {
       "decline_reason": "Thread already resolved — the sender acknowledged closure, so there is no open question to answer.\nNo further action was warranted.",
@@ -30,8 +28,6 @@
       "at": "2026-06-19T09:00:10Z",
       "command": "psql -c 'select status from threads where id = 42'",
       "stdout": "resolved\n",
-      "cost_usd": 0.21,
-      "total_tokens": 980,
       "model": "google/gemini-3.5-flash"
     },
     {

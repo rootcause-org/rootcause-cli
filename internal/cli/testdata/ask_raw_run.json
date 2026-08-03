@@ -12,7 +12,6 @@
   "has_note": false,
   "turns": 4,
   "bash_total": 9,
-  "cost_usd": 0.31,
   "answer_markdown": "There are 17 active subscriptions and 2 past-due invoices.",
   "proposed_actions": [
     {

@@ -234,7 +234,7 @@ func decodeJSON(t *testing.T, body []byte, v any) {
 // JSON-passthrough test per command + the health non-zero-exit contract. The stub server pages the
 // runs index + events feed so the paging loop is exercised end to end.
 
-// TestFleetTable pins the runs_digest port: the per-run flag line (incl. the client-computed $! cost
+// TestFleetTable pins the fleet digest: the per-run flag line (incl. the client-computed T! turn
 // spike), the aggregate, and the worst-offender shortlists. The --kind fleet param routes the stub to
 // the operator-tier (health-bearing) paged fixtures.
 func TestFleetTable(t *testing.T) {
@@ -247,9 +247,9 @@ func TestFleetTable(t *testing.T) {
 	assertGolden(t, "fleet.golden", out.String())
 }
 
-// TestFleetByModel pins the model×cost×fallback breakdown — per answered model: runs, total/avg cost,
-// and the fallback count (the opus run is a fallback from sonnet in the fixtures). It's the highest-value
-// view: which model burned the spend, and how much was a fallback.
+// TestFleetByModel pins the model×turns×fallback breakdown — per answered model: runs, avg turns, and
+// the fallback count (the opus run is a fallback from sonnet in the fixtures): which model answered,
+// how hard it worked, and how often it was only there because the planned model failed.
 func TestFleetByModel(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -260,7 +260,7 @@ func TestFleetByModel(t *testing.T) {
 	assertGolden(t, "fleet_by_model.golden", out.String())
 }
 
-// TestFleetTimeline pins the per-day runs/errors/cost histogram (the "what changed today" anchor).
+// TestFleetTimeline pins the per-day runs/errors/latency histogram (the "what changed today" anchor).
 func TestFleetTimeline(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -312,7 +312,7 @@ func TestFleetAgentDigestRendersWhenPiped(t *testing.T) {
 	for _, want := range []string{
 		"look here first:",
 		"Aggregate:",
-		"By model (cost · fallbacks):",
+		"By model (turns · fallbacks):",
 		"Daily timeline:",
 		"Worst offenders (full ids",
 		"aaaaaaaa-0000-0000-0000-000000000001", // full UUID, one paste from rc run debug

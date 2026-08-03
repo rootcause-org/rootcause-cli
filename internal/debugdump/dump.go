@@ -202,13 +202,6 @@ func dur(ms int64) string {
 	}
 }
 
-func cost(v float64) string {
-	if v == 0 {
-		return ""
-	}
-	return fmt.Sprintf("$%.4f", v)
-}
-
 // summarizeArgs renders a tool's structured args as "k=v k=v" (bools → yes/no), sorted for determinism.
 func summarizeArgs(raw json.RawMessage) string {
 	if len(raw) == 0 {

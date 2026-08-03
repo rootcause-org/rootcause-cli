@@ -10,10 +10,10 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-// newFleetRunsCmd builds `rc fleet runs`: the fleet digest over GET /api/v1/runs (paged), porting runs_digest.py's
-// per-run flag line + aggregate + worst offenders. The server ships raw per-run rows (+ the run_health
-// triage block for an operator bearer); the CLI computes the one derived flag the server can't (the $!
-// cost-spike, which needs a per-kind median) and renders the digest. --format agent emits the token-lean
+// newFleetRunsCmd builds `rc fleet runs`: the fleet digest over GET /api/v1/runs (paged) — the per-run
+// flag line + aggregate + worst offenders. The server ships raw per-run rows (+ the run_health
+// triage block for an operator bearer); the CLI computes the one derived flag the server can't (the T!
+// turn-spike, which needs a per-kind median) and renders the digest. --format agent emits the token-lean
 // computed digest for an agent to triage — and an EXPLICIT --format pins the rendered digest even when
 // stdout is a pipe (agents read piped; without this the auto mode would spill the raw rows instead).
 // -o json stays the explicit raw passthrough of the paged run rows (no rendering) and wins over --format.
@@ -21,7 +21,6 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	var days int
 	var kind string
 	var format string
-	var ctxWarn int
 	var all bool
 	var byModel bool
 	var timeline bool
@@ -29,8 +28,8 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "runs",
 		Short: "Fleet digest of recent runs (flags, rates, worst offenders)",
-		Long: "Page GET /api/v1/runs and render the runs_digest view: a per-run line with health flags + " +
-			"cost, the aggregate rates, and the worst-offender shortlists. --format agent gives the token-lean " +
+		Long: "Page GET /api/v1/runs and render the fleet digest: a per-run line with health flags + " +
+			"turns, the aggregate rates, and the worst-offender shortlists. --format agent gives the token-lean " +
 			"computed digest for an agent to triage; passing --format explicitly renders the digest even when " +
 			"stdout is piped. --all fans out across every project (all-projects token), grouped per project " +
 			"with a fleet total. -o json is a raw passthrough of the paged run rows (keyed by project under " +
@@ -47,7 +46,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Format: format, CtxWarn: ctxWarn, ByModel: byModel, Timeline: timeline}
+			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Format: format, ByModel: byModel, Timeline: timeline}
 			rawJSON := rawRowsJSON(e, cmd)
 
 			if all {
@@ -77,10 +76,9 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	cmd.Flags().IntVar(&days, "days", 7, "window label for the digest header (days)")
 	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
 	cmd.Flags().StringVar(&format, "format", "human", "output style: human|agent")
-	cmd.Flags().IntVar(&ctxWarn, "ctx-warn", render.DefaultCtxWarn, "peak-context tokens at/above which a run gets the CTX flag (0 disables)")
 	cmd.Flags().BoolVar(&all, "all", false, "fan out across every project (requires an all-projects token)")
-	cmd.Flags().BoolVar(&byModel, "by-model", false, "add the model×cost×fallback breakdown (which model burned the spend, how much was a fallback)")
-	cmd.Flags().BoolVar(&timeline, "timeline", false, "add the per-day runs/errors/cost timeline")
+	cmd.Flags().BoolVar(&byModel, "by-model", false, "add the model×turns×fallback breakdown (which model answered, how hard it worked, how often it was a fallback)")
+	cmd.Flags().BoolVar(&timeline, "timeline", false, "add the per-day runs/errors/latency timeline")
 	cmd.Flags().StringVar(&learning, "learning", "", "filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected")
 	cmd.Flags().Lookup("learning").NoOptDefVal = "any"
 	return cmd

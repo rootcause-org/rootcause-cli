@@ -304,8 +304,8 @@ func (r RunSummary) MarshalJSON() ([]byte, error) {
 }
 
 // RunHealth is the per-run triage block on a run index row (run_health view). The COUNT/flag fields are
-// safe for any bearer; the spend fields (CostUSD/TotalTokens/PeakContextTokens) + Model are operator-tier
-// pointers — nil for a baseline bearer, so the digest's cost/$!/CTX columns simply blank out. Mirrors the
+// safe for any bearer; Model is operator-tier and blank for a baseline bearer. Spend and token counts are
+// deliberately absent: no surface may show them, so heaviness is read off turns/bash/duration. Mirrors the
 // server's runIndexHealth field-for-field.
 type RunHealth struct {
 	Turns          int64 `json:"turns"`
@@ -323,13 +323,10 @@ type RunHealth struct {
 	NoJournal           bool  `json:"no_journal"`
 	// IsFallback is the CLEAN model-fallback signal (run_health.is_fallback): the loop swapped the
 	// planned model for a different one that answered. SAFE (a boolean) so it rides for any bearer —
-	// it drives the digest's fallback flag (FB) + the model×cost×fallback breakdown. The empty-string-
+	// it drives the digest's fallback flag (FB) + the model×turns×fallback breakdown. The empty-string-
 	// vs-NULL trap on runs.model_fallback_from is baked into the view, so the CLI never recomputes it.
-	IsFallback        bool     `json:"is_fallback"`
-	CostUSD           *float64 `json:"cost_usd,omitempty"`
-	TotalTokens       *int64   `json:"total_tokens,omitempty"`
-	PeakContextTokens *int64   `json:"peak_context_tokens,omitempty"`
-	Model             string   `json:"model,omitempty"`
+	IsFallback bool   `json:"is_fallback"`
+	Model      string `json:"model,omitempty"`
 	// PlannedModel is the model the loop planned but that failed (run_health.model_fallback_from), set
 	// only when IsFallback. Operator-tier like Model — omitted for a baseline bearer.
 	PlannedModel string `json:"planned_model,omitempty"`
@@ -416,7 +413,7 @@ type RunDebug struct {
 // RunDetail is GET /api/v1/runs/{id} — it MUST mirror the server's statusResponse (internal/api/prompt.go)
 // field-for-field: same json tags, same omitempty. Optional fields are omitempty server-side; Attachments
 // is always present (always [] in v0). category/has_draft/has_note come from the shared row-builder;
-// duration_ms/cost_usd/turns/bash_total are the run_health triage scalars (cost is the run's TOTAL spend).
+// duration_ms/turns/bash_total are the run_health triage scalars.
 type RunDetail struct {
 	RunID           string           `json:"run_id"`
 	Scenario        string           `json:"scenario,omitempty"`
@@ -431,7 +428,6 @@ type RunDetail struct {
 	HasNote         bool             `json:"has_note"`
 	Turns           int64            `json:"turns,omitempty"`
 	BashTotal       int64            `json:"bash_total,omitempty"`
-	CostUSD         float64          `json:"cost_usd,omitempty"`
 	AnswerMarkdown  string           `json:"answer_markdown,omitempty"`
 	DraftMarkdown   string           `json:"draft_markdown,omitempty"`
 	Notes           []Note           `json:"notes,omitempty"`
@@ -628,8 +624,8 @@ type GroundingSourceCurrent struct {
 
 // RunHeader is the run-level half of GET /api/v1/runs/{id}/trace — the superset of RunDetail the
 // brain-renderer's JSONL run-header line needs: full draft/notes bodies (not booleans), the untrimmed
-// system_prompt, warm inputs (warm_start_digest/grounding_seed), run-level cost/tokens, egress, and
-// metadata.trace_url. Mirrors the server's `run` object field-for-field.
+// system_prompt, warm inputs (warm_start_digest/grounding_seed), egress, and metadata.trace_url.
+// Mirrors the server's `run` object field-for-field.
 type RunHeader struct {
 	RunID                 string            `json:"run_id"`
 	Scenario              string            `json:"scenario,omitempty"`
@@ -653,8 +649,6 @@ type RunHeader struct {
 	CreatedAt             string            `json:"created_at"`
 	FinishedAt            string            `json:"finished_at,omitempty"`
 	Model                 string            `json:"model,omitempty"`
-	RunCostUSD            float64           `json:"run_cost_usd,omitempty"`
-	RunTotalTokens        int64             `json:"run_total_tokens,omitempty"`
 	Draft                 string            `json:"draft,omitempty"`
 	DraftMarkdown         string            `json:"draft_markdown,omitempty"`
 	AnswerMarkdown        string            `json:"answer_markdown,omitempty"`
@@ -686,27 +680,25 @@ func (r *RunHeader) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// EventItem is one event in the /trace bundle — the superset of Event: it adds the ai_usage join
-// (cost_usd/total_tokens/model), non-bash tool args, the agent's reasoning, and a human label, all of
-// which today's lean /events omits. Args is carried as raw JSON because its shape is tool-specific.
+// EventItem is one event in the /trace bundle — the superset of Event: it adds the answering model,
+// non-bash tool args, the agent's reasoning, and a human label, all of which today's lean /events omits.
+// Args is carried as raw JSON because its shape is tool-specific.
 type EventItem struct {
-	Seq         int32           `json:"seq"`
-	Tool        string          `json:"tool"`
-	Label       string          `json:"label,omitempty"`
-	Status      string          `json:"status"`
-	ExitCode    int32           `json:"exit_code"`
-	DurationMs  int64           `json:"duration_ms"`
-	At          string          `json:"at"`
-	Command     string          `json:"command,omitempty"`
-	Args        json.RawMessage `json:"args,omitempty"`
-	Stdout      string          `json:"stdout,omitempty"`
-	Stderr      string          `json:"stderr,omitempty"`
-	Reasoning   string          `json:"reasoning,omitempty"`
-	HasDraft    bool            `json:"has_draft,omitempty"`
-	HasNote     bool            `json:"has_note,omitempty"`
-	CostUSD     float64         `json:"cost_usd,omitempty"`
-	TotalTokens int64           `json:"total_tokens,omitempty"`
-	Model       string          `json:"model,omitempty"`
+	Seq        int32           `json:"seq"`
+	Tool       string          `json:"tool"`
+	Label      string          `json:"label,omitempty"`
+	Status     string          `json:"status"`
+	ExitCode   int32           `json:"exit_code"`
+	DurationMs int64           `json:"duration_ms"`
+	At         string          `json:"at"`
+	Command    string          `json:"command,omitempty"`
+	Args       json.RawMessage `json:"args,omitempty"`
+	Stdout     string          `json:"stdout,omitempty"`
+	Stderr     string          `json:"stderr,omitempty"`
+	Reasoning  string          `json:"reasoning,omitempty"`
+	HasDraft   bool            `json:"has_draft,omitempty"`
+	HasNote    bool            `json:"has_note,omitempty"`
+	Model      string          `json:"model,omitempty"`
 }
 
 // FullResponse is GET /api/v1/runs/{id}/trace — the whole bundle. The CLI decomposes it for

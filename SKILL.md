@@ -31,7 +31,7 @@ The spine is one endpoint per rung, so an agent verifies against real runs befor
 | index | `rc status` / `rc run list` | `GET /api/v1/runs` (same endpoint; `status` is a fixed 5-row health-led page, `run list` the filterable table) |
 | one run | `rc run show <id>` | `GET /api/v1/runs/{id}` |
 | detail | `rc run events <id>` | `GET /api/v1/runs/{id}/events` (**NDJSON** in `-o json`) |
-| bundle | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` (header + per-event trace + cost; JSONL in `-o json`) |
+| bundle | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` (header + per-event trace; JSONL in `-o json`) |
 | decompose | `rc run debug <id>` | `/trace` → local jq-able JSONL + thin markdown index ([see below](#the-rc-run-debug-decomposer)) |
 
 `run list` filters (`--limit`/`--kind`/`--category`/`--outcome`/`--learning[=signal]`/`--before`) are

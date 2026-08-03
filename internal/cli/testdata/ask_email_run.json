@@ -12,7 +12,6 @@
   "has_note": true,
   "turns": 12,
   "bash_total": 34,
-  "cost_usd": 1.08,
   "run_url": "https://app.replypen.com/runs/email-rich?t=abc123",
   "attachments": [],
   "metadata": { "outcome": "ok", "tokens": 4210, "run_url": "https://app.replypen.com/runs/email-rich?t=abc123" }

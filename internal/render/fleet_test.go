@@ -58,10 +58,10 @@ func TestBashErrTokenSplit(t *testing.T) {
 
 // Explore-only noise must not earn a shortlist line, while real failures still weigh.
 func TestSeverityIgnoresExploreNoise(t *testing.T) {
-	if s := severity(runWithBash("explore-only", 40, 0, 40), nil, 0); s != 0 {
+	if s := severity(runWithBash("explore-only", 40, 0, 40), nil); s != 0 {
 		t.Fatalf("severity(explore-only) = %d, want 0", s)
 	}
-	if s := severity(runWithBash("legacy", 7, 0, 0), nil, 0); s != 70 {
+	if s := severity(runWithBash("legacy", 7, 0, 0), nil); s != 70 {
 		t.Fatalf("severity(legacy) = %d, want 70 (fallback treats total as real)", s)
 	}
 }
@@ -75,5 +75,27 @@ func TestFleetTotalBashErrColumnSplits(t *testing.T) {
 	}})
 	if !strings.Contains(buf.String(), "3 (+52 explore)") {
 		t.Fatalf("rollup missing split BASH_ERR cell:\n%s", buf.String())
+	}
+}
+
+// Turn spikes replace the old cost spike: >3× the same-kind median, and only once a kind has ≥4 runs.
+func TestTurnSpikesFlagOutliers(t *testing.T) {
+	run := func(id string, turns int64) client.RunSummary {
+		return client.RunSummary{RunID: id, Kind: "analysis", Status: "done", Health: &client.RunHealth{Turns: turns}}
+	}
+	runs := []client.RunSummary{run("a", 4), run("b", 5), run("c", 4), run("heavy", 40)}
+	spikes := turnSpikes(runs)
+	if !spikes["heavy"] {
+		t.Fatalf("expected heavy to spike, got %v", spikes)
+	}
+	if len(spikes) != 1 {
+		t.Fatalf("expected exactly one spike, got %v", spikes)
+	}
+	if got := flagStr(run("heavy", 40), spikes); !strings.Contains(got, "T!") {
+		t.Fatalf("flags = %q, want T!", got)
+	}
+	// Too few runs of a kind ⇒ no baseline, no spike.
+	if s := turnSpikes(runs[:3]); len(s) != 0 {
+		t.Fatalf("expected no spikes below the 4-run baseline, got %v", s)
 	}
 }

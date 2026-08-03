@@ -22,9 +22,6 @@
         "blocked_egress": 0,
         "grounding_discarded": false,
         "no_journal": false,
-        "cost_usd": 0.04,
-        "total_tokens": 15000,
-        "peak_context_tokens": 9000,
         "model": "anthropic/claude-sonnet-4"
       }
     },
@@ -50,9 +47,6 @@
         "blocked_egress": 0,
         "grounding_discarded": false,
         "no_journal": false,
-        "cost_usd": 0.03,
-        "total_tokens": 12000,
-        "peak_context_tokens": 8000,
         "model": "anthropic/claude-sonnet-4"
       }
     }

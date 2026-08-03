@@ -14,7 +14,7 @@ import (
 // EmitJSONL writes the drill-down event log: a {"type":"run"} header line (run metadata + full
 // draft/note bodies + the untrimmed system prompt + egress) followed by one {"type":"event"} line per
 // tool call, every field FULL and untruncated, keyed by `disp`. Header rollups are `run_`-prefixed so
-// event-space jq queries (`select(.cost_usd > 0.01)`) never match the header.
+// event-space jq queries (`select(.duration_ms > 60000)`) never match the header.
 func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	events := decorate(full.Events)
 	enc := json.NewEncoder(w)
@@ -53,8 +53,6 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		"created_at":              emptyNil(r.CreatedAt),
 		"finished_at":             emptyNil(r.FinishedAt),
 		"model":                   emptyNil(model),
-		"run_cost_usd":            r.RunCostUSD,
-		"run_total_tokens":        r.RunTotalTokens,
 		"draft":                   emptyNil(r.Draft),
 		"notes":                   notesJSON(r.Notes),
 		"metadata":                metadataJSON(r.Metadata),
@@ -78,23 +76,21 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	}
 	for _, e := range events {
 		line := map[string]any{
-			"type":         "event",
-			"disp":         e.disp,
-			"seq":          e.src.Seq,
-			"grounding":    e.grounding,
-			"tool":         e.src.Tool,
-			"label":        e.label,
-			"command":      e.command,
-			"stdout":       emptyNil(e.src.Stdout),
-			"stderr":       emptyNil(e.src.Stderr),
-			"exit_code":    e.src.ExitCode,
-			"status":       e.src.Status,
-			"duration_ms":  e.src.DurationMs,
-			"at":           emptyNil(e.src.At),
-			"reasoning":    emptyNil(e.src.Reasoning),
-			"cost_usd":     numOrNil(e.src.CostUSD),
-			"total_tokens": int64OrNil(e.src.TotalTokens),
-			"model":        emptyNil(e.src.Model),
+			"type":        "event",
+			"disp":        e.disp,
+			"seq":         e.src.Seq,
+			"grounding":   e.grounding,
+			"tool":        e.src.Tool,
+			"label":       e.label,
+			"command":     e.command,
+			"stdout":      emptyNil(e.src.Stdout),
+			"stderr":      emptyNil(e.src.Stderr),
+			"exit_code":   e.src.ExitCode,
+			"status":      e.src.Status,
+			"duration_ms": e.src.DurationMs,
+			"at":          emptyNil(e.src.At),
+			"reasoning":   emptyNil(e.src.Reasoning),
+			"model":       emptyNil(e.src.Model),
 		}
 		// Bash's full input is `command`; other tools carry their structured input in `args`.
 		if e.src.Tool != "bash" {
@@ -158,7 +154,7 @@ func RenderIndex(full *client.FullResponse) string {
 	}
 	add(fmt.Sprintf("- **Thread / Session:** `%s` / `%s`", r.ThreadID, r.SessionID))
 	add(fmt.Sprintf("- **Created / Finished:** %s / %s", orQ(r.CreatedAt), orParen(r.FinishedAt, "unfinished")))
-	add(fmt.Sprintf("- **Model:** `%s` · **Cost:** %s · **Tokens:** %d", orQ(model), orQ(cost(r.RunCostUSD)), r.RunTotalTokens))
+	add(fmt.Sprintf("- **Model:** `%s`", orQ(model)))
 	steps := fmt.Sprintf("- **Steps:** %d main", len(main))
 	if len(pre) > 0 {
 		steps += fmt.Sprintf(" + %d grounding", len(pre))
@@ -498,7 +494,8 @@ func renderOutcome(r client.RunHeader) []string {
 var grepRx = regexp.MustCompile(`^\s*(rg|grep|egrep|fgrep)\b`)
 
 // flags surfaces where "why did it do that" questions are likely to live: errors, failed steps, blocked
-// egress, repeated commands, cost spikes, large output. A trimmed port of the shared renderer's flags().
+// egress, repeated commands, one turn dominating the wall clock, large output. A trimmed port of the
+// shared renderer's flags().
 func flags(full *client.FullResponse, events []decEvent) []string {
 	r := full.Run
 	var out []string
@@ -547,19 +544,20 @@ func flags(full *client.FullResponse, events []decEvent) []string {
 		}
 	}
 
-	// Cost spikes: a turn well above the median paid turn.
-	var costs []float64
+	// Duration spikes: one turn that dominated the wall clock — the "why did this run take so long"
+	// pointer. Needs ≥4 timed turns for a meaningful median, and ≥1s so millisecond noise never flags.
+	var durs []float64
 	for _, e := range events {
-		if e.src.CostUSD > 0 {
-			costs = append(costs, e.src.CostUSD)
+		if e.src.DurationMs > 0 {
+			durs = append(durs, float64(e.src.DurationMs))
 		}
 	}
-	if len(costs) >= 4 {
-		med := median(costs)
+	if len(durs) >= 4 {
+		med := median(durs)
 		for _, e := range events {
-			c := e.src.CostUSD
-			if c > 0 && med > 0 && c > 4*med && c > 0.01 {
-				out = append(out, fmt.Sprintf("[%s] cost spike %s (%.0f× median turn)", e.disp, cost(c), c/med))
+			d := float64(e.src.DurationMs)
+			if d > 0 && med > 0 && d > 4*med && d >= 1000 {
+				out = append(out, fmt.Sprintf("[%s] slow turn %s (%.0f× median turn)", e.disp, dur(e.src.DurationMs), d/med))
 			}
 		}
 	}
@@ -614,20 +612,6 @@ func emptyNil(s string) any {
 		return nil
 	}
 	return s
-}
-
-func numOrNil(v float64) any {
-	if v == 0 {
-		return nil
-	}
-	return v
-}
-
-func int64OrNil(v int64) any {
-	if v == 0 {
-		return nil
-	}
-	return v
 }
 
 func notesJSON(notes []client.Note) []map[string]any {

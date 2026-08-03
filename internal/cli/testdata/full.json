@@ -20,8 +20,6 @@
     "created_at": "2026-06-19T09:00:00Z",
     "finished_at": "2026-06-19T09:01:30Z",
     "model": "claude-opus-4-8",
-    "run_cost_usd": 1.08,
-    "run_total_tokens": 4210,
     "draft": "You have 2 open invoices totalling $480.",
     "notes": [
       { "key": "proposals", "body": "" },
@@ -122,8 +120,6 @@
       "at": "2026-06-19T09:00:10Z",
       "command": "psql -c 'select count(*) from invoices where paid is false'",
       "stdout": "2\n",
-      "cost_usd": 0.42,
-      "total_tokens": 1800,
       "model": "claude-opus-4-8"
     },
     {
@@ -136,8 +132,6 @@
       "args": { "channel": "email" },
       "has_draft": true,
       "has_note": true,
-      "cost_usd": 0.66,
-      "total_tokens": 2410,
       "model": "claude-opus-4-8"
     }
   ]

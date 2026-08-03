@@ -7,7 +7,6 @@ Kind:      prompt
 Created:   2026-06-19T09:00:00Z
 Finished:  2026-06-19T09:01:30Z
 Duration:  1m30s
-Cost:      $1.08
 Turns:     12
 Bash:      34
 View run:  https://app.replypen.com/runs/email-rich?t=abc123
@@ -32,5 +31,4 @@ PR:
   URL:    https://github.com/acme/billing/pull/7
 
 Metadata:
-  tokens:     4210
   trace_url:  https://trace.example/email-rich

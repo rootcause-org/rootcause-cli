@@ -30,9 +30,6 @@
         "blocked_egress": 2,
         "grounding_discarded": true,
         "no_journal": true,
-        "cost_usd": 0.92,
-        "total_tokens": 180000,
-        "peak_context_tokens": 64000,
         "model": "anthropic/claude-opus-4",
         "is_fallback": true,
         "planned_model": "anthropic/claude-sonnet-4"
@@ -62,9 +59,6 @@
         "blocked_egress": 0,
         "grounding_discarded": false,
         "no_journal": false,
-        "cost_usd": 0.05,
-        "total_tokens": 20000,
-        "peak_context_tokens": 12000,
         "model": "anthropic/claude-sonnet-4"
       }
     }
