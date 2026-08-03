@@ -98,4 +98,16 @@ func TestTurnSpikesFlagOutliers(t *testing.T) {
 	if s := turnSpikes(runs[:3]); len(s) != 0 {
 		t.Fatalf("expected no spikes below the 4-run baseline, got %v", s)
 	}
+
+	// Zero-turn rows (still running, died before turn 1, no health block) must not join the sample:
+	// counting them as 0 would halve the median and flag an ordinary run.
+	noHealth := client.RunSummary{RunID: "nh", Kind: "analysis", Status: "running"}
+	mixed := []client.RunSummary{run("a", 4), run("b", 5), run("c", 4), run("d", 6), run("z", 0), noHealth}
+	if s := turnSpikes(mixed); len(s) != 0 {
+		t.Fatalf("zero-turn rows must not pull the median down, got %v", s)
+	}
+	// …and they must not starve a kind of its baseline either: 4 turned runs still spike.
+	if s := turnSpikes(append(mixed, run("heavy", 40))); !s["heavy"] || len(s) != 1 {
+		t.Fatalf("expected only heavy to spike, got %v", s)
+	}
 }

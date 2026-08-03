@@ -1147,14 +1147,10 @@ func sortedKeys(m map[string]client.SourceCount) []string {
 	return keys
 }
 
-// suppressedMetadataKeys never reach a rendered surface: outcome/run_url already have dedicated rows,
-// and the spend/token keys are barred product-wide (a server that still emits them must not leak them
-// through this passthrough).
-var suppressedMetadataKeys = map[string]bool{
-	"outcome": true, "run_url": true,
-	"total_cost_usd": true, "cost_usd": true, "run_cost_usd": true,
-	"tokens": true, "total_tokens": true, "run_total_tokens": true, "peak_context_tokens": true,
-}
+// suppressedMetadataKeys never reach a rendered surface: outcome/run_url already have dedicated rows.
+// The spend/token keys are barred product-wide and live in client.SpendMetadataKey, shared with the
+// other passthrough (debugdump's JSONL run header).
+var suppressedMetadataKeys = map[string]bool{"outcome": true, "run_url": true}
 
 func sortedMetadataKeys(m map[string]any) []string {
 	if len(m) == 0 {
@@ -1163,7 +1159,7 @@ func sortedMetadataKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		switch {
-		case suppressedMetadataKeys[k]:
+		case suppressedMetadataKeys[k] || client.SpendMetadataKey(k):
 			continue
 		default:
 			keys = append(keys, k)

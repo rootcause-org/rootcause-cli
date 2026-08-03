@@ -20,3 +20,15 @@ func TestAutoModePreservedThroughWriterDecorator(t *testing.T) {
 		t.Fatal("writer decorator changed auto output mode")
 	}
 }
+
+// A server still emitting spend/token metadata must not leak it through the freeform passthrough.
+func TestMetadataPassthroughDropsSpendKeys(t *testing.T) {
+	md := map[string]any{
+		"total_cost_usd": 1.23, "cost_usd": 0.4, "tokens": 900, "peak_context_tokens": 50000,
+		"outcome": "answered", "run_url": "https://x", "channel": "email",
+	}
+	got := sortedMetadataKeys(md)
+	if len(got) != 1 || got[0] != "channel" {
+		t.Fatalf("metadata keys = %v, want only [channel]", got)
+	}
+}

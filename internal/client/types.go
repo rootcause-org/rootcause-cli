@@ -263,7 +263,7 @@ type ActionExecResponse struct {
 
 // RunSummary is one row of GET /api/v1/runs. FinishedAt/DurationMs are absent on an unfinished run.
 // Topic/DeclinedReason and the Health block are operator-tier extras the server attaches for a
-// developer/admin bearer — `rc fleet runs` reads them for the digest's flags + cost. They're absent (zero/nil)
+// developer/admin bearer — `rc fleet runs` reads them for the digest's flags. They're absent (zero/nil)
 // for a baseline bearer, so the digest degrades to the safe columns rather than erroring.
 type RunSummary struct {
 	RunID          string     `json:"run_id"`
@@ -707,6 +707,18 @@ type FullResponse struct {
 	Run    RunHeader   `json:"run"`
 	Events []EventItem `json:"events"`
 }
+
+// spendMetadataKeys are the freeform run-metadata keys that carry LLM spend or token counts. The typed
+// DTOs dropped those fields, but `metadata` is a passthrough map: an older server still emitting them
+// would otherwise reach a rendered surface or a debug dump. Every metadata passthrough filters on this.
+var spendMetadataKeys = map[string]bool{
+	"cost_usd": true, "total_cost_usd": true, "run_cost_usd": true, "max_run_usd_spent": true,
+	"tokens": true, "total_tokens": true, "run_total_tokens": true, "peak_context_tokens": true,
+	"input_tokens": true, "output_tokens": true,
+}
+
+// SpendMetadataKey reports whether a run-metadata key must never be rendered (spend / token counts).
+func SpendMetadataKey(k string) bool { return spendMetadataKeys[k] }
 
 // BrainDiffFile is one path the run's journal commit touched, with its line churn. Additions is -1 for
 // a binary file (the server's numstat "-" → -1, distinct from a real 0).

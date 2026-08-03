@@ -247,13 +247,19 @@ func isStuck(r client.RunSummary, now time.Time) bool {
 }
 
 // turnSpikes returns the set of run ids whose turn count > 3× the median turns of same-kind runs in the
-// window — the one flag the server can't precompute (needs a median). Only kinds with ≥4 runs get a
-// baseline. Empty when the rows carry no turn data.
+// window — the one flag the server can't precompute (needs a median). Only kinds with ≥4 TURNED runs get
+// a baseline. Zero-turn rows (a still-running run, a run that died before its first turn, a bearer with
+// no health block) are excluded from the sample: counting them as 0 would drag the median down and flag
+// ordinary runs, and it would disagree with the aggregate block's median. Empty when there's no turn data.
 func turnSpikes(runs []client.RunSummary) map[string]bool {
 	byKind := map[string][]int64{}
 	idsByKind := map[string][]string{}
 	for _, r := range runs {
-		byKind[r.Kind] = append(byKind[r.Kind], turnsOf(r))
+		t := turnsOf(r)
+		if t <= 0 {
+			continue
+		}
+		byKind[r.Kind] = append(byKind[r.Kind], t)
 		idsByKind[r.Kind] = append(idsByKind[r.Kind], r.RunID)
 	}
 	spikes := map[string]bool{}

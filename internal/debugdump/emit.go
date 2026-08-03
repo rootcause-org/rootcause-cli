@@ -622,11 +622,23 @@ func notesJSON(notes []client.Note) []map[string]any {
 	return out
 }
 
+// metadataJSON passes the run's freeform metadata into the JSONL header, minus the spend/token keys an
+// older server may still emit — the dump is a read surface like any other.
 func metadataJSON(m map[string]any) any {
 	if len(m) == 0 {
 		return nil
 	}
-	return m
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		if client.SpendMetadataKey(k) {
+			continue
+		}
+		out[k] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func tenantSettingsJSON(raw string) any {
