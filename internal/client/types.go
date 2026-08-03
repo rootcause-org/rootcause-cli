@@ -308,14 +308,19 @@ func (r RunSummary) MarshalJSON() ([]byte, error) {
 // pointers — nil for a baseline bearer, so the digest's cost/$!/CTX columns simply blank out. Mirrors the
 // server's runIndexHealth field-for-field.
 type RunHealth struct {
-	Turns              int64 `json:"turns"`
-	GroundingTurns     int64 `json:"grounding_turns"`
-	BashTotal          int64 `json:"bash_total"`
-	BashErrCount       int64 `json:"bash_err_count"`
-	BigStdoutCount     int64 `json:"big_stdout_count"`
-	BlockedEgress      int64 `json:"blocked_egress"`
-	GroundingDiscarded bool  `json:"grounding_discarded"`
-	NoJournal          bool  `json:"no_journal"`
+	Turns          int64 `json:"turns"`
+	GroundingTurns int64 `json:"grounding_turns"`
+	BashTotal      int64 `json:"bash_total"`
+	BashErrCount   int64 `json:"bash_err_count"`
+	// BashErrRealCount / BashErrExploreCount split BashErrCount (real + explore = total): "explore" is
+	// benign exploration noise (rg/grep exit-1 no-match, grounding pre-step probes), "real" a genuine
+	// failure. Both zero on a pre-split server — render helpers fall back to BashErrCount as real.
+	BashErrRealCount    int64 `json:"bash_err_real_count"`
+	BashErrExploreCount int64 `json:"bash_err_explore_count"`
+	BigStdoutCount      int64 `json:"big_stdout_count"`
+	BlockedEgress       int64 `json:"blocked_egress"`
+	GroundingDiscarded  bool  `json:"grounding_discarded"`
+	NoJournal           bool  `json:"no_journal"`
 	// IsFallback is the CLEAN model-fallback signal (run_health.is_fallback): the loop swapped the
 	// planned model for a different one that answered. SAFE (a boolean) so it rides for any bearer —
 	// it drives the digest's fallback flag (FB) + the model×cost×fallback breakdown. The empty-string-

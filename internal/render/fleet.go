@@ -43,7 +43,7 @@ const stuckRunAfter = 30 * time.Minute
 const DefaultCtxWarn = 50_000
 
 // fleetLegend is the human flag legend (runs_digest.py FLAG_LEGEND, condensed for the terminal).
-const fleetLegend = `Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=failing bash · ` +
+const fleetLegend = `Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · ` +
 	`BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn · ` +
 	`FB=model fallback (planned model failed) · LRN=dream-cycle learning signal`
 
@@ -99,7 +99,7 @@ func fleetTotal(w io.Writer, groups []FleetGroup) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "  PROJECT\tRUNS\tERR\tCOST\tAVG_S\tMAX_S\tBASH_ERR\tEGR\tGD\tJ0")
 	for _, g := range groups {
-		var gerr, gbashErr, gegr, ggd, gj0 int
+		var gerr, gbashErr, gbashExplore, gegr, ggd, gj0 int
 		var gcost, gsecsSum, gmaxSecs float64
 		var gsecsN int
 		for _, r := range g.Runs {
@@ -115,7 +115,8 @@ func fleetTotal(w io.Writer, groups []FleetGroup) {
 				}
 			}
 			if r.Health != nil {
-				gbashErr += int(r.Health.BashErrCount)
+				gbashErr += int(realBashErr(r))
+				gbashExplore += int(exploreBashErr(r))
 				if r.Health.BlockedEgress > 0 {
 					gegr++
 				}
@@ -131,9 +132,9 @@ func fleetTotal(w io.Writer, groups []FleetGroup) {
 		if gsecsN > 0 {
 			avgSecs = gsecsSum / float64(gsecsN)
 		}
-		_, _ = fmt.Fprintf(tw, "  %s\t%d\t%d\t%s\t%s\t%s\t%d\t%d\t%d\t%d\n",
+		_, _ = fmt.Fprintf(tw, "  %s\t%d\t%d\t%s\t%s\t%s\t%s\t%d\t%d\t%d\n",
 			g.Project, len(g.Runs), gerr, costCell(gcost),
-			secsCell(avgSecs), secsCell(gmaxSecs), gbashErr, gegr, ggd, gj0)
+			secsCell(avgSecs), secsCell(gmaxSecs), bashErrCell(int64(gbashErr), int64(gbashExplore)), gegr, ggd, gj0)
 	}
 	_ = tw.Flush()
 }
@@ -174,6 +175,50 @@ func cost(r client.RunSummary) float64 {
 		return *r.Health.CostUSD
 	}
 	return 0
+}
+
+// realBashErr / exploreBashErr split the run's bash failures into genuine errors vs benign exploration
+// noise (rg/grep exit-1 no-match, grounding probes). A pre-split server sends only bash_err_count: with
+// both split fields zero we treat the total as real, so an old window still ranks the same as before.
+// The fallback lives ONLY here — every render + ranking path goes through these two.
+func realBashErr(r client.RunSummary) int64 {
+	if r.Health == nil {
+		return 0
+	}
+	return realBashErrH(r.Health)
+}
+
+func exploreBashErr(r client.RunSummary) int64 {
+	if r.Health == nil {
+		return 0
+	}
+	return r.Health.BashErrExploreCount
+}
+
+func realBashErrH(h *client.RunHealth) int64 {
+	if h.BashErrRealCount == 0 && h.BashErrExploreCount == 0 {
+		return h.BashErrCount
+	}
+	return h.BashErrRealCount
+}
+
+// bashErrToken renders the flag-style split token: "ERR×3", or "ERR×3 (+12 explore)" when there is
+// exploration noise. Callers gate on real>0 || explore>0 — it never renders an all-zero run.
+func bashErrToken(real, explore int64) string {
+	s := fmt.Sprintf("ERR×%d", real)
+	if explore > 0 {
+		s += fmt.Sprintf(" (+%d explore)", explore)
+	}
+	return s
+}
+
+// bashErrCell is the table-column form of the same split (the column header already says BASH_ERR).
+func bashErrCell(real, explore int64) string {
+	s := fmt.Sprintf("%d", real)
+	if explore > 0 {
+		s += fmt.Sprintf(" (+%d explore)", explore)
+	}
+	return s
 }
 
 // isFallback is the run's clean model-fallback signal (run_health.is_fallback). False when no health
@@ -253,8 +298,8 @@ func flags(r client.RunSummary, spikes map[string]bool, ctxWarn int) []string {
 		if r.Kind == "analysis" && h.NoJournal {
 			f = append(f, "J0")
 		}
-		if h.BashErrCount > 0 {
-			f = append(f, fmt.Sprintf("ERR×%d", h.BashErrCount))
+		if real, explore := realBashErr(r), exploreBashErr(r); real > 0 || explore > 0 {
+			f = append(f, bashErrToken(real, explore))
 		}
 		if h.BigStdoutCount > 0 {
 			f = append(f, fmt.Sprintf("BIG×%d", h.BigStdoutCount))
@@ -299,7 +344,7 @@ func severity(r client.RunSummary, spikes map[string]bool, ctxWarn int) int {
 		if r.Kind == "analysis" && r.Health.NoJournal {
 			s += 20
 		}
-		s += int(r.Health.BashErrCount) * 10
+		s += int(realBashErr(r)) * 10 // explore noise must not pull a healthy run onto the shortlist
 		s += int(r.Health.BigStdoutCount) * 5
 		if r.Health.GroundingDiscarded {
 			s += 3
@@ -589,7 +634,7 @@ func fleetOffenders(w io.Writer, runs []client.RunSummary, spikes map[string]boo
 		printed = true
 		_, _ = fmt.Fprintln(w, "  Top bash failures:")
 		for _, r := range topErr {
-			_, _ = fmt.Fprintf(w, "    %s ERR×%d — %s\n", r.RunID, r.Health.BashErrCount, offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s %s — %s\n", r.RunID, bashErrToken(realBashErr(r), exploreBashErr(r)), offenderTail(r))
 		}
 	}
 
@@ -656,8 +701,8 @@ func offenderTail(r client.RunSummary) string {
 		if r.Health.Turns > 0 {
 			parts = append(parts, fmt.Sprintf("%dt", r.Health.Turns))
 		}
-		if r.Health.BashErrCount > 0 {
-			parts = append(parts, fmt.Sprintf("ERR×%d", r.Health.BashErrCount))
+		if real, explore := realBashErr(r), exploreBashErr(r); real > 0 || explore > 0 {
+			parts = append(parts, bashErrToken(real, explore))
 		}
 	}
 	if pc := peakCtx(r); pc > 0 {
@@ -763,11 +808,11 @@ func topByCost(runs []client.RunSummary, n int) []client.RunSummary {
 func topByBashErr(runs []client.RunSummary, n int) []client.RunSummary {
 	var c []client.RunSummary
 	for _, r := range runs {
-		if r.Health != nil && r.Health.BashErrCount > 0 {
+		if realBashErr(r) > 0 {
 			c = append(c, r)
 		}
 	}
-	sort.SliceStable(c, func(i, j int) bool { return c[i].Health.BashErrCount > c[j].Health.BashErrCount })
+	sort.SliceStable(c, func(i, j int) bool { return realBashErr(c[i]) > realBashErr(c[j]) })
 	return clip(c, n)
 }
 

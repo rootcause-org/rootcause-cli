@@ -95,8 +95,12 @@ func healthFlags(h *client.RunHealth) string {
 	if h.BlockedEgress > 0 {
 		f = append(f, fmt.Sprintf("egress✗%d", h.BlockedEgress))
 	}
-	if h.BashErrCount > 0 {
-		f = append(f, fmt.Sprintf("basherr%d", h.BashErrCount))
+	if real, explore := realBashErrH(h), h.BashErrExploreCount; real > 0 || explore > 0 {
+		s := fmt.Sprintf("basherr%d", real)
+		if explore > 0 {
+			s += fmt.Sprintf(" (+%d explore)", explore)
+		}
+		f = append(f, s)
 	}
 	if h.GroundingDiscarded {
 		f = append(f, "grounding✗")

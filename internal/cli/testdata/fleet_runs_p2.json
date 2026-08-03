@@ -17,7 +17,7 @@
         "turns": 4,
         "grounding_turns": 1,
         "bash_total": 2,
-        "bash_err_count": 0,
+        "bash_err_count": 2,
         "big_stdout_count": 0,
         "blocked_egress": 0,
         "grounding_discarded": false,

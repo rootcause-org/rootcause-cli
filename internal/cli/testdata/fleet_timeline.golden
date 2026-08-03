@@ -1,11 +1,11 @@
 Fleet digest — last 7 days · fleet · 4 runs
 
-Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=failing bash · BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn · FB=model fallback (planned model failed) · LRN=dream-cycle learning signal
+Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · $!=cost > 3× same-kind median · EGR×n=blocked egress · CTX·Nk=peak context ≥ ctx-warn · FB=model fallback (planned model failed) · LRN=dream-cycle learning signal
 
 RUN8      KIND      STATUS  DURATION  COST     CTX  FLAGS
-aaaaaaaa  analysis  error   3m20s     $0.9200  64k  GD J0 ERR×3 BIG×1 $! EGR×2 CTX·64k FB LRN:feedback+triage_corrected
-aaaaaaaa  analysis  done    40.0s     $0.0500  12k  
-aaaaaaaa  analysis  done    30.0s     $0.0400  9k   
+aaaaaaaa  analysis  error   3m20s     $0.9200  64k  GD J0 ERR×3 (+12 explore) BIG×1 $! EGR×2 CTX·64k FB LRN:feedback+triage_corrected
+aaaaaaaa  analysis  done    40.0s     $0.0500  12k  ERR×0 (+12 explore)
+aaaaaaaa  analysis  done    30.0s     $0.0400  9k   ERR×2
 aaaaaaaa  analysis  done    25.0s     $0.0300  8k   
 
 Aggregate:
@@ -22,14 +22,15 @@ Daily timeline:
 
 Worst offenders (full ids — `rc run debug <id>`):
   Top cost:
-    aaaaaaaa-0000-0000-0000-000000000001 $0.9200 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
-    aaaaaaaa-0000-0000-0000-000000000002 $0.0500 — analysis, done · $0.0500 · 40s · 5t · ctx 12k
-    aaaaaaaa-0000-0000-0000-000000000003 $0.0400 — analysis, done · $0.0400 · 30s · 4t · ctx 9k
+    aaaaaaaa-0000-0000-0000-000000000001 $0.9200 — analysis, error · $0.9200 · 200s · 14t · ERR×3 (+12 explore) · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000002 $0.0500 — analysis, done · $0.0500 · 40s · 5t · ERR×0 (+12 explore) · ctx 12k
+    aaaaaaaa-0000-0000-0000-000000000003 $0.0400 — analysis, done · $0.0400 · 30s · 4t · ERR×2 · ctx 9k
   Top bash failures:
-    aaaaaaaa-0000-0000-0000-000000000001 ERR×3 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000001 ERR×3 (+12 explore) — analysis, error · $0.9200 · 200s · 14t · ERR×3 (+12 explore) · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000003 ERR×2 — analysis, done · $0.0400 · 30s · 4t · ERR×2 · ctx 9k
   Top context (rot risk):
-    aaaaaaaa-0000-0000-0000-000000000001 ctx 64k — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000001 ctx 64k — analysis, error · $0.9200 · 200s · 14t · ERR×3 (+12 explore) · ctx 64k · FB
   Blocked egress:
-    aaaaaaaa-0000-0000-0000-000000000001 EGR×2 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000001 EGR×2 — analysis, error · $0.9200 · 200s · 14t · ERR×3 (+12 explore) · ctx 64k · FB
   Model fallbacks:
-    aaaaaaaa-0000-0000-0000-000000000001 anthropic/claude-opus-4←anthropic/claude-sonnet-4 — analysis, error · $0.9200 · 200s · 14t · ERR×3 · ctx 64k · FB
+    aaaaaaaa-0000-0000-0000-000000000001 anthropic/claude-opus-4←anthropic/claude-sonnet-4 — analysis, error · $0.9200 · 200s · 14t · ERR×3 (+12 explore) · ctx 64k · FB
