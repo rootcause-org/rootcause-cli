@@ -242,7 +242,9 @@ stays compatible with the Python/shared renderer: line 1 `{"type":"run"…}` hea
 like `select(.disp=="23").command` keep working. `decorate` (dump.go) derives disp/label/command; `emit.go`
 writes both files. Historical `/trace` snapshots are authoritative (`brain_resolved`, `tenant_settings`,
 `grounding_sources`); current state is only a drift annotation (`grounding_source_drift_count`,
-`tenant_settings_drift`).
+`tenant_settings_drift`). KB grounding scope summaries preserve the server's split project/tenant
+visibility counts (`project_total`, `project_visible`, `project_hidden`, `tenant_total`,
+`total_visible`) so isolation checks remain visible in the thin Markdown index.
 
 ### Errors
 Any non-2xx → the client decodes `{"error":{code,message,details?}}` into a typed `APIError` and the CLI

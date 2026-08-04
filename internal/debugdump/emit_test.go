@@ -42,3 +42,21 @@ func TestHTMLFallbackDraftRendersInDebugDump(t *testing.T) {
 		t.Fatalf("jsonl draft = %q, want HTML draft", header.Draft)
 	}
 }
+
+func TestScopeSummaryRendersSplitKBCounts(t *testing.T) {
+	summary := scopeSummary(map[string]any{
+		"mode":            "tenant",
+		"tenant":          "yes_events",
+		"project_total":   220,
+		"project_visible": 206,
+		"project_hidden":  14,
+		"tenant_total":    8,
+		"total_visible":   214,
+		"hidden":          14,
+		"scoped":          true,
+	})
+	want := "mode=tenant tenant=yes_events project_total=220 project_visible=206 project_hidden=14 tenant_total=8 total_visible=214 hidden=14 scoped=true"
+	if summary != want {
+		t.Fatalf("scopeSummary() = %q, want %q", summary, want)
+	}
+}

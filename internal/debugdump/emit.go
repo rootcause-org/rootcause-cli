@@ -408,7 +408,13 @@ func groundingDetails(details map[string]any) string {
 
 func scopeSummary(scope map[string]any) string {
 	var parts []string
-	for _, k := range []string{"mode", "tenant", "visible", "total", "hidden", "scoped"} {
+	for _, k := range []string{
+		"mode", "tenant",
+		"project_total", "project_visible", "project_hidden",
+		"tenant_total", "total_visible",
+		"visible", "total",
+		"hidden", "scoped",
+	} {
 		if v, ok := scope[k]; ok {
 			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 		}
