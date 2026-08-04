@@ -135,6 +135,25 @@ func TestParseCorpusV2CurrentServerShape(t *testing.T) {
 	}
 }
 
+func TestParseCorpusV3StructuralMessages(t *testing.T) {
+	corpus := string(fixture(t, "harvest_corpus_v2.md"))
+	corpus = strings.Replace(corpus, "harvest_format: v2", "harvest_format: v3", 1)
+	corpus = strings.Replace(corpus, "---\n\n## Re:", "---\n\n## Harvest diagnostics\n\nAccepted: 2; rejected: 4.\n\n## Re:", 1)
+	corpus = strings.ReplaceAll(corpus, "**external (", "**inbound/contact (")
+	corpus = strings.ReplaceAll(corpus, "**mailbox (", "**outbound/human_admin (")
+	c, err := parseCorpus(corpus)
+	if err != nil {
+		t.Fatalf("parseCorpus v3: %v", err)
+	}
+	if len(c.threads) != 2 || c.threads[0].msgCount != 2 {
+		t.Fatalf("v3 threads/messages = %d/%d, want 2/2", len(c.threads), c.threads[0].msgCount)
+	}
+	if !strings.Contains(c.threads[0].body, "**inbound/contact (2025-02-10):**") ||
+		!strings.Contains(c.threads[0].body, "**outbound/human_admin (2025-02-18):**") {
+		t.Fatalf("v3 structural headers not preserved: %q", c.threads[0].body)
+	}
+}
+
 func TestParseCorpusValidatesDeclaredThreadCount(t *testing.T) {
 	for _, tt := range []struct {
 		name, corpus, oldCount, newCount, want string
@@ -172,6 +191,7 @@ func TestParseCorpusAllowsLegitimateZeroThreads(t *testing.T) {
 	for _, corpus := range []string{
 		"---\nharvest_format: v1\nthreads: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n",
 		"---\nharvest_format: v2\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n",
+		"---\nharvest_format: v3\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n\n## Harvest diagnostics\n\nAccepted: 0; rejected: 3.\n",
 	} {
 		parsed, err := parseCorpus(corpus)
 		if err != nil {
@@ -193,9 +213,9 @@ func TestParseCorpusRejectsBodyForDeclaredZeroThreads(t *testing.T) {
 // TestParseCorpusRejectsVersionDrift is the load-bearing guard: an unknown (or missing)
 // harvest_format must fail loudly so a future server render change can't be silently mis-parsed.
 func TestParseCorpusRejectsVersionDrift(t *testing.T) {
-	v3 := strings.Replace(splitTestCorpus, "harvest_format: v1", "harvest_format: v3", 1)
-	if _, err := parseCorpus(v3); err == nil || !strings.Contains(err.Error(), "unsupported harvest_format") {
-		t.Fatalf("expected an unsupported-version error for v3, got %v", err)
+	v4 := strings.Replace(splitTestCorpus, "harvest_format: v1", "harvest_format: v4", 1)
+	if _, err := parseCorpus(v4); err == nil || !strings.Contains(err.Error(), "unsupported harvest_format") {
+		t.Fatalf("expected an unsupported-version error for v4, got %v", err)
 	}
 
 	missing := strings.Replace(splitTestCorpus, "harvest_format: v1\n", "", 1)

@@ -862,7 +862,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 
 	// local-synthesis harvest/export (rc project mailbox harvest, rc project corpus ls/get/download). Harvest asserts the
 	// clean/max_threads body shape; a mailbox id "busy" drives the 409 HARVEST_IN_PROGRESS path. The export
-	// list/get echo canned fixtures; download returns raw Markdown (id "v2" selects the current renderer,
+	// list/get echo canned fixtures; download returns raw Markdown (ids "v2"/"v3" select versioned renderers,
 	// id "unsupported" simulates future drift, id "malformed" a known-format count mismatch, and id
 	// "missing" → 404 BODY_UNAVAILABLE).
 	// id "running-then-done" flips its export status once so the --wait poll loop terminates on the 2nd read.
@@ -933,11 +933,16 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		}
 		w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
 		body := fixture(t, "harvest_corpus.md")
-		if r.PathValue("id") == "v2" || r.PathValue("id") == "unsupported" || r.PathValue("id") == "malformed" {
+		if r.PathValue("id") == "v2" || r.PathValue("id") == "v3" || r.PathValue("id") == "unsupported" || r.PathValue("id") == "malformed" {
 			body = fixture(t, "harvest_corpus_v2.md")
 		}
-		if r.PathValue("id") == "unsupported" {
+		if r.PathValue("id") == "v3" {
 			body = bytes.Replace(body, []byte("harvest_format: v2"), []byte("harvest_format: v3"), 1)
+			body = bytes.ReplaceAll(body, []byte("**external ("), []byte("**inbound/contact ("))
+			body = bytes.ReplaceAll(body, []byte("**mailbox ("), []byte("**outbound/human_admin ("))
+		}
+		if r.PathValue("id") == "unsupported" {
+			body = bytes.Replace(body, []byte("harvest_format: v2"), []byte("harvest_format: v4"), 1)
 		}
 		if r.PathValue("id") == "malformed" {
 			body = bytes.Replace(body, []byte("unique_content: 2"), []byte("unique_content: 3"), 1)

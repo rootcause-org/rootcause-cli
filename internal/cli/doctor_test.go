@@ -92,14 +92,14 @@ func TestRenderDoctorHuman(t *testing.T) {
 		Binary:       binaryInfo{Path: "/usr/local/bin/rc", Version: "1.2.3", ModuleVersion: "v1.2.3", LDFlagsVersion: "1.2.3", Install: "release"},
 		Path:         []binaryInfo{{Path: "/usr/local/bin/rc", Version: "1.2.3", Install: "release", Active: true}},
 		Scope:        doctorScope{Profile: "default", Project: "acme", ProjectSource: ".rootcause.toml", Tenant: "-", BaseURL: "https://app.replypen.com", BaseURLSource: "built-in production"},
-		Capabilities: doctorCapabilities{HarvestCorpusFormats: []string{"v1", "v2"}},
+		Capabilities: doctorCapabilities{HarvestCorpusFormats: []string{"v1", "v2", "v3"}},
 		Update:       doctorUpdate{Current: "1.2.3", Latest: "v1.2.4", Available: true},
 	}
 	var out bytes.Buffer
 	if err := renderDoctorHuman(&out, report); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"This binary", "PATH scan", "Scope", "auth details:", "Capabilities", "harvest corpus formats:", "v1, v2", "Update", "1.2.3 → v1.2.4", "Findings: none"} {
+	for _, want := range []string{"This binary", "PATH scan", "Scope", "auth details:", "Capabilities", "harvest corpus formats:", "v1, v2, v3", "Update", "1.2.3 → v1.2.4", "Findings: none"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("human report missing %q:\n%s", want, out.String())
 		}
@@ -201,7 +201,7 @@ func TestDoctorUpdateCheckAndOfflineAreInformational(t *testing.T) {
 		if report.Update.Latest != "v9.9.9" || !report.Update.Available {
 			t.Fatalf("update = %#v", report.Update)
 		}
-		if strings.Join(report.Capabilities.HarvestCorpusFormats, ",") != "v1,v2" {
+		if strings.Join(report.Capabilities.HarvestCorpusFormats, ",") != "v1,v2,v3" {
 			t.Fatalf("capabilities = %#v", report.Capabilities)
 		}
 	})

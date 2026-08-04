@@ -288,7 +288,7 @@ func TestExportDownloadSplitFailurePreservesOut(t *testing.T) {
 	if readErr != nil {
 		t.Fatalf("read rescued raw corpus: %v", readErr)
 	}
-	if !strings.Contains(string(raw), "harvest_format: v3") || !strings.Contains(string(raw), "**Occurrences:** 2") {
+	if !strings.Contains(string(raw), "harvest_format: v4") || !strings.Contains(string(raw), "**Occurrences:** 2") {
 		t.Fatalf("rescued corpus does not match download:\n%s", raw)
 	}
 }

@@ -16,7 +16,7 @@ import (
 
 // supportedHarvestCorpusFormats are the server render shapes this splitter understands. Keep this list
 // in sync with the parser fixtures and rc self doctor, which advertises the same local capability.
-var supportedHarvestCorpusFormats = [...]string{"v1", "v2"}
+var supportedHarvestCorpusFormats = [...]string{"v1", "v2", "v3"}
 
 // splitThread is one parsed `## ` section: its header index, subject, span/participants (for the
 // index), and the verbatim section body (header line included) to write out.
@@ -82,10 +82,10 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 	// Markdown and may contain ordinary H2 lines; those must stay inside their owning thread.
 	sections := splitThreadSections(body)
 	if first := threadHeaderRe.FindStringIndex(body); first != nil {
-		if strings.TrimSpace(body[:first[0]]) != "" {
+		if prefix := strings.TrimSpace(body[:first[0]]); prefix != "" && !isV3DiagnosticsPreamble(format, prefix) {
 			return nil, fmt.Errorf("harvest_format %s has content before thread #1 — refusing a partial split", format)
 		}
-	} else if strings.TrimSpace(body) != "" {
+	} else if prefix := strings.TrimSpace(body); prefix != "" && !isV3DiagnosticsPreamble(format, prefix) {
 		return nil, fmt.Errorf("harvest_format %s declares %d threads but has no valid thread sections — refusing a partial split", format, expected)
 	}
 	for _, sec := range sections {
@@ -100,7 +100,7 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 			return nil, fmt.Errorf("harvest_format %s thread index is #%d, expected #%d — refusing a partial split", format, idx, wantIdx)
 		}
 		spanStart := firstSubmatch(spanRe, sec)
-		if format == "v2" && spanStart == "" {
+		if (format == "v2" || format == "v3") && spanStart == "" {
 			spanStart = firstSubmatch(messageDateRe, sec)
 		}
 		out.threads = append(out.threads, splitThread{
@@ -118,9 +118,13 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 	return out, nil
 }
 
+func isV3DiagnosticsPreamble(format, prefix string) bool {
+	return format == "v3" && strings.HasPrefix(prefix, "## Harvest diagnostics\n")
+}
+
 func expectedCorpusThreadCount(frontMatter map[string]string, format string) (int, error) {
 	field := "threads"
-	if format == "v2" {
+	if format == "v2" || format == "v3" {
 		field = "unique_content"
 	}
 	raw, ok := frontMatter[field]
