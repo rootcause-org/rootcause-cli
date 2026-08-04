@@ -145,7 +145,8 @@ requested window, warns on stderr if the client page cap is reached, then emits/
 
 Harvest corpus downloads (`rc project corpus download`, [`export.go`](internal/cli/export.go)) support
 server Markdown formats `v1`, `v2`, and structurally normalized `v3` in the client-side `--split`
-convenience path. `corpus ls|get`
+convenience path. A v3 split requires the complete counts-only diagnostic bundle and preserves it as
+`diagnostics.json` + `diagnostics.md`, linked from `INDEX.md`. `corpus ls|get`
 show the server's `format` projection before download, while `rc self doctor` advertises the formats the
 local splitter supports. The parser recognizes only anchored server thread headers and verifies their
 declared count and sequential indices before writing a tree. `--out` may be combined with `--split`; raw

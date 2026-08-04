@@ -937,9 +937,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 			body = fixture(t, "harvest_corpus_v2.md")
 		}
 		if r.PathValue("id") == "v3" {
-			body = bytes.Replace(body, []byte("harvest_format: v2"), []byte("harvest_format: v3"), 1)
-			body = bytes.ReplaceAll(body, []byte("**external ("), []byte("**inbound/contact ("))
-			body = bytes.ReplaceAll(body, []byte("**mailbox ("), []byte("**outbound/human_admin ("))
+			body = []byte(v3TestCorpus(t))
 		}
 		if r.PathValue("id") == "unsupported" {
 			body = bytes.Replace(body, []byte("harvest_format: v2"), []byte("harvest_format: v4"), 1)

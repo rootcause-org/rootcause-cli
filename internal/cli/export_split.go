@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // The splitter turns a downloaded harvest corpus (front-matter + one `## ` section per thread) into a
@@ -34,7 +36,25 @@ type splitCorpus struct {
 	mailbox     string
 	harvestedAt string
 	cleaned     string
+	diagnostics *splitDiagnostics
 	threads     []splitThread
+}
+
+type splitDiagnostics struct {
+	SchemaVersion    int                  `json:"schema_version"`
+	Available        bool                 `json:"available"`
+	AcceptedCount    int                  `json:"accepted_count"`
+	RejectionReasons map[string]int       `json:"rejection_reasons"`
+	ActorTypes       map[string]int       `json:"actor_types"`
+	InitiationTypes  map[string]int       `json:"initiation_types"`
+	CandidateBands   []splitCandidateBand `json:"candidate_bands"`
+	Deduplicated     int                  `json:"deduplicated"`
+}
+
+type splitCandidateBand struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+	Count int    `json:"count"`
 }
 
 var (
@@ -76,6 +96,12 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 	expected, err := expectedCorpusThreadCount(fm, format)
 	if err != nil {
 		return nil, err
+	}
+	if format == "v3" {
+		out.diagnostics, err = parseV3Diagnostics(fm, expected)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Only renderer thread headers (`## <subject> — #<n>`) begin sections. Message bodies are arbitrary
@@ -120,6 +146,104 @@ func parseCorpus(corpus string) (*splitCorpus, error) {
 
 func isV3DiagnosticsPreamble(format, prefix string) bool {
 	return format == "v3" && strings.HasPrefix(prefix, "## Harvest diagnostics\n")
+}
+
+var diagnosticCategoryRe = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
+
+func parseV3Diagnostics(frontMatter map[string]string, uniqueContent int) (*splitDiagnostics, error) {
+	required := []string{"accepted_count", "rejection_reasons", "actor_types", "initiation_types", "candidate_bands", "deduplicated"}
+	for _, field := range required {
+		if _, ok := frontMatter[field]; !ok {
+			return nil, fmt.Errorf("harvest_format v3 front-matter missing %s — refusing to split incomplete diagnostics", field)
+		}
+	}
+	accepted, err := parseNonNegativeInt(frontMatter["accepted_count"], "accepted_count")
+	if err != nil {
+		return nil, err
+	}
+	if accepted < uniqueContent {
+		return nil, fmt.Errorf("harvest_format v3 accepted_count %d is smaller than unique_content %d", accepted, uniqueContent)
+	}
+	deduplicated, err := parseNonNegativeInt(frontMatter["deduplicated"], "deduplicated")
+	if err != nil {
+		return nil, err
+	}
+	rejections, err := parseDiagnosticCounts(frontMatter["rejection_reasons"], "rejection_reasons")
+	if err != nil {
+		return nil, err
+	}
+	actors, err := parseDiagnosticCounts(frontMatter["actor_types"], "actor_types")
+	if err != nil {
+		return nil, err
+	}
+	initiations, err := parseDiagnosticCounts(frontMatter["initiation_types"], "initiation_types")
+	if err != nil {
+		return nil, err
+	}
+	bands, err := parseDiagnosticBands(frontMatter["candidate_bands"])
+	if err != nil {
+		return nil, err
+	}
+	return &splitDiagnostics{
+		SchemaVersion: 1, Available: true, AcceptedCount: accepted, RejectionReasons: rejections,
+		ActorTypes: actors, InitiationTypes: initiations, CandidateBands: bands, Deduplicated: deduplicated,
+	}, nil
+}
+
+func parseNonNegativeInt(raw, field string) (int, error) {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 0 || strconv.Itoa(value) != raw {
+		return 0, fmt.Errorf("harvest_format v3 front-matter has invalid %s %q", field, raw)
+	}
+	return value, nil
+}
+
+func parseDiagnosticCounts(raw, field string) (map[string]int, error) {
+	var counts map[string]int
+	if err := json.Unmarshal([]byte(raw), &counts); err != nil || counts == nil {
+		return nil, fmt.Errorf("harvest_format v3 %s must be a JSON object of category counts", field)
+	}
+	for category, count := range counts {
+		if !diagnosticCategoryRe.MatchString(category) || count < 0 {
+			return nil, fmt.Errorf("harvest_format v3 %s contains invalid category/count %q=%d", field, category, count)
+		}
+	}
+	return counts, nil
+}
+
+func parseDiagnosticBands(raw string) ([]splitCandidateBand, error) {
+	var objects []map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &objects); err != nil || objects == nil {
+		return nil, fmt.Errorf("harvest_format v3 candidate_bands must be a JSON array")
+	}
+	bands := make([]splitCandidateBand, 0, len(objects))
+	var previousEnd time.Time
+	for i, object := range objects {
+		if len(object) != 3 || object["start"] == nil || object["end"] == nil || object["count"] == nil {
+			return nil, fmt.Errorf("harvest_format v3 candidate_bands[%d] must contain only start/end/count", i)
+		}
+		var band splitCandidateBand
+		if err := json.Unmarshal(object["start"], &band.Start); err != nil {
+			return nil, fmt.Errorf("harvest_format v3 candidate_bands[%d].start must be a UTC timestamp", i)
+		}
+		if err := json.Unmarshal(object["end"], &band.End); err != nil {
+			return nil, fmt.Errorf("harvest_format v3 candidate_bands[%d].end must be a UTC timestamp", i)
+		}
+		if err := json.Unmarshal(object["count"], &band.Count); err != nil || band.Count < 0 {
+			return nil, fmt.Errorf("harvest_format v3 candidate_bands[%d].count must be non-negative", i)
+		}
+		start, errStart := time.Parse(time.RFC3339, band.Start)
+		end, errEnd := time.Parse(time.RFC3339, band.End)
+		if errStart != nil || !strings.HasSuffix(band.Start, "Z") || errEnd != nil || !strings.HasSuffix(band.End, "Z") || !start.Before(end) {
+			return nil, fmt.Errorf("harvest_format v3 candidate_bands[%d] must be a non-empty UTC [start,end) band", i)
+		}
+		if !previousEnd.IsZero() && start.Before(previousEnd) {
+			return nil, fmt.Errorf("harvest_format v3 candidate_bands must be sorted and non-overlapping")
+		}
+		previousEnd = end
+		bands = append(bands, band)
+	}
+	return bands, nil
 }
 
 func expectedCorpusThreadCount(frontMatter map[string]string, format string) (int, error) {

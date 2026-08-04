@@ -1,9 +1,11 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -189,6 +191,19 @@ func splitExport(exportID string, corpus []byte, dir string) (*splitResult, erro
 	fallbackMonth := monthOf(parsed.harvestedAt)
 	var index strings.Builder
 	writeIndexHeader(&index, exportID, parsed)
+	if parsed.diagnostics != nil {
+		raw, err := json.MarshalIndent(parsed.diagnostics, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("encode diagnostics: %w", err)
+		}
+		raw = append(raw, '\n')
+		if err := os.WriteFile(filepath.Join(dir, "diagnostics.json"), raw, 0o644); err != nil {
+			return nil, fmt.Errorf("write diagnostics.json: %w", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "diagnostics.md"), []byte(renderSplitDiagnostics(parsed.diagnostics)), 0o644); err != nil {
+			return nil, fmt.Errorf("write diagnostics.md: %w", err)
+		}
+	}
 
 	for _, t := range parsed.threads {
 		name := threadFileName(t, fallbackMonth)
@@ -228,9 +243,51 @@ func writeIndexHeader(b *strings.Builder, exportID string, c *splitCorpus) {
 	if c.cleaned != "" {
 		fmt.Fprintf(b, "- cleaned: %s\n", c.cleaned)
 	}
+	if c.diagnostics != nil {
+		fmt.Fprintf(b, "- accepted: %d\n", c.diagnostics.AcceptedCount)
+		fmt.Fprintf(b, "- rejected: %d\n", sumDiagnosticCounts(c.diagnostics.RejectionReasons))
+		fmt.Fprintf(b, "- deduplicated_candidates: %d\n", c.diagnostics.Deduplicated)
+		b.WriteString("- diagnostics: [human](diagnostics.md), [machine](diagnostics.json)\n")
+	}
 	fmt.Fprintf(b, "- threads: %d\n\n", len(c.threads))
 	b.WriteString("| span | domains | subject | msgs | file |\n")
 	b.WriteString("|---|---|---|---|---|\n")
+}
+
+func renderSplitDiagnostics(d *splitDiagnostics) string {
+	var b strings.Builder
+	b.WriteString("# Harvest diagnostics\n\n")
+	fmt.Fprintf(&b, "Accepted: %d; rejected: %d; deduplicated candidates: %d.\n", d.AcceptedCount, sumDiagnosticCounts(d.RejectionReasons), d.Deduplicated)
+	writeSplitDiagnosticCounts(&b, "Rejection reasons", d.RejectionReasons)
+	writeSplitDiagnosticCounts(&b, "Actor types", d.ActorTypes)
+	writeSplitDiagnosticCounts(&b, "Initiation types", d.InitiationTypes)
+	if len(d.CandidateBands) > 0 {
+		b.WriteString("\nCandidate bands:\n")
+		for _, band := range d.CandidateBands {
+			fmt.Fprintf(&b, "- %s..%s: %d\n", band.Start, band.End, band.Count)
+		}
+	}
+	return b.String()
+}
+
+func writeSplitDiagnosticCounts(b *strings.Builder, title string, counts map[string]int) {
+	keys := make([]string, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	fmt.Fprintf(b, "\n%s:\n", title)
+	for _, key := range keys {
+		fmt.Fprintf(b, "- %s: %d\n", key, counts[key])
+	}
+}
+
+func sumDiagnosticCounts(counts map[string]int) int {
+	total := 0
+	for _, count := range counts {
+		total += count
+	}
+	return total
 }
 
 // writeIndexRow writes one INDEX.md table row for a thread: its span start, participant domains,

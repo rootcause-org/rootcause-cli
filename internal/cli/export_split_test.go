@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -136,11 +138,7 @@ func TestParseCorpusV2CurrentServerShape(t *testing.T) {
 }
 
 func TestParseCorpusV3StructuralMessages(t *testing.T) {
-	corpus := string(fixture(t, "harvest_corpus_v2.md"))
-	corpus = strings.Replace(corpus, "harvest_format: v2", "harvest_format: v3", 1)
-	corpus = strings.Replace(corpus, "---\n\n## Re:", "---\n\n## Harvest diagnostics\n\nAccepted: 2; rejected: 4.\n\n## Re:", 1)
-	corpus = strings.ReplaceAll(corpus, "**external (", "**inbound/contact (")
-	corpus = strings.ReplaceAll(corpus, "**mailbox (", "**outbound/human_admin (")
+	corpus := v3TestCorpus(t)
 	c, err := parseCorpus(corpus)
 	if err != nil {
 		t.Fatalf("parseCorpus v3: %v", err)
@@ -152,6 +150,65 @@ func TestParseCorpusV3StructuralMessages(t *testing.T) {
 		!strings.Contains(c.threads[0].body, "**outbound/human_admin (2025-02-18):**") {
 		t.Fatalf("v3 structural headers not preserved: %q", c.threads[0].body)
 	}
+	if c.diagnostics == nil || c.diagnostics.AcceptedCount != 3 || c.diagnostics.RejectionReasons["automation_only"] != 4 || len(c.diagnostics.CandidateBands) != 2 {
+		t.Fatalf("v3 diagnostics = %+v", c.diagnostics)
+	}
+}
+
+func TestParseCorpusV3RequiresCompleteDiagnostics(t *testing.T) {
+	missing := strings.Replace(v3TestCorpus(t), "actor_types: {\"automation\":2,\"contact\":5,\"human_admin\":3}\n", "", 1)
+	if _, err := parseCorpus(missing); err == nil || !strings.Contains(err.Error(), "missing actor_types") {
+		t.Fatalf("missing diagnostics error = %v", err)
+	}
+	overlap := strings.Replace(v3TestCorpus(t),
+		`{"start":"2025-02-01T00:00:00Z","end":"2025-03-01T00:00:00Z","count":5}`,
+		`{"start":"2025-01-15T00:00:00Z","end":"2025-03-01T00:00:00Z","count":5}`, 1)
+	if _, err := parseCorpus(overlap); err == nil || !strings.Contains(err.Error(), "sorted and non-overlapping") {
+		t.Fatalf("overlapping bands error = %v", err)
+	}
+}
+
+func TestSplitExportPreservesV3Diagnostics(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "split")
+	if _, err := splitExport("export-test", []byte(v3TestCorpus(t)), dir); err != nil {
+		t.Fatalf("splitExport: %v", err)
+	}
+	machine, err := os.ReadFile(filepath.Join(dir, "diagnostics.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(machine), `"schema_version": 1`) || !strings.Contains(string(machine), `"automation_only": 4`) {
+		t.Fatalf("machine diagnostics = %s", machine)
+	}
+	human, err := os.ReadFile(filepath.Join(dir, "diagnostics.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(human), "Accepted: 3; rejected: 4; deduplicated candidates: 1.") {
+		t.Fatalf("human diagnostics = %s", human)
+	}
+	index, err := os.ReadFile(filepath.Join(dir, "INDEX.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(index), "[machine](diagnostics.json)") {
+		t.Fatalf("index diagnostics link missing: %s", index)
+	}
+}
+
+func v3TestCorpus(t *testing.T) string {
+	t.Helper()
+	corpus := string(fixture(t, "harvest_corpus_v2.md"))
+	corpus = strings.Replace(corpus, "harvest_format: v2", `harvest_format: v3
+accepted_count: 3
+rejection_reasons: {"automation_only":4}
+actor_types: {"automation":2,"contact":5,"human_admin":3}
+initiation_types: {"customer_initiated":7}
+candidate_bands: [{"start":"2025-01-01T00:00:00Z","end":"2025-02-01T00:00:00Z","count":4},{"start":"2025-02-01T00:00:00Z","end":"2025-03-01T00:00:00Z","count":5}]
+deduplicated: 1`, 1)
+	corpus = strings.Replace(corpus, "---\n\n## Re:", "---\n\n## Harvest diagnostics\n\nAccepted: 3; rejected: 4; deduplicated candidates: 1.\n\n## Re:", 1)
+	corpus = strings.ReplaceAll(corpus, "**external (", "**inbound/contact (")
+	return strings.ReplaceAll(corpus, "**mailbox (", "**outbound/human_admin (")
 }
 
 func TestParseCorpusValidatesDeclaredThreadCount(t *testing.T) {
@@ -191,7 +248,7 @@ func TestParseCorpusAllowsLegitimateZeroThreads(t *testing.T) {
 	for _, corpus := range []string{
 		"---\nharvest_format: v1\nthreads: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n",
 		"---\nharvest_format: v2\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n",
-		"---\nharvest_format: v3\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\n---\n\n## Harvest diagnostics\n\nAccepted: 0; rejected: 3.\n",
+		"---\nharvest_format: v3\nunique_content: 0\nharvested_at: 2026-07-19T10:00:00Z\naccepted_count: 0\nrejection_reasons: {\"no_contact_message\":3}\nactor_types: {}\ninitiation_types: {}\ncandidate_bands: []\ndeduplicated: 0\n---\n\n## Harvest diagnostics\n\nAccepted: 0; rejected: 3.\n",
 	} {
 		parsed, err := parseCorpus(corpus)
 		if err != nil {
