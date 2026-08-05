@@ -1,0 +1,10 @@
+# Run patterns — last 14 days
+
+> **Pattern mining needs project-admin trace access.**
+> The feed rows arrived without the reasoning/output/command fields these clusters are built
+> from, so anything below is incomplete — it is NOT evidence of a healthy fleet.
+
+0 failing bash events · 0 blocked egress rows · 0 HTTP attempts · 0 events scanned
+Rank by: cross-run reach · frequency. Failure and anomaly patterns end in a suggested-fix stub.
+
+_(no patterns minable — trace detail withheld, not a clean fleet)_

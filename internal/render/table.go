@@ -564,6 +564,11 @@ func truncate(s string, max int) string {
 func Events(w io.Writer, resp *client.EventsResponse) {
 	_, _ = fmt.Fprintf(w, "Run: %s\n", resp.RunID)
 	if len(resp.Events) == 0 {
+		// A redacted response is an empty list too — never let it read as "this run did nothing".
+		if resp.DetailRedacted {
+			_, _ = fmt.Fprintln(w, RedactedTraceNotice)
+			return
+		}
 		_, _ = fmt.Fprintln(w, "No events.")
 		return
 	}
@@ -681,8 +686,31 @@ func Full(w io.Writer, f *client.FullResponse) {
 		_ = etw.Flush()
 	}
 
-	_, _ = fmt.Fprintf(w, "\nTimeline (%d):\n", len(f.Events))
-	for i, e := range f.Events {
+	// Withheld detail replaces the timeline rather than printing "Timeline (0):" — a sparse bundle from a
+	// non-admin token is otherwise indistinguishable from a run that made no tool calls. The draft/notes
+	// below still render: they are not part of what redaction withholds.
+	redacted := f.Redacted() && len(f.Events) == 0
+	if redacted {
+		_, _ = fmt.Fprintf(w, "\n%s\n", RedactedTraceNotice)
+		_, _ = fmt.Fprintln(w, "Events, prompts, and grounding are not served to this token.")
+	} else {
+		renderTimeline(w, f.Events)
+	}
+
+	if r.SystemPrompt != "" {
+		_, _ = fmt.Fprintf(w, "\nSystem prompt:\n%s\n", r.SystemPrompt)
+	}
+	if r.Draft != "" {
+		_, _ = fmt.Fprintf(w, "\nDraft:\n%s\n", r.Draft)
+	}
+	for _, n := range r.Notes {
+		_, _ = fmt.Fprintf(w, "\nNote (%s):\n%s\n", n.Key, n.Body)
+	}
+}
+
+func renderTimeline(w io.Writer, events []client.EventItem) {
+	_, _ = fmt.Fprintf(w, "\nTimeline (%d):\n", len(events))
+	for i, e := range events {
 		_, _ = fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
 			i+1, eventTool(e.Tool, e.Label), e.Status, e.ExitCode, duration(e.DurationMs), e.At)
 		if meta := eventModelLine(&e); meta != "" {
@@ -706,16 +734,6 @@ func Full(w io.Writer, f *client.FullResponse) {
 		if e.Stderr != "" {
 			_, _ = fmt.Fprintf(w, "    stderr: %s\n", indentBlock(e.Stderr))
 		}
-	}
-
-	if r.SystemPrompt != "" {
-		_, _ = fmt.Fprintf(w, "\nSystem prompt:\n%s\n", r.SystemPrompt)
-	}
-	if r.Draft != "" {
-		_, _ = fmt.Fprintf(w, "\nDraft:\n%s\n", r.Draft)
-	}
-	for _, n := range r.Notes {
-		_, _ = fmt.Fprintf(w, "\nNote (%s):\n%s\n", n.Key, n.Body)
 	}
 }
 

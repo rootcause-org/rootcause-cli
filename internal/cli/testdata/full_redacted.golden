@@ -1,0 +1,14 @@
+Run:       redacted
+Status:    done
+Kind:      email
+Trigger:   email
+Model:     claude-opus-5
+Created:   2026-06-19T08:10:00Z
+Finished:  2026-06-19T08:12:00Z
+Question:  Where is my invoice?
+
+Trace detail withheld — project-level admin required.
+Events, prompts, and grounding are not served to this token.
+
+Draft:
+Your invoice is attached.

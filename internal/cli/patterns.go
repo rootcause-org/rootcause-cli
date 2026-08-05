@@ -51,15 +51,16 @@ func newPatternsCmd(e *env) *cobra.Command {
 			}
 
 			fp := client.FeedParams{Days: days, Kind: kind, Project: e.scopeProject(), Tenant: e.scopeTenant()}
-			events, egress, httpRows, err := fetchPatternsFeeds(e, c, fp, "patterns")
+			feeds, err := fetchPatternsFeeds(e, c, fp, "patterns")
 			if err != nil {
 				return err
 			}
 
 			if rawJSON {
-				return emitPatternsJSON(e, events, egress, httpRows)
+				return emitPatternsJSON(e, feeds)
 			}
-			render.Patterns(e.out, events, egress, httpRows, render.PatternsOptions{Days: days, Top: top, Kind: kind})
+			render.Patterns(e.out, feeds.Events, feeds.Egress, feeds.HTTP,
+				render.PatternsOptions{Days: days, Top: top, Kind: kind, DetailRedacted: feeds.Redacted})
 			return nil
 		},
 	}
@@ -71,30 +72,39 @@ func newPatternsCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// fetchPatternsFeeds pages the two raw feeds (events + egress) for one scope, warning (never failing) on
-// a page-cap hit. label namespaces the cap warning so a fan-out names the project.
-func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label string) ([]client.RunEvent, []client.EgressRow, []client.HTTPAuditRow, error) {
-	events, capE, err := c.AllEvents(e.ctx(), fp)
+// patternsFeeds is one scope's raw mining input: the three paged feeds plus whether the server withheld
+// row detail (a non-project-admin token) — the miner must SAY that, not report a clean fleet.
+type patternsFeeds struct {
+	Events   []client.RunEvent
+	Egress   []client.EgressRow
+	HTTP     []client.HTTPAuditRow
+	Redacted bool
+}
+
+// fetchPatternsFeeds pages the three raw feeds for one scope, warning (never failing) on a page-cap hit.
+// label namespaces the cap warning so a fan-out names the project.
+func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label string) (patternsFeeds, error) {
+	events, metaE, err := c.AllEvents(e.ctx(), fp)
 	if err != nil {
-		return nil, nil, nil, err
+		return patternsFeeds{}, err
 	}
-	if capE {
+	if metaE.Capped {
 		warnCapped(e, label+": hit the events page cap — older events omitted; narrow --kind/--days")
 	}
-	egress, capG, err := c.AllEgress(e.ctx(), fp)
+	egress, metaG, err := c.AllEgress(e.ctx(), fp)
 	if err != nil {
-		return nil, nil, nil, err
+		return patternsFeeds{}, err
 	}
-	if capG {
+	if metaG.Capped {
 		warnCapped(e, label+": hit the egress page cap — older rows omitted; narrow --kind/--days")
 	}
-	httpRows, capH, err := c.AllHTTPAudit(e.ctx(), client.HTTPAuditParams{
+	httpRows, metaH, err := c.AllHTTPAudit(e.ctx(), client.HTTPAuditParams{
 		Days: fp.Days, Project: fp.Project, Tenant: fp.Tenant,
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return patternsFeeds{}, err
 	}
-	if capH {
+	if metaH.Capped {
 		warnCapped(e, label+": hit the HTTP audit page cap — older rows omitted; narrow --days")
 	}
 	// The HTTP feed has no run-kind column. When --kind is active, retain only rows joined to the
@@ -115,7 +125,10 @@ func fetchPatternsFeeds(e *env, c *client.Client, fp client.FeedParams, label st
 		}
 		httpRows = filtered
 	}
-	return events, egress, httpRows, nil
+	return patternsFeeds{
+		Events: events, Egress: egress, HTTP: httpRows,
+		Redacted: metaE.DetailRedacted || metaG.DetailRedacted || metaH.DetailRedacted,
+	}, nil
 }
 
 // runPatternsAll fans the pattern mining out across the fleet: page each project's feeds with an explicit
@@ -128,31 +141,36 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string, rawJSO
 	}
 
 	type entry struct {
-		Project string                `json:"project"`
-		Events  []client.RunEvent     `json:"events"`
-		Egress  []client.EgressRow    `json:"egress"`
-		HTTP    []client.HTTPAuditRow `json:"http"`
+		Project        string                `json:"project"`
+		Events         []client.RunEvent     `json:"events"`
+		Egress         []client.EgressRow    `json:"egress"`
+		HTTP           []client.HTTPAuditRow `json:"http"`
+		DetailRedacted bool                  `json:"detail_redacted,omitempty"`
 	}
 	entries := make([]entry, 0, len(projects))
 	for _, proj := range projects {
 		fp := client.FeedParams{Days: days, Kind: kind, Project: proj.ID}
-		events, egress, httpRows, ferr := fetchPatternsFeeds(e, c, fp, "patterns --all ("+proj.Name+")")
+		feeds, ferr := fetchPatternsFeeds(e, c, fp, "patterns --all ("+proj.Name+")")
 		if ferr != nil {
 			return fmt.Errorf("patterns --all: project %s: %w", proj.Name, ferr)
 		}
-		if events == nil {
-			events = []client.RunEvent{}
+		if feeds.Events == nil {
+			feeds.Events = []client.RunEvent{}
 		}
-		if egress == nil {
-			egress = []client.EgressRow{}
+		if feeds.Egress == nil {
+			feeds.Egress = []client.EgressRow{}
 		}
-		if httpRows == nil {
-			httpRows = []client.HTTPAuditRow{}
+		if feeds.HTTP == nil {
+			feeds.HTTP = []client.HTTPAuditRow{}
 		}
-		entries = append(entries, entry{Project: proj.Name, Events: events, Egress: egress, HTTP: httpRows})
+		entries = append(entries, entry{
+			Project: proj.Name, Events: feeds.Events, Egress: feeds.Egress, HTTP: feeds.HTTP,
+			DetailRedacted: feeds.Redacted,
+		})
 		if !rawJSON {
 			_, _ = fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
-			render.Patterns(e.out, events, egress, httpRows, render.PatternsOptions{Days: days, Top: top, Kind: kind})
+			render.Patterns(e.out, feeds.Events, feeds.Egress, feeds.HTTP,
+				render.PatternsOptions{Days: days, Top: top, Kind: kind, DetailRedacted: feeds.Redacted})
 			_, _ = fmt.Fprintln(e.out)
 		}
 	}
@@ -169,17 +187,23 @@ func runPatternsAll(e *env, c *client.Client, days, top int, kind string, rawJSO
 
 // emitPatternsJSON emits the paged raw inputs as one {events:[…],egress:[…]} object — the passthrough
 // contract: the rows are the wire structs, reassembled across pages, no clustering applied.
-func emitPatternsJSON(e *env, events []client.RunEvent, egress []client.EgressRow, httpRows []client.HTTPAuditRow) error {
-	if events == nil {
-		events = []client.RunEvent{}
+func emitPatternsJSON(e *env, feeds patternsFeeds) error {
+	if feeds.Events == nil {
+		feeds.Events = []client.RunEvent{}
 	}
-	if egress == nil {
-		egress = []client.EgressRow{}
+	if feeds.Egress == nil {
+		feeds.Egress = []client.EgressRow{}
 	}
-	if httpRows == nil {
-		httpRows = []client.HTTPAuditRow{}
+	if feeds.HTTP == nil {
+		feeds.HTTP = []client.HTTPAuditRow{}
 	}
-	b, err := json.Marshal(map[string]any{"events": events, "egress": egress, "http": httpRows})
+	out := map[string]any{"events": feeds.Events, "egress": feeds.Egress, "http": feeds.HTTP}
+	// Carry the withheld-detail marker into the raw passthrough too: a consumer doing its own mining must
+	// be able to tell thin rows from a quiet fleet.
+	if feeds.Redacted {
+		out["detail_redacted"] = true
+	}
+	b, err := json.Marshal(out)
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -957,5 +958,112 @@ func TestErrorIsTyped(t *testing.T) {
 	}
 	if apiErr.Code != "UNKNOWN_RUN" {
 		t.Errorf("code = %q, want UNKNOWN_RUN", apiErr.Code)
+	}
+}
+
+// --- withheld run detail (non-project-admin caller) ------------------------------------------------
+// The server answers these 200 with the normal envelope and NO detail. Every renderer must say
+// "withheld"; an empty trace must never read as a run that did nothing.
+
+// TestRunTraceRedactedTable pins `rc run trace` on a redacted bundle: the header still renders, the
+// timeline is replaced by the withheld notice, and the draft (not part of what redaction hides) stays.
+func TestRunTraceRedactedTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "trace", "redacted"); err != nil {
+		t.Fatalf("run trace redacted: %v", err)
+	}
+	assertGolden(t, "full_redacted.golden", out.String())
+	if strings.Contains(out.String(), "Timeline (0)") {
+		t.Errorf("redacted trace rendered an empty timeline:\n%s", out.String())
+	}
+}
+
+// TestRunEventsRedactedTable pins `rc run events` on the empty+marked envelope: the notice, not "No events."
+func TestRunEventsRedactedTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "events", "redacted"); err != nil {
+		t.Fatalf("run events redacted: %v", err)
+	}
+	assertGolden(t, "events_redacted.golden", out.String())
+	if strings.Contains(out.String(), "No events.") {
+		t.Errorf("redacted events read as an empty run:\n%s", out.String())
+	}
+}
+
+// TestRunDebugRedacted: the dump is still written (whatever the server sent), the markdown index LEADS
+// with the withheld line and carries no empty Timeline/Flags sections, and stderr says why.
+func TestRunDebugRedacted(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	outDir := t.TempDir()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "debug", "redacted", "--out-dir", outDir); err != nil {
+		t.Fatalf("run debug redacted: %v", err)
+	}
+	paths := strings.Fields(out.String())
+	if len(paths) != 2 {
+		t.Fatalf("want index + jsonl paths, got %q", out.String())
+	}
+	index, err := os.ReadFile(paths[0])
+	if err != nil {
+		t.Fatalf("read index: %v", err)
+	}
+	body := string(index)
+	if !strings.Contains(body, "detail withheld (project-admin required)") {
+		t.Errorf("index missing the withheld lead line:\n%s", body)
+	}
+	if strings.Contains(body, "## Timeline") || strings.Contains(body, "## Flags") {
+		t.Errorf("index kept empty timeline/flags sections:\n%s", body)
+	}
+	jsonl, err := os.ReadFile(paths[1])
+	if err != nil {
+		t.Fatalf("read jsonl: %v", err)
+	}
+	var header map[string]any
+	if err := json.Unmarshal(bytes.SplitN(jsonl, []byte("\n"), 2)[0], &header); err != nil {
+		t.Fatalf("decode jsonl header: %v", err)
+	}
+	if header["detail_redacted"] != true {
+		t.Errorf("jsonl header lost detail_redacted: %v", header["detail_redacted"])
+	}
+	if !strings.Contains(errb.String(), "withheld") {
+		t.Errorf("stderr summary did not mention withheld detail: %q", errb.String())
+	}
+}
+
+// TestPatternsRedactedTable pins `rc fleet patterns` over redacted feeds: an explicit "mining
+// unavailable" notice, never the clean-fleet line.
+func TestPatternsRedactedTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "patterns", "--kind", "redacted"); err != nil {
+		t.Fatalf("fleet patterns redacted: %v", err)
+	}
+	assertGolden(t, "patterns_redacted.golden", out.String())
+	if strings.Contains(out.String(), "no failure patterns in window") {
+		t.Errorf("redacted patterns claimed a clean fleet:\n%s", out.String())
+	}
+}
+
+// TestRunDetailForbiddenIsActionable: the two hard-403 views surface the server's verbatim reason, which
+// names the access a caller needs.
+func TestRunDetailForbiddenIsActionable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, view := range []string{"egress", "brain-diff"} {
+		e, _, errb := newTestEnv(t, srv, "table")
+		err := run(t, e, "run", view, "redacted")
+		if err == nil {
+			t.Fatalf("run %s redacted: want error", view)
+		}
+		printError(errb, err)
+		if !strings.Contains(errb.String(), "project-level admin") {
+			t.Errorf("run %s 403 not actionable: %q", view, errb.String())
+		}
 	}
 }

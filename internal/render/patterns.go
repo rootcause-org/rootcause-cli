@@ -27,6 +27,9 @@ type PatternsOptions struct {
 	Days int
 	Top  int // max patterns per section
 	Kind string
+	// DetailRedacted: the feeds came back stripped of reasoning/stdout/stderr/args/command (the caller is
+	// not a project-level admin). Mining those rows finds nothing — say so instead of "a clean fleet".
+	DetailRedacted bool
 }
 
 // --- masking (ported from run_patterns.py _MASKS) ---
@@ -283,6 +286,12 @@ func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, 
 	}
 
 	_, _ = fmt.Fprintf(w, "# Run patterns — last %d days\n\n", opt.Days)
+	if opt.DetailRedacted {
+		_, _ = fmt.Fprintln(w, "> **Pattern mining needs project-admin trace access.**")
+		_, _ = fmt.Fprintln(w, "> The feed rows arrived without the reasoning/output/command fields these clusters are built")
+		_, _ = fmt.Fprintln(w, "> from, so anything below is incomplete — it is NOT evidence of a healthy fleet.")
+		_, _ = fmt.Fprintln(w)
+	}
 	_, _ = fmt.Fprintf(w, "%d failing bash events · %d blocked egress rows · %d HTTP attempts · %d events scanned\n", failing, blocked, len(httpRows), len(events))
 	_, _ = fmt.Fprintln(w, "Rank by: cross-run reach · frequency. Failure and anomaly patterns end in a suggested-fix stub.")
 	_, _ = fmt.Fprintln(w)
@@ -358,7 +367,11 @@ func Patterns(w io.Writer, events []client.RunEvent, egress []client.EgressRow, 
 		_, _ = fmt.Fprintf(w, "_(%d lower-ranked pattern(s) dropped — raise --top/--days)_\n", truncated)
 	}
 	if !anything {
-		_, _ = fmt.Fprintln(w, "_(no failure patterns in window — a clean fleet)_")
+		if opt.DetailRedacted {
+			_, _ = fmt.Fprintln(w, "_(no patterns minable — trace detail withheld, not a clean fleet)_")
+		} else {
+			_, _ = fmt.Fprintln(w, "_(no failure patterns in window — a clean fleet)_")
+		}
 	}
 }
 

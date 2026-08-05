@@ -64,6 +64,12 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/run-events", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		// kind=redacted drives the non-project-admin feed contract across all three bulk feeds: rows keep
+		// their skeleton (here: none survive the window) and the envelope carries detail_redacted.
+		if r.URL.Query().Get("kind") == "redacted" {
+			_, _ = w.Write([]byte(`{"events":[],"detail_redacted":true}`))
+			return
+		}
 		if r.URL.Query().Get("before") == "" {
 			_, _ = w.Write(fixture(t, "events_feed_p1.json"))
 			return
@@ -73,6 +79,10 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/egress-log", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("kind") == "redacted" {
+			_, _ = w.Write([]byte(`{"egress":[],"detail_redacted":true}`))
+			return
+		}
 		_, _ = w.Write(fixture(t, "egress_feed.json"))
 	})
 	mux.HandleFunc("GET /api/v1/api-log", func(w http.ResponseWriter, r *http.Request) {
@@ -83,6 +93,12 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs/{id}/egress", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		// The two detail endpoints hard-403 a non-project-admin (no empty-but-200 envelope).
+		if r.PathValue("id") == "redacted" {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"code":"FORBIDDEN","message":"run egress detail requires project-level admin access"}}`))
+			return
+		}
 		_, _ = w.Write([]byte(`{"run_id":"` + r.PathValue("id") + `","egress":[{"id":"egr-1","run_id":"` + r.PathValue("id") + `","host":"api.example.com","port":443,"scheme":"https","bytes_out":25,"decision":"allow","at":"2026-06-19T09:01:01Z"}],"http":[{"id":"http-2","run_id":"` + r.PathValue("id") + `","source":"action","method":"POST","host":"api.example.com","endpoint":"/v1/orders","status_code":201,"decision":"allow","payload_sha256":"abc123","request_body":{"customer":"[REDACTED]"},"request_bytes":25,"duration_ms":40,"attempt":1,"reason":"initial","request_id":"req-2","at":"2026-06-19T09:01:01Z"}]}`))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/actions", func(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +186,11 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(largeEventsJSON())
 			return
 		}
+		// id "redacted" is the non-project-admin contract: 200, same envelope, EMPTY events + the marker.
+		if r.PathValue("id") == "redacted" {
+			_, _ = w.Write([]byte(`{"run_id":"redacted","events":[],"detail_redacted":true}`))
+			return
+		}
 		_, _ = w.Write(fixture(t, "events.json"))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
@@ -185,11 +206,22 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "ask_email_full.json"))
 			return
 		}
+		// id "redacted": the trace a non-project-admin gets — skeleton run header (no system_prompt /
+		// grounding / tenant settings / egress), empty events, detail_redacted on the header.
+		if r.PathValue("id") == "redacted" {
+			_, _ = w.Write(fixture(t, "full_redacted.json"))
+			return
+		}
 		_, _ = w.Write(fixture(t, "full.json"))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/brain-diff", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		if r.PathValue("id") == "redacted" {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":{"code":"FORBIDDEN","message":"run brain diff requires project-level admin access"}}`))
+			return
+		}
 		// id "no-brain" wrote no journal commit — the explicit empty (found:false) result.
 		if r.PathValue("id") == "no-brain" {
 			_, _ = w.Write([]byte(`{"run_id":"no-brain","found":false}`))

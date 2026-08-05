@@ -145,13 +145,13 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 			}
 
 			if view == runViewActions {
-				rows, capped, err := c.AllActionHistory(e.ctx(), id, client.HTTPAuditParams{
+				rows, meta, err := c.AllActionHistory(e.ctx(), id, client.HTTPAuditParams{
 					Project: e.scopeProject(), Tenant: e.scopeTenant(),
 				})
 				if err != nil {
 					return err
 				}
-				if capped {
+				if meta.Capped {
 					warnCapped(e, "run actions: hit the page cap — older rows omitted")
 				}
 				resp := &client.ActionHistoryResponse{Items: rows}
@@ -377,6 +377,11 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 	// Two paths + a one-line summary on stdout so the calling agent can relay them without re-fetching.
 	_, _ = fmt.Fprintln(e.out, indexPath)
 	_, _ = fmt.Fprintln(e.out, jsonlPath)
+	if full.Redacted() {
+		_, _ = fmt.Fprintf(e.err, "run %s · status=%s · %s the dump has no timeline to drill\n",
+			full.Run.RunID, full.Run.Status, render.RedactedTraceNotice)
+		return nil
+	}
 	_, _ = fmt.Fprintf(e.err, "run %s · status=%s · %d events · read the index, then jq the jsonl\n",
 		full.Run.RunID, full.Run.Status, len(full.Events))
 	return nil

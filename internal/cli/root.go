@@ -429,6 +429,10 @@ func printNonEnvelopeHTTPError(w io.Writer, e *client.APIError) {
 		_, _ = fmt.Fprintln(w, "  endpoint not available on this server — it may be older than this CLI; the runs list endpoint isn't deployed")
 	case http.StatusNotFound:
 		_, _ = fmt.Fprintln(w, "  not found — check the id/path, or this endpoint may not be available on this server")
+	case http.StatusForbidden:
+		// Run-detail views (egress, brain-diff, trace) are project-admin-only. A 403 WITH an envelope says
+		// so verbatim; this covers the envelope-less one, which would otherwise be a bare "HTTP 403".
+		_, _ = fmt.Fprintln(w, "  forbidden — run detail is served only to project-level admins; ask a project admin, or use `rc run show` for the safe summary")
 	}
 	if e.BaseURL != "" {
 		_, _ = fmt.Fprintf(w, "  base URL: %s\n", e.BaseURL)

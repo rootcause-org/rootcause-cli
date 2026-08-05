@@ -58,6 +58,11 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		"metadata":                metadataJSON(r.Metadata),
 		"egress":                  egressJSON(r.Egress),
 	}
+	// A redacted bundle still gets its JSONL (whatever the server sent) — but the header must carry the
+	// marker so a jq consumer can tell "nothing happened" from "nothing was served".
+	if full.Redacted() {
+		header["detail_redacted"] = true
+	}
 	if len(r.GroundingSourcesRaw) > 0 {
 		header["grounding_sources"] = json.RawMessage(r.GroundingSourcesRaw)
 		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
@@ -143,7 +148,15 @@ func RenderIndex(full *client.FullResponse) string {
 	var L []string
 	add := func(s ...string) { L = append(L, s...) }
 
+	redacted := full.Redacted()
+
 	add(fmt.Sprintf("# Run %s — %s · %s · %s", short8(r.RunID), orQ(r.Project), r.Status, r.Kind), "")
+	// Lead with the withholding: everything below is a partial picture, and an index that merely LOOKS
+	// empty is the failure mode this line exists to prevent.
+	if redacted {
+		add("> **Trace detail withheld (project-admin required).** Events, prompts, grounding, and egress "+
+			"are not served to this token — the sections below are incomplete, not evidence of a quiet run.", "")
+	}
 	add(fmt.Sprintf("- **Run ID:** `%s`", r.RunID))
 	if r.BrainRef != "" || r.Trigger == "test" {
 		add(fmt.Sprintf("- **Test run** · brain_ref `%s` · trigger `%s` — side-effect-free",
@@ -155,15 +168,20 @@ func RenderIndex(full *client.FullResponse) string {
 	add(fmt.Sprintf("- **Thread / Session:** `%s` / `%s`", r.ThreadID, r.SessionID))
 	add(fmt.Sprintf("- **Created / Finished:** %s / %s", orQ(r.CreatedAt), orParen(r.FinishedAt, "unfinished")))
 	add(fmt.Sprintf("- **Model:** `%s`", orQ(model)))
-	steps := fmt.Sprintf("- **Steps:** %d main", len(main))
-	if len(pre) > 0 {
-		steps += fmt.Sprintf(" + %d grounding", len(pre))
+	// A "0 main / 0 egress" count on a redacted bundle is a lie of omission — the counts were never served.
+	if redacted && len(events) == 0 {
+		add("- **Steps / Egress:** withheld")
+	} else {
+		steps := fmt.Sprintf("- **Steps:** %d main", len(main))
+		if len(pre) > 0 {
+			steps += fmt.Sprintf(" + %d grounding", len(pre))
+		}
+		steps += fmt.Sprintf(" · **Egress:** %d", len(r.Egress))
+		if blocked > 0 {
+			steps += fmt.Sprintf(" (%d blocked)", blocked)
+		}
+		add(steps)
 	}
-	steps += fmt.Sprintf(" · **Egress:** %d", len(r.Egress))
-	if blocked > 0 {
-		steps += fmt.Sprintf(" (%d blocked)", blocked)
-	}
-	add(steps)
 	add(fmt.Sprintf("- **Events (full, queryable):** `%s` — one JSON object per event; jq it (see Drill down).", jsonlName), "")
 
 	add(renderProjectionInputs(r)...)
@@ -178,7 +196,13 @@ func RenderIndex(full *client.FullResponse) string {
 	add("", "## Outcome", "")
 	add(renderOutcome(r)...)
 
-	add("", "## Timeline — main-loop steps (search/read steps omitted — see Files the run read)", "")
+	// With no events served, a "Timeline" and a "Flags: _(none)_" section would both read as findings.
+	// Skip them entirely — the lead line already said why they are missing.
+	skipTimeline := redacted && len(events) == 0
+
+	if !skipTimeline {
+		add("", "## Timeline — main-loop steps (search/read steps omitted — see Files the run read)", "")
+	}
 	var rows []decEvent
 	for _, e := range main {
 		if e.label == "search files" || e.label == "read file" {
@@ -186,7 +210,9 @@ func RenderIndex(full *client.FullResponse) string {
 		}
 		rows = append(rows, e)
 	}
-	if len(rows) > 0 {
+	switch {
+	case skipTimeline:
+	case len(rows) > 0:
 		add("| # | label | code | exit | dur | output | reasoning gist |", "|---|---|---|---|---|---|---|")
 		for _, e := range rows {
 			failed := e.src.ExitCode != 0 || e.src.Status != "ok"
@@ -202,17 +228,19 @@ func RenderIndex(full *client.FullResponse) string {
 			add(fmt.Sprintf("| %s | %s | `%s` | %d | %s | %s | %s |",
 				e.disp, e.label, cell(e.command, 100), e.src.ExitCode, dur(e.src.DurationMs), outCell, cell(e.gist, 90)))
 		}
-	} else {
+	default:
 		add("_(no main-loop tool calls recorded)_")
 	}
 
-	add("", "## Flags", "")
-	fl := flags(full, events)
-	if len(fl) == 0 {
-		add("_(none)_")
-	} else {
-		for _, f := range fl {
-			add("- " + f)
+	if !skipTimeline {
+		add("", "## Flags", "")
+		fl := flags(full, events)
+		if len(fl) == 0 {
+			add("_(none)_")
+		} else {
+			for _, f := range fl {
+				add("- " + f)
+			}
 		}
 	}
 

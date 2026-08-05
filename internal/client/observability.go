@@ -108,41 +108,53 @@ func (c *Client) EgressPage(ctx context.Context, p FeedParams) (*EgressResponse,
 	return &out, nil
 }
 
-// AllEvents pages /run-events until the window is exhausted (no next_before) or the page cap trips. It
-// returns the accumulated rows and capped=true when it stopped at the cap (the caller warns to stderr —
-// no silent truncation). The cursor threading is internal: a caller asks for the whole window.
-func (c *Client) AllEvents(ctx context.Context, p FeedParams) (rows []RunEvent, capped bool, err error) {
+// FeedMeta collapses the envelope signals of a paged feed into what a caller must act on: Capped (the
+// loop stopped at the page cap — warn, never truncate silently) and DetailRedacted (any page said the
+// rows lost their detail because the caller is not a project-level admin — say "withheld", never render
+// the thin rows as a clean result).
+type FeedMeta struct {
+	Capped         bool
+	DetailRedacted bool
+}
+
+// AllEvents pages /run-events until the window is exhausted (no next_before) or the page cap trips. The
+// cursor threading is internal: a caller asks for the whole window and reads FeedMeta for the caveats.
+func (c *Client) AllEvents(ctx context.Context, p FeedParams) (rows []RunEvent, meta FeedMeta, err error) {
 	p.Before = ""
 	for page := 0; page < maxFeedPages; page++ {
 		resp, e := c.EventsPage(ctx, p)
 		if e != nil {
-			return nil, false, e
+			return nil, FeedMeta{}, e
 		}
 		rows = append(rows, resp.Events...)
+		meta.DetailRedacted = meta.DetailRedacted || resp.DetailRedacted
 		if resp.NextBefore == "" {
-			return rows, false, nil
+			return rows, meta, nil
 		}
 		p.Before = resp.NextBefore
 	}
-	return rows, true, nil
+	meta.Capped = true
+	return rows, meta, nil
 }
 
 // AllEgress pages /egress-log until the window is exhausted or the page cap trips (same contract as
 // AllEvents).
-func (c *Client) AllEgress(ctx context.Context, p FeedParams) (rows []EgressRow, capped bool, err error) {
+func (c *Client) AllEgress(ctx context.Context, p FeedParams) (rows []EgressRow, meta FeedMeta, err error) {
 	p.Before = ""
 	for page := 0; page < maxFeedPages; page++ {
 		resp, e := c.EgressPage(ctx, p)
 		if e != nil {
-			return nil, false, e
+			return nil, FeedMeta{}, e
 		}
 		rows = append(rows, resp.Egress...)
+		meta.DetailRedacted = meta.DetailRedacted || resp.DetailRedacted
 		if resp.NextBefore == "" {
-			return rows, false, nil
+			return rows, meta, nil
 		}
 		p.Before = resp.NextBefore
 	}
-	return rows, true, nil
+	meta.Capped = true
+	return rows, meta, nil
 }
 
 // AllRuns pages GET /api/v1/runs (the run index, reused by `rc fleet runs`) until next_before runs out or the

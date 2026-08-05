@@ -478,10 +478,14 @@ type Event struct {
 	Stderr        string `json:"stderr,omitempty"`
 }
 
-// EventsResponse is GET /api/v1/runs/{id}/events.
+// EventsResponse is GET /api/v1/runs/{id}/events. DetailRedacted is the server's "you are not a
+// project-level admin" marker: the call still 200s with the same envelope, but Events comes back EMPTY.
+// Renderers MUST say "withheld" — an empty list here is NOT a clean bill of health. Absent on older
+// servers, which is indistinguishable from "full detail served" (the pre-redaction contract).
 type EventsResponse struct {
-	RunID  string  `json:"run_id"`
-	Events []Event `json:"events"`
+	RunID          string  `json:"run_id"`
+	Events         []Event `json:"events"`
+	DetailRedacted bool    `json:"detail_redacted,omitempty"`
 }
 
 // SubmitRequest is the rich POST /api/v1/runs body plus optional URL scope. Scenario is explicit even
@@ -680,6 +684,11 @@ type RunHeader struct {
 	Egress                []EgressItem      `json:"egress,omitempty"`
 	GroundingSources      *GroundingSources `json:"grounding_sources,omitempty"`
 	GroundingSourcesRaw   json.RawMessage   `json:"-"`
+	// DetailRedacted marks a trace served WITHOUT its detail: the caller is not a project-level admin, so
+	// the server omits the sensitive header fields (system_prompt, grounding_*, warm_start_digest, prior
+	// messages/notes, tenant settings, egress) and ships an empty events list. Every renderer must call
+	// that out — the sparse bundle reads like a clean run otherwise.
+	DetailRedacted bool `json:"detail_redacted,omitempty"`
 }
 
 // UnmarshalJSON keeps the exact grounding_sources object for debug JSONL while still exposing typed
@@ -724,6 +733,15 @@ type EventItem struct {
 type FullResponse struct {
 	Run    RunHeader   `json:"run"`
 	Events []EventItem `json:"events"`
+	// DetailRedacted is accepted at the envelope level too, so a server that marks the bundle rather than
+	// the run header still reads as "withheld" here. Ask Redacted(), never this field.
+	DetailRedacted bool `json:"detail_redacted,omitempty"`
+}
+
+// Redacted reports whether this trace was served without its detail (non-project-admin caller), from
+// either the run header or the envelope.
+func (f *FullResponse) Redacted() bool {
+	return f != nil && (f.DetailRedacted || f.Run.DetailRedacted)
 }
 
 // spendMetadataKeys are the freeform run-metadata keys that carry LLM spend or token counts. The typed
@@ -941,9 +959,12 @@ func (e RunEvent) MarshalJSON() ([]byte, error) {
 
 // RunEventsResponse is one page of GET /api/v1/run-events. NextBefore is the cursor to the next
 // (older) page; empty on the last page.
+// DetailRedacted marks a page whose rows kept their skeleton but lost reasoning/stdout/stderr/args/
+// command — the caller is not a project-level admin. Pattern mining over such rows is blind, not clean.
 type RunEventsResponse struct {
-	Events     []RunEvent `json:"events"`
-	NextBefore string     `json:"next_before,omitempty"`
+	Events         []RunEvent `json:"events"`
+	NextBefore     string     `json:"next_before,omitempty"`
+	DetailRedacted bool       `json:"detail_redacted,omitempty"`
 }
 
 // EgressRow is one raw egress_log row from GET /api/v1/egress-log — the bulk feed `rc fleet patterns`
@@ -982,10 +1003,11 @@ func (e EgressRow) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire(e))
 }
 
-// EgressResponse is one page of GET /api/v1/egress-log.
+// EgressResponse is one page of GET /api/v1/egress-log. DetailRedacted: see RunEventsResponse.
 type EgressResponse struct {
-	Egress     []EgressRow `json:"egress"`
-	NextBefore string      `json:"next_before,omitempty"`
+	Egress         []EgressRow `json:"egress"`
+	NextBefore     string      `json:"next_before,omitempty"`
+	DetailRedacted bool        `json:"detail_redacted,omitempty"`
 }
 
 // HTTPAuditRow is one client-cooperative or broker HTTP attempt from api_log. RequestBody is already
@@ -1033,9 +1055,12 @@ func (h HTTPAuditRow) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire(h))
 }
 
+// HTTPAuditResponse is one page of GET /api/v1/api-log. DetailRedacted: see RunEventsResponse (here it
+// strips request_body).
 type HTTPAuditResponse struct {
-	Items      []HTTPAuditRow `json:"items"`
-	NextCursor string         `json:"next_cursor,omitempty"`
+	Items          []HTTPAuditRow `json:"items"`
+	NextCursor     string         `json:"next_cursor,omitempty"`
+	DetailRedacted bool           `json:"detail_redacted,omitempty"`
 }
 
 type RunEgressResponse struct {

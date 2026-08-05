@@ -77,13 +77,13 @@ func (c *Client) RunEgress(ctx context.Context, id, project, tenant string) (*Ru
 	// The convenience endpoint caps its embedded HTTP slice. Finish through the paged project feed
 	// whenever the server says it truncated, preserving a complete per-run inspection contract.
 	if out.HTTPTruncated {
-		rows, capped, err := c.AllHTTPAudit(ctx, HTTPAuditParams{RunID: id, Project: project, Tenant: tenant})
+		rows, meta, err := c.AllHTTPAudit(ctx, HTTPAuditParams{RunID: id, Project: project, Tenant: tenant})
 		if err != nil {
 			return nil, err
 		}
 		out.HTTP = rows
 		out.HTTPNextCursor = ""
-		out.HTTPTruncated = capped
+		out.HTTPTruncated = meta.Capped
 	}
 	return &out, nil
 }
@@ -96,20 +96,22 @@ func (c *Client) HTTPAuditPage(ctx context.Context, p HTTPAuditParams) (*HTTPAud
 	return &out, nil
 }
 
-func (c *Client) AllHTTPAudit(ctx context.Context, p HTTPAuditParams) (rows []HTTPAuditRow, capped bool, err error) {
+func (c *Client) AllHTTPAudit(ctx context.Context, p HTTPAuditParams) (rows []HTTPAuditRow, meta FeedMeta, err error) {
 	p.Cursor = ""
 	for page := 0; page < maxFeedPages; page++ {
 		resp, e := c.HTTPAuditPage(ctx, p)
 		if e != nil {
-			return nil, false, e
+			return nil, FeedMeta{}, e
 		}
 		rows = append(rows, resp.Items...)
+		meta.DetailRedacted = meta.DetailRedacted || resp.DetailRedacted
 		if resp.NextCursor == "" {
-			return rows, false, nil
+			return rows, meta, nil
 		}
 		p.Cursor = resp.NextCursor
 	}
-	return rows, true, nil
+	meta.Capped = true
+	return rows, meta, nil
 }
 
 func (c *Client) ActionHistoryPage(ctx context.Context, id string, p HTTPAuditParams) (*ActionHistoryResponse, error) {
@@ -120,18 +122,19 @@ func (c *Client) ActionHistoryPage(ctx context.Context, id string, p HTTPAuditPa
 	return &out, nil
 }
 
-func (c *Client) AllActionHistory(ctx context.Context, id string, p HTTPAuditParams) (rows []ActionHistoryRow, capped bool, err error) {
+func (c *Client) AllActionHistory(ctx context.Context, id string, p HTTPAuditParams) (rows []ActionHistoryRow, meta FeedMeta, err error) {
 	p.Cursor = ""
 	for page := 0; page < maxFeedPages; page++ {
 		resp, e := c.ActionHistoryPage(ctx, id, p)
 		if e != nil {
-			return nil, false, e
+			return nil, FeedMeta{}, e
 		}
 		rows = append(rows, resp.Items...)
 		if resp.NextCursor == "" {
-			return rows, false, nil
+			return rows, meta, nil
 		}
 		p.Cursor = resp.NextCursor
 	}
-	return rows, true, nil
+	meta.Capped = true
+	return rows, meta, nil
 }

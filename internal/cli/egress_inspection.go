@@ -22,23 +22,26 @@ func newProjectEgressCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			gateway, gatewayCapped, err := c.AllEgress(e.ctx(), client.FeedParams{
+			gateway, gatewayMeta, err := c.AllEgress(e.ctx(), client.FeedParams{
 				Days: days, Host: host, Decision: decision, Project: e.scopeProject(), Tenant: e.scopeTenant(),
 			})
 			if err != nil {
 				return err
 			}
-			if gatewayCapped {
+			if gatewayMeta.Capped {
 				warnCapped(e, "project egress: hit the gateway page cap — older rows omitted; narrow --host/--decision/--days")
 			}
-			httpRows, httpCapped, err := c.AllHTTPAudit(e.ctx(), client.HTTPAuditParams{
+			httpRows, httpMeta, err := c.AllHTTPAudit(e.ctx(), client.HTTPAuditParams{
 				Days: days, Host: host, Decision: decision, Project: e.scopeProject(), Tenant: e.scopeTenant(),
 			})
 			if err != nil {
 				return err
 			}
-			if httpCapped {
+			if httpMeta.Capped {
 				warnCapped(e, "project egress: hit the HTTP page cap — older rows omitted; narrow --host/--decision/--days")
+			}
+			if gatewayMeta.DetailRedacted || httpMeta.DetailRedacted {
+				warnCapped(e, render.RedactedFeedNotice)
 			}
 			if e.jsonOut() {
 				raw, err := json.Marshal(map[string]any{"egress": gateway, "http": httpRows})

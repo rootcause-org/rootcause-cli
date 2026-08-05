@@ -246,6 +246,25 @@ writes both files. Historical `/trace` snapshots are authoritative (`brain_resol
 visibility counts (`project_total`, `project_visible`, `project_hidden`, `tenant_total`,
 `total_visible`) so isolation checks remain visible in the thin Markdown index.
 
+### Withheld run detail (project-admin only)
+The server serves run *detail* only to project-level admins. A non-admin caller does NOT get an error on
+the read paths: `/runs/{id}/trace|/events` and the bulk feeds (`/run-events`, `/egress-log`, `/api-log`)
+still return 200 with the normal envelope, minus the sensitive fields (events, `system_prompt`,
+`grounding_*`, `warm_start_digest`, prior messages/notes, tenant settings, egress; in the feeds:
+`reasoning`/`stdout`/`stderr`/`args`/`command`/`request_body`), plus `detail_redacted: true`. Only
+`/egress` and `/brain-diff` hard-403.
+
+**The failure mode is a false clean bill of health** — an unaware renderer shows an empty trace or a
+pattern-free fleet. So every surface that can receive a redacted payload says "withheld" instead of
+rendering the empty section: `render.Full`/`render.Events` (notices in
+[`internal/render/redaction.go`](internal/render/redaction.go)), `render.Patterns`
+(`PatternsOptions.DetailRedacted`), and the `rc run debug` index (lead line, and the empty
+Timeline/Flags sections are dropped; the JSONL still carries whatever the server sent, with
+`detail_redacted` on its header). The typed carriers are `client.FullResponse.Redacted()`,
+`EventsResponse.DetailRedacted`, and `client.FeedMeta.DetailRedacted` (what the `All*` pagers collapse
+across pages, alongside `Capped`). All fields are `omitempty` and absent on older servers — absent means
+full detail, the pre-redaction contract.
+
 ### Errors
 Any non-2xx → the client decodes `{"error":{code,message,details?}}` into a typed `APIError` and the CLI
 prints `CODE: message` to stderr (exit 1); `INVALID_SETTINGS` field errors print one indented line each. A

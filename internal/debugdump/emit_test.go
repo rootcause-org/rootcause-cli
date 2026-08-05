@@ -60,3 +60,40 @@ func TestScopeSummaryRendersSplitKBCounts(t *testing.T) {
 		t.Fatalf("scopeSummary() = %q, want %q", summary, want)
 	}
 }
+
+// TestRedactedIndexLeadsWithWithheld: a bundle served without detail (non-project-admin) must announce
+// that in the first lines and drop the sections that would otherwise render as "nothing happened".
+func TestRedactedIndexLeadsWithWithheld(t *testing.T) {
+	full := &client.FullResponse{
+		Run: client.RunHeader{
+			RunID:          "c446011c-7e78-4a41-8848-46d92b61152a",
+			Project:        "pj-mailbox",
+			Status:         "done",
+			Kind:           "email",
+			DetailRedacted: true,
+		},
+	}
+
+	index := RenderIndex(full)
+	lead := strings.Join(strings.SplitN(index, "\n", 4)[:3], "\n")
+	if !strings.Contains(lead, "detail withheld (project-admin required)") {
+		t.Fatalf("withheld notice not in the lead block:\n%s", index)
+	}
+	for _, section := range []string{"## Timeline", "## Flags"} {
+		if strings.Contains(index, section) {
+			t.Fatalf("index kept %s on a redacted bundle:\n%s", section, index)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := EmitJSONL(&buf, full); err != nil {
+		t.Fatalf("EmitJSONL: %v", err)
+	}
+	var header map[string]any
+	if err := json.Unmarshal(bytes.SplitN(buf.Bytes(), []byte("\n"), 2)[0], &header); err != nil {
+		t.Fatalf("decode JSONL header: %v", err)
+	}
+	if header["detail_redacted"] != true {
+		t.Fatalf("jsonl header detail_redacted = %v, want true", header["detail_redacted"])
+	}
+}
