@@ -60,9 +60,9 @@ Usage:
 Flags:
       --asserted-by string      who asserted the principal (default server-side); requires the --principal-kind/--principal-id pair
       --assurance string        assurance level of the principal assertion (default server-side); requires the --principal-kind/--principal-id pair
-      --attach stringArray      attach a local file to the synthetic run (repeatable)
       --brain-ref string        run against a non-main brain ref (e.g. dev/refund-rework) — a test run
       --effort string           reasoning effort override: default, pro, or max
+      --file stringArray        attach a local file to the synthetic run (repeatable; max 4 files, 5 MiB each, 15 MiB total)
       --from string             sender address for --scenario email (default "rc-ask@example.test")
       --no-wait                 submit and print the run_id immediately, without waiting
       --principal-id string     principal external id (the asserted identity); requires --principal-kind

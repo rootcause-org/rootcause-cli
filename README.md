@@ -447,8 +447,10 @@ first line). Use this for high-fidelity brain-dev checks: tone, notes, actions, 
 declines are rendered like a reviewable support result. Use `--scenario raw` for direct investigations;
 the CLI sends `scenario=raw` and prints one Markdown answer.
 
-`rc ask --attach path/to/file.pdf` uploads a local file as an inbound attachment on the synthetic
+`rc ask --file path/to/file.pdf` uploads a local file as an inbound attachment on the synthetic
 message. Repeat it for multiple files; relative paths are resolved from the current working directory.
+Caps are checked locally before upload and mirror the server's: **max 4 files, 5 MiB each, 15 MiB
+total**. `--attach` is a deprecated alias for `--file` (still merged into the same list).
 The backend gives each file a real `attachment_id`, so hosted actions with `type: attachment` params can
 be proposed against the same ID shape as production email. Action proposal/execution still depends on
 the project's action plane and catalog being enabled.

@@ -30,7 +30,8 @@ type askFlags struct {
 	principalID   string
 	assertedBy    string
 	assurance     string
-	attachPaths   []string
+	filePaths     []string
+	attachPaths   []string // deprecated --attach alias, merged after --file
 	noWait        bool
 	timeout       time.Duration
 }
@@ -64,7 +65,7 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			attachments, err := readAskAttachments(f.attachPaths)
+			attachments, err := readAskAttachments(append(append([]string(nil), f.filePaths...), f.attachPaths...))
 			if err != nil {
 				return err
 			}
@@ -137,7 +138,9 @@ func newAskCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&f.principalID, "principal-id", "", "principal external id (the asserted identity); requires --principal-kind")
 	cmd.Flags().StringVar(&f.assertedBy, "asserted-by", "", "who asserted the principal (default server-side); requires the --principal-kind/--principal-id pair")
 	cmd.Flags().StringVar(&f.assurance, "assurance", "", "assurance level of the principal assertion (default server-side); requires the --principal-kind/--principal-id pair")
-	cmd.Flags().StringArrayVar(&f.attachPaths, "attach", nil, "attach a local file to the synthetic run (repeatable)")
+	cmd.Flags().StringArrayVar(&f.filePaths, "file", nil, "attach a local file to the synthetic run (repeatable; max 4 files, 5 MiB each, 15 MiB total)")
+	cmd.Flags().StringArrayVar(&f.attachPaths, "attach", nil, "deprecated alias for --file")
+	_ = cmd.Flags().MarkDeprecated("attach", "use --file instead")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")
 	return cmd
@@ -235,15 +238,27 @@ func compactAskSubject(prompt string) string {
 	return line
 }
 
+// Attachment caps mirrored from the server's shared attachfile limits. The server stays the
+// authoritative gate; checking here fails fast and locally instead of after a multi-MiB upload.
+const (
+	maxAskAttachments    = 4
+	maxAskAttachBytes    = 5 << 20
+	maxAskAttachAllBytes = 15 << 20
+)
+
 func readAskAttachments(paths []string) ([]client.Attachment, error) {
 	if len(paths) == 0 {
 		return nil, nil
 	}
+	if len(paths) > maxAskAttachments {
+		return nil, fmt.Errorf("too many --file attachments: %d (max %d per ask)", len(paths), maxAskAttachments)
+	}
+	var total int64
 	out := make([]client.Attachment, 0, len(paths))
 	for _, raw := range paths {
 		p := strings.TrimSpace(raw)
 		if p == "" {
-			return nil, fmt.Errorf("--attach path is empty")
+			return nil, fmt.Errorf("--file path is empty")
 		}
 		abs, err := filepath.Abs(p)
 		if err != nil {
@@ -255,6 +270,14 @@ func readAskAttachments(paths []string) ([]client.Attachment, error) {
 		}
 		if info.IsDir() {
 			return nil, fmt.Errorf("attachment %q is a directory", p)
+		}
+		// Stat-first so an oversized file is rejected without reading it into memory.
+		if info.Size() > maxAskAttachBytes {
+			return nil, fmt.Errorf("attachment %q is %d bytes, over the %d MiB per-file cap", p, info.Size(), maxAskAttachBytes>>20)
+		}
+		total += info.Size()
+		if total > maxAskAttachAllBytes {
+			return nil, fmt.Errorf("attachments exceed the %d MiB total cap for one ask (%d bytes at %q)", maxAskAttachAllBytes>>20, total, p)
 		}
 		data, err := os.ReadFile(abs)
 		if err != nil {

@@ -198,7 +198,7 @@ func TestAskFromSubjectForwarded(t *testing.T) {
 	}
 }
 
-func TestAskAttachReadsLocalFiles(t *testing.T) {
+func TestAskFileReadsLocalFiles(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 	if err := os.WriteFile(filepath.Join(dir, "invoice.pdf"), []byte("%PDF-1\n"), 0o600); err != nil {
@@ -217,8 +217,8 @@ func TestAskAttachReadsLocalFiles(t *testing.T) {
 	}))
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "ask", "q", "--attach", "invoice.pdf", "--attach", filepath.Join(dir, "note.unknownext"), "--no-wait"); err != nil {
-		t.Fatalf("ask --attach: %v", err)
+	if err := run(t, e, "ask", "q", "--file", "invoice.pdf", "--file", filepath.Join(dir, "note.unknownext"), "--no-wait"); err != nil {
+		t.Fatalf("ask --file: %v", err)
 	}
 	atts, ok := got["attachments"].([]any)
 	if !ok || len(atts) != 2 {
@@ -231,6 +231,89 @@ func TestAskAttachReadsLocalFiles(t *testing.T) {
 	second := atts[1].(map[string]any)
 	if second["filename"] != "note.unknownext" || second["mime_type"] != "text/plain; charset=utf-8" || second["content_base64"] != "aGVsbG8=" {
 		t.Fatalf("second attachment = %#v", second)
+	}
+}
+
+// TestAskAttachAliasMergesWithFile: --attach stays a working deprecated alias, and both flags land in
+// one attachments[] list (--file entries first).
+func TestAskAttachAliasMergesWithFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	for _, name := range []string{"a.txt", "b.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"run_id":"r1","status":"done","status_url":"/api/v1/runs/r1","poll_after_ms":1}`))
+	}))
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "q", "--file", "a.txt", "--attach", "b.txt", "--no-wait"); err != nil {
+		t.Fatalf("ask --file --attach: %v", err)
+	}
+	atts, ok := got["attachments"].([]any)
+	if !ok || len(atts) != 2 {
+		t.Fatalf("attachments = %#v, want 2", got["attachments"])
+	}
+	if atts[0].(map[string]any)["filename"] != "a.txt" || atts[1].(map[string]any)["filename"] != "b.txt" {
+		t.Fatalf("merge order wrong: %#v", atts)
+	}
+}
+
+// TestAskFileCaps: the client-side pre-checks mirror the server's shared attachfile caps, so an
+// over-cap ask fails locally (naming the file + the cap) before anything is uploaded.
+func TestAskFileCaps(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	write := func(name string, size int64) string {
+		p := filepath.Join(dir, name)
+		f, err := os.Create(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Truncate(size); err != nil { // sparse: no need to actually write MiBs
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return name
+	}
+
+	small := []string{write("f1.bin", 1), write("f2.bin", 1), write("f3.bin", 1), write("f4.bin", 1), write("f5.bin", 1)}
+	big := write("big.bin", 5<<20+1)
+	fat := []string{write("g1.bin", 4<<20), write("g2.bin", 4<<20), write("g3.bin", 4<<20), write("g4.bin", 4<<20)}
+
+	cases := []struct {
+		name  string
+		files []string
+		want  string
+	}{
+		{"count", small, "too many --file attachments: 5 (max 4 per ask)"},
+		{"per-file", []string{big}, `attachment "big.bin" is 5242881 bytes, over the 5 MiB per-file cap`},
+		{"total", fat, "exceed the 15 MiB total cap"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			args := []string{"ask", "q"}
+			for _, f := range tc.files {
+				args = append(args, "--file", f)
+			}
+			e := &env{out: &bytes.Buffer{}, err: &bytes.Buffer{}}
+			err := run(t, e, append(args, "--no-wait")...)
+			if err == nil {
+				t.Fatal("expected a cap error, got nil")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %v, want it to contain %q", err, tc.want)
+			}
+		})
 	}
 }
 
