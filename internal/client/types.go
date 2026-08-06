@@ -321,10 +321,12 @@ func (r RunSummary) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire(r))
 }
 
-// RunHealth is the per-run triage block on a run index row (run_health view). The COUNT/flag fields are
-// safe for any bearer; Model is operator-tier and blank for a baseline bearer. Spend and token counts are
-// deliberately absent: no surface may show them, so heaviness is read off turns/bash/duration. Mirrors the
-// server's runIndexHealth field-for-field.
+// RunHealth is the per-run triage block on a run index row (run_health view). Spend, token counts and the
+// SERVING MODEL IDENTITY are deliberately absent: naming the rung that answered is as
+// cost-reverse-engineerable as naming the provider that served it, so both are host-only telemetry the
+// server strips on EVERY tier (operator included) — heaviness is read off turns/bash/duration, and the
+// fallback story off the content-free IsFallback boolean. Mirrors the server's runIndexHealth
+// field-for-field.
 type RunHealth struct {
 	Turns          int64 `json:"turns"`
 	GroundingTurns int64 `json:"grounding_turns"`
@@ -339,15 +341,12 @@ type RunHealth struct {
 	BlockedEgress       int64 `json:"blocked_egress"`
 	GroundingDiscarded  bool  `json:"grounding_discarded"`
 	NoJournal           bool  `json:"no_journal"`
-	// IsFallback is the CLEAN model-fallback signal (run_health.is_fallback): the loop swapped the
-	// planned model for a different one that answered. SAFE (a boolean) so it rides for any bearer —
-	// it drives the digest's fallback flag (FB) + the model×turns×fallback breakdown. The empty-string-
-	// vs-NULL trap on runs.model_fallback_from is baked into the view, so the CLI never recomputes it.
-	IsFallback bool   `json:"is_fallback"`
-	Model      string `json:"model,omitempty"`
-	// PlannedModel is the model the loop planned but that failed (run_health.model_fallback_from), set
-	// only when IsFallback. Operator-tier like Model — omitted for a baseline bearer.
-	PlannedModel string `json:"planned_model,omitempty"`
+	// IsFallback is the CONTENT-FREE half of the model-fallback signal (run_health.is_fallback): THAT
+	// the loop swapped rungs, never between WHICH models. It is the only fallback fact any surface gets
+	// — the model / model_fallback_from columns behind it stay host-side (superadmin SQL). The
+	// empty-string-vs-NULL trap on runs.model_fallback_from is baked into the view, so the CLI never
+	// recomputes it.
+	IsFallback bool `json:"is_fallback"`
 	// ErrorHead is the first 120 chars of the run's host-side error (run_health.error_head), '' when
 	// none — the index-level class discriminator (DSN outage vs OAuth burst vs dead-letter) so a burst
 	// doesn't cost one `rc run debug` drill per run. Same tier as the full error on the per-run rung.
@@ -415,16 +414,16 @@ type RunsResponse struct {
 // RunDebug groups the run's debug/triage signals — the "why" a project-dev needs when a run did
 // something surprising: why it declined (decline_reason), whether a loop guardrail tripped (guardrail
 // sub-cause), whether the final answer was a FORCED submission under budget pressure (forced cause,
-// e.g. "budget"/"timeout"), whether the model fell back to a cheaper cascade rung (fallback_from = the
-// model it fell back FROM), and how many recoverable (transient) errors were retried in-loop. Surfaced
+// e.g. "budget"/"timeout"), and how many recoverable (transient) errors were retried in-loop. Surfaced
 // under a single optional "debug" object on GET /api/v1/runs/{id} and /trace's run (progressive
 // disclosure) — the whole object is omitempty so a clean run carries nothing and the typed pointer
-// stays nil. Field names match the server verbatim.
+// stays nil. Field names match the server verbatim. No model identity rides here either: the rung a run
+// fell back FROM is host-only telemetry like the rung that answered (run_health.is_fallback carries the
+// content-free THAT).
 type RunDebug struct {
 	DeclineReason      string `json:"decline_reason,omitempty"`
 	Guardrail          string `json:"guardrail,omitempty"`
 	Forced             string `json:"forced,omitempty"`
-	FallbackFrom       string `json:"fallback_from,omitempty"`
 	RecoverableRetries int    `json:"recoverable_retries,omitempty"`
 }
 
@@ -670,7 +669,6 @@ type RunHeader struct {
 	SystemPrompt          string            `json:"system_prompt,omitempty"`
 	CreatedAt             string            `json:"created_at"`
 	FinishedAt            string            `json:"finished_at,omitempty"`
-	Model                 string            `json:"model,omitempty"`
 	Draft                 string            `json:"draft,omitempty"`
 	DraftMarkdown         string            `json:"draft_markdown,omitempty"`
 	AnswerMarkdown        string            `json:"answer_markdown,omitempty"`
@@ -707,8 +705,9 @@ func (r *RunHeader) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// EventItem is one event in the /trace bundle — the superset of Event: it adds the answering model,
-// non-bash tool args, the agent's reasoning, and a human label, all of which today's lean /events omits.
+// EventItem is one event in the /trace bundle — the superset of Event: it adds non-bash tool args, the
+// agent's reasoning, and a human label, all of which today's lean /events omits. The answering model is
+// NOT among them: per-turn model identity is host-only telemetry, stripped server-side on every tier.
 // Args is carried as raw JSON because its shape is tool-specific.
 type EventItem struct {
 	Seq        int32           `json:"seq"`
@@ -725,7 +724,6 @@ type EventItem struct {
 	Reasoning  string          `json:"reasoning,omitempty"`
 	HasDraft   bool            `json:"has_draft,omitempty"`
 	HasNote    bool            `json:"has_note,omitempty"`
-	Model      string          `json:"model,omitempty"`
 }
 
 // FullResponse is GET /api/v1/runs/{id}/trace — the whole bundle. The CLI decomposes it for
@@ -744,17 +742,22 @@ func (f *FullResponse) Redacted() bool {
 	return f != nil && (f.DetailRedacted || f.Run.DetailRedacted)
 }
 
-// spendMetadataKeys are the freeform run-metadata keys that carry LLM spend or token counts. The typed
-// DTOs dropped those fields, but `metadata` is a passthrough map: an older server still emitting them
-// would otherwise reach a rendered surface or a debug dump. Every metadata passthrough filters on this.
-var spendMetadataKeys = map[string]bool{
+// hostOnlyMetadataKeys are the freeform run-metadata keys that carry host-only telemetry: LLM spend /
+// token counts (unit economics) and the SERVING MODEL IDENTITY (route attribution — the rung that
+// answered and the rung it fell back from are as cost-reverse-engineerable as the provider slug). The
+// server strips all of them on projection and the typed DTOs dropped their fields, but `metadata` is a
+// passthrough map: an older server still emitting them would otherwise reach a rendered surface or a
+// debug dump. Every metadata passthrough filters on this. Mirrors the server's own hostOnlyMetadataKeys.
+var hostOnlyMetadataKeys = map[string]bool{
 	"cost_usd": true, "total_cost_usd": true, "run_cost_usd": true, "max_run_usd_spent": true,
 	"tokens": true, "total_tokens": true, "run_total_tokens": true, "peak_context_tokens": true,
 	"input_tokens": true, "output_tokens": true,
+	"model": true, "model_fallback_from": true,
 }
 
-// SpendMetadataKey reports whether a run-metadata key must never be rendered (spend / token counts).
-func SpendMetadataKey(k string) bool { return spendMetadataKeys[k] }
+// HostOnlyMetadataKey reports whether a run-metadata key must never be rendered (spend / token counts /
+// serving model identity).
+func HostOnlyMetadataKey(k string) bool { return hostOnlyMetadataKeys[k] }
 
 // BrainDiffFile is one path the run's journal commit touched, with its line churn. Additions is -1 for
 // a binary file (the server's numstat "-" → -1, distinct from a real 0).

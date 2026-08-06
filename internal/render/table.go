@@ -542,9 +542,6 @@ func runWhy(d *client.RunDebug) string {
 	if d.Forced != "" {
 		parts = append(parts, "forced ("+d.Forced+")")
 	}
-	if d.FallbackFrom != "" {
-		parts = append(parts, "model fell back from "+d.FallbackFrom)
-	}
 	return strings.Join(parts, "; ")
 }
 
@@ -616,9 +613,6 @@ func Full(w io.Writer, f *client.FullResponse) {
 		if d.Forced != "" {
 			_, _ = fmt.Fprintf(tw, "Forced:\t%s\n", d.Forced)
 		}
-		if d.FallbackFrom != "" {
-			_, _ = fmt.Fprintf(tw, "Fallback from:\t%s\n", d.FallbackFrom)
-		}
 		if d.RecoverableRetries > 0 {
 			_, _ = fmt.Fprintf(tw, "Recoverable retries:\t%d\n", d.RecoverableRetries)
 		}
@@ -645,9 +639,6 @@ func Full(w io.Writer, f *client.FullResponse) {
 	}
 	if grounding := groundingSummary(r.GroundingSources); grounding != "" {
 		_, _ = fmt.Fprintf(tw, "Grounding:\t%s\n", grounding)
-	}
-	if r.Model != "" {
-		_, _ = fmt.Fprintf(tw, "Model:\t%s\n", r.Model)
 	}
 	_, _ = fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
@@ -713,9 +704,6 @@ func renderTimeline(w io.Writer, events []client.EventItem) {
 	for i, e := range events {
 		_, _ = fmt.Fprintf(w, "\n#%d  %s  %s  exit=%d  %s  %s\n",
 			i+1, eventTool(e.Tool, e.Label), e.Status, e.ExitCode, duration(e.DurationMs), e.At)
-		if meta := eventModelLine(&e); meta != "" {
-			_, _ = fmt.Fprintf(w, "    %s\n", meta)
-		}
 		if e.Command != "" {
 			_, _ = fmt.Fprintf(w, "    $ %s\n", e.Command)
 		}
@@ -875,12 +863,6 @@ func eventTool(tool, label string) string {
 		return tool + " (" + label + ")"
 	}
 	return tool
-}
-
-// eventModelLine names the model that answered this event — the per-event triage hint that survives the
-// no-spend rule. Blank when the event had no LLM call (a plain tool call).
-func eventModelLine(e *client.EventItem) string {
-	return e.Model
 }
 
 func projectionSummary(raw string) string {
@@ -1166,8 +1148,8 @@ func sortedKeys(m map[string]client.SourceCount) []string {
 }
 
 // suppressedMetadataKeys never reach a rendered surface: outcome/run_url already have dedicated rows.
-// The spend/token keys are barred product-wide and live in client.SpendMetadataKey, shared with the
-// other passthrough (debugdump's JSONL run header).
+// The spend/token and serving-model keys are barred product-wide and live in client.HostOnlyMetadataKey,
+// shared with the other passthrough (debugdump's JSONL run header).
 var suppressedMetadataKeys = map[string]bool{"outcome": true, "run_url": true}
 
 func sortedMetadataKeys(m map[string]any) []string {
@@ -1177,7 +1159,7 @@ func sortedMetadataKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		switch {
-		case suppressedMetadataKeys[k] || client.SpendMetadataKey(k):
+		case suppressedMetadataKeys[k] || client.HostOnlyMetadataKey(k):
 			continue
 		default:
 			keys = append(keys, k)

@@ -1,6 +1,6 @@
 Fleet digest — last 7 days · fleet · 4 runs
 
-Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · FB=model fallback (planned model failed) · LRN=dream-cycle learning signal
+Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal
 
 RUN8      KIND      STATUS  DURATION  TURNS  FLAGS
 aaaaaaaa  analysis  error   3m20s     14     GD J0 ERR×3 (+12 explore) BIG×1 T! EGR×2 FB LRN:feedback+triage_corrected
@@ -25,5 +25,5 @@ Worst offenders (full ids — `rc run debug <id>`):
     aaaaaaaa-0000-0000-0000-000000000003 ERR×2 — analysis, done · 30s · 4t · ERR×2
   Blocked egress:
     aaaaaaaa-0000-0000-0000-000000000001 EGR×2 — analysis, error · 200s · 14t · ERR×3 (+12 explore) · FB
-  Model fallbacks:
-    aaaaaaaa-0000-0000-0000-000000000001 anthropic/claude-opus-4←anthropic/claude-sonnet-4 — analysis, error · 200s · 14t · ERR×3 (+12 explore) · FB
+  Fallback runs (1 — rung swapped mid-run):
+    aaaaaaaa-0000-0000-0000-000000000001 — analysis, error · 200s · 14t · ERR×3 (+12 explore) · FB

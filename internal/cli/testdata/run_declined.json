@@ -19,5 +19,5 @@
     "fallback_from": "claude-opus-4-8",
     "recoverable_retries": 2
   },
-  "metadata": { "outcome": "declined", "total_cost_usd": 0.21 }
+  "metadata": { "outcome": "declined", "total_cost_usd": 0.21, "model": "google/gemini-3.5-flash", "model_fallback_from": "claude-opus-4-8" }
 }

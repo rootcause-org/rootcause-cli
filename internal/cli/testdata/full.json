@@ -34,7 +34,7 @@
         "url": "https://app.replypen.com/actions/tok_create_appointment"
       }
     ],
-    "metadata": { "trace_url": "https://trace.example/abc123", "outcome": "ok" },
+    "metadata": { "trace_url": "https://trace.example/abc123", "outcome": "ok", "model": "claude-opus-4-8", "model_fallback_from": "claude-opus-5" },
     "egress": [
       { "host": "api.stripe.com", "count": 3, "blocked": false },
       { "host": "evil.example", "count": 1, "blocked": true }

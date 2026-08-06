@@ -2,7 +2,6 @@ Run:       redacted
 Status:    done
 Kind:      email
 Trigger:   email
-Model:     claude-opus-5
 Created:   2026-06-19T08:10:00Z
 Finished:  2026-06-19T08:12:00Z
 Question:  Where is my invoice?

@@ -3304,7 +3304,6 @@ Usage:
 
 Flags:
       --all                       fan out across every project (requires an all-projects token)
-      --by-model                  add the model×turns×fallback breakdown (which model answered, how hard it worked, how often it was a fallback)
       --days int                  window label for the digest header (days) (default 7)
       --format string             output style: human|agent (default "human")
       --kind string               filter by kind: email|prompt|mcp|analysis

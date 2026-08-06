@@ -3,7 +3,7 @@ Kind:         prompt
 Status:       done
 Category:     declined
 Outcome:      declined
-Why:          declined — Thread already resolved — the sender acknowledged closure, so there is no open q…; guardrail (max_iterations); forced (budget); model fell back from claude-opus-4-8
+Why:          declined — Thread already resolved — the sender acknowledged closure, so there is no open q…; guardrail (max_iterations); forced (budget)
 Draft?:       no
 Note?:        no
 Placed:       declined

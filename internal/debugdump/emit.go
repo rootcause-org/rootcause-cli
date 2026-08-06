@@ -21,15 +21,6 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	enc.SetEscapeHTML(false)
 
 	r := full.Run
-	model := r.Model
-	if model == "" {
-		for _, e := range events {
-			if e.src.Model != "" {
-				model = e.src.Model
-				break
-			}
-		}
-	}
 	header := map[string]any{
 		"type":                    "run",
 		"run_id":                  r.RunID,
@@ -52,7 +43,6 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		"system_prompt":           emptyNil(r.SystemPrompt),
 		"created_at":              emptyNil(r.CreatedAt),
 		"finished_at":             emptyNil(r.FinishedAt),
-		"model":                   emptyNil(model),
 		"draft":                   emptyNil(r.Draft),
 		"notes":                   notesJSON(r.Notes),
 		"metadata":                metadataJSON(r.Metadata),
@@ -95,7 +85,6 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 			"duration_ms": e.src.DurationMs,
 			"at":          emptyNil(e.src.At),
 			"reasoning":   emptyNil(e.src.Reasoning),
-			"model":       emptyNil(e.src.Model),
 		}
 		// Bash's full input is `command`; other tools carry their structured input in `args`.
 		if e.src.Tool != "bash" {
@@ -129,15 +118,6 @@ func RenderIndex(full *client.FullResponse) string {
 			main = append(main, e)
 		}
 	}
-	model := r.Model
-	if model == "" {
-		for _, e := range events {
-			if e.src.Model != "" {
-				model = e.src.Model
-				break
-			}
-		}
-	}
 	blocked := 0
 	for _, g := range r.Egress {
 		if g.Blocked {
@@ -167,7 +147,6 @@ func RenderIndex(full *client.FullResponse) string {
 	}
 	add(fmt.Sprintf("- **Thread / Session:** `%s` / `%s`", r.ThreadID, r.SessionID))
 	add(fmt.Sprintf("- **Created / Finished:** %s / %s", orQ(r.CreatedAt), orParen(r.FinishedAt, "unfinished")))
-	add(fmt.Sprintf("- **Model:** `%s`", orQ(model)))
 	// A "0 main / 0 egress" count on a redacted bundle is a lie of omission — the counts were never served.
 	if redacted && len(events) == 0 {
 		add("- **Steps / Egress:** withheld")
@@ -656,15 +635,16 @@ func notesJSON(notes []client.Note) []map[string]any {
 	return out
 }
 
-// metadataJSON passes the run's freeform metadata into the JSONL header, minus the spend/token keys an
-// older server may still emit — the dump is a read surface like any other.
+// metadataJSON passes the run's freeform metadata into the JSONL header, minus the host-only keys an
+// older server may still emit (spend/tokens, serving model identity) — the dump is a read surface like
+// any other.
 func metadataJSON(m map[string]any) any {
 	if len(m) == 0 {
 		return nil
 	}
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		if client.SpendMetadataKey(k) {
+		if client.HostOnlyMetadataKey(k) {
 			continue
 		}
 		out[k] = v

@@ -191,14 +191,15 @@ if ANY project is unhealthy, and `fleet patterns --all`
 clusters per project. `-o json` emits the merged `{projects:[…]}` shape. `--all` against a project-scoped
 token is a friendly error (it needs an all-projects token), not a silent single-project run.
 
-`rc fleet runs` also carries the aggregates operators used to drop to raw SQL for: **`--by-model`** (per
-answered model — runs, avg **turns**, and how many were **fallbacks**; it surfaces "one model answers
-N% of runs purely as a fallback") and **`--timeline`** (per-day runs/errors/latency). Both off by
-default to keep the digest scannable; the per-run `is_fallback` / `planned_model` always ride in
-`-o json` so any breakdown is re-derivable. Stuck runs (`running` past a 30m clock with no finish) and
-a `FB` model-fallback flag are surfaced inline; every worst-offender line carries the full triage tail
-(secs · turns · bash_err · FB). Heaviness is read off **turns / bash / duration** — the CLI shows no
-spend or token counts on any surface.
+`rc fleet runs` also carries **`--timeline`** (per-day runs/errors/latency), off by default to keep the
+digest scannable; the per-run rows always ride in `-o json` so the breakdown is re-derivable. Stuck runs
+(`running` past a 30m clock with no finish) and a `FB` fallback flag are surfaced inline; every
+worst-offender line carries the full triage tail (secs · turns · bash_err · FB). Heaviness is read off
+**turns / bash / duration** — the CLI shows no spend or token counts on any surface, and no **serving
+model identity** either: naming the rung that answered is as cost-reverse-engineerable as naming the
+provider that served it, so the API projects none of it on any tier. `is_fallback` survives as the
+content-free half — THAT the loop swapped rungs, never between which models. The model×cost×fallback
+breakdown is a superadmin `db.py` query now, not a `rc` view.
 
 `rc fleet actions` is the operator-only cross-run action index. It automatically pages a recent window
 without downloading the much larger event feed or calling every run separately. Repeat `--action` and

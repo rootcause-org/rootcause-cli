@@ -247,17 +247,93 @@ func TestFleetTable(t *testing.T) {
 	assertGolden(t, "fleet.golden", out.String())
 }
 
-// TestFleetByModel pins the model×turns×fallback breakdown — per answered model: runs, avg turns, and
-// the fallback count (the opus run is a fallback from sonnet in the fixtures): which model answered,
-// how hard it worked, and how often it was only there because the planned model failed.
-func TestFleetByModel(t *testing.T) {
+// modelIdentityFixtureStrings are the model names the testdata fixtures still carry — deliberately, as
+// a stand-in for a stale or rogue server that has not stopped emitting them. The typed DTOs no longer
+// decode those keys and the metadata passthrough filters them, so NO rendered surface may echo one.
+var modelIdentityFixtureStrings = []string{
+	"anthropic/claude-opus-4", "anthropic/claude-sonnet-4",
+	"claude-opus-4-8", "claude-opus-5", "google/gemini-3.5-flash",
+}
+
+// TestNoSurfaceRendersModelIdentity pins the invariant that replaced the old --by-model breakdown:
+// the SERVING MODEL identity is host-only telemetry, exactly like the provider slug — naming the rung
+// that answered is as cost-reverse-engineerable as naming who served it. The server projects none of it
+// on ANY tier (operator included), so every CLI surface that composes output — the fleet digests, the
+// run/trace/events tables, and the `run debug` markdown + JSONL — must be model-free. Only the content-
+// free run_health.is_fallback boolean (THAT a swap happened, never between which models) survives; the
+// FB flag below asserts it still renders. Raw `-o json` passthroughs are excluded on purpose — they
+// re-emit the server's bytes verbatim (`run show -o json`, and `run trace -o json`, which only injects
+// a `type` key per line); `run debug` is the composed dump and IS covered.
+func TestNoSurfaceRendersModelIdentity(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--by-model"); err != nil {
-		t.Fatalf("fleet --by-model: %v", err)
+
+	for _, tc := range []struct {
+		name string
+		mode string
+		args []string
+	}{
+		{"fleet human", "table", []string{"fleet", "runs", "--kind", "fleet"}},
+		{"fleet agent", "table", []string{"fleet", "runs", "--kind", "fleet", "--format", "agent"}},
+		{"fleet timeline", "table", []string{"fleet", "runs", "--kind", "fleet", "--timeline"}},
+		{"run show", "table", []string{"run", "show", "declined"}},
+		{"run trace", "table", []string{"run", "trace", "11111111-1111-1111-1111-111111111111"}},
+		{"run trace declined", "table", []string{"run", "trace", "declined"}},
+		{"run events", "table", []string{"run", "events", "declined"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, out, _ := newTestEnv(t, srv, tc.mode)
+			if err := run(t, e, tc.args...); err != nil {
+				t.Fatalf("%v: %v", tc.args, err)
+			}
+			assertNoModelIdentity(t, out.String())
+		})
 	}
-	assertGolden(t, "fleet_by_model.golden", out.String())
+
+	// `rc run debug` writes its two files instead of printing them, so it is driven separately.
+	t.Run("run debug files", func(t *testing.T) {
+		outDir := t.TempDir()
+		e, _, _ := newTestEnv(t, srv, "table")
+		if err := run(t, e, "run", "debug", "11111111-1111-1111-1111-111111111111", "--out-dir", outDir); err != nil {
+			t.Fatalf("run debug: %v", err)
+		}
+		for _, name := range []string{"11111111-coca-cola.md", "11111111-coca-cola.jsonl"} {
+			b, err := os.ReadFile(filepath.Join(outDir, name))
+			if err != nil {
+				t.Fatalf("read %s: %v", name, err)
+			}
+			assertNoModelIdentity(t, string(b))
+		}
+	})
+
+	// The other half of the invariant: is_fallback still reaches the digest as the FB flag, so an
+	// operator can see THAT a rung swap happened without learning between which models.
+	t.Run("is_fallback survives", func(t *testing.T) {
+		e, out, _ := newTestEnv(t, srv, "table")
+		if err := run(t, e, "fleet", "runs", "--kind", "fleet"); err != nil {
+			t.Fatalf("fleet: %v", err)
+		}
+		for _, want := range []string{"FB", "Fallback runs ("} {
+			if !strings.Contains(out.String(), want) {
+				t.Fatalf("fleet digest lost the content-free fallback signal %q:\n%s", want, out.String())
+			}
+		}
+	})
+}
+
+func assertNoModelIdentity(t *testing.T, got string) {
+	t.Helper()
+	for _, m := range modelIdentityFixtureStrings {
+		if strings.Contains(got, m) {
+			t.Fatalf("surface leaked the serving model identity %q:\n%s", m, got)
+		}
+	}
+	// The label is barred too: a "Model:" row with a blank value would still advertise the concept.
+	for _, label := range []string{"Model:", "MODEL\t", "By model"} {
+		if strings.Contains(got, label) {
+			t.Fatalf("surface still renders a model line (%q):\n%s", label, got)
+		}
+	}
 }
 
 // TestFleetTimeline pins the per-day runs/errors/latency histogram (the "what changed today" anchor).
@@ -298,7 +374,7 @@ func TestFleetBadFormat(t *testing.T) {
 }
 
 // TestFleetAgentDigestRendersWhenPiped pins the fleet-review fix: an EXPLICIT --format agent must emit
-// the computed digest (shortlist + aggregate + by-model + timeline + offenders, full UUIDs) even when
+// the computed digest (shortlist + aggregate + timeline + offenders, full UUIDs) even when
 // stdout is a pipe — auto mode used to fall through to the raw JSON passthrough and dump every row.
 // The env's "" output mode leaves -o unset; a test buffer is a non-TTY, i.e. exactly a pipe.
 func TestFleetAgentDigestRendersWhenPiped(t *testing.T) {
@@ -312,7 +388,6 @@ func TestFleetAgentDigestRendersWhenPiped(t *testing.T) {
 	for _, want := range []string{
 		"look here first:",
 		"Aggregate:",
-		"By model (turns · fallbacks):",
 		"Daily timeline:",
 		"Worst offenders (full ids",
 		"aaaaaaaa-0000-0000-0000-000000000001", // full UUID, one paste from rc run debug

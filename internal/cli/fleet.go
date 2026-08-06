@@ -22,7 +22,6 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	var kind string
 	var format string
 	var all bool
-	var byModel bool
 	var timeline bool
 	var learning string
 	cmd := &cobra.Command{
@@ -46,7 +45,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Format: format, ByModel: byModel, Timeline: timeline}
+			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Format: format, Timeline: timeline}
 			rawJSON := rawRowsJSON(e, cmd)
 
 			if all {
@@ -77,7 +76,6 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
 	cmd.Flags().StringVar(&format, "format", "human", "output style: human|agent")
 	cmd.Flags().BoolVar(&all, "all", false, "fan out across every project (requires an all-projects token)")
-	cmd.Flags().BoolVar(&byModel, "by-model", false, "add the model×turns×fallback breakdown (which model answered, how hard it worked, how often it was a fallback)")
 	cmd.Flags().BoolVar(&timeline, "timeline", false, "add the per-day runs/errors/latency timeline")
 	cmd.Flags().StringVar(&learning, "learning", "", "filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected")
 	cmd.Flags().Lookup("learning").NoOptDefVal = "any"

@@ -3,10 +3,11 @@
 // The server ships raw per-run health numbers + the view's own boolean flags; the ONE derived flag the
 // view can't precompute — T! turn-spike (needs a per-kind median over the window) — is computed HERE.
 // Heaviness is expressed in COST-NEUTRAL proxies only (turns, bash, duration, blocked egress): no
-// surface may show spend or token counts. Two formats: "human" (legend + table + aggregate +
+// surface may show spend, token counts, or the model identity that served a run — the fallback story is
+// told by the content-free is_fallback boolean alone. Two formats: "human" (legend + table + aggregate +
 // offenders) and "agent" (the full computed digest in token-lean form: ranked "look here first"
-// shortlist, aggregate, model×fallback, daily timeline, worst offenders — all with full ids — plus the
-// per-run index). Pure functions of the rows so golden tests pin them.
+// shortlist, aggregate, daily timeline, worst offenders — all with full ids — plus the per-run index).
+// Pure functions of the rows so golden tests pin them.
 package render
 
 import (
@@ -26,11 +27,8 @@ type FleetOptions struct {
 	Kind     string // "" = all kinds
 	Learning string // "" = all runs; otherwise the server-side learning filter
 	Format   string // "human" | "agent"
-	// ByModel / Timeline gate the heavier breakdowns out of the default human digest so it stays
-	// scannable; -o json always carries them. ByModel = the model×turns×fallback table (which model
-	// worked hardest, and how often it was a fallback). Timeline = the per-day runs/errors/latency
-	// histogram.
-	ByModel  bool
+	// Timeline gates the per-day runs/errors/latency histogram out of the default human digest so it
+	// stays scannable; -o json always carries the rows it is derived from.
 	Timeline bool
 }
 
@@ -43,7 +41,7 @@ const stuckRunAfter = 30 * time.Minute
 // fleetLegend is the human flag legend, condensed for the terminal.
 const fleetLegend = `Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · ` +
 	`BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · ` +
-	`FB=model fallback (planned model failed) · LRN=dream-cycle learning signal`
+	`FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal`
 
 // FleetGroup is one project's slice of the fan-out: its name + its paged run rows. The cross-project
 // `rc fleet runs --all` builds one per project.
@@ -214,14 +212,6 @@ func isFallback(r client.RunSummary) bool {
 	return r.Health != nil && r.Health.IsFallback
 }
 
-// answeredModel is the model that actually answered (operator-tier); "" when absent.
-func answeredModel(r client.RunSummary) string {
-	if r.Health != nil {
-		return r.Health.Model
-	}
-	return ""
-}
-
 // secsOf is the run's wall-clock seconds, derived from the index's duration_ms (the server omits
 // duration on an unfinished run, so this is 0 for a still-running run). Used for the per-project
 // avg/max latency rollup.
@@ -370,70 +360,11 @@ func fleetHuman(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	_ = tw.Flush()
 
 	fleetAggregate(w, runs)
-	if opt.ByModel {
-		fleetByModel(w, runs)
-	}
 	if opt.Timeline {
 		fleetTimeline(w, runs)
 	}
 	fleetStuck(w, runs)
 	fleetOffenders(w, runs)
-}
-
-// fleetByModel renders the model×turns×fallback breakdown: per answered model, the run count, the
-// average turns it needed, and HOW MANY were fallbacks (the loop swapped to it after a planned model
-// failed). It surfaces "one model answers N% of runs purely as a fallback, and works hardest doing it".
-// Model is operator-tier, so a baseline window has no model and the table is skipped. Sorted by run
-// count desc — the workhorse leads.
-func fleetByModel(w io.Writer, runs []client.RunSummary) {
-	type agg struct {
-		runs, fallbacks int
-		turnsSum        int64
-		turnsN          int64
-	}
-	byModel := map[string]*agg{}
-	var order []string
-	for _, r := range runs {
-		m := answeredModel(r)
-		if m == "" {
-			continue // baseline bearer / unstamped run — no model to attribute
-		}
-		a := byModel[m]
-		if a == nil {
-			a = &agg{}
-			byModel[m] = a
-			order = append(order, m)
-		}
-		a.runs++
-		if t := turnsOf(r); t > 0 {
-			a.turnsSum += t
-			a.turnsN++
-		}
-		if isFallback(r) {
-			a.fallbacks++
-		}
-	}
-	if len(byModel) == 0 {
-		return
-	}
-	sort.SliceStable(order, func(i, j int) bool { return byModel[order[i]].runs > byModel[order[j]].runs })
-
-	_, _ = fmt.Fprintln(w, "\nBy model (turns · fallbacks):")
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "  MODEL\tRUNS\tAVG_TURNS\tFALLBACK")
-	for _, m := range order {
-		a := byModel[m]
-		avg := 0.0
-		if a.turnsN > 0 {
-			avg = float64(a.turnsSum) / float64(a.turnsN)
-		}
-		fb := "-"
-		if a.fallbacks > 0 {
-			fb = fmt.Sprintf("%d (%d%%)", a.fallbacks, pct(a.fallbacks, a.runs))
-		}
-		_, _ = fmt.Fprintf(tw, "  %s\t%d\t%s\t%s\n", m, a.runs, turnsCell(avg), fb)
-	}
-	_ = tw.Flush()
 }
 
 // fleetTimeline renders the per-day runs/errors/latency histogram across the window — the "what changed
@@ -645,13 +576,11 @@ func fleetOffenders(w io.Writer, runs []client.RunSummary) {
 		printed = true
 		// Heaviest fallbacks first — the extra work a fallback model quietly drove.
 		sort.SliceStable(fb, func(i, j int) bool { return turnsOf(fb[i]) > turnsOf(fb[j]) })
-		_, _ = fmt.Fprintln(w, "  Model fallbacks:")
+		// THAT the loop swapped rungs, never between which ones: the model identities behind is_fallback
+		// are host-only telemetry (superadmin SQL), so these lines carry ids + the ordinary triage tail.
+		_, _ = fmt.Fprintf(w, "  Fallback runs (%d — rung swapped mid-run):\n", len(fb))
 		for _, r := range fb {
-			planned := r.Health.PlannedModel
-			if planned == "" {
-				planned = "?"
-			}
-			_, _ = fmt.Fprintf(w, "    %s %s←%s — %s\n", r.RunID, answeredModel(r), planned, offenderTail(r))
+			_, _ = fmt.Fprintf(w, "    %s — %s\n", r.RunID, offenderTail(r))
 		}
 	}
 
@@ -697,10 +626,10 @@ func errorHead(r client.RunSummary) string {
 // --- agent (token-lean) digest ---
 
 // fleetAgent emits the COMPUTED digest for an agent to read whole: the ranked shortlist, then the same
-// rollup blocks the human render computes (aggregate, model×turns×fallback, daily timeline, stuck runs,
-// worst offenders — reused, not re-derived), then the full per-run index. Every id is a full UUID so a
-// drill is one paste. Unlike the human digest, by-model and timeline are always on: an agent reads the
-// digest once instead of re-running with flags.
+// rollup blocks the human render computes (aggregate, daily timeline, stuck runs, worst offenders —
+// reused, not re-derived), then the full per-run index. Every id is a full UUID so a drill is one paste.
+// Unlike the human digest, the timeline is always on: an agent reads the digest once instead of
+// re-running with flags.
 func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	spikes := turnSpikes(runs)
 	_, _ = fmt.Fprintf(w, "runs — last %dd%s · %d runs\n\n", opt.Days, learningScope(opt.Learning), len(runs))
@@ -740,7 +669,6 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	}
 
 	fleetAggregate(w, runs)
-	fleetByModel(w, runs)
 	fleetTimeline(w, runs)
 	fleetStuck(w, runs)
 	fleetOffenders(w, runs)

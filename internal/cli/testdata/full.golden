@@ -8,7 +8,6 @@ Tenant:                 de-kies
 Tenant settings:        source=cli  synced_at=2026-06-22T10:00:00Z  version=sha256:tenantabc  selectors=4
 Tenant settings drift:  1 changed
 Grounding:              2 sources  1 attention  1 drift fields  captured=2026-06-19T09:00:03Z  checked=2026-06-25T10:05:00Z
-Model:                  claude-opus-4-8
 Created:                2026-06-19T09:00:00Z
 Finished:               2026-06-19T09:01:30Z
 Question:               Do I still have open invoices?
@@ -33,12 +32,10 @@ Timeline (3):
     reasoning: Pull the customer's recent invoices.
 
 #2  bash  ok  exit=0  120ms  2026-06-19T09:00:10Z
-    claude-opus-4-8
     $ psql -c 'select count(*) from invoices where paid is false'
     stdout: 2
 
 #3  reply  ok  exit=0  30ms  2026-06-19T09:01:25Z
-    claude-opus-4-8
     args: { "channel": "email" }
     draft=true note=true
 
