@@ -1,0 +1,11 @@
+{
+  "project": "alpha",
+  "repo": "kampadmin-rootcause-common",
+  "branch": "stable",
+  "expected_sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
+  "actual_sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
+  "verified": true,
+  "job_id": 42,
+  "refreshed_workspaces": 2,
+  "server_note": "additive field kept in JSON"
+}

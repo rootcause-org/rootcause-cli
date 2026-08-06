@@ -46,6 +46,7 @@ func TestCanonicalScopeContracts(t *testing.T) {
 		"project tenant profile set":    {Project: true},
 		"project database controls set": {Project: true},
 		"dev brain promote":             {Project: true},
+		"dev mirror refresh":            {Project: true},
 		"dev brain developer invite":    {Project: true, Tenant: true},
 		"dev console action run":        {Project: true},
 		"dev console database query":    {Project: true, Tenant: true},

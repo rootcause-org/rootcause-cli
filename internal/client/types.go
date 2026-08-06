@@ -138,6 +138,22 @@ type BrainPromoteResponse struct {
 	Idempotent bool   `json:"idempotent"`
 }
 
+type MirrorRefreshRequest struct {
+	Repo        string `json:"repo"`
+	ExpectedSHA string `json:"expected_sha"`
+}
+
+type MirrorRefreshResponse struct {
+	Project             string `json:"project"`
+	Repo                string `json:"repo"`
+	Branch              string `json:"branch"`
+	ExpectedSHA         string `json:"expected_sha"`
+	ActualSHA           string `json:"actual_sha"`
+	Verified            bool   `json:"verified"`
+	JobID               int64  `json:"job_id"`
+	RefreshedWorkspaces int    `json:"refreshed_workspaces"`
+}
+
 // BrainDeveloperInvitationRequest grants one GitHub user access to one tenant brain repository.
 // The server owns GitHub App credentials; rc only forwards the handle in the JSON body.
 type BrainDeveloperInvitationRequest struct {

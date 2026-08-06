@@ -373,6 +373,45 @@ func TestBrainPromoteJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "brain_promote.json"), out.Bytes())
 }
 
+func TestMirrorRefreshTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "mirror", "refresh", "--repo", "kampadmin-rootcause-common", "--expect-sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE"); err != nil {
+		t.Fatalf("dev mirror refresh: %v", err)
+	}
+	assertGolden(t, "mirror_refresh.golden", out.String())
+}
+
+func TestMirrorRefreshJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "dev", "mirror", "refresh", "--repo", "kampadmin-rootcause-common", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"); err != nil {
+		t.Fatalf("dev mirror refresh -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "mirror_refresh.json"), out.Bytes())
+}
+
+func TestMirrorRefreshRejectsInvalidSHAAndTenantSelector(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"short sha", []string{"dev", "mirror", "refresh", "--repo", "common", "--expect-sha", "222222222222"}, "full 40-character"},
+		{"tenant selector", []string{"--tenant", "de-kies", "dev", "mirror", "refresh", "--repo", "common", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "--tenant is not supported"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenOvr: "test", baseURLOvr: "http://127.0.0.1:1", output: "table"}
+			err := run(t, e, tc.args...)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestBrainPromoteRejectsInvalidInputsAndTenantSelector(t *testing.T) {
 	for _, tc := range []struct {
 		name string

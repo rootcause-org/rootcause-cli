@@ -302,6 +302,17 @@ func BrainPromote(w io.Writer, r *client.BrainPromoteResponse) {
 	_, _ = fmt.Fprintf(w, "State:   %s\n", state)
 }
 
+func MirrorRefresh(w io.Writer, r *client.MirrorRefreshResponse) {
+	_, _ = fmt.Fprintf(w, "Project:    %s\n", r.Project)
+	_, _ = fmt.Fprintf(w, "Repository: %s\n", r.Repo)
+	_, _ = fmt.Fprintf(w, "Branch:     %s\n", r.Branch)
+	_, _ = fmt.Fprintf(w, "Commit:     %s\n", r.ActualSHA)
+	_, _ = fmt.Fprintf(w, "Verified:   %s\n", yesNo(r.Verified))
+	if r.RefreshedWorkspaces > 0 {
+		_, _ = fmt.Fprintf(w, "Workspaces: %d refreshed\n", r.RefreshedWorkspaces)
+	}
+}
+
 func BrainDeveloperInvitation(w io.Writer, r *client.BrainDeveloperInvitation) {
 	_, _ = fmt.Fprintf(w, "GitHub:         %s\n", r.GitHubHandle)
 	_, _ = fmt.Fprintf(w, "Repository:     %s\n", r.Repository)

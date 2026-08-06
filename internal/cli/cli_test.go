@@ -1131,6 +1131,21 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "brain_promote.json"))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/mirrors/refresh", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if got := r.PathValue("project"); got != "alpha" {
+			t.Fatalf("mirror refresh project = %q, want alpha", got)
+		}
+		var body client.MirrorRefreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode mirror refresh body: %v", err)
+		}
+		if body.Repo != "kampadmin-rootcause-common" || body.ExpectedSHA != "d2f9de784ab7cded001f2b6ac86892795f58a8ce" {
+			t.Fatalf("mirror refresh body = %+v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "mirror_refresh.json"))
+	})
 	mux.HandleFunc("POST /api/v1/brain/edit", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

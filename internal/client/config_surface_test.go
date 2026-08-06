@@ -57,6 +57,43 @@ func TestBrainPromoteRequiresProjectWithoutRequest(t *testing.T) {
 	}
 }
 
+func TestMirrorRefreshUsesCanonicalProjectRouteAndPreservesRawResult(t *testing.T) {
+	const sha = "d2f9de784ab7cded001f2b6ac86892795f58a8ce"
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/projects/{project}/mirrors/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.PathValue("project"); got != "dentai/shared" {
+			t.Fatalf("project path = %q, want escaped project selector", got)
+		}
+		var req MirrorRefreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatal(err)
+		}
+		if req.Repo != "common" || req.ExpectedSHA != sha {
+			t.Fatalf("request = %+v", req)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"project":"dentai/shared","repo":"common","branch":"stable","expected_sha":"` + sha + `","actual_sha":"` + sha + `","verified":true,"job_id":42,"refreshed_workspaces":2,"extra":"kept"}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c := New(srv.URL, StaticToken("test"))
+	resp, raw, err := c.MirrorRefresh(context.Background(), "dentai/shared", MirrorRefreshRequest{Repo: "common", ExpectedSHA: sha})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Project != "dentai/shared" || resp.ActualSHA != sha || !resp.Verified || resp.RefreshedWorkspaces != 2 {
+		t.Fatalf("response = %+v", resp)
+	}
+	var verbatim map[string]any
+	if err := json.Unmarshal(raw, &verbatim); err != nil {
+		t.Fatal(err)
+	}
+	if verbatim["extra"] != "kept" {
+		t.Fatalf("raw response lost additive field: %s", raw)
+	}
+}
+
 func TestInviteBrainDeveloperUsesCanonicalTenantRouteAndBody(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/projects/{project}/tenants/{tenant}/brain/developers/invitations", func(w http.ResponseWriter, r *http.Request) {

@@ -133,6 +133,24 @@ func (c *Client) BrainPromote(ctx context.Context, project string, req BrainProm
 	return &out, raw, nil
 }
 
+// MirrorRefresh queues the server's existing mirror sweep and verifies one repository reached an
+// exact commit. It is project-only because project mirrors are shared by every tenant.
+func (c *Client) MirrorRefresh(ctx context.Context, project string, req MirrorRefreshRequest) (*MirrorRefreshResponse, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required to refresh mirrors"}
+	}
+	var raw json.RawMessage
+	path := "/api/v1/projects/" + url.PathEscape(project) + "/mirrors/refresh"
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out MirrorRefreshResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
 // BrainEdit queues an out-of-band brain edit from an instruction; returns {queued, job_id}.
 func (c *Client) BrainEdit(ctx context.Context, instruction, project, tenant string) (json.RawMessage, error) {
 	if err := requireTenantProject(project, tenant, "brain"); err != nil {

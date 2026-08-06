@@ -61,7 +61,7 @@ func commandScope(path string) scopeSpec {
 	path = strings.TrimSpace(strings.TrimPrefix(path, "rc "))
 	projectTenant := scopeSpec{Project: true, Tenant: true}
 	projectOnly := scopeSpec{Project: true}
-	if path == "dev brain promote" || path == "dev brain publish" {
+	if path == "dev brain promote" || path == "dev brain publish" || path == "dev mirror refresh" {
 		return projectOnly
 	}
 
