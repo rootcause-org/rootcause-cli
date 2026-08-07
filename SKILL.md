@@ -46,7 +46,9 @@ keep the raw rows reachable via `-o json`:
   repeatable exact action/status filters, with exact grounded params and the freshly tokenized run URL
   present by default. `--format agent` pins a one-line complete view over a pipe; JSON preserves every
   raw item field. Execution result/error remain a run drill-down.
-- `rc run thread <id>` / `rc run process-thread <id>` — thread/session trace and set-aside-thread resume.
+- `rc run thread <id>` / `rc run process-thread <id>` — provider/local/session lookup → safe pre-run
+  pipeline outcome → run trace, plus set-aside-thread resume by the returned local UUID. A triage skip
+  remains diagnosable when no run was enqueued.
 - `rc dev learning evidence` — heterogeneous dream-cycle evidence, **JSON-only** (`--plane`, `--include-bodies`).
 - `rc project knowledge content search|export` — progressive KB discovery over the guarded bash workspace
   (ranked metadata to stdout, full articles spilled to a local artifact folder).

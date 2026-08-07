@@ -235,8 +235,10 @@ func stubServer(t *testing.T) *httptest.Server {
 		switch r.PathValue("id") {
 		case "session-fallback": // resolved via the session_id fallback path
 			_, _ = w.Write(fixture(t, "thread_trace_session.json"))
+		case "215475391714527": // provider conversation resolved before any run exists
+			_, _ = w.Write(fixture(t, "thread_trace_provider.json"))
 		case "unknown": // an id matching nothing → clean empty (resolved_by:"none")
-			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","runs":[]}`))
+			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","threads":[],"runs":[]}`))
 		default:
 			_, _ = w.Write(fixture(t, "thread_trace.json"))
 		}

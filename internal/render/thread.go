@@ -1,8 +1,5 @@
-// This file renders `rc run thread <id>` — the trace of one thread/session: how the id resolved, a
-// newest-first table of its runs with health flags + placement (draft/note), and a deterministic "where
-// it likely failed" hint when the newest run errored/declined. The whole pipeline is in-process: the
-// channel plane assembles the thread and enqueues a run, then placement writes a draft/note back to the
-// mailbox. The diagnosis works purely from the safe per-run projection the API ships.
+// This file renders `rc run thread <id>` — provider/local thread resolution, the pre-agent pipeline
+// outcome, then its newest-first runs with health + placement.
 package render
 
 import (
@@ -10,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -23,16 +21,36 @@ func shortID(id string) string {
 	return id
 }
 
-// ThreadTrace renders the thread trace: the id + how it resolved, the runs table (with a per-run health
-// flag column + placement), and the "where it likely failed" hint on the newest run. An unresolved id
-// (resolved_by "none", no runs) is an explicit, useful empty answer.
+// ThreadTrace renders the provider-neutral channel row before the run table. That makes a triage skip or
+// injection block diagnosable even when the pipeline deliberately minted no run.
 func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 	_, _ = fmt.Fprintf(w, "Thread: %s\n", t.ID)
 	_, _ = fmt.Fprintf(w, "Resolved by: %s\n", resolvedLabel(t.ResolvedBy))
 
+	if len(t.Threads) > 0 {
+		_, _ = fmt.Fprintf(w, "\n%d channel thread(s):\n", len(t.Threads))
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		_, _ = fmt.Fprintln(tw, "LOCAL\tPROVIDER\tTENANT\tSTATUS\tOUTCOME\tMSG\tDRAFT\tNOTE\tUPDATED")
+		for _, th := range t.Threads {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\n",
+				shortID(th.LocalThreadID), th.Provider, strOrBlank(th.Tenant), th.Status, th.Outcome,
+				th.MessageCount, th.DraftCount, th.NoteCount, th.UpdatedAt.Format(time.RFC3339))
+		}
+		_ = tw.Flush()
+		for _, th := range t.Threads {
+			if hint := channelThreadHint(th); hint != "" {
+				_, _ = fmt.Fprintf(w, "\nPipeline (%s): %s\n", th.LocalThreadID, hint)
+			}
+		}
+	}
+
 	if len(t.Runs) == 0 {
-		_, _ = fmt.Fprintln(w, "\nNo runs for this id.")
-		_, _ = fmt.Fprintln(w, "Either the channel plane never enqueued a run for it (no inbound assembled), or the id isn't a thread/session we ran.")
+		if len(t.Threads) > 0 {
+			_, _ = fmt.Fprintln(w, "\nNo run was enqueued for this channel thread.")
+		} else {
+			_, _ = fmt.Fprintln(w, "\nNo channel thread or run for this id.")
+			_, _ = fmt.Fprintln(w, "Check the provider id and project/tenant scope.")
+		}
 		return
 	}
 
@@ -56,6 +74,10 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 // resolvedLabel turns the wire resolved_by into a reader-facing phrase.
 func resolvedLabel(by string) string {
 	switch by {
+	case "local_thread":
+		return "rootcause thread id"
+	case "external_thread":
+		return "provider conversation id"
 	case "thread":
 		return "thread id"
 	case "session":
@@ -63,6 +85,41 @@ func resolvedLabel(by string) string {
 	default:
 		return "nothing (unknown id)"
 	}
+}
+
+func channelThreadHint(t client.ThreadTraceThread) string {
+	switch t.Status {
+	case "triage_skipped":
+		why := oneLine(t.TriageExplanation)
+		if why == "" {
+			why = "triage decided this did not need processing"
+		}
+		hint := "triage skipped before run enqueue — " + why
+		if t.NoteCount == 0 && (t.FeedbackLevel == "off" || t.FeedbackLevel == "runs") {
+			hint += fmt.Sprintf(" No note was expected because mailbox feedback is %s.", t.FeedbackLevel)
+		}
+		return hint
+	case "injection_blocked":
+		return "prompt-injection screening blocked the thread before run enqueue"
+	case "error":
+		return "the channel pipeline failed before it could finish; inspect the pipeline job/logs"
+	case "processor_failed":
+		return "processing failed after enqueue; inspect the linked run and processor failure"
+	case "new":
+		if t.Outcome == "processing_off" {
+			return "mailbox processing was off, so no run was expected"
+		}
+		return "the channel pipeline has not reached a terminal outcome"
+	case "declined":
+		if why := oneLine(t.DeclineReason); why != "" {
+			return "the processor declined to draft — " + truncate(why, 240)
+		}
+	}
+	return ""
+}
+
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
 }
 
 // placement summarises what a run placed back to the mailbox in one cell: draft / note / draft+note, or

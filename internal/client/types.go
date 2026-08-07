@@ -799,14 +799,33 @@ type BrainDiff struct {
 	DiffTruncated bool            `json:"diff_truncated,omitempty"`
 }
 
-// ThreadTrace is GET /api/v1/threads/{id}/trace — every run for one thread (or session) id, newest-first,
-// each a full RunSummary (status + safe health), so `rc run thread` can answer "why did this thread get no
-// draft". ResolvedBy is "thread" | "session" | "none". Mirrors the server's threadTraceResponse
-// field-for-field.
+// ThreadTraceThread is the provider-neutral channel row resolved before a run exists. It deliberately
+// carries outcome metadata and counts, not message bodies; the Inbox detail API owns body disclosure.
+type ThreadTraceThread struct {
+	LocalThreadID     string          `json:"local_thread_id"`
+	ExternalThreadID  string          `json:"external_thread_id"`
+	Provider          string          `json:"provider"`
+	FeedbackLevel     string          `json:"feedback_level"`
+	Tenant            string          `json:"tenant,omitempty"`
+	Status            string          `json:"status"`
+	Outcome           string          `json:"outcome"`
+	TriageExplanation string          `json:"triage_explanation,omitempty"`
+	DeclineReason     string          `json:"decline_reason,omitempty"`
+	ProcessorFailure  json.RawMessage `json:"processor_failure,omitempty"`
+	MessageCount      int             `json:"message_count"`
+	DraftCount        int             `json:"draft_count"`
+	NoteCount         int             `json:"note_count"`
+	CreatedAt         time.Time       `json:"created_at"`
+	UpdatedAt         time.Time       `json:"updated_at"`
+}
+
+// ThreadTrace is GET /api/v1/threads/{id}/trace — the channel-pipeline outcome plus every run for one
+// rootcause/provider thread (or session) id. Mirrors the server's threadTraceResponse field-for-field.
 type ThreadTrace struct {
-	ID         string       `json:"id"`
-	ResolvedBy string       `json:"resolved_by"`
-	Runs       []RunSummary `json:"runs"`
+	ID         string              `json:"id"`
+	ResolvedBy string              `json:"resolved_by"`
+	Threads    []ThreadTraceThread `json:"threads"`
+	Runs       []RunSummary        `json:"runs"`
 }
 
 // WatchedMailbox is one row of GET /api/v1/mailboxes/watched — a connection-backed mailbox the channel

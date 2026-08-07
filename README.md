@@ -418,7 +418,7 @@ help using `go test ./internal/cli -update`.
 | `rc run process-thread` | Process a triage-skipped or security-blocked inbox thread |
 | `rc run retry` | Re-run a run (optionally at a different tier); prints the new run id |
 | `rc run show` | Show one run |
-| `rc run thread` | Trace one thread/session: every run for it, with placement + a why-no-draft hint |
+| `rc run thread` | Trace one provider/local thread or session through pipeline, run, and placement |
 | `rc run trace` | Show the whole run bundle |
 | `rc run` | Inspect and manage the run lifecycle |
 | `rc self completion` | Generate a shell completion script |

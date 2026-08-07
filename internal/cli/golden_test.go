@@ -486,6 +486,18 @@ func TestThreadTraceSessionTable(t *testing.T) {
 	assertGolden(t, "thread_trace_session.golden", out.String())
 }
 
+// TestThreadTraceProviderTable pins the pre-run diagnostic path: a provider conversation id resolves
+// to its local channel row and explains a triage skip even though no run exists.
+func TestThreadTraceProviderTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "thread", "215475391714527"); err != nil {
+		t.Fatalf("run thread provider id: %v", err)
+	}
+	assertGolden(t, "thread_trace_provider.golden", out.String())
+}
+
 // TestThreadTraceUnknownTable pins the explicit-empty case: an unknown id is a clean "no runs" answer
 // (resolved_by:"none"), not an error.
 func TestThreadTraceUnknownTable(t *testing.T) {

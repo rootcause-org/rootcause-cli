@@ -1,0 +1,10 @@
+Thread: 215475391714527
+Resolved by: provider conversation id
+
+1 channel thread(s):
+LOCAL     PROVIDER  TENANT      STATUS          OUTCOME    MSG  DRAFT  NOTE  UPDATED
+dfd49d23  intercom  yes_events  triage_skipped  set_aside  1    0      0     2026-08-07T07:19:40Z
+
+Pipeline (dfd49d23-a63c-40fc-a7c3-09b7962974c4): triage skipped before run enqueue — We judged this did not need a reply. Model's assessment: "The sender did not explicitly state that they were the child's parent or guardian." No note was expected because mailbox feedback is runs.
+
+No run was enqueued for this channel thread.

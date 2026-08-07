@@ -1,5 +1,5 @@
 Thread: unknown
 Resolved by: nothing (unknown id)
 
-No runs for this id.
-Either the channel plane never enqueued a run for it (no inbound assembled), or the id isn't a thread/session we ran.
+No channel thread or run for this id.
+Check the provider id and project/tenant scope.

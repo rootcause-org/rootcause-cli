@@ -1,0 +1,22 @@
+{
+  "id": "215475391714527",
+  "resolved_by": "external_thread",
+  "threads": [
+    {
+      "local_thread_id": "dfd49d23-a63c-40fc-a7c3-09b7962974c4",
+      "external_thread_id": "215475391714527",
+      "provider": "intercom",
+      "feedback_level": "runs",
+      "tenant": "yes_events",
+      "status": "triage_skipped",
+      "outcome": "set_aside",
+      "triage_explanation": "We judged this did not need a reply.\n\nModel's assessment: \"The sender did not explicitly state that they were the child's parent or guardian.\"",
+      "message_count": 1,
+      "draft_count": 0,
+      "note_count": 0,
+      "created_at": "2026-08-07T05:34:35Z",
+      "updated_at": "2026-08-07T07:19:40Z"
+    }
+  ],
+  "runs": []
+}
