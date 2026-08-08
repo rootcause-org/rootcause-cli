@@ -34,9 +34,12 @@ The spine is one endpoint per rung, so an agent verifies against real runs befor
 | bundle | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` (header + per-event trace; JSONL in `-o json`) |
 | decompose | `rc run debug <id>` | `/trace` → local jq-able JSONL + thin markdown index ([see below](#the-rc-run-debug-decomposer)) |
 
-`run list` filters (`--limit`/`--kind`/`--category`/`--outcome`/`--learning[=signal]`/`--before`) are
+`run list` filters (`--limit`/`--kind`/`--category`/`--outcome`/`--learning[=signal]`/`--reviewed`/`--before`) are
 server-side so cursor pagination stays correct. Bare `--learning` means `any`; explicit values are
 `feedback`, `sent_delta`, `triage_skipped`, `triage_corrected`.
+`--reviewed` is the human-audit lane: every 1–5 scored run plus its operator-tier score/comment,
+including held-out eval threads. It must remain separate from `--learning=feedback`, whose held-out
+exclusion prevents training leakage.
 
 **Higher-level commands fan out** over several raw endpoints and compute the view in the CLI, but always
 keep the raw rows reachable via `-o json`:

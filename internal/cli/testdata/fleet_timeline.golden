@@ -1,6 +1,6 @@
 Fleet digest — last 7 days · fleet · 4 runs
 
-Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal
+Flags: GD=grounding discarded · J0=analysis without journal · REV:n=human review score · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal
 
 RUN8      KIND      STATUS  DURATION  TURNS  FLAGS
 aaaaaaaa  analysis  error   3m20s     14     GD J0 ERR×3 (+12 explore) BIG×1 T! EGR×2 FB LRN:feedback+triage_corrected

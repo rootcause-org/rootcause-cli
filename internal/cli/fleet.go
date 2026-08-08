@@ -24,6 +24,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	var all bool
 	var timeline bool
 	var learning string
+	var reviewed bool
 	cmd := &cobra.Command{
 		Use:   "runs",
 		Short: "Fleet digest of recent runs (flags, rates, worst offenders)",
@@ -45,17 +46,17 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Format: format, Timeline: timeline}
+			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, Format: format, Timeline: timeline}
 			rawJSON := rawRowsJSON(e, cmd)
 
 			if all {
-				return runFleetAll(e, c, kind, learning, opt, rawJSON)
+				return runFleetAll(e, c, kind, learning, reviewed, opt, rawJSON)
 			}
 
 			// `days` is server-side so paging stops at the requested window instead of walking old history.
 			// kind IS a server-side filter; --project scopes an all-projects token to one project
 			// (disregarded for a pinned token).
-			p := client.RunsParams{Days: days, Kind: kind, Learning: learning, Project: e.scopeProject(), Tenant: e.scopeTenant()}
+			p := client.RunsParams{Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 
 			runs, capped, err := c.AllRuns(e.ctx(), p)
 			if err != nil {
@@ -79,6 +80,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	cmd.Flags().BoolVar(&timeline, "timeline", false, "add the per-day runs/errors/latency timeline")
 	cmd.Flags().StringVar(&learning, "learning", "", "filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected")
 	cmd.Flags().Lookup("learning").NoOptDefVal = "any"
+	cmd.Flags().BoolVar(&reviewed, "reviewed", false, "only runs with a 1–5 human review score (includes held-out eval runs)")
 	return cmd
 }
 
@@ -86,7 +88,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 // explicit ?project= scope, then render grouped-by-project with a fleet total. When rawJSON (see
 // rawRowsJSON) it emits the merged structure {projects:[{project, runs:[…]}], total_runs}. A per-project
 // fetch error aborts (the digest is only honest if it's complete).
-func runFleetAll(e *env, c *client.Client, kind, learning string, opt render.FleetOptions, rawJSON bool) error {
+func runFleetAll(e *env, c *client.Client, kind, learning string, reviewed bool, opt render.FleetOptions, rawJSON bool) error {
 	projects, err := fanOutProjects(e, c)
 	if err != nil {
 		return err
@@ -94,7 +96,7 @@ func runFleetAll(e *env, c *client.Client, kind, learning string, opt render.Fle
 
 	groups := make([]render.FleetGroup, 0, len(projects))
 	for _, proj := range projects {
-		runs, capped, ferr := c.AllRuns(e.ctx(), client.RunsParams{Days: opt.Days, Kind: kind, Learning: learning, Project: proj.ID})
+		runs, capped, ferr := c.AllRuns(e.ctx(), client.RunsParams{Days: opt.Days, Kind: kind, Learning: learning, Reviewed: reviewed, Project: proj.ID})
 		if ferr != nil {
 			return fmt.Errorf("fleet --all: project %s: %w", proj.Name, ferr)
 		}

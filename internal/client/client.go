@@ -60,6 +60,7 @@ type RunsParams struct {
 	Category string
 	Outcome  string
 	Learning string
+	Reviewed bool
 	Before   string
 	Project  string
 	Tenant   string
@@ -85,6 +86,9 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 	}
 	if p.Learning != "" {
 		q.Set("learning", p.Learning)
+	}
+	if p.Reviewed {
+		q.Set("reviewed", "true")
 	}
 	if p.Before != "" {
 		q.Set("before", p.Before)

@@ -115,6 +115,7 @@ func TestRunLearningFiltersRideAsQueryParams(t *testing.T) {
 		queries = append(queries, map[string]string{
 			"outcome":  q.Get("outcome"),
 			"learning": q.Get("learning"),
+			"reviewed": q.Get("reviewed"),
 			"days":     q.Get("days"),
 		})
 		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
@@ -123,7 +124,7 @@ func TestRunLearningFiltersRideAsQueryParams(t *testing.T) {
 	defer srv.Close()
 
 	e, _, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "list", "--outcome", "failed", "--learning=feedback"); err != nil {
+	if err := run(t, e, "run", "list", "--outcome", "failed", "--learning=feedback", "--reviewed"); err != nil {
 		t.Fatalf("run list learning filters: %v", err)
 	}
 	e, _, _ = newTestEnv(t, srv, "json")
@@ -134,11 +135,45 @@ func TestRunLearningFiltersRideAsQueryParams(t *testing.T) {
 	if len(queries) != 2 {
 		t.Fatalf("run filter requests = %d, want 2", len(queries))
 	}
-	if got := queries[0]; got["outcome"] != "failed" || got["learning"] != "feedback" || got["days"] != "" {
+	if got := queries[0]; got["outcome"] != "failed" || got["learning"] != "feedback" || got["reviewed"] != "true" || got["days"] != "" {
 		t.Fatalf("run list query = %#v", got)
 	}
-	if got := queries[1]; got["outcome"] != "" || got["learning"] != "any" || got["days"] != "7" {
+	if got := queries[1]; got["outcome"] != "" || got["learning"] != "any" || got["reviewed"] != "" || got["days"] != "7" {
 		t.Fatalf("fleet runs query = %#v", got)
+	}
+}
+
+func TestFleetReviewedFilterCarriesReviewAndLabelsDigest(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("reviewed"); got != "true" {
+			t.Fatalf("fleet reviewed query = %q, want true", got)
+		}
+		_, _ = w.Write([]byte(`{"runs":[{"run_id":"11111111-1111-1111-1111-111111111111","kind":"email","source":"Email","status":"done","outcome":"answered","category":"ok","created_at":"2026-08-07T10:00:00Z","has_draft":true,"has_note":true,"learning":{"feedback":false},"review":{"score":1,"comment":"wrong fact"}}],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "runs", "--reviewed", "--format", "agent"); err != nil {
+		t.Fatalf("fleet runs --reviewed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "reviewed") || !strings.Contains(got, "REV:1") {
+		t.Fatalf("reviewed fleet digest missing scope/score:\n%s", got)
+	}
+
+	e, out, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "runs", "--reviewed", "--raw-output"); err != nil {
+		t.Fatalf("fleet runs --reviewed JSON: %v", err)
+	}
+	var raw struct {
+		Runs []map[string]any `json:"runs"`
+	}
+	decodeJSON(t, out.Bytes(), &raw)
+	review, ok := raw.Runs[0]["review"].(map[string]any)
+	if !ok || review["score"] != float64(1) || review["comment"] != "wrong fact" {
+		t.Fatalf("reviewed fleet JSON lost raw score/comment: %+v", raw.Runs)
 	}
 }
 

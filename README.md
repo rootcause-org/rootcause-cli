@@ -215,6 +215,10 @@ Use bare **`--learning`** to keep runs with any dream-cycle signal, or select on
 `rc run list`. Run-list tables show the matching safe boolean signals, and fleet tables/agent output
 carry them as `LRN:` flags. JSON keeps the server rows unchanged.
 
+Use **`--reviewed`** on `rc fleet runs` or `rc run list` for the human-audit corpus: every run with a
+1–5 review score, including held-out eval runs. Operator JSON includes `review.score` and the optional
+`review.comment`; this stays separate from `--learning=feedback`, which excludes held-outs.
+
 `rc dev learning evidence` is intentionally JSON-only because feedback, deltas, and triage evidence
 have different wire shapes. `--plane feedback|deltas|triage` narrows the corpus; delta bodies stay
 omitted unless `--include-bodies` is explicit.

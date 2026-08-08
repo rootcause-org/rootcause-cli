@@ -315,7 +315,16 @@ type RunSummary struct {
 	Topic          string     `json:"topic,omitempty"`
 	Health         *RunHealth `json:"health,omitempty"`
 	Learning       Learning   `json:"learning"`
+	Review         *Review    `json:"review,omitempty"`
 	raw            json.RawMessage
+}
+
+// Review is operator-tier human feedback attached when GET /runs is explicitly filtered with
+// reviewed=true. It is distinct from Learning: held-out eval threads are reviewable but never training
+// evidence, so their review rides here while Learning.Feedback remains false.
+type Review struct {
+	Score   int    `json:"score"`
+	Comment string `json:"comment,omitempty"`
 }
 
 func (r *RunSummary) UnmarshalJSON(data []byte) error {

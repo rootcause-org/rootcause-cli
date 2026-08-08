@@ -18,6 +18,7 @@ type runsFlags struct {
 	category string
 	outcome  string
 	learning string
+	reviewed bool
 	before   string
 }
 
@@ -38,7 +39,7 @@ func newRunListCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Before: f.before, Project: e.scopeProject(), Tenant: e.scopeTenant()}
+			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Reviewed: f.reviewed, Before: f.before, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 			if render.IsJSON(e.mode(), e.out) {
 				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs"+queryString(params), nil)
 				if err != nil {
@@ -60,6 +61,7 @@ func newRunListCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&f.outcome, "outcome", "", "filter by outcome: answered|declined|failed|error|stuck|running|interrupted")
 	cmd.Flags().StringVar(&f.learning, "learning", "", "filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected")
 	cmd.Flags().Lookup("learning").NoOptDefVal = "any"
+	cmd.Flags().BoolVar(&f.reviewed, "reviewed", false, "only runs with a 1–5 human review score (includes held-out eval runs)")
 	cmd.Flags().StringVar(&f.before, "before", "", "cursor: run_id to page to the next (older) page")
 	return cmd
 }
@@ -100,6 +102,9 @@ func queryString(p client.RunsParams) string {
 	}
 	if p.Learning != "" {
 		q.Set("learning", p.Learning)
+	}
+	if p.Reviewed {
+		q.Set("reviewed", "true")
 	}
 	if p.Before != "" {
 		q.Set("before", p.Before)

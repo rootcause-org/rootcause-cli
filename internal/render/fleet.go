@@ -26,6 +26,7 @@ type FleetOptions struct {
 	Days     int
 	Kind     string // "" = all kinds
 	Learning string // "" = all runs; otherwise the server-side learning filter
+	Reviewed bool   // true = scored human reviews, including held-out eval runs
 	Format   string // "human" | "agent"
 	// Timeline gates the per-day runs/errors/latency histogram out of the default human digest so it
 	// stays scannable; -o json always carries the rows it is derived from.
@@ -39,7 +40,7 @@ type FleetOptions struct {
 const stuckRunAfter = 30 * time.Minute
 
 // fleetLegend is the human flag legend, condensed for the terminal.
-const fleetLegend = `Flags: GD=grounding discarded · J0=analysis without journal · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · ` +
+const fleetLegend = `Flags: GD=grounding discarded · J0=analysis without journal · REV:n=human review score · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · ` +
 	`BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · ` +
 	`FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal`
 
@@ -302,6 +303,9 @@ func flags(r client.RunSummary, spikes map[string]bool) []string {
 	if learning := learningLabel(r.Learning); learning != "-" {
 		f = append(f, "LRN:"+strings.ReplaceAll(learning, ",", "+"))
 	}
+	if r.Review != nil {
+		f = append(f, fmt.Sprintf("REV:%d", r.Review.Score))
+	}
 	return f
 }
 
@@ -315,6 +319,9 @@ func severity(r client.RunSummary, spikes map[string]bool) int {
 	s := 0
 	if r.Status == "error" {
 		s = 100
+	}
+	if r.Review != nil && r.Review.Score <= 3 {
+		s += (4 - r.Review.Score) * 25
 	}
 	if spikes[r.RunID] {
 		s += 50
@@ -341,7 +348,7 @@ func fleetHuman(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	if kinds == "" {
 		kinds = "all kinds"
 	}
-	_, _ = fmt.Fprintf(w, "Fleet digest — last %d days · %s%s · %d runs\n\n", opt.Days, kinds, learningScope(opt.Learning), len(runs))
+	_, _ = fmt.Fprintf(w, "Fleet digest — last %d days · %s%s%s · %d runs\n\n", opt.Days, kinds, learningScope(opt.Learning), reviewedScope(opt.Reviewed), len(runs))
 	_, _ = fmt.Fprintln(w, fleetLegend)
 	_, _ = fmt.Fprintln(w)
 
@@ -632,7 +639,7 @@ func errorHead(r client.RunSummary) string {
 // re-running with flags.
 func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	spikes := turnSpikes(runs)
-	_, _ = fmt.Fprintf(w, "runs — last %dd%s · %d runs\n\n", opt.Days, learningScope(opt.Learning), len(runs))
+	_, _ = fmt.Fprintf(w, "runs — last %dd%s%s · %d runs\n\n", opt.Days, learningScope(opt.Learning), reviewedScope(opt.Reviewed), len(runs))
 	if len(runs) == 0 {
 		_, _ = fmt.Fprintln(w, "(no runs in window)")
 		return
@@ -686,6 +693,13 @@ func learningScope(learning string) string {
 		return ""
 	}
 	return " · learning=" + learning
+}
+
+func reviewedScope(reviewed bool) string {
+	if !reviewed {
+		return ""
+	}
+	return " · reviewed"
 }
 
 // --- sorting helpers ---

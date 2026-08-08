@@ -128,6 +128,7 @@ Flags:
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
       --limit int                 max runs to return (1..100, server default 50)
       --outcome string            filter by outcome: answered|declined|failed|error|stuck|running|interrupted
+      --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3349,6 +3350,7 @@ Flags:
       --format string             output style: human|agent (default "human")
       --kind string               filter by kind: email|prompt|mcp|analysis
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
+      --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
       --timeline                  add the per-day runs/errors/latency timeline
 
 Global Flags:
