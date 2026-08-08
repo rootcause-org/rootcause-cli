@@ -50,7 +50,9 @@ keep the raw rows reachable via `-o json`:
   present by default. `--format agent` pins a one-line complete view over a pipe; JSON preserves every
   raw item field. Execution result/error remain a run drill-down.
 - `rc run thread <id>` / `rc run process-thread <id>` — provider/local/session lookup → safe pre-run
-  pipeline outcome → run trace, plus set-aside-thread resume by the returned local UUID. A triage skip
+  pipeline outcome → every run, plus set-aside-thread resume by the returned local UUID. Human output's
+  `Exact linkage` block uses full stable IDs to map trigger → run lineage → draft → sent message and puts
+  feedback only under its reviewed run; JSON preserves the server's `runs[].attribution`. A triage skip
   remains diagnosable when no run was enqueued.
 - `rc dev learning evidence` — heterogeneous dream-cycle evidence, **JSON-only** (`--plane`, `--include-bodies`).
 - `rc project knowledge content search|export` — progressive KB discovery over the guarded bash workspace

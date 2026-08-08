@@ -316,7 +316,10 @@ type RunSummary struct {
 	Health         *RunHealth `json:"health,omitempty"`
 	Learning       Learning   `json:"learning"`
 	Review         *Review    `json:"review,omitempty"`
-	raw            json.RawMessage
+	// Attribution is present on `rc run thread`: stable ids joining one exact inbound turn to its run,
+	// drafts, eventual sent messages, and human feedback. Ordinary run-index rows omit it.
+	Attribution *RunAttribution `json:"attribution,omitempty"`
+	raw         json.RawMessage
 }
 
 // Review is operator-tier human feedback attached when GET /runs is explicitly filtered with
@@ -324,6 +327,30 @@ type RunSummary struct {
 // evidence, so their review rides here while Learning.Feedback remains false.
 type Review struct {
 	Score   int    `json:"score"`
+	Comment string `json:"comment,omitempty"`
+}
+
+type RunAttribution struct {
+	LocalThreadID     string                  `json:"local_thread_id,omitempty"`
+	ThreadID          string                  `json:"thread_id"`
+	SessionID         string                  `json:"session_id"`
+	TurnKey           string                  `json:"turn_key"`
+	RetryOf           string                  `json:"retry_of,omitempty"`
+	ParentRunID       string                  `json:"parent_run_id,omitempty"`
+	OriginRunID       string                  `json:"origin_run_id"`
+	TriggerMessageIDs []string                `json:"trigger_message_ids"`
+	Drafts            []RunAttributionDraft   `json:"drafts"`
+	Feedback          *RunAttributionFeedback `json:"feedback,omitempty"`
+}
+
+type RunAttributionDraft struct {
+	DraftID       string `json:"draft_id"`
+	Status        string `json:"status"`
+	SentMessageID string `json:"sent_message_id,omitempty"`
+}
+
+type RunAttributionFeedback struct {
+	Score   *int16 `json:"score,omitempty"`
 	Comment string `json:"comment,omitempty"`
 }
 

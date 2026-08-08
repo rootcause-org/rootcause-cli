@@ -6,4 +6,14 @@ RUN       KIND   STATUS  OUTCOME   CATEGORY        HEALTH                       
 aaaaaaaa  email  error   error     egress_blocked  egress✗1,basherr1 (+4 explore),nojournal  -       2026-06-22T10:05:00Z  refund not received
 bbbbbbbb  email  done    answered  ok              -                                         draft   2026-06-22T09:30:00Z  refund not received
 
+Exact linkage (full stable ids):
+- run aaaaaaaa-1111-1111-1111-111111111111 (retry of bbbbbbbb-2222-2222-2222-222222222222)
+  conversation 50725584-d16f-4444-8e6f-86fd3f79547d · provider thread thread-abc123 · session session-1
+  trigger message: 2de0f6ed-f0d6-4c11-95d2-f42b60aec6dc
+- run bbbbbbbb-2222-2222-2222-222222222222 (original turn)
+  conversation 50725584-d16f-4444-8e6f-86fd3f79547d · provider thread thread-abc123 · session session-1
+  trigger message: 2de0f6ed-f0d6-4c11-95d2-f42b60aec6dc
+  draft 2c71eb27-c960-47f0-bdac-a7fcccbdf545 [superseded] → sent message 14660c67-3022-431a-8b49-7ea183919c2a
+  feedback on this run: score 1 · wrong promise; this belongs to the original draft
+
 Likely: a grounding step was egress-blocked — add the host to the project's egress allowlist (config).

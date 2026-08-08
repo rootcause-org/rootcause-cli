@@ -63,12 +63,68 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 			healthFlags(r.Health), placement(r), r.CreatedAt, strOrBlank(r.Topic))
 	}
 	_ = tw.Flush()
+	renderThreadAttribution(w, t.Runs)
 
 	// The deterministic verdict on the NEWEST run (runs are newest-first) — the one the operator cares
 	// about ("did THIS turn get a draft, and if not, where did it stop").
 	if hint := threadFailureHint(&t.Runs[0]); hint != "" {
 		_, _ = fmt.Fprintf(w, "\nLikely: %s\n", hint)
 	}
+}
+
+func renderThreadAttribution(w io.Writer, runs []client.RunSummary) {
+	hasAny := false
+	for _, r := range runs {
+		hasAny = hasAny || r.Attribution != nil
+	}
+	if !hasAny {
+		return
+	}
+	_, _ = fmt.Fprintln(w, "\nExact linkage (full stable ids):")
+	for _, r := range runs {
+		a := r.Attribution
+		if a == nil {
+			continue
+		}
+		relation := "original turn"
+		if a.RetryOf != "" {
+			relation = "retry of " + a.RetryOf
+		} else if a.ParentRunID != "" {
+			relation = "clarifies " + a.ParentRunID
+		}
+		_, _ = fmt.Fprintf(w, "- run %s (%s)\n", r.RunID, relation)
+		_, _ = fmt.Fprintf(w, "  conversation %s · provider thread %s · session %s\n", strOrBlank(a.LocalThreadID), strOrBlank(a.ThreadID), strOrBlank(a.SessionID))
+		if len(a.TriggerMessageIDs) == 0 {
+			_, _ = fmt.Fprintln(w, "  trigger message: unavailable for this historical turn")
+		} else {
+			_, _ = fmt.Fprintf(w, "  trigger message%s: %s\n", plural(len(a.TriggerMessageIDs)), strings.Join(a.TriggerMessageIDs, ", "))
+		}
+		for _, d := range a.Drafts {
+			_, _ = fmt.Fprintf(w, "  draft %s [%s]", d.DraftID, d.Status)
+			if d.SentMessageID != "" {
+				_, _ = fmt.Fprintf(w, " → sent message %s", d.SentMessageID)
+			}
+			_, _ = fmt.Fprintln(w)
+		}
+		if a.Feedback != nil {
+			score := "unscored"
+			if a.Feedback.Score != nil {
+				score = fmt.Sprintf("score %d", *a.Feedback.Score)
+			}
+			_, _ = fmt.Fprintf(w, "  feedback on this run: %s", score)
+			if comment := oneLine(a.Feedback.Comment); comment != "" {
+				_, _ = fmt.Fprintf(w, " · %s", comment)
+			}
+			_, _ = fmt.Fprintln(w)
+		}
+	}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // resolvedLabel turns the wire resolved_by into a reader-facing phrase.
