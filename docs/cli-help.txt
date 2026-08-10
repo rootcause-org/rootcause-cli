@@ -3321,10 +3321,11 @@ Usage:
   rc fleet [command]
 
 Available Commands:
-  runs        Fleet digest of recent runs (flags, rates, worst offenders)
-  actions     Find actions across recent runs with exact params and run URLs
-  health      Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy
-  patterns    Cluster recent failures and outbound endpoint patterns
+  runs         Fleet digest of recent runs (flags, rates, worst offenders)
+  actions      Find actions across recent runs with exact params and run URLs
+  health       Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy
+  deploy-state Show the live host, brain, and mirror SHAs with their history
+  patterns     Cluster recent failures and outbound endpoint patterns
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3394,6 +3395,26 @@ Usage:
 Flags:
       --all         fan out across every project (requires an all-projects token)
       --hours int   dead-letter window in hours (default 24)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc fleet deploy-state --help
+Fetch GET /api/v1/deploy-state and render what is LIVE per plane: the host release the server was built from, the project brain's channel pointers (plus the recorded promotion timeline), and each source mirror's checked-out commit (plus its refresh timeline). --host-repo <path> additionally lists the commits on that local rootcause checkout's main that the deployed release does not contain (offline; it never fetches). -o json passes the raw server rows through, with the local delta added under "unpromoted".
+
+Usage:
+  rc fleet deploy-state [flags]
+
+Flags:
+      --history int        how many brain promotions and mirror refreshes to list (default 10)
+      --host-repo string   path to a local rootcause checkout, to list commits not in the deployed release
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

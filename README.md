@@ -291,6 +291,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev tools` | Use local provider and identifier utilities |
 | `rc dev` | Develop and inspect project behavior |
 | `rc fleet actions` | Find actions across recent runs with exact params and run URLs |
+| `rc fleet deploy-state` | Show the live host, brain, and mirror SHAs with their history |
 | `rc fleet health` | Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy |
 | `rc fleet patterns` | Cluster recent failures and outbound endpoint patterns |
 | `rc fleet runs` | Fleet digest of recent runs (flags, rates, worst offenders) |
