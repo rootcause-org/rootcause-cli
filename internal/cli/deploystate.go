@@ -42,7 +42,7 @@ func newDeployStateCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Raw(e.ctx(), "GET", deployStatePath(history, e.scopeProject(), e.scopeTenant()), nil)
+			raw, err := c.Raw(e.ctx(), "GET", client.DeployStatePath(history, e.scopeProject(), e.scopeTenant()), nil)
 			if err != nil {
 				return err
 			}
@@ -66,17 +66,6 @@ func newDeployStateCmd(e *env) *cobra.Command {
 	cmd.Flags().IntVar(&history, "history", 10, "how many brain promotions and mirror refreshes to list")
 	cmd.Flags().StringVar(&hostRepo, "host-repo", "", "path to a local rootcause checkout, to list commits not in the deployed release")
 	return cmd
-}
-
-func deployStatePath(history int, project, tenant string) string {
-	q := "/api/v1/deploy-state?history=" + fmt.Sprint(history)
-	if project != "" {
-		q += "&project=" + project
-	}
-	if tenant != "" {
-		q += "&tenant=" + tenant
-	}
-	return q
 }
 
 // withUnpromoted splices the locally-derived delta into the raw server JSON so `-o json | jq` sees one

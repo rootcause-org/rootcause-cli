@@ -67,6 +67,24 @@ func EgressPath(p FeedParams) string { return "/api/v1/egress-log" + p.query() }
 
 // HealthPath builds GET /api/v1/health?hours=&project= — project is the explicit scope an all-projects
 // admin token names (the `--all` fan-out); "" omits it (a pinned token's own scope).
+// DeployStatePath builds GET /api/v1/deploy-state?history=&project=&tenant= — the live SHA per plane.
+func DeployStatePath(history int, project, tenant string) string {
+	q := url.Values{}
+	if history > 0 {
+		q.Set("history", strconv.Itoa(history))
+	}
+	if project != "" {
+		q.Set("project", project)
+	}
+	if tenant != "" {
+		q.Set("tenant", tenant)
+	}
+	if enc := q.Encode(); enc != "" {
+		return "/api/v1/deploy-state?" + enc
+	}
+	return "/api/v1/deploy-state"
+}
+
 func HealthPath(hours int, project, tenant string) string {
 	q := url.Values{}
 	if hours > 0 {
