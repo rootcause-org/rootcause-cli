@@ -2620,6 +2620,7 @@ Usage:
 Available Commands:
   status      Show deployed brain cache status
   sync        Fetch origin/main and refresh deployed brain cache
+  preflight   Dry-run a channel promotion: which tenants would the candidate commit break?
   promote     Promote an exact tested commit to a project brain channel
   publish     Sync, promote an exact tested commit, and verify one project brain channel
   edit        Queue a brain edit from a plain-language instruction (or STDIN)
@@ -2659,6 +2660,26 @@ Fetch origin/main and refresh deployed brain cache
 
 Usage:
   rc dev brain sync [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc dev brain preflight --help
+Dry-run a channel promotion: which tenants would the candidate commit break?
+
+Usage:
+  rc dev brain preflight --sha <commit> [--channel stable|edge] [flags]
+
+Flags:
+      --channel string   managed channel the candidate would move (stable or edge) (default "stable")
+      --sha string       exact full 40-character commit SHA
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

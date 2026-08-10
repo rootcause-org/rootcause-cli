@@ -302,6 +302,56 @@ func BrainPromote(w io.Writer, r *client.BrainPromoteResponse) {
 	_, _ = fmt.Fprintf(w, "State:   %s\n", state)
 }
 
+// BrainPreflight renders the canary verdict as a short header plus one line per tenant. Offenders come
+// first because they are the only thing that needs acting on; a clean tenant is a single `ok` line. Every
+// key/reason the server sent is printed verbatim — it already contains no tenant values.
+func BrainPreflight(w io.Writer, r *client.BrainPreflightResponse) {
+	c := r.Canary
+	verdict := "ok"
+	if !c.OK {
+		verdict = "WOULD BREAK"
+	}
+	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
+	_, _ = fmt.Fprintf(w, "Channel: %s\n", c.Channel)
+	_, _ = fmt.Fprintf(w, "Commit:  %s\n", dash(shortGit(c.SHA)))
+	_, _ = fmt.Fprintf(w, "Verdict: %s\n", verdict)
+	_, _ = fmt.Fprintf(w, "Tenants: %d checked, %d skipped\n", c.Checked, c.Skipped)
+	if c.Error != "" {
+		_, _ = fmt.Fprintf(w, "Error:   %s\n", c.Error)
+	}
+	if c.Note != "" {
+		_, _ = fmt.Fprintf(w, "Note:    %s\n", c.Note)
+	}
+	for _, t := range sortedCanaryTenants(c.Tenants) {
+		_, _ = fmt.Fprintf(w, "\n%s  %s\n", t.Status, t.Tenant)
+		if t.Error != "" {
+			_, _ = fmt.Fprintf(w, "  %s\n", t.Error)
+		}
+		for _, d := range t.Degraded {
+			_, _ = fmt.Fprintf(w, "  %s (%s): %s\n", d.Key, d.File, d.Reason)
+		}
+		if t.FilesDropped > 0 {
+			_, _ = fmt.Fprintf(w, "  %d file(s) dropped by keep_when\n", t.FilesDropped)
+		}
+	}
+}
+
+// sortedCanaryTenants puts offenders first, preserving the server's deterministic order within each group.
+func sortedCanaryTenants(in []client.BrainCanaryTenant) []client.BrainCanaryTenant {
+	out := make([]client.BrainCanaryTenant, 0, len(in))
+	for _, t := range in {
+		if t.Status != "ok" {
+			out = append(out, t)
+		}
+	}
+	for _, t := range in {
+		if t.Status == "ok" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 func MirrorRefresh(w io.Writer, r *client.MirrorRefreshResponse) {
 	_, _ = fmt.Fprintf(w, "Project:    %s\n", r.Project)
 	_, _ = fmt.Fprintf(w, "Repository: %s\n", r.Repo)

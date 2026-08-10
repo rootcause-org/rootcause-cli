@@ -1,0 +1,14 @@
+Project: alpha
+Channel: stable
+Commit:  d2f9de784ab7
+Verdict: WOULD BREAK
+Tenants: 3 checked, 1 skipped
+
+degraded  de-linde
+  support_email (contact.md): required placeholder missing
+  1 file(s) dropped by keep_when
+
+failed  nieuw-praktijk
+  tenant "nieuw-praktijk" has no settings record (config["dentai_settings"].settings is empty)
+
+ok  de-kies

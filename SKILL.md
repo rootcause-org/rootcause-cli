@@ -219,7 +219,7 @@ normal read-only run env (`env_grounding`); `--plane action` targets the operato
 `.env.action` (`env_action`), never mounted into normal runs.
 
 ### Project-brain publishing
-`rc dev brain {status,sync,promote,publish}` ([`brain.go`](internal/cli/brain.go)) is the public
+`rc dev brain {status,sync,preflight,promote,publish}` ([`brain.go`](internal/cli/brain.go)) is the public
 project-brain loop: push the tested commit, `sync` origin/main into the on-box cache, **promote its exact
 full SHA** to `stable`/`edge`, then `status`-verify the channel's on-box `resolved_sha` plus fetched
 `origin_sha`/`main_sha`. `publish` chains sync → promote → status-verify with gating, forcing sync/status
@@ -228,6 +228,14 @@ project-only (`commandScope` → `projectOnly`); tenant overlays use main, have 
 tenant-scoped principal is denied, not redirected. Promotion is idempotent; if local main is
 ahead/diverged/dirty, sync refuses and returns the current/deployed SHAs. `brain edit`/`consolidate` queue
 out-of-band brain work. Never infer a live channel from main=`current`.
+
+`preflight` is promote's dry run over the server's promote-time canary: the server compiles the candidate
+SHA for every tenant pinned to the channel and reports who would degrade or break, moving nothing. Same
+flags and the same project-only scope as `promote`, so an operator preflights and then promotes the
+identical SHA. It exits **non-zero on a refusing verdict** (a script gates on the exit code; `-o json`
+carries the per-tenant detail). The server enforces the same check on `promote` itself — a refused
+promotion comes back `409 BRAIN_CANARY_FAILED` with one detail row per offending tenant — so preflight is
+for *seeing* the answer early, never the thing that makes promotion safe.
 
 ### Database writes
 `rc dev console database query <db> <sql>` ([`console.go`](internal/cli/console.go)) reads through the

@@ -22,7 +22,7 @@ var errEmptyInstruction = errors.New("empty instruction — pass it as args or p
 // outside a run. Long edit instructions can be piped on STDIN.
 func newBrainCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "brain", Short: "Inspect, publish, and manage brain repositories"}
-	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e), newBrainDeveloperCmd(e))
+	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPreflightCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e), newBrainDeveloperCmd(e))
 	return cmd
 }
 
@@ -179,6 +179,53 @@ func brainPromoteCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&channel, "channel", "", "managed channel to move (stable or edge)")
 	cmd.Flags().StringVar(&sha, "sha", "", "exact full 40-character commit SHA")
 	_ = cmd.MarkFlagRequired("channel")
+	_ = cmd.MarkFlagRequired("sha")
+	return cmd
+}
+
+// brainPreflightCmd dry-runs the promote gate: the server compiles the candidate for every tenant pinned
+// to the channel and reports who would degrade or break, without moving anything. Same flags as promote
+// (and the same project-only scope) so an operator can preflight, read, then promote the identical SHA.
+// Exits non-zero on a refusing verdict, so a script can gate on it without parsing.
+func brainPreflightCmd(e *env) *cobra.Command {
+	var channel, sha string
+	cmd := &cobra.Command{
+		Use:   "preflight --sha <commit> [--channel stable|edge]",
+		Short: "Dry-run a channel promotion: which tenants would the candidate commit break?",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if channel != "stable" && channel != "edge" {
+				return fmt.Errorf("--channel must be stable or edge")
+			}
+			if !fullGitSHA.MatchString(sha) {
+				return fmt.Errorf("--sha must be an exact full 40-character commit SHA")
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			resp, raw, err := c.BrainPreflight(e.ctx(), e.scopeProject(), client.BrainPreflightRequest{Channel: channel, SHA: strings.ToLower(sha)})
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				if err := render.JSON(e.out, raw); err != nil {
+					return err
+				}
+			} else {
+				render.BrainPreflight(e.out, resp)
+			}
+			if !resp.Canary.OK {
+				return fmt.Errorf("preflight failed: promoting %s to %s would break tenants", sha[:12], channel)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&channel, "channel", "stable", "managed channel the candidate would move (stable or edge)")
+	cmd.Flags().StringVar(&sha, "sha", "", "exact full 40-character commit SHA")
 	_ = cmd.MarkFlagRequired("sha")
 	return cmd
 }

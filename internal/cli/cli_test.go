@@ -1115,6 +1115,22 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "brain_sync.json"))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/preflight", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body struct {
+			Channel string `json:"channel"`
+			SHA     string `json:"sha"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode brain preflight body: %v", err)
+		}
+		// The default channel is stable, and the SHA is always sent lowercased+exact.
+		if body.Channel != "stable" || body.SHA != "d2f9de784ab7cded001f2b6ac86892795f58a8ce" {
+			t.Fatalf("brain preflight body = %+v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "brain_preflight.json"))
+	})
 	mux.HandleFunc("POST /api/v1/projects/{project}/brain/promote", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		if got := r.PathValue("project"); got != "alpha" {

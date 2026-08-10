@@ -138,6 +138,52 @@ type BrainPromoteResponse struct {
 	Idempotent bool   `json:"idempotent"`
 }
 
+// BrainPreflightRequest dry-runs a promotion: which candidate commit, onto which managed channel. The
+// server never resolves a ref for us — SHA is the exact 40-character commit, as for a real promote.
+type BrainPreflightRequest struct {
+	Channel string `json:"channel"`
+	SHA     string `json:"sha"`
+}
+
+type BrainPreflightResponse struct {
+	Project string      `json:"project"`
+	Canary  BrainCanary `json:"canary"`
+}
+
+// BrainCanary is the server's verdict on a candidate: would it degrade or break any tenant pinned to the
+// channel? Keys and reasons only — a tenant VALUE never crosses this wire.
+type BrainCanary struct {
+	Channel string `json:"channel"`
+	SHA     string `json:"sha"`
+	OK      bool   `json:"ok"`
+	// Templated is false when the candidate carries no projection.yaml (nothing to break).
+	Templated bool `json:"templated"`
+	Checked   int  `json:"checked"`
+	// Skipped counts tenants excluded from this channel's set: on the other channel, frozen at an exact
+	// SHA, or not active.
+	Skipped int                 `json:"skipped"`
+	Tenants []BrainCanaryTenant `json:"tenants"`
+	// Error is a candidate-wide failure no single tenant owns (an unparseable projection.yaml).
+	Error string `json:"error"`
+	// Note explains a trivially-passing verdict (untemplated brain, or nobody pinned to the channel).
+	Note string `json:"note"`
+}
+
+type BrainCanaryTenant struct {
+	Tenant string `json:"tenant"`
+	// Status is ok | degraded | failed; anything but ok would block a promotion.
+	Status       string                   `json:"status"`
+	Degraded     []BrainCanaryDegradation `json:"degraded"`
+	FilesDropped int                      `json:"files_dropped"`
+	Error        string                   `json:"error"`
+}
+
+type BrainCanaryDegradation struct {
+	Key    string `json:"key"`
+	File   string `json:"file"`
+	Reason string `json:"reason"`
+}
+
 type MirrorRefreshRequest struct {
 	Repo        string `json:"repo"`
 	ExpectedSHA string `json:"expected_sha"`

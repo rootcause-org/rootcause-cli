@@ -373,6 +373,39 @@ func TestBrainPromoteJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "brain_promote.json"), out.Bytes())
 }
 
+// A refusing preflight must render the offenders AND exit non-zero, so a script can gate on it.
+func TestBrainPreflightTableRefusesWithNonZeroExit(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "dev", "brain", "preflight", "--sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE")
+	if err == nil {
+		t.Fatal("a refusing preflight must return an error")
+	}
+	assertGolden(t, "brain_preflight.golden", out.String())
+}
+
+func TestBrainPreflightJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "dev", "brain", "preflight", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"); err == nil {
+		t.Fatal("a refusing preflight must return an error")
+	}
+	assertJSONEqual(t, fixture(t, "brain_preflight.json"), out.Bytes())
+}
+
+// preflight is project-only: an ambient --tenant would silently narrow a fleet-wide question.
+func TestBrainPreflightRejectsTenantSelector(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "--tenant", "de-kies", "dev", "brain", "preflight", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce")
+	if err == nil || !strings.Contains(err.Error(), "--tenant is not supported") {
+		t.Fatalf("tenant selector error = %v", err)
+	}
+}
+
 func TestMirrorRefreshTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

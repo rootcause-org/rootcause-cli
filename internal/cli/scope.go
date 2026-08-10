@@ -61,7 +61,9 @@ func commandScope(path string) scopeSpec {
 	path = strings.TrimSpace(strings.TrimPrefix(path, "rc "))
 	projectTenant := scopeSpec{Project: true, Tenant: true}
 	projectOnly := scopeSpec{Project: true}
-	if path == "dev brain promote" || path == "dev brain publish" || path == "dev mirror refresh" {
+	// dev brain preflight is the promote gate's dry run over a SHARED channel, so it is project-only for
+	// exactly the reason promote is: an ambient --tenant would silently narrow a fleet-wide question.
+	if path == "dev brain promote" || path == "dev brain preflight" || path == "dev brain publish" || path == "dev mirror refresh" {
 		return projectOnly
 	}
 

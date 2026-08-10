@@ -142,7 +142,11 @@ own project. Main intent: the checkout chooses the project context; the profile 
 local token to use.
 
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
-sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. Promotion moves
+sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. On a templated
+(multi-tenant) project you can see the promotion's verdict first with `rc dev brain preflight --sha
+<SHA> [--channel stable|edge]`: the server compiles that commit for every tenant pinned to the channel and
+lists any that would break or fall back to placeholder text, without moving anything (non-zero exit when
+it would). Promote runs the same check itself and refuses a bad candidate, so preflight is optional. Promotion moves
 only the named managed channel to that commit; it never promotes an ambient `main` tip. Finish with `rc
 dev brain status` and confirm the channel's **resolved** SHA. `rc dev brain publish --channel … --sha …`
 does the whole choreography in one gated command — sync, promote, then verify the channel resolved to
@@ -260,6 +264,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev brain developer invite` | Invite a GitHub user to this tenant brain repository |
 | `rc dev brain developer` | Manage tenant brain developer access |
 | `rc dev brain edit` | Queue a brain edit from a plain-language instruction (or STDIN) |
+| `rc dev brain preflight` | Dry-run a channel promotion: which tenants would the candidate commit break? |
 | `rc dev brain promote` | Promote an exact tested commit to a project brain channel |
 | `rc dev brain publish` | Sync, promote an exact tested commit, and verify one project brain channel |
 | `rc dev brain status` | Show deployed brain cache status |

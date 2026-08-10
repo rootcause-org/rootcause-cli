@@ -133,6 +133,25 @@ func (c *Client) BrainPromote(ctx context.Context, project string, req BrainProm
 	return &out, raw, nil
 }
 
+// BrainPreflight dry-runs the promote-time canary: compile a candidate commit for every tenant pinned to
+// a channel and report who would break, WITHOUT moving anything. Project-only for the same reason
+// promotion is — the answer spans every tenant on a shared channel.
+func (c *Client) BrainPreflight(ctx context.Context, project string, req BrainPreflightRequest) (*BrainPreflightResponse, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required to preflight a brain channel"}
+	}
+	var raw json.RawMessage
+	path := "/api/v1/projects/" + url.PathEscape(project) + "/brain/preflight"
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out BrainPreflightResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
 // MirrorRefresh queues the server's existing mirror sweep and verifies one repository reached an
 // exact commit. It is project-only because project mirrors are shared by every tenant.
 func (c *Client) MirrorRefresh(ctx context.Context, project string, req MirrorRefreshRequest) (*MirrorRefreshResponse, json.RawMessage, error) {
