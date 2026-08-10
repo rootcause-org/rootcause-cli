@@ -187,36 +187,63 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 	return cmd
 }
 
-// runFeedbackCmd: `rc run feedback <id> [--score N] [--comment TEXT]` over POST
-// /api/v1/runs/{id}/feedback. The score+comment feed the consolidation plane (run-trace feedback). At
-// least one of --score/--comment must be given. Score rides as a JSON number.
+// runFeedbackCmd: `rc run feedback <id>` over the run's feedback sub-resource. Two planes on one verb:
+// --score/--comment POST the reviewer signal that feeds the consolidation plane (run-trace feedback);
+// --processed/--unprocessed/--resolution-note PATCH the operator triage state (admin-tier server-side).
+// Combining both runs POST first, then PATCH, so the printed/JSON state is the merged one. At least one
+// flag is required. Score rides as a JSON number.
 func runFeedbackCmd(e *env) *cobra.Command {
 	var score int
 	var comment string
-	var scoreSet bool
+	var processed, unprocessed bool
+	var resolutionNote string
 	cmd := &cobra.Command{
-		Use:   "feedback <run-id> [--score N] [--comment TEXT]",
-		Short: "Record score/comment feedback on a run's trace",
+		Use:   "feedback <run-id> [--score N] [--comment TEXT] [--processed|--unprocessed] [--resolution-note TEXT]",
+		Short: "Record score/comment feedback on a run's trace, or mark it processed",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
-			scoreSet = cc.Flags().Changed("score")
-			if !scoreSet && comment == "" {
-				return fmt.Errorf("nothing to record: pass --score and/or --comment")
+			if processed && unprocessed {
+				return fmt.Errorf("--processed and --unprocessed are mutually exclusive")
 			}
-			body := map[string]any{}
+			scoreSet := cc.Flags().Changed("score")
+			noteSet := cc.Flags().Changed("resolution-note")
+			record := map[string]any{}
 			if scoreSet {
-				body["score"] = score
+				record["score"] = score
 			}
 			if comment != "" {
-				body["comment"] = comment
+				record["comment"] = comment
+			}
+			patch := map[string]any{}
+			if processed || unprocessed {
+				patch["processed"] = processed
+			}
+			if noteSet {
+				patch["resolution_note"] = resolutionNote
+			}
+			if len(record) == 0 && len(patch) == 0 {
+				return fmt.Errorf("nothing to record: pass --score and/or --comment, or --processed/--unprocessed/--resolution-note")
 			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			raw, err := c.RunFeedback(e.ctx(), args[0], body, e.scopeProject(), e.scopeTenant())
-			if err != nil {
-				return err
+			var raw json.RawMessage
+			if len(record) > 0 {
+				if raw, err = c.RunFeedback(e.ctx(), args[0], record, e.scopeProject(), e.scopeTenant()); err != nil {
+					return err
+				}
+				if !e.jsonOut() {
+					_, _ = fmt.Fprintf(e.out, "feedback recorded for run %s\n", args[0])
+				}
+			}
+			if len(patch) > 0 {
+				if raw, err = c.SetRunFeedback(e.ctx(), args[0], patch, e.scopeProject(), e.scopeTenant()); err != nil {
+					return err
+				}
+				if !e.jsonOut() {
+					_, _ = fmt.Fprintf(e.out, "feedback %s for run %s\n", feedbackPatchSummary(processed, unprocessed, noteSet), args[0])
+				}
 			}
 			if e.jsonOut() {
 				if len(raw) > 0 {
@@ -224,13 +251,32 @@ func runFeedbackCmd(e *env) *cobra.Command {
 				}
 				return render.JSON(e.out, []byte(`{"recorded":true}`))
 			}
-			_, _ = fmt.Fprintf(e.out, "feedback recorded for run %s\n", args[0])
 			return nil
 		},
 	}
 	cmd.Flags().IntVar(&score, "score", 0, "feedback score (e.g. -1, 0, 1)")
 	cmd.Flags().StringVar(&comment, "comment", "", "free-text feedback comment")
+	cmd.Flags().BoolVar(&processed, "processed", false, "mark the run's feedback as processed")
+	cmd.Flags().BoolVar(&unprocessed, "unprocessed", false, "mark the run's feedback as not processed")
+	cmd.Flags().StringVar(&resolutionNote, "resolution-note", "", "operator note on how the feedback was resolved")
+	cmd.MarkFlagsMutuallyExclusive("processed", "unprocessed")
 	return cmd
+}
+
+// feedbackPatchSummary phrases the terse human line for whichever operator fields the PATCH carried.
+func feedbackPatchSummary(processed, unprocessed, noteSet bool) string {
+	switch {
+	case processed && noteSet:
+		return "marked processed with a resolution note"
+	case unprocessed && noteSet:
+		return "marked unprocessed with a resolution note"
+	case processed:
+		return "marked processed"
+	case unprocessed:
+		return "marked unprocessed"
+	default:
+		return "resolution note set"
+	}
 }
 
 // runRetryCmd: `rc run retry <id> [--tier standard|pro|max]` over POST /api/v1/runs/{id}/retry. Prints

@@ -423,7 +423,7 @@ help using `go test ./internal/cli -update`.
 | `rc run debug` | Decompose a run into local debug artifacts |
 | `rc run egress` | Show outbound gateway connections and HTTP attempts |
 | `rc run events` | Show the full per-event trace |
-| `rc run feedback` | Record score/comment feedback on a run's trace |
+| `rc run feedback` | Record score/comment feedback on a run's trace, or mark it processed |
 | `rc run list` | List recent runs (filterable) |
 | `rc run process-thread` | Process a triage-skipped or security-blocked inbox thread |
 | `rc run retry` | Re-run a run (optionally at a different tier); prints the new run id |

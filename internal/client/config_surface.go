@@ -226,11 +226,17 @@ func requireTenantProject(project, tenant, resource string) error {
 	return nil
 }
 
-// --- Run feedback / retry (POST /api/v1/runs/{id}/{feedback,retry}) ---
+// --- Run feedback / retry (POST /api/v1/runs/{id}/{feedback,retry}, PATCH .../feedback) ---
 
 // RunFeedback posts a score/comment on a run's trace.
 func (c *Client) RunFeedback(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
 	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
+}
+
+// SetRunFeedback patches the operator-side feedback state on a run (sparse: processed,
+// resolution_note). Admin-tier on the server; returns the merged feedback state.
+func (c *Client) SetRunFeedback(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
+	return c.RawScoped(ctx, http.MethodPatch, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
 }
 
 // RunRetry re-runs a run (optionally at a different tier); returns the new run id.

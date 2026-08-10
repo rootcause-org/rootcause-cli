@@ -820,7 +820,50 @@ func TestRunFeedbackTable(t *testing.T) {
 	}
 }
 
-// TestRunFeedbackRequiresInput: with neither --score nor --comment it's a clear client-side error.
+// TestRunFeedbackProcessedTable: the operator plane rides a PATCH and prints its own terse line.
+func TestRunFeedbackProcessedTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111", "--processed", "--resolution-note", "fixed the brain skill"); err != nil {
+		t.Fatalf("run feedback --processed: %v", err)
+	}
+	if got := out.String(); got != "feedback marked processed with a resolution note for run 11111111-1111-1111-1111-111111111111\n" {
+		t.Errorf("run feedback --processed output = %q", got)
+	}
+}
+
+// TestRunFeedbackScoreAndProcessed: one invocation spanning both planes does POST then PATCH, and -o json
+// renders the merged state the PATCH returned (not the POST ack).
+func TestRunFeedbackScoreAndProcessed(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111",
+		"--score", "1", "--comment", "great draft", "--unprocessed"); err != nil {
+		t.Fatalf("run feedback score+processed: %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, `"processed": false`) || !strings.Contains(got, `"comment": "great draft"`) {
+		t.Errorf("merged feedback state = %s", got)
+	}
+	if strings.Contains(got, `"recorded"`) {
+		t.Errorf("json should be the PATCH merged state, got %s", got)
+	}
+}
+
+// TestRunFeedbackProcessedExclusive: the two processed flags contradict each other; reject client-side.
+func TestRunFeedbackProcessedExclusive(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111", "--processed", "--unprocessed")
+	if err == nil || !strings.Contains(err.Error(), "processed") {
+		t.Fatalf("want mutually-exclusive error, got %v", err)
+	}
+}
+
+// TestRunFeedbackRequiresInput: with no flag at all it's a clear client-side error.
 func TestRunFeedbackRequiresInput(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

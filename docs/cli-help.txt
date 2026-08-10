@@ -99,7 +99,7 @@ Available Commands:
   egress         Show outbound gateway connections and HTTP attempts
   actions        Show the safe action lifecycle history
   thread         Trace one provider/local thread or session through pipeline, run, and placement
-  feedback       Record score/comment feedback on a run's trace
+  feedback       Record score/comment feedback on a run's trace, or mark it processed
   retry          Re-run a run (optionally at a different tier); prints the new run id
   process-thread Process a triage-skipped or security-blocked inbox thread
 
@@ -275,14 +275,17 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc run feedback --help
-Record score/comment feedback on a run's trace
+Record score/comment feedback on a run's trace, or mark it processed
 
 Usage:
-  rc run feedback <run-id> [--score N] [--comment TEXT] [flags]
+  rc run feedback <run-id> [--score N] [--comment TEXT] [--processed|--unprocessed] [--resolution-note TEXT] [flags]
 
 Flags:
-      --comment string   free-text feedback comment
-      --score int        feedback score (e.g. -1, 0, 1)
+      --comment string           free-text feedback comment
+      --processed                mark the run's feedback as processed
+      --resolution-note string   operator note on how the feedback was resolved
+      --score int                feedback score (e.g. -1, 0, 1)
+      --unprocessed              mark the run's feedback as not processed
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
