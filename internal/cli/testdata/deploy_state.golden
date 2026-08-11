@@ -1,0 +1,21 @@
+Deploy state — acme @ 2026-06-19T09:05:00Z (UTC)
+
+Host (rootcause) — release aabbccdd
+  up since 2026-06-18T21:00:00Z (12.1h)
+  unpromoted: not checked (pass --host-repo <path to rootcause checkout>)
+
+Brain (acme) — local main 111111111111 · state current
+  stable  111111111111  state=current origin=yes main=yes
+  edge    222222222222  state=missing_origin origin=no main=no
+  promotions (last 2):
+    2026-06-19T08:00:04Z  stable  000000000000 → 111111111111  changed  operator@example.com
+    2026-06-18T15:30:09Z  stable  000000000000 → 333333333333  rejected  operator@example.com
+
+Mirrors — 2
+  acme-crm                     444444444444  state=ok last_ok=2026-06-19T09:00:00Z  Fix invoice rounding
+  acme-common [north]          555555555555  state=stale last_ok=2026-06-18T09:00:00Z  Shared helpers
+  refreshes (last 2, newest first):
+    2026-06-19T08:00:00Z  acme-crm                     444444444444  Fix invoice rounding
+    2026-06-18T09:00:00Z  acme-common [north]          555555555555  Shared helpers
+
+note: host deploy history is not stored server-side — see `gh run list --workflow deploy.yml`.

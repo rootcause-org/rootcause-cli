@@ -106,6 +106,11 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"items":[{"id":"action-run-1","run_id":"` + r.PathValue("id") + `","action_id":"create_order","status":"succeeded","digest":"sha256:action","params_hash":"sha256:params","duration_ms":320,"created_at":"2026-06-19T09:01:00Z","completed_at":"2026-06-19T09:01:01Z"}]}`))
 	})
+	mux.HandleFunc("GET /api/v1/deploy-state", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "deploy_state.json"))
+	})
 	mux.HandleFunc("GET /api/v1/health", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

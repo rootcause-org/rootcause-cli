@@ -115,3 +115,26 @@ func TestWithUnpromotedSplicesIntoRawJSON(t *testing.T) {
 		t.Errorf("no local checkout must pass the server bytes through verbatim, got %s", got)
 	}
 }
+
+// TestDeployStateTable pins the three-plane render: host release + brain channels/promotions +
+// mirrors with the refresh timeline (fixture uses canned timestamps).
+func TestDeployStateTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "deploy-state"); err != nil {
+		t.Fatalf("fleet deploy-state: %v", err)
+	}
+	assertGolden(t, "deploy_state.golden", out.String())
+}
+
+// TestDeployStateJSONPassthrough: without --host-repo the -o json body is the verbatim server rows.
+func TestDeployStateJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "deploy-state"); err != nil {
+		t.Fatalf("fleet deploy-state -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "deploy_state.json"), out.Bytes())
+}

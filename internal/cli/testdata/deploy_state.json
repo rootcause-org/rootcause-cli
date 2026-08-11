@@ -1,0 +1,94 @@
+{
+  "project": "acme",
+  "generated_at": "2026-06-19T09:05:00Z",
+  "history_limit": 15,
+  "host": {
+    "release": "aabbccdd",
+    "started_at": "2026-06-18T21:00:00Z",
+    "uptime_hours": 12.08
+  },
+  "brain": {
+    "dir": "/srv/brain/projects/acme/brain",
+    "state": "current",
+    "main_sha": "1111111111111111111111111111111111111111",
+    "origin_sha": "1111111111111111111111111111111111111111",
+    "synced_at": "2026-06-19T09:00:00Z",
+    "channels": [
+      {
+        "channel": "stable",
+        "resolved_sha": "1111111111111111111111111111111111111111",
+        "origin_sha": "1111111111111111111111111111111111111111",
+        "main_sha": "1111111111111111111111111111111111111111",
+        "matches_origin": true,
+        "matches_main": true,
+        "state": "current"
+      },
+      {
+        "channel": "edge",
+        "resolved_sha": "2222222222222222222222222222222222222222",
+        "main_sha": "1111111111111111111111111111111111111111",
+        "matches_origin": false,
+        "matches_main": false,
+        "state": "missing_origin"
+      }
+    ],
+    "promotions": [
+      {
+        "channel": "stable",
+        "old_sha": "0000000000000000000000000000000000000000",
+        "requested_sha": "1111111111111111111111111111111111111111",
+        "new_sha": "1111111111111111111111111111111111111111",
+        "outcome": "changed",
+        "actor": "operator@example.com",
+        "created_at": "2026-06-19T08:00:00Z",
+        "finished_at": "2026-06-19T08:00:04Z"
+      },
+      {
+        "channel": "stable",
+        "old_sha": "0000000000000000000000000000000000000000",
+        "requested_sha": "3333333333333333333333333333333333333333",
+        "outcome": "rejected",
+        "detail": "canary failed",
+        "actor": "operator@example.com",
+        "created_at": "2026-06-18T15:30:00Z",
+        "finished_at": "2026-06-18T15:30:09Z"
+      }
+    ]
+  },
+  "mirrors": [
+    {
+      "repo": "acme-crm",
+      "state": "ok",
+      "sha": "4444444444444444444444444444444444444444",
+      "subject": "Fix invoice rounding",
+      "committed_at": "2026-06-19T07:45:00Z",
+      "last_ok_at": "2026-06-19T09:00:00Z"
+    },
+    {
+      "repo": "acme-common",
+      "tenant": "north",
+      "state": "stale",
+      "sha": "5555555555555555555555555555555555555555",
+      "subject": "Shared helpers",
+      "committed_at": "2026-06-10T12:00:00Z",
+      "last_ok_at": "2026-06-18T09:00:00Z"
+    }
+  ],
+  "mirror_history": [
+    {
+      "repo": "acme-crm",
+      "sha": "4444444444444444444444444444444444444444",
+      "subject": "Fix invoice rounding",
+      "committed_at": "2026-06-19T07:45:00Z",
+      "refreshed_at": "2026-06-19T08:00:00Z"
+    },
+    {
+      "repo": "acme-common",
+      "tenant": "north",
+      "sha": "5555555555555555555555555555555555555555",
+      "subject": "Shared helpers",
+      "committed_at": "2026-06-10T12:00:00Z",
+      "refreshed_at": "2026-06-18T09:00:00Z"
+    }
+  ]
+}
