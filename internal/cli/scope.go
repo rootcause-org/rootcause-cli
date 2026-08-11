@@ -150,8 +150,11 @@ func validateCommandScope(e *env, cmd *cobra.Command) error {
 			if !spec.AllProjects {
 				return fmt.Errorf("--all is not supported by `%s`", cmd.CommandPath())
 			}
+			// Only explicit --project/--tenant flags conflict with --all. Context resolved later from a
+			// brain checkout or the login tenant (e.resolved/e.autoProject/e.loginTenant) is fine: --all
+			// deliberately widens past it.
 			if e.project != "" || e.tenant != "" {
-				return fmt.Errorf("--all cannot be combined with --project or --tenant")
+				return fmt.Errorf("--all cannot be combined with an explicit --project or --tenant flag (drop the flag; project/tenant context from a brain checkout does not conflict)")
 			}
 		}
 	}

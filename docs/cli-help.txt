@@ -3437,7 +3437,7 @@ Usage:
   rc fleet deploy-state [flags]
 
 Flags:
-      --history int        how many brain promotions and mirror refreshes to list (default 10)
+      --history int        how many brain promotions and mirror refreshes to list (default 15)
       --host-repo string   path to a local rootcause checkout, to list commits not in the deployed release
 
 Global Flags:

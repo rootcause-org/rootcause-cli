@@ -63,7 +63,7 @@ func newDeployStateCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().IntVar(&history, "history", 10, "how many brain promotions and mirror refreshes to list")
+	cmd.Flags().IntVar(&history, "history", 15, "how many brain promotions and mirror refreshes to list")
 	cmd.Flags().StringVar(&hostRepo, "host-repo", "", "path to a local rootcause checkout, to list commits not in the deployed release")
 	return cmd
 }

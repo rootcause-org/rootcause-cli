@@ -98,6 +98,17 @@ func TestAllRejectsNarrowerScope(t *testing.T) {
 	}
 }
 
+func TestAllAcceptsImplicitScopeContext(t *testing.T) {
+	// Project/tenant context resolved from a brain checkout or the login tenant is populated after
+	// scope validation (in newClient), so only explicit --project/--tenant flags may conflict with
+	// --all. Regression guard: no flags ⇒ validation passes (any error here is transport, not scope).
+	e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+	err := run(t, e, "fleet", "runs", "--all")
+	if err != nil && strings.Contains(err.Error(), "--all cannot be combined") {
+		t.Fatalf("implicit scope context must not conflict with --all, got %v", err)
+	}
+}
+
 func TestCanonicalTenantTreeRequiresProjectOutsideBrain(t *testing.T) {
 	e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
 	err := run(t, e, "--tenant", "acme", "project", "repo", "ls")
