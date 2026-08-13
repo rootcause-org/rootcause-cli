@@ -64,7 +64,7 @@ _(empty)_
 **Note `anomaly`:**
 
 ```
-customer_id had no index;
+customer_id had no index; query was slow
 ```
 
 

@@ -459,7 +459,8 @@ func joinNonEmpty(parts []string, sep string) string {
 	return strings.Join(out, sep)
 }
 
-// renderOutcome shows the draft gist (first 8 lines), action proposals, note gists, or a "no callback" marker.
+// renderOutcome shows the draft gist (first 8 lines), action proposals, the FULL note bodies, or a "no
+// callback" marker.
 func renderOutcome(r client.RunHeader) []string {
 	if r.Draft == "" && len(r.Notes) == 0 && len(r.ProposedActions) == 0 && len(r.Metadata) == 0 {
 		return []string{"_(no stored callback — run errored or never produced one)_"}
@@ -492,12 +493,14 @@ func renderOutcome(r client.RunHeader) []string {
 		}
 		out = append(out, "")
 	}
+	// Notes render in FULL. They are short by construction and carry the reviewer-facing 👀/📊 lines; a
+	// first-sentence gist hid those in the index and cost two reviewer round-trips in the 2026-08-12 audit.
 	for _, n := range r.Notes {
 		key := ""
 		if n.Key != "" {
 			key = " `" + n.Key + "`"
 		}
-		out = append(out, "**Note"+key+":**", "", fence(gist(n.Body, 400), ""), "")
+		out = append(out, "**Note"+key+":**", "", fence(strings.TrimSpace(n.Body), ""), "")
 	}
 	return out
 }
@@ -589,11 +592,15 @@ func benignGrepMiss(e decEvent) bool {
 		grepRx.MatchString(cdPrefix.ReplaceAllString(e.command, ""))
 }
 
-// pathRx matches /brain, /mirrors, /kb paths in commands — the bridge to "what did the run read". The
-// leading (^|[^\w-]) group emulates the reference renderer's negative lookbehind (RE2 has none): a path
-// must not be glued onto a preceding word/hyphen char, so `foo/brain/x.py` isn't mis-read as a path.
+// pathRx matches the run's read-only mounts in commands — the bridge to "what did the run read". ALL
+// mounts must be listed: a missing one (`/tenant` was absent until 2026-08-13) renders an index that
+// silently claims the run never opened a tenant file, which reads as evidence in an audit.
+// The leading (^|[^\w-]) group emulates the reference renderer's negative lookbehind (RE2 has none): a
+// path must not be glued onto a preceding word/hyphen char, so `foo/brain/x.py` isn't mis-read as a path.
+// Matching is global over the WHOLE command string, so every clause of a `;`/`&&`-chained or `for f in
+// … ; do … done` command contributes its paths, not just the first.
 // Group 1 is the boundary (discarded); group 2 is the path.
-var pathRx = regexp.MustCompile(`(^|[^\w-])(/(?:brain|mirrors|kb)/[A-Za-z0-9._/@%+-]*[A-Za-z0-9_])`)
+var pathRx = regexp.MustCompile(`(^|[^\w-])(/(?:brain|tenant|mirrors|kb|tmp/rc-context)/[A-Za-z0-9._/@%+-]*[A-Za-z0-9_])`)
 
 // filesRead returns the sorted FILE paths (those with an extension) the run's bash commands touched.
 func filesRead(events []decEvent) []string {
