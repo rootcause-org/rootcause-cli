@@ -267,6 +267,8 @@ func RenderIndex(full *client.FullResponse) string {
 			fmt.Sprintf(`jq -r 'select(.command // "" | contains("invoice")).disp' %s   # steps touching X`, jsonlName),
 			fmt.Sprintf(`jq -r 'select(.reasoning) | .disp + " " + .reasoning' %s   # reasoning per step`, jsonlName),
 		}, "\n"), "sh"))
+	add("", "For the full three-step opening context each model received, with per-section sources: "+
+		"`rc dev context-export` (offline, operator).")
 	add("")
 	return strings.Join(L, "\n")
 }

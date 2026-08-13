@@ -96,3 +96,5 @@ jq -r 'select(.exit_code != null and .exit_code != 0).disp' 11111111-coca-cola.j
 jq -r 'select(.command // "" | contains("invoice")).disp' 11111111-coca-cola.jsonl   # steps touching X
 jq -r 'select(.reasoning) | .disp + " " + .reasoning' 11111111-coca-cola.jsonl   # reasoning per step
 ```
+
+For the full three-step opening context each model received, with per-section sources: `rc dev context-export` (offline, operator).

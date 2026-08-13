@@ -90,7 +90,7 @@ func newDevCmd(e *env) *cobra.Command {
 	api.AddCommand(newRoutesCmd(e), newOpenAPICmd(e))
 	tools := &cobra.Command{Use: "tools", Short: "Use local provider and identifier utilities"}
 	tools.AddCommand(newIDCmd(e), newProviderCmd(e))
-	cmd.AddCommand(newBrainCmd(e), newMirrorCmd(e), console, learning, api, tools)
+	cmd.AddCommand(newBrainCmd(e), newMirrorCmd(e), console, learning, api, tools, newContextExportCmd(e))
 	return cmd
 }
 

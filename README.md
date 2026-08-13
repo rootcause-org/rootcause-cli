@@ -284,6 +284,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev console database schema` | Fetch database schema, optionally one table |
 | `rc dev console database` | Access guarded production databases |
 | `rc dev console` | Use guarded production consoles |
+| `rc dev context-export` | Render a project's full opening context offline (needs a rootcause host checkout) |
 | `rc dev learning evidence` | List feedback, sent-edit, and triage evidence for consolidation |
 | `rc dev learning` | Inspect learning and consolidation inputs |
 | `rc dev mirror refresh` | Refresh mirrors and verify one repository at an exact commit |

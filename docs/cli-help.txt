@@ -2594,12 +2594,13 @@ Usage:
   rc dev [command]
 
 Available Commands:
-  brain       Inspect, publish, and manage brain repositories
-  mirror      Refresh project source mirrors
-  console     Use guarded production consoles
-  learning    Inspect learning and consolidation inputs
-  api         Inspect the public API contract
-  tools       Use local provider and identifier utilities
+  brain          Inspect, publish, and manage brain repositories
+  mirror         Refresh project source mirrors
+  console        Use guarded production consoles
+  learning       Inspect learning and consolidation inputs
+  api            Inspect the public API contract
+  tools          Use local provider and identifier utilities
+  context-export Render a project's full opening context offline (needs a rootcause host checkout)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3326,6 +3327,32 @@ Detect a domain's email backend (google/microsoft/other) from DNS
 
 Usage:
   rc dev tools provider detect <domain|email> [more…] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported
+
+$ rc dev context-export --help
+Render, offline, the complete opening context each model receives across a run's three model steps — triage, the grounding pre-step, the main loop — as one markdown file per project, with per-section sources and token estimates.
+
+It runs the host repo's renderer (`go run ./cmd/context-export`), so it needs a local rootcause host checkout: --host-repo, RC_HOST_REPO, or a sibling directory of this one.
+
+Usage:
+  rc dev context-export [flags]
+
+Flags:
+      --agents-md string   override the suite's AGENTS.md path
+      --host-repo string   path to a rootcause host checkout (default: RC_HOST_REPO, else a sibling directory)
+      --kb string          override the suite's knowledge snapshot directory
+      --kb-mount string    override the suite's knowledge mount path
+      --out string         output directory (default: ./.rootcause/context-export)
+      --suite string       grounding suite: a bare project name or a path (default: this brain's project)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

@@ -415,6 +415,7 @@ func runDebug(e *env, c *client.Client, id, outDir string) error {
 				"sed -n '1,160p' " + outputspill.ShellQuote(indexArt.Path),
 				"jq -r 'select(.type==\"event\")' " + outputspill.ShellQuote(jsonlArt.Path),
 				"jq -r 'select(.disp==\"1\")' " + outputspill.ShellQuote(jsonlArt.Path),
+				"rc dev context-export  # the full three-step opening context (offline, operator)",
 			},
 			RawModeHint: "rerun with --raw-output to print the debug paths to stdout",
 		})
