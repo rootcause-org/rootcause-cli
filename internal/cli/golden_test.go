@@ -291,8 +291,8 @@ func TestRunFullJSONL(t *testing.T) {
 	assertGolden(t, "full.jsonl.golden", out.String())
 
 	lines := strings.Split(strings.TrimRight(out.String(), "\n"), "\n")
-	if len(lines) != 4 { // 1 run header + 3 events
-		t.Fatalf("expected 4 JSONL lines, got %d:\n%s", len(lines), out.String())
+	if len(lines) != 6 { // 1 run header + 3 agent events + 2 post-loop polish events
+		t.Fatalf("expected 6 JSONL lines, got %d:\n%s", len(lines), out.String())
 	}
 	var head map[string]any
 	if err := json.Unmarshal([]byte(lines[0]), &head); err != nil {
@@ -368,8 +368,8 @@ func TestRunDebug(t *testing.T) {
 
 	// Contract checks on the JSONL: a type:run header then type:event lines keyed by disp.
 	jl := strings.Split(strings.TrimRight(string(jsonl), "\n"), "\n")
-	if len(jl) != 4 { // 1 header + 3 events
-		t.Fatalf("expected 4 JSONL lines, got %d", len(jl))
+	if len(jl) != 6 { // 1 header + 3 agent events + 2 post-loop polish events
+		t.Fatalf("expected 6 JSONL lines, got %d", len(jl))
 	}
 	var head map[string]any
 	if err := json.Unmarshal([]byte(jl[0]), &head); err != nil || head["type"] != "run" {
@@ -419,11 +419,30 @@ func TestRunDebug(t *testing.T) {
 		}
 		disps[ev["disp"].(string)] = true
 	}
-	// Grounding pre-step → P1; the two main steps → 1, 2.
-	for _, d := range []string{"P1", "1", "2"} {
+	// Grounding pre-step → P1; the two main steps → 1, 2; the post-loop polish rows get their own band
+	// (C1, C2) so adding one never renumbers the agent's steps.
+	for _, d := range []string{"P1", "1", "2", "C1", "C2"} {
 		if !disps[d] {
 			t.Errorf("missing disp %q in JSONL", d)
 		}
+	}
+	// The persisted prompt-context planes ride the header under the SERVER's field names — the rc-debug
+	// skill's jq recipes are written against these exact keys.
+	if head["context_schema_version"] != float64(1) {
+		t.Errorf("context_schema_version = %T %v, want 1", head["context_schema_version"], head["context_schema_version"])
+	}
+	sections, ok := head["prompt_sections"].([]any)
+	if !ok || len(sections) != 4 {
+		t.Fatalf("prompt_sections = %T %v, want 4", head["prompt_sections"], head["prompt_sections"])
+	}
+	if blocks, ok := head["manifest_blocks"].([]any); !ok || len(blocks) != 3 {
+		t.Fatalf("manifest_blocks = %T %v, want 3", head["manifest_blocks"], head["manifest_blocks"])
+	}
+	if s, ok := head["bootstrap_turn"].(string); !ok || !strings.Contains(s, "/brain/AGENTS.md") {
+		t.Errorf("bootstrap_turn not carried through verbatim: %T %v", head["bootstrap_turn"], head["bootstrap_turn"])
+	}
+	if s, ok := head["preselected_turn"].(string); !ok || !strings.Contains(s, "refunds.md") {
+		t.Errorf("preselected_turn not carried through verbatim: %T %v", head["preselected_turn"], head["preselected_turn"])
 	}
 }
 

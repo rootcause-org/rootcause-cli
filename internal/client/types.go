@@ -780,6 +780,19 @@ type RunHeader struct {
 	Egress                []EgressItem      `json:"egress,omitempty"`
 	GroundingSources      *GroundingSources `json:"grounding_sources,omitempty"`
 	GroundingSourcesRaw   json.RawMessage   `json:"-"`
+	// The run's FULL prompt context (server table `run_contexts`, detail tier, 7-day window). SystemPrompt
+	// above is the joined string; PromptSections is that same prompt decomposed — [{id, gate, on, text?}] —
+	// so a debugger sees WHICH gate turned a paragraph on. BootstrapTurn/PreselectedTurn are the verbatim
+	// orientation user turns; ManifestBlocks indexes what BootstrapTurn pastes
+	// ([{path, gloss, presence, authoritative, truncated, chars}]). ALL absent on a run predating the
+	// capture or past its retention window — ContextSchemaVersion == 0 is that absence signal, and a
+	// renderer must SAY the context is gone rather than draw empty sections. Cross-repo contract with the
+	// server: do not rename.
+	PromptSections       json.RawMessage `json:"prompt_sections,omitempty"`
+	BootstrapTurn        string          `json:"bootstrap_turn,omitempty"`
+	PreselectedTurn      string          `json:"preselected_turn,omitempty"`
+	ManifestBlocks       json.RawMessage `json:"manifest_blocks,omitempty"`
+	ContextSchemaVersion int             `json:"context_schema_version,omitempty"`
 	// DetailRedacted marks a trace served WITHOUT its detail: the caller is not a project-level admin, so
 	// the server omits the sensitive header fields (system_prompt, grounding_*, warm_start_digest, prior
 	// messages/notes, tenant settings, egress) and ships an empty events list. Every renderer must call

@@ -63,6 +63,22 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	if len(r.ProposedActions) > 0 {
 		header["proposed_actions"] = r.ProposedActions
 	}
+	// The persisted prompt context, under the server's own field names so the rc-debug jq recipes read
+	// the same keys the API documents. context_schema_version is written even when 0: that zero IS the
+	// "this run predates the capture / aged out" signal, and a jq consumer needs it present to test it.
+	header["context_schema_version"] = r.ContextSchemaVersion
+	if len(r.PromptSections) > 0 {
+		header["prompt_sections"] = json.RawMessage(r.PromptSections)
+	}
+	if len(r.ManifestBlocks) > 0 {
+		header["manifest_blocks"] = json.RawMessage(r.ManifestBlocks)
+	}
+	if r.BootstrapTurn != "" {
+		header["bootstrap_turn"] = r.BootstrapTurn
+	}
+	if r.PreselectedTurn != "" {
+		header["preselected_turn"] = r.PreselectedTurn
+	}
 	if drift, err := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
 		header["tenant_settings_drift"] = drift
 	}
@@ -110,11 +126,14 @@ func RenderIndex(full *client.FullResponse) string {
 	r := full.Run
 	jsonlName := JSONLName(full)
 
-	var main, pre []decEvent
+	var main, pre, polish []decEvent
 	for _, e := range events {
-		if e.grounding {
+		switch {
+		case e.polish:
+			polish = append(polish, e)
+		case e.grounding:
 			pre = append(pre, e)
-		} else {
+		default:
 			main = append(main, e)
 		}
 	}
@@ -165,6 +184,11 @@ func RenderIndex(full *client.FullResponse) string {
 
 	add(renderProjectionInputs(r)...)
 	add(renderGroundingSources(r.GroundingSources)...)
+	// Skipped on a redacted bundle: the lead line already says the prompt planes were withheld, and an
+	// "not captured" line here would blame retention for an access decision.
+	if !redacted {
+		add(renderPromptContext(r, jsonlName)...)
+	}
 
 	add("## Question", "")
 	if r.Question != "" {
@@ -174,6 +198,9 @@ func RenderIndex(full *client.FullResponse) string {
 	}
 	add("", "## Outcome", "")
 	add(renderOutcome(r)...)
+	// Directly under the draft it edited: the post-loop passes run AFTER the agent's terminal `reply`, so
+	// a draft that doesn't match the reply row is otherwise unexplainable from the timeline.
+	add(renderDraftCleanup(polish, jsonlName)...)
 
 	// With no events served, a "Timeline" and a "Flags: _(none)_" section would both read as findings.
 	// Skip them entirely — the lead line already said why they are missing.
@@ -306,6 +333,139 @@ func renderProjectionInputs(r client.RunHeader) []string {
 	}
 	out = append(out, "")
 	return out
+}
+
+// renderPromptContext renders the run's persisted prompt context: the system prompt's section map (WHAT
+// was a candidate and which gate turned it on), and the orientation turns' block index. Texts stay in
+// the JSONL — this is navigation. When the server served nothing, it says so in one line: silence here
+// would read as "the model got nothing", a different and false fact.
+func renderPromptContext(r client.RunHeader, jsonlName string) []string {
+	out := []string{"## Prompt context (what the model was handed)", ""}
+	if !r.ContextCaptured() {
+		return append(out, "- **Not captured** — this run predates per-run context capture, or its context "+
+			"aged past the 7-day retention window. The `system_prompt` in the JSONL is still the joined "+
+			"prompt; its per-section gates are gone.", "")
+	}
+	sections, secErr := client.ParsePromptSections(r.PromptSections)
+	blocks, blkErr := client.ParseManifestBlocks(r.ManifestBlocks)
+
+	on := 0
+	for _, s := range sections {
+		if s.On {
+			on++
+		}
+	}
+	out = append(out, fmt.Sprintf("- **Captured:** yes (schema v%d) · %d/%d system-prompt sections on",
+		r.ContextSchemaVersion, on, len(sections)))
+	out = append(out, fmt.Sprintf("- **Bootstrap turn:** %s · **Pre-selected turn:** %s",
+		turnSize(r.BootstrapTurn), turnSize(r.PreselectedTurn)))
+
+	if secErr != nil {
+		out = append(out, fmt.Sprintf("- **Sections:** unreadable (`%s`)", backtickSafe(secErr.Error())))
+	} else if len(sections) > 0 {
+		out = append(out, "", "### System-prompt sections", "",
+			"| section | on | gate | chars |", "|---|---|---|---|")
+		for _, s := range sections {
+			out = append(out, fmt.Sprintf("| `%s` | %s | %s | %s |",
+				backtickSafe(s.ID), yesNo(s.On), cell(s.Gate, 80), charCount(s.On, len(s.Text))))
+		}
+	}
+
+	if blkErr != nil {
+		out = append(out, "", fmt.Sprintf("- **Bootstrap blocks:** unreadable (`%s`)", backtickSafe(blkErr.Error())))
+	} else if len(blocks) > 0 {
+		out = append(out, "", "### Bootstrap blocks (bodies are inside the bootstrap turn)", "",
+			"| path | presence | chars | truncated | authoritative |", "|---|---|---|---|---|")
+		for _, b := range blocks {
+			out = append(out, fmt.Sprintf("| `%s` | %s | %d | %s | %s |",
+				backtickSafe(b.Path), orQ(b.Presence), b.Chars, yesNo(b.Truncated), yesNo(b.Authoritative)))
+		}
+	}
+	out = append(out, "", "Full texts (never in this index) live in the JSONL run header:", "",
+		fence(strings.Join([]string{
+			fmt.Sprintf(`jq -r '.prompt_sections[]? | select(.on).text' %s   # the gated prompt, section by section`, jsonlName),
+			fmt.Sprintf(`jq -r '.prompt_sections[]? | select(.on|not) | .id + " — " + .gate' %s   # what stayed OFF, and why`, jsonlName),
+			fmt.Sprintf(`jq -r '.bootstrap_turn // "(none)"' %s   # the pasted orientation turn, verbatim`, jsonlName),
+			fmt.Sprintf(`jq -r '.preselected_turn // "(none)"' %s   # the pre-pass's pre-selected ranges`, jsonlName),
+		}, "\n"), "sh"), "")
+	return out
+}
+
+// turnSize describes one orientation turn without printing it: "" is a real state (the turn is not
+// sent), distinct from a turn that is present but empty.
+func turnSize(s string) string {
+	if s == "" {
+		return "not sent"
+	}
+	return fmt.Sprintf("%d chars, %d lines", len(s), strings.Count(s, "\n")+1)
+}
+
+func charCount(on bool, n int) string {
+	if !on {
+		return "-"
+	}
+	return fmt.Sprintf("%d", n)
+}
+
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
+// renderDraftCleanup renders the post-loop polish passes (server seq band 4M+): each pass, whether it
+// fired, and what it did to the draft. Terse by design — the before/after markdown and the refused
+// rewrite live in the JSONL. Omitted entirely when no pass ran (a pre-capture run, or a run with no
+// draft): unlike the prompt context there is nothing to degrade, only nothing to show.
+func renderDraftCleanup(polish []decEvent, jsonlName string) []string {
+	if len(polish) == 0 {
+		return nil
+	}
+	out := []string{"", "## Draft cleanup — post-loop polish passes", "",
+		"These run AFTER the agent's terminal `reply`, so a shipped draft can differ from the one the " +
+			"timeline ends on.", "",
+		"| # | pass | status | changed | detail |", "|---|---|---|---|---|"}
+	for _, e := range polish {
+		p := parsePolish(e.src)
+		out = append(out, fmt.Sprintf("| %s | %s | %s | %s | %s |",
+			e.disp, orQ(p.Pass), orQ(p.Status), yesNo(p.Changed), polishDetail(p)))
+	}
+	out = append(out, "", fence(strings.Join([]string{
+		fmt.Sprintf(`jq -r 'select(.disp=="%s").args.before' %s   # the draft as the agent wrote it`, polish[0].disp, jsonlName),
+		fmt.Sprintf(`jq -r 'select(.disp=="%s").args.after'  %s   # the draft as it shipped`, polish[0].disp, jsonlName),
+		fmt.Sprintf(`jq -r 'select(.args.rejected_diff).args.rejected_diff' %s   # a rewrite the pass refused`, jsonlName),
+	}, "\n"), "sh"), "")
+	return out
+}
+
+// polishDetail says what the pass DID in one cell: the rewrite's size delta, the refused diff, or why it
+// was a no-op. Sizes only — no cost, tokens or model ever ride on a polish row.
+func polishDetail(p polishPass) string {
+	var parts []string
+	switch {
+	case p.RejectedDiff != "":
+		// A refusal keeps the agent's draft: reporting the (empty) "after" as a size delta would read as a
+		// rewrite that blanked the reply.
+		parts = append(parts, "refused, draft kept as-is: `"+cell(p.RejectedDiff, 90)+"`")
+	case p.Before != "" || p.After != "":
+		parts = append(parts, fmt.Sprintf("markdown %d → %d chars", len(p.Before), len(p.After)))
+	case !p.Called:
+		parts = append(parts, "pass not called")
+	}
+	if p.HTMLChanged {
+		parts = append(parts, "html changed")
+	}
+	if p.Trigger != "" {
+		parts = append(parts, "trigger "+p.Trigger)
+	}
+	if p.Flagged > 0 {
+		parts = append(parts, fmt.Sprintf("%d flagged", p.Flagged))
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, " · ")
 }
 
 func renderGroundingSources(gs *client.GroundingSources) []string {
@@ -517,6 +677,15 @@ var grepRx = regexp.MustCompile(`^\s*(rg|grep|egrep|fgrep)\b`)
 func flags(full *client.FullResponse, events []decEvent) []string {
 	r := full.Run
 	var out []string
+	// Polish rows are host bookkeeping, not turns: their non-"ok" status would read as a failed step and
+	// their (absent) duration would skew the median. They have their own section.
+	kept := events[:0:0]
+	for _, e := range events {
+		if !e.polish {
+			kept = append(kept, e)
+		}
+	}
+	events = kept
 	if r.Error != "" {
 		out = append(out, fmt.Sprintf("run errored: `%s`", r.Error))
 	}

@@ -26,7 +26,7 @@ Egress (2):
   api.stripe.com  3      no
   evil.example    1      yes
 
-Timeline (3):
+Timeline (5):
 
 #1  grounding (warm start)  ok  exit=0  40ms  2026-06-19T09:00:05Z
     reasoning: Pull the customer's recent invoices.
@@ -38,6 +38,12 @@ Timeline (3):
 #3  reply  ok  exit=0  30ms  2026-06-19T09:01:25Z
     args: { "channel": "email" }
     draft=true note=true
+
+#4  host  draft-cleanup  exit=0  -  2026-06-19T09:01:28Z
+    args: {         "pass": "em_dash",         "status": "rewritten",         "called": true,         "changed": true,         "trigger": "em_dash",         "flagged": 2,         "before": "You have 2 open invoices — totalling $480.",         "after": "You have 2 open invoices, totalling $480.",         "html_changed": true       }
+
+#5  host  draft-deferral  exit=0  -  2026-06-19T09:01:29Z
+    args: {         "pass": "deferral",         "status": "invalid_output",         "called": true,         "changed": false,         "before": "You have 2 open invoices, totalling $480.",         "rejected_diff": "- I'll check and come back to you.\n+ (dropped the whole answer body)"       }
 
 System prompt:
 You are rootcause. Answer from grounded data only.

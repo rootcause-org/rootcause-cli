@@ -39,6 +39,20 @@
       { "host": "api.stripe.com", "count": 3, "blocked": false },
       { "host": "evil.example", "count": 1, "blocked": true }
     ],
+    "context_schema_version": 1,
+    "prompt_sections": [
+      { "id": "preamble", "gate": "always", "on": true, "text": "You are rootcause. Answer from grounded data only." },
+      { "id": "persona", "gate": "customer-facing mode", "on": true, "text": "Write as the practice's own front desk." },
+      { "id": "db_cheatsheet", "gate": "project has a database connection", "on": true, "text": "lib.db exposes read-only pooled access." },
+      { "id": "source_pr_policy", "gate": "project allows source PRs", "on": false }
+    ],
+    "bootstrap_turn": "=== /brain/AGENTS.md · your durable routing map ===\nStart at cases/.\n\n=== /mirrors/app · directory map — paths only, open files with bash (read-only customer source) ===\napp/models/invoice.rb\n",
+    "preselected_turn": "=== pre-selected ranges ===\n/kb/billing/refunds.md L1-40\n",
+    "manifest_blocks": [
+      { "path": "/brain/AGENTS.md", "gloss": "your durable routing map", "presence": "pasted_full", "authoritative": true, "truncated": false, "chars": 52 },
+      { "path": "/tenant/AGENTS.md", "gloss": "tenant overlay", "presence": "pasted_full", "authoritative": true, "truncated": true, "chars": 8192 },
+      { "path": "/mirrors/app", "gloss": "read-only customer source", "presence": "directory_map", "authoritative": false, "truncated": false, "chars": 31 }
+    ],
     "grounding_sources": {
       "captured": true,
       "captured_at": "2026-06-19T09:00:03Z",
@@ -133,6 +147,41 @@
       "has_draft": true,
       "has_note": true,
       "model": "claude-opus-4-8"
+    },
+    {
+      "seq": 4000000,
+      "tool": "host",
+      "status": "draft-cleanup",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "at": "2026-06-19T09:01:28Z",
+      "args": {
+        "pass": "em_dash",
+        "status": "rewritten",
+        "called": true,
+        "changed": true,
+        "trigger": "em_dash",
+        "flagged": 2,
+        "before": "You have 2 open invoices — totalling $480.",
+        "after": "You have 2 open invoices, totalling $480.",
+        "html_changed": true
+      }
+    },
+    {
+      "seq": 4000001,
+      "tool": "host",
+      "status": "draft-deferral",
+      "exit_code": 0,
+      "duration_ms": 0,
+      "at": "2026-06-19T09:01:29Z",
+      "args": {
+        "pass": "deferral",
+        "status": "invalid_output",
+        "called": true,
+        "changed": false,
+        "before": "You have 2 open invoices, totalling $480.",
+        "rejected_diff": "- I'll check and come back to you.\n+ (dropped the whole answer body)"
+      }
     }
   ]
 }

@@ -27,19 +27,36 @@ type decEvent struct {
 	src       client.EventItem
 	disp      string
 	grounding bool
-	label     string
-	command   string
-	gist      string
+	// polish marks a synthetic post-loop draft-polish row (server seq band 4M+): it is NOT a tool call the
+	// agent made, so it stays out of the step counts, the timeline and the anomaly flags and gets its own
+	// index section — a "draft-cleanup" status in the flags list would read as a failed turn.
+	polish  bool
+	label   string
+	command string
+	gist    string
 }
+
+// polishSeqBase is the server's synthetic post-loop band (draft cleanup / deferral revise), above the
+// main loop (1..N), the engine-failure band (2M) and the hot-session band (3M).
+const polishSeqBase = 4_000_000
 
 // Decorate computes disp/grounding/label/command/gist for every event, in place order. The grounding
 // boundary mirrors the server's negative-seq band, ended by the band's terminal tool (submit_selection
-// / grounding_aborted) so a main loop that inherited a negative seq still numbers as main.
+// / grounding_aborted) so a main loop that inherited a negative seq still numbers as main. Post-loop
+// polish rows number C1,C2,… — a band of their own, so adding one never renumbers the agent's steps and
+// existing `select(.disp=="23")` recipes keep pointing at the same turn.
 func decorate(events []client.EventItem) []decEvent {
 	out := make([]decEvent, 0, len(events))
-	p, n := 0, 0
+	p, n, c := 0, 0, 0
 	inGrounding := true
 	for _, e := range events {
+		if e.Seq >= polishSeqBase {
+			c++
+			d := decEvent{src: e, polish: true, disp: "C" + strconv.Itoa(c)}
+			d.command, d.label = polishCommandAndLabel(e)
+			out = append(out, d)
+			continue
+		}
 		grounding := inGrounding && e.Seq < 0
 		if !grounding || e.Tool == "submit_selection" || e.Tool == "grounding_aborted" {
 			inGrounding = false
@@ -57,6 +74,42 @@ func decorate(events []client.EventItem) []decEvent {
 		out = append(out, d)
 	}
 	return out
+}
+
+// polishPass is the args envelope of a synthetic post-loop polish row, mirroring the server's
+// recordDraftPolishEvent shape. Before/After/RejectedDiff carry the draft MARKDOWN, present only when
+// the pass actually rewrote or refused — they are what makes an edit replayable. Cost-neutral by
+// contract: no model, provider, tokens or spend ride along, and none is derived here.
+type polishPass struct {
+	Pass         string `json:"pass"`
+	Status       string `json:"status"`
+	Called       bool   `json:"called"`
+	Changed      bool   `json:"changed"`
+	Trigger      string `json:"trigger,omitempty"`
+	Flagged      int    `json:"flagged,omitempty"`
+	Before       string `json:"before,omitempty"`
+	After        string `json:"after,omitempty"`
+	HTMLChanged  bool   `json:"html_changed,omitempty"`
+	RejectedDiff string `json:"rejected_diff,omitempty"`
+}
+
+func parsePolish(e client.EventItem) polishPass {
+	var p polishPass
+	_ = json.Unmarshal(e.Args, &p)
+	if p.Pass == "" {
+		// A future pass the CLI doesn't know: fall back to the event status ("draft-cleanup") so the row
+		// still names itself instead of rendering as a blank line.
+		p.Pass = strings.TrimPrefix(e.Status, "draft-")
+	}
+	return p
+}
+
+// polishCommandAndLabel gives a polish row the same (command, label) pair a tool call has, so the
+// shared JSONL/index plumbing needs no special case.
+func polishCommandAndLabel(e client.EventItem) (command, label string) {
+	p := parsePolish(e)
+	label = "draft " + strings.ReplaceAll(p.Pass, "_", " ")
+	return p.Pass + " → " + p.Status, label
 }
 
 // commandAndLabel derives the normalized command line + human label for one event by tool. Bash carries

@@ -38,6 +38,37 @@ Careful: when this run happened, these tenant settings differed from the current
 - **Sync:** configured `yes` · available `yes` · state `ok` · last_ok `2026-06-19T08:55:00Z` · last_attempt `2026-06-19T08:55:00Z`
 - **Current drift:** none · now_ref `main` · now_sha `abc123def456` · state `ok` · last_ok `2026-06-25T10:00:00Z`
 
+## Prompt context (what the model was handed)
+
+- **Captured:** yes (schema v1) · 3/4 system-prompt sections on
+- **Bootstrap turn:** 196 chars, 6 lines · **Pre-selected turn:** 57 chars, 3 lines
+
+### System-prompt sections
+
+| section | on | gate | chars |
+|---|---|---|---|
+| `preamble` | yes | always | 50 |
+| `persona` | yes | customer-facing mode | 39 |
+| `db_cheatsheet` | yes | project has a database connection | 39 |
+| `source_pr_policy` | no | project allows source PRs | - |
+
+### Bootstrap blocks (bodies are inside the bootstrap turn)
+
+| path | presence | chars | truncated | authoritative |
+|---|---|---|---|---|
+| `/brain/AGENTS.md` | pasted_full | 52 | no | yes |
+| `/tenant/AGENTS.md` | pasted_full | 8192 | yes | yes |
+| `/mirrors/app` | directory_map | 31 | no | no |
+
+Full texts (never in this index) live in the JSONL run header:
+
+```sh
+jq -r '.prompt_sections[]? | select(.on).text' 11111111-coca-cola.jsonl   # the gated prompt, section by section
+jq -r '.prompt_sections[]? | select(.on|not) | .id + " — " + .gate' 11111111-coca-cola.jsonl   # what stayed OFF, and why
+jq -r '.bootstrap_turn // "(none)"' 11111111-coca-cola.jsonl   # the pasted orientation turn, verbatim
+jq -r '.preselected_turn // "(none)"' 11111111-coca-cola.jsonl   # the pre-pass's pre-selected ranges
+```
+
 ## Question
 
 ```
@@ -65,6 +96,22 @@ _(empty)_
 
 ```
 customer_id had no index; query was slow
+```
+
+
+## Draft cleanup — post-loop polish passes
+
+These run AFTER the agent's terminal `reply`, so a shipped draft can differ from the one the timeline ends on.
+
+| # | pass | status | changed | detail |
+|---|---|---|---|---|
+| C1 | em_dash | rewritten | yes | markdown 44 → 41 chars · html changed · trigger em_dash · 2 flagged |
+| C2 | deferral | invalid_output | no | refused, draft kept as-is: `- I'll check and come back to you. + (dropped the whole answer body)` |
+
+```sh
+jq -r 'select(.disp=="C1").args.before' 11111111-coca-cola.jsonl   # the draft as the agent wrote it
+jq -r 'select(.disp=="C1").args.after'  11111111-coca-cola.jsonl   # the draft as it shipped
+jq -r 'select(.args.rejected_diff).args.rejected_diff' 11111111-coca-cola.jsonl   # a rewrite the pass refused
 ```
 
 

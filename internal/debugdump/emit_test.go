@@ -170,3 +170,72 @@ func TestRedactedIndexLeadsWithWithheld(t *testing.T) {
 		t.Fatalf("jsonl header detail_redacted = %v, want true", header["detail_redacted"])
 	}
 }
+
+// A run older than the server's context capture (or past its 7-day window) must SAY the context is
+// gone. Silence would read as "the model was handed nothing" — a different, false fact.
+func TestPromptContextAbsenceIsStated(t *testing.T) {
+	full := &client.FullResponse{
+		Run: client.RunHeader{
+			RunID:        "c446011c-7e78-4a41-8848-46d92b61152a",
+			Project:      "pj-mailbox",
+			Status:       "done",
+			Kind:         "email",
+			SystemPrompt: "You are rootcause.",
+		},
+	}
+
+	index := RenderIndex(full)
+	if !strings.Contains(index, "## Prompt context") || !strings.Contains(index, "**Not captured**") {
+		t.Fatalf("absent prompt context not called out:\n%s", index)
+	}
+	for _, section := range []string{"### System-prompt sections", "### Bootstrap blocks", "## Draft cleanup"} {
+		if strings.Contains(index, section) {
+			t.Fatalf("index drew empty section %s:\n%s", section, index)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := EmitJSONL(&buf, full); err != nil {
+		t.Fatalf("EmitJSONL: %v", err)
+	}
+	var header map[string]any
+	if err := json.Unmarshal(bytes.SplitN(buf.Bytes(), []byte("\n"), 2)[0], &header); err != nil {
+		t.Fatalf("decode JSONL header: %v", err)
+	}
+	// The zero version must be PRESENT: it is the machine-readable absence signal a jq consumer tests.
+	if v, ok := header["context_schema_version"]; !ok || v != float64(0) {
+		t.Fatalf("context_schema_version = %v (present=%v), want 0", v, ok)
+	}
+	for _, k := range []string{"prompt_sections", "manifest_blocks", "bootstrap_turn", "preselected_turn"} {
+		if _, ok := header[k]; ok {
+			t.Fatalf("header carried %q on an uncaptured run: %v", k, header[k])
+		}
+	}
+}
+
+// Polish rows live in their own band: they must not be counted as agent steps, flagged as failed turns
+// (their status is "draft-cleanup", never "ok"), or interleaved into the timeline.
+func TestDraftCleanupRendersInItsOwnSection(t *testing.T) {
+	full := &client.FullResponse{
+		Run: client.RunHeader{
+			RunID: "c446011c-7e78-4a41-8848-46d92b61152a", Project: "pj-mailbox", Status: "done", Kind: "email",
+			Draft: "You have 2 open invoices, totalling $480.",
+		},
+		Events: []client.EventItem{
+			{Seq: 1, Tool: "bash", Status: "ok", Command: "psql -c 'select 1'"},
+			{Seq: 4_000_000, Tool: "host", Status: "draft-cleanup", Args: json.RawMessage(
+				`{"pass":"em_dash","status":"rewritten","called":true,"changed":true,"before":"a — b","after":"a, b"}`)},
+		},
+	}
+
+	index := RenderIndex(full)
+	if !strings.Contains(index, "## Draft cleanup") || !strings.Contains(index, "| C1 | em_dash | rewritten | yes |") {
+		t.Fatalf("draft cleanup pass not rendered:\n%s", index)
+	}
+	if !strings.Contains(index, "**Steps:** 1 main") {
+		t.Fatalf("polish row counted as an agent step:\n%s", index)
+	}
+	if strings.Contains(index, "[C1] draft-cleanup") {
+		t.Fatalf("polish row flagged as a failed turn:\n%s", index)
+	}
+}
