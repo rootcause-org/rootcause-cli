@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -126,6 +127,31 @@ func TestLoad_Brain_ProfileIsProject(t *testing.T) {
 	}
 	if res.BaseURL != DefaultBaseURL {
 		t.Errorf("base=%q, want built-in production; brain marker base_url is ignored", res.BaseURL)
+	}
+}
+
+func TestLoad_BrainCarriesMachineTokenEnvName(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, "project = \"momentum-tools\"\nmachine_token_env = \"RC_REFRESH_TOKEN_MOMENTUM_TOOLS\"\n")
+
+	res, err := load("", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Brain == nil || res.Brain.MachineTokenEnv != "RC_REFRESH_TOKEN_MOMENTUM_TOOLS" {
+		t.Fatalf("machine token env = %q, want RC_REFRESH_TOKEN_MOMENTUM_TOOLS", res.Brain.MachineTokenEnv)
+	}
+}
+
+func TestLoad_BrainRejectsArbitrarySecretEnvName(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, "project = \"momentum-tools\"\nmachine_token_env = \"AWS_SECRET_ACCESS_KEY\"\n")
+
+	_, err := load("", dir)
+	if err == nil || !strings.Contains(err.Error(), "RC_REFRESH_TOKEN_[A-Z0-9_]+") {
+		t.Fatalf("expected restricted machine token env error, got %v", err)
 	}
 }
 

@@ -272,7 +272,7 @@ func (e *env) resolveScope(includeLogin bool) (scopeResolution, error) {
 		res.BaseURLSource = "test override"
 	}
 
-	t, loggedIn, err := token.Load(res.Profile)
+	t, loggedIn, err := loadResolvedToken(res, base)
 	if err != nil {
 		return scopeResolution{}, err
 	}
@@ -292,6 +292,14 @@ func (e *env) resolveScope(includeLogin bool) (scopeResolution, error) {
 	scopeErr := ""
 	if includeLogin {
 		login, scopeErr = e.loginScope(res.Profile, base, loggedIn)
+		if machineTokenEnvActive(res) {
+			if scopeErr != "" {
+				return scopeResolution{}, fmt.Errorf("validate machine token project: %s", scopeErr)
+			}
+			if err := validateMachineTokenScope(res, login); err != nil {
+				return scopeResolution{}, err
+			}
+		}
 	}
 	loginProject, loginTenant, loginAllProjects := loginScopeLabels(login)
 	tenant := e.scopeTenantFromResolved(res)

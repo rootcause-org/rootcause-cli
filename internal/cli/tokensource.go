@@ -76,10 +76,11 @@ func (s *liveSource) refreshLocked(ctx context.Context, t token.Token) (string, 
 		res, err := s.oauth.Refresh(ctx, t.RefreshToken)
 		if err == nil {
 			next := token.Token{
-				AccessToken:  res.AccessToken,
-				RefreshToken: t.RefreshToken, // a non-rotating grant returns none → keep the one we have
-				ExpiresAt:    time.Now().Add(time.Duration(res.ExpiresIn) * time.Second),
-				BaseURL:      s.baseURL,
+				AccessToken:     res.AccessToken,
+				RefreshToken:    t.RefreshToken, // a non-rotating grant returns none → keep the one we have
+				ExpiresAt:       time.Now().Add(time.Duration(res.ExpiresIn) * time.Second),
+				BaseURL:         s.baseURL,
+				MachineTokenEnv: t.MachineTokenEnv,
 			}
 			if res.RefreshToken != "" {
 				next.RefreshToken = res.RefreshToken // rotating grant: store the new refresh

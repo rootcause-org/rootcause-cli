@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/config"
@@ -23,6 +25,13 @@ const fileName = "tokens.json"
 // storeMode is owner-only: the file holds live OAuth refresh + access tokens.
 const storeMode = 0o600
 
+var storeMu sync.Mutex
+
+const (
+	lockWait  = 5 * time.Second
+	lockStale = 30 * time.Second
+)
+
 // Token is one profile's stored credential. ExpiresAt is the access token's absolute expiry (computed
 // at mint/refresh time from the server's expires_in). RefreshToken is empty for a non-rotating machine
 // credential that never returned one — but in practice the CLI always logs in with a rotating grant, so
@@ -33,6 +42,9 @@ type Token struct {
 	RefreshToken string    `json:"refresh_token,omitempty"`
 	ExpiresAt    time.Time `json:"expires_at"`
 	BaseURL      string    `json:"base_url"`
+	// MachineTokenEnv records provenance only (never the secret) so removing a declared cloud secret
+	// disables its cached machine credential without breaking ordinary OAuth profiles.
+	MachineTokenEnv string `json:"machine_token_env,omitempty"`
 }
 
 // Expired reports whether the access token is at/after its expiry, with a skew margin so a token about
@@ -73,28 +85,17 @@ func Load(profile string) (Token, bool, error) {
 
 // Save writes (or replaces) the token for profile, preserving every other profile's entry, at 0600.
 func Save(profile string, t Token) error {
-	sf, err := read()
-	if err != nil {
-		return err
-	}
-	if sf.Profiles == nil {
-		sf.Profiles = map[string]Token{}
-	}
-	sf.Profiles[profile] = t
-	return write(sf)
+	return mutate(func(sf *storeFile) {
+		if sf.Profiles == nil {
+			sf.Profiles = map[string]Token{}
+		}
+		sf.Profiles[profile] = t
+	})
 }
 
 // Delete removes the token for profile (a no-op if absent). Used by `rc auth logout`.
 func Delete(profile string) error {
-	sf, err := read()
-	if err != nil {
-		return err
-	}
-	if _, ok := sf.Profiles[profile]; !ok {
-		return nil
-	}
-	delete(sf.Profiles, profile)
-	return write(sf)
+	return mutate(func(sf *storeFile) { delete(sf.Profiles, profile) })
 }
 
 // List returns every stored profile→token (a copy). Used by diagnostics/whoami.
@@ -129,6 +130,58 @@ func read() (storeFile, error) {
 	return sf, nil
 }
 
+func mutate(change func(*storeFile)) error {
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	unlock, err := acquireLock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	sf, err := read()
+	if err != nil {
+		return err
+	}
+	change(&sf)
+	return write(sf)
+}
+
+// acquireLock serializes cross-process read-modify-write without platform-specific syscalls. A dead
+// process can leave the lock file behind; a 30-second-old lock is stale because store mutations are
+// only a small local JSON write.
+func acquireLock() (func(), error) {
+	path, err := Path()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, fmt.Errorf("create config dir: %w", err)
+	}
+	lockPath := path + ".lock"
+	deadline := time.Now().Add(lockWait)
+	for {
+		f, openErr := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, storeMode)
+		if openErr == nil {
+			_, _ = f.WriteString(strconv.Itoa(os.Getpid()))
+			_ = f.Close()
+			return func() { _ = os.Remove(lockPath) }, nil
+		}
+		if !os.IsExist(openErr) {
+			return nil, fmt.Errorf("lock token store: %w", openErr)
+		}
+		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > lockStale {
+			_ = os.Remove(lockPath)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("token store is busy (lock %s)", lockPath)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // write persists the store atomically-ish (write a temp file, then rename) at 0600, creating the config
 // dir if needed. The rename keeps a concurrent reader from ever seeing a half-written file.
 func write(sf storeFile) error {
@@ -143,16 +196,24 @@ func write(sf storeFile) error {
 	if err != nil {
 		return fmt.Errorf("encode token store: %w", err)
 	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, append(data, '\n'), storeMode); err != nil {
-		return fmt.Errorf("write %s: %w", tmp, err)
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tokens-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create token temp file: %w", err)
 	}
-	if err := os.Chmod(tmp, storeMode); err != nil { // re-assert in case of a pre-existing looser temp
-		_ = os.Remove(tmp)
-		return fmt.Errorf("chmod %s: %w", tmp, err)
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := tmp.Chmod(storeMode); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("chmod %s: %w", tmpPath, err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
+	if _, err := tmp.Write(append(data, '\n')); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write %s: %w", tmpPath, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close %s: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("replace %s: %w", path, err)
 	}
 	return nil

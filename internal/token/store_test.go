@@ -2,6 +2,9 @@ package token
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -82,5 +85,67 @@ func TestExpired(t *testing.T) {
 				t.Errorf("Expired = %v, want %v", got, c.want)
 			}
 		})
+	}
+}
+
+func TestCrossProcessSavesPreserveEveryProfile(t *testing.T) {
+	isolate(t)
+	barrier := filepath.Join(t.TempDir(), "start")
+	const workers = 12
+	cmds := make([]*exec.Cmd, 0, workers)
+	for i := 0; i < workers; i++ {
+		cmd := exec.Command(os.Args[0], "-test.run=^TestStoreProcessHelper$")
+		cmd.Env = append(os.Environ(),
+			"RC_STORE_HELPER=1",
+			"RC_STORE_BARRIER="+barrier,
+			"RC_STORE_PROFILE=profile-"+strconv.Itoa(i),
+			"RC_STORE_TOKEN=token-"+strconv.Itoa(i),
+		)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		cmds = append(cmds, cmd)
+	}
+	if err := os.WriteFile(barrier, []byte("go"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, cmd := range cmds {
+		if err := cmd.Wait(); err != nil {
+			t.Fatalf("helper failed: %v", err)
+		}
+	}
+
+	profiles, err := List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < workers; i++ {
+		profile := "profile-" + strconv.Itoa(i)
+		if got := profiles[profile].RefreshToken; got != "token-"+strconv.Itoa(i) {
+			t.Errorf("%s refresh token = %q", profile, got)
+		}
+	}
+}
+
+func TestStoreProcessHelper(t *testing.T) {
+	if os.Getenv("RC_STORE_HELPER") != "1" {
+		return
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(os.Getenv("RC_STORE_BARRIER")); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for store barrier")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	profile, refresh := os.Getenv("RC_STORE_PROFILE"), os.Getenv("RC_STORE_TOKEN")
+	if profile == "" || refresh == "" {
+		t.Fatal("missing helper profile/token")
+	}
+	if err := Save(profile, Token{RefreshToken: refresh}); err != nil {
+		t.Fatal(err)
 	}
 }

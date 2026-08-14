@@ -141,6 +141,71 @@ admin can keep one all-projects token in `default` and still have each brain che
 own project. Main intent: the checkout chooses the project context; the profile only chooses which
 local token to use.
 
+### Headless cloud agents
+
+For a trusted personal cloud-agent environment, keep machine credentials project-bound and let each
+checkout select its own named variable:
+
+```toml
+# .rootcause.toml (committed; contains no secret)
+project = "acme-staff"
+machine_token_env = "RC_REFRESH_TOKEN_ACME_STAFF"
+```
+
+Store `RC_REFRESH_TOKEN_ACME_STAFF=<minted refresh token>` in the cloud environment. `rc` seeds the
+`acme-staff` profile in its 0600 token store and refreshes the short-lived access token normally. A
+single environment may hold several project-named variables; the current checkout's marker chooses the
+profile. This reduces UI-selection mistakes, but it is not secret isolation: every session using that
+environment can see every variable. Use separate environments for different users, trust boundaries, or
+shared/public sessions.
+
+Before any command endpoint runs, `rc` verifies that this credential is pinned to the marker's exact
+project and rejects swapped or all-projects tokens. Removing the variable disables a cached machine
+credential; a separately stored human OAuth login for the project still works locally.
+
+For safety, a marker-sourced machine token is accepted only against built-in production
+(`https://app.replypen.com`); use a separate `rc auth login` profile for staging/custom
+`ROOTCAUSE_BASE_URL` targets.
+
+Mint one token per project and add only the scopes the workflow needs:
+
+```bash
+rc project token mint email=agent@example.com \
+  scope='read config:read runs:read console:db' \
+  --project acme-staff -o json
+```
+
+The refresh token is shown once. Never commit it, pass it on argv, or use an all-projects token merely
+to simplify cloud setup. `console:db` also requires the bound user to have the project's developer/admin
+capability; omit it when production database reads are not needed. Add `runs:trigger`, `actions:read`,
+or other scopes only when the agent actually uses those planes. Verify a fresh session with
+`rc auth status -o json` and one narrow read.
+
+Install `rc` with the short canonical installer when the environment can reach GitHub's release API:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.sh | sh
+```
+
+Some repo-scoped proxies (including Claude Code web) allow Git/release downloads but deny release API
+metadata for repositories outside the selected checkout. Resolve the tag over Git in that case:
+
+```bash
+set -euo pipefail
+RC_VERSION="$(git ls-remote --refs --tags https://github.com/rootcause-org/rootcause-cli.git \
+  | awk -F/ '{print $3}' \
+  | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+  | sort -V \
+  | tail -1)"
+test -n "$RC_VERSION"
+curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.sh \
+  | env RC_VERSION="$RC_VERSION" sh
+```
+
+Both paths install the latest release and verify its published checksum. The longer form is a proxy
+compatibility workaround, not a generally superior installer. Prefer failing setup visibly; use
+`|| true` only when a later startup hook explicitly verifies `command -v rc` and reports failure.
+
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
 sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. On a templated
 (multi-tenant) project you can see the promotion's verdict first with `rc dev brain preflight --sha

@@ -5,8 +5,9 @@
 //
 // Auth itself moved to OAuth: tokens live in ~/.config/rootcause/tokens.json (see internal/token),
 // keyed by profile. This package no longer holds any secret — it only decides WHICH profile's token to
-// use and WHICH base URL to hit. A brain repo carries a committed, non-secret marker (.rootcause.toml:
-// project, with optional legacy tenant) that binds the directory to one project. A developer may also
+// use and WHICH base URL to hit. A brain repo carries a committed, non-secret marker
+// (.rootcause.toml: project, optional machine_token_env, and optional legacy tenant) that binds the
+// directory to one project. A developer may also
 // keep a gitignored per-checkout .rootcause/local.toml with tenant = "..." as an explicit local
 // override. In auto mode this resolver first names the project profile; the command layer can fall back
 // to "default" when no such token is stored and carry the marker's project as ?project= for an
@@ -42,8 +43,9 @@ const (
 	LegacyBaseURL  = "https://rootcause.probackup.io"
 
 	// MarkerFileName is the committed, non-secret per-brain marker binding the checkout to a project.
-	// It is KEPT under OAuth — it carries no secret, only project/tenant context. A legacy base_url
-	// field may still decode for compatibility, but it no longer affects transport resolution.
+	// It is KEPT under OAuth — it carries project/tenant context and may name a machine-token env var,
+	// but never contains the credential. A legacy base_url field still decodes for compatibility, but
+	// no longer affects transport resolution.
 	MarkerFileName = ".rootcause.toml"
 
 	// LocalFileName is a gitignored per-brain developer overlay under the wholesale-ignored .rootcause
@@ -74,14 +76,15 @@ type Resolved struct {
 }
 
 // Brain is the committed .rootcause.toml marker: the project this checkout belongs to. Dir is the
-// directory the marker was found in. Tenant is a legacy/local override; the normal tenant-enabled path
-// gets tenant scope from the active OAuth login. BaseURL is a legacy decoded field, ignored by
-// resolution.
+// directory the marker was found in. MachineTokenEnv names an optional secret source for headless
+// agents; it never stores the token. Tenant is a legacy/local override; the normal tenant-enabled path
+// gets tenant scope from the active OAuth login. BaseURL is a legacy decoded field, ignored by resolution.
 type Brain struct {
-	Project string `toml:"project"`
-	Tenant  string `toml:"tenant"`
-	BaseURL string `toml:"base_url"`
-	Dir     string `toml:"-"`
+	Project         string `toml:"project"`
+	MachineTokenEnv string `toml:"machine_token_env"`
+	Tenant          string `toml:"tenant"`
+	BaseURL         string `toml:"base_url"`
+	Dir             string `toml:"-"`
 }
 
 // local is the optional gitignored per-checkout overlay. Keep it intentionally narrow: tenant is often
@@ -200,6 +203,9 @@ func DiscoverBrain(start string) (*Brain, error) {
 			if b.Project == "" {
 				return nil, fmt.Errorf("%s has no `project` field — it must name the project this brain belongs to", path)
 			}
+			if b.MachineTokenEnv != "" && !validMachineTokenEnvName(b.MachineTokenEnv) {
+				return nil, fmt.Errorf("%s machine_token_env must match RC_REFRESH_TOKEN_[A-Z0-9_]+", path)
+			}
 			b.Dir = dir
 			return &b, nil
 		}
@@ -209,6 +215,19 @@ func DiscoverBrain(start string) (*Brain, error) {
 		}
 		dir = parent
 	}
+}
+
+func validMachineTokenEnvName(name string) bool {
+	const prefix = "RC_REFRESH_TOKEN_"
+	if !strings.HasPrefix(name, prefix) || len(name) == len(prefix) {
+		return false
+	}
+	for _, r := range name[len(prefix):] {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' {
+			return false
+		}
+	}
+	return true
 }
 
 // UpdateBrainProject rewrites the committed brain marker after the server has renamed a project. It

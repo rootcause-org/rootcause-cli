@@ -118,7 +118,8 @@ internal/oauth/       the OAuth protocol client: PKCE loopback (loopback.go) + d
                       refresh/revoke/exchange (oauth.go) + browser opener (browser.go).
 internal/token/       the token store: ~/.config/rootcause/tokens.json (0600), per-profile.
 internal/config/      resolution: env-or-production base URL + brain marker (.rootcause.toml) + local
-                      overlay (.rootcause/local.toml) → profile + project + tenant.
+                      overlay (.rootcause/local.toml) → profile + project + tenant; optional
+                      machine_token_env seeds that project profile for headless agents.
 internal/debugdump/   the rc-run-debug decomposer: decorate (dump.go) + emit JSONL + render index (emit.go).
 internal/outputspill/ progressive disclosure for large stdout/JSON/JSONL: full bytes to disk + manifest.
 internal/render/      render.go (TTY-detect + JSON passthrough) + per-view table renderers.
@@ -162,7 +163,7 @@ splitting fails. Without `--out`, the split error points to a rescue download an
 roughly 48-hour post-consume re-download window.
 
 ### Auth (OAuth) — login, token store, transparent refresh
-OAuth is the **only** bearer credential (no legacy API key or env token). The flow in
+OAuth is the **only** bearer credential (no legacy API key or direct access-token env). The flow in
 [`internal/cli/auth.go`](internal/cli/auth.go) runs `internal/oauth` against the static first-party client
 `rcocl_cli`:
 - **`rc auth login`** — **PKCE loopback** by default (bind a localhost port, open the browser at
@@ -177,15 +178,20 @@ OAuth is the **only** bearer credential (no legacy API key or env token). The fl
   pre-emptively within 60s of expiry (and once on a 401), **persists the rotated pair**, and surfaces a dead
   refresh (`invalid_grant`) as a "run `rc auth login`" prompt. All refresh policy lives in `liveSource` —
   the client stays OAuth-oblivious. Tests inject `client.StaticToken` to bypass the store.
+- **Headless machine token**: a committed brain marker may name (not contain) a secret variable with
+  `machine_token_env = "RC_REFRESH_TOKEN_<PROJECT>"`. When present, `rc` seeds the brain-named profile
+  before normal refresh, then requires `/whoami` to match the marker project before any command endpoint.
+  Removing the variable disables cached machine provenance. An existing human OAuth login for that
+  profile still works; without either, resolution fails before falling back to a broader `default` token.
 
 ### Config & profile precedence
 [`internal/config/profiles.go`](internal/config/profiles.go) `Load(profile)` picks a **profile name**
 (the token-store key), a **base URL**, and an optional local tenant override — no secret. `--project` is
 **not** an input here; it's a server-side scope the command layer threads onto each read.
 - **explicit `--profile <name>`** → that profile, no brain binding (the override escape hatch);
-- **inside a brain** (`.rootcause.toml` marker) → the marker's project as the profile; if no token exists
-  for it, the command layer falls back to `"default"` and carries the marker's project as `?project=`
-  (`root.go`, `autoProject`);
+- **inside a brain** (`.rootcause.toml` marker) → the marker's project as the profile; optional
+  `machine_token_env` seeds that profile. Without that declaration, a missing project profile falls back
+  to `"default"` and carries the marker's project as `?project=` (`root.go`, `autoProject`);
 - **outside any brain** → `"default"`.
 
 Base URL is exactly `ROOTCAUSE_BASE_URL` > built-in production (`https://app.replypen.com`). The env var

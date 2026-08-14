@@ -188,7 +188,7 @@ func (e *env) newClient() (*client.Client, error) {
 		return c, nil
 	}
 
-	_, ok, err := token.Load(res.Profile)
+	_, ok, err := loadResolvedToken(res, baseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -208,6 +208,15 @@ func (e *env) newClient() (*client.Client, error) {
 		return nil, notLoggedIn(res)
 	}
 	c := client.New(baseURL, newLiveSource(res.Profile, baseURL))
+	if machineTokenEnvActive(res) {
+		scope, scopeErr := c.Whoami(e.ctx())
+		if scopeErr != nil {
+			return nil, scopeErr
+		}
+		if scopeErr := validateMachineTokenScope(res, scope); scopeErr != nil {
+			return nil, scopeErr
+		}
+	}
 	if err := e.resolveProjectForTenant(c); err != nil {
 		return nil, err
 	}
