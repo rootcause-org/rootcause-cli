@@ -18,6 +18,28 @@ func loadResolvedToken(res config.Resolved, baseURL string) (token.Token, bool, 
 	if err != nil {
 		return token.Token{}, false, err
 	}
+	if ok && stored.MachineTokenEnv != "" {
+		if res.Brain == nil || res.Brain.MachineTokenEnv != stored.MachineTokenEnv {
+			return token.Token{}, false, fmt.Errorf(
+				"cached machine credentials for %q require the same machine_token_env declaration in .rootcause.toml",
+				stored.MachineTokenEnv,
+			)
+		}
+		secret := os.Getenv(stored.MachineTokenEnv)
+		if secret == "" {
+			return token.Token{}, false, fmt.Errorf(
+				"machine token environment variable %q is missing; cached machine credentials are disabled",
+				stored.MachineTokenEnv,
+			)
+		}
+		if baseURL != config.DefaultBaseURL {
+			return token.Token{}, false, fmt.Errorf(
+				"refusing to send machine token %q to non-production base URL %q\n  fix: unset ROOTCAUSE_BASE_URL or use `rc auth login` for that environment",
+				stored.MachineTokenEnv,
+				baseURL,
+			)
+		}
+	}
 	if res.Brain == nil || res.Brain.MachineTokenEnv == "" {
 		return stored, ok, nil
 	}

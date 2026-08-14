@@ -90,6 +90,21 @@ func TestExpired(t *testing.T) {
 
 func TestCrossProcessSavesPreserveEveryProfile(t *testing.T) {
 	isolate(t)
+	storePath, err := Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(storePath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lockPath := storePath + ".lock"
+	if err := os.WriteFile(lockPath, []byte("stale legacy lock"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(lockPath, old, old); err != nil {
+		t.Fatal(err)
+	}
 	barrier := filepath.Join(t.TempDir(), "start")
 	const workers = 12
 	cmds := make([]*exec.Cmd, 0, workers)

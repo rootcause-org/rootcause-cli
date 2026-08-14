@@ -9,11 +9,12 @@ package token
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/config"
@@ -28,8 +29,7 @@ const storeMode = 0o600
 var storeMu sync.Mutex
 
 const (
-	lockWait  = 5 * time.Second
-	lockStale = 30 * time.Second
+	lockWait = 5 * time.Second
 )
 
 // Token is one profile's stored credential. ExpiresAt is the access token's absolute expiry (computed
@@ -148,9 +148,9 @@ func mutate(change func(*storeFile)) error {
 	return write(sf)
 }
 
-// acquireLock serializes cross-process read-modify-write without platform-specific syscalls. A dead
-// process can leave the lock file behind; a 30-second-old lock is stale because store mutations are
-// only a small local JSON write.
+// acquireLock serializes cross-process read-modify-write with an advisory lock. The lock file is
+// intentionally persistent: the kernel releases the lock on close or process exit, so there is no
+// stale-file cleanup race.
 func acquireLock() (func(), error) {
 	path, err := Path()
 	if err != nil {
@@ -160,22 +160,25 @@ func acquireLock() (func(), error) {
 		return nil, fmt.Errorf("create config dir: %w", err)
 	}
 	lockPath := path + ".lock"
+	f, err := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE, storeMode)
+	if err != nil {
+		return nil, fmt.Errorf("open token-store lock: %w", err)
+	}
 	deadline := time.Now().Add(lockWait)
 	for {
-		f, openErr := os.OpenFile(lockPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, storeMode)
-		if openErr == nil {
-			_, _ = f.WriteString(strconv.Itoa(os.Getpid()))
+		lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if lockErr == nil {
+			return func() {
+				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				_ = f.Close()
+			}, nil
+		}
+		if !errors.Is(lockErr, syscall.EWOULDBLOCK) && !errors.Is(lockErr, syscall.EAGAIN) {
 			_ = f.Close()
-			return func() { _ = os.Remove(lockPath) }, nil
-		}
-		if !os.IsExist(openErr) {
-			return nil, fmt.Errorf("lock token store: %w", openErr)
-		}
-		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > lockStale {
-			_ = os.Remove(lockPath)
-			continue
+			return nil, fmt.Errorf("lock token store: %w", lockErr)
 		}
 		if time.Now().After(deadline) {
+			_ = f.Close()
 			return nil, fmt.Errorf("token store is busy (lock %s)", lockPath)
 		}
 		time.Sleep(10 * time.Millisecond)

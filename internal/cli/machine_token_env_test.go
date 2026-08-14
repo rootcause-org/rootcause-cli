@@ -114,6 +114,55 @@ func TestLoadResolvedTokenRejectsCachedMachineTokenAfterEnvRemoval(t *testing.T)
 	}
 }
 
+func TestLoadResolvedTokenRotatesWhenDeclaredMachineSecretChanges(t *testing.T) {
+	isolatedConfig(t)
+	t.Setenv("RC_REFRESH_TOKEN_ACME", "rcor_new")
+	seedToken(t, "acme", token.Token{
+		RefreshToken: "rcor_old", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
+	})
+	res := config.Resolved{
+		Profile: "acme",
+		Brain:   &config.Brain{Project: "acme", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME"},
+	}
+
+	got, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+	if err != nil || !ok || got.RefreshToken != "rcor_new" || got.MachineTokenEnv != "RC_REFRESH_TOKEN_ACME" {
+		t.Fatalf("rotated machine token = %+v, ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestLoadResolvedTokenRejectsCachedMachineTokenAfterMarkerDeclarationRemoval(t *testing.T) {
+	isolatedConfig(t)
+	t.Setenv("RC_REFRESH_TOKEN_ACME", "rcor_machine")
+	seedToken(t, "acme", token.Token{
+		RefreshToken: "rcor_machine", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
+	})
+	res := config.Resolved{Profile: "acme", Brain: &config.Brain{Project: "acme"}}
+
+	_, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+	if err == nil || ok || !strings.Contains(err.Error(), "require the same machine_token_env") {
+		t.Fatalf("expected removed-marker refusal, ok=%v err=%v", ok, err)
+	}
+}
+
+func TestLoadResolvedTokenRejectsCachedMachineTokenOnMatchingCustomBase(t *testing.T) {
+	isolatedConfig(t)
+	t.Setenv("RC_REFRESH_TOKEN_ACME", "rcor_machine")
+	seedToken(t, "acme", token.Token{
+		RefreshToken: "rcor_machine", BaseURL: "https://staging.example",
+		MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
+	})
+	res := config.Resolved{
+		Profile: "acme",
+		Brain:   &config.Brain{Project: "acme", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME"},
+	}
+
+	_, ok, err := loadResolvedToken(res, "https://staging.example")
+	if err == nil || ok || !strings.Contains(err.Error(), "refusing to send machine token") {
+		t.Fatalf("expected custom-base refusal, ok=%v err=%v", ok, err)
+	}
+}
+
 func TestNewClientRejectsMachineTokenProjectMismatchBeforeCommandRequest(t *testing.T) {
 	isolatedConfig(t)
 	t.Setenv("RC_REFRESH_TOKEN_ACME", "rcor_machine")
@@ -136,12 +185,21 @@ func TestNewClientRejectsMachineTokenProjectMismatchBeforeCommandRequest(t *test
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
+	originalTransport := http.DefaultTransport
+	host := strings.TrimPrefix(srv.URL, "http://")
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		clone := req.Clone(req.Context())
+		clone.URL.Scheme = "http"
+		clone.URL.Host = host
+		return originalTransport.RoundTrip(clone)
+	})
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
 	seedToken(t, "acme", token.Token{
 		AccessToken: "rcoa_machine", RefreshToken: "rcor_machine", ExpiresAt: time.Now().Add(time.Hour),
-		BaseURL: srv.URL, MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
+		BaseURL: config.DefaultBaseURL, MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
 	})
 
-	e := &env{baseURLOvr: srv.URL}
+	e := &env{}
 	_, err := e.newClient()
 	if err == nil || !strings.Contains(err.Error(), `bound to project "other"`) {
 		t.Fatalf("expected project mismatch, got %v", err)
@@ -150,3 +208,7 @@ func TestNewClientRejectsMachineTokenProjectMismatchBeforeCommandRequest(t *test
 		t.Fatalf("target endpoint called %d times before project validation", commandRequests)
 	}
 }
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
