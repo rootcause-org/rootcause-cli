@@ -9,12 +9,10 @@ package token
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/config"
@@ -166,14 +164,14 @@ func acquireLock() (func(), error) {
 	}
 	deadline := time.Now().Add(lockWait)
 	for {
-		lockErr := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		unlockFile, lockErr := tryLockFile(f)
 		if lockErr == nil {
 			return func() {
-				_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+				_ = unlockFile()
 				_ = f.Close()
 			}, nil
 		}
-		if !errors.Is(lockErr, syscall.EWOULDBLOCK) && !errors.Is(lockErr, syscall.EAGAIN) {
+		if !lockContended(lockErr) {
 			_ = f.Close()
 			return nil, fmt.Errorf("lock token store: %w", lockErr)
 		}
