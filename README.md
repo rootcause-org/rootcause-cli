@@ -232,6 +232,11 @@ trusting a mutable release checksum file. Upgrade a cloud image deliberately by 
 then updating all three pinned values and rebuilding the snapshot. The example targets Linux cloud
 agents; canonical macOS installs stay on Homebrew.
 
+For Claude cloud network access, choose **Custom**, list only the RootCause API host
+`app.replypen.com`, and keep **Also include default list of common package managers** checked. Claude's
+default version-control list already includes the GitHub/raw/release-asset hosts used above; add them
+explicitly only when deliberately disabling that default list.
+
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
 sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. On a templated
 (multi-tenant) project you can see the promotion's verdict first with `rc dev brain preflight --sha
