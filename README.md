@@ -213,8 +213,8 @@ installer and CLI version. This avoids executing a mutable `main` branch with th
 
 ```bash
 set -euo pipefail
-RC_VERSION=v1.15.2
-RC_INSTALLER_SHA256=d82554470dd288a4801598be57969e9b2e0795127d66861e68f6047343d9217e
+RC_VERSION=v1.16.0
+RC_INSTALLER_SHA256=c5fcf883e78776382cb71b7cef199507c5ce03b57e006489fb0c15e97a62e340
 # Copy the matching linux_amd64 or linux_arm64 digest from that release's checksums.txt.
 RC_ASSET_SHA256='<reviewed 64-character archive digest>'
 installer="$(mktemp)"
