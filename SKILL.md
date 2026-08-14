@@ -182,7 +182,8 @@ OAuth is the **only** bearer credential (no legacy API key or direct access-toke
   `machine_token_env = "RC_REFRESH_TOKEN_<PROJECT>"`. When present, `rc` seeds the brain-named profile
   before normal refresh, then requires `/whoami` to match the marker project before any command endpoint.
   Removing the variable disables cached machine provenance. An existing human OAuth login for that
-  profile still works; without either, resolution fails before falling back to a broader `default` token.
+  profile still works. Under `CLAUDE_CODE_REMOTE=true`, absence fails before falling back to a broader
+  `default` token; local sessions retain the ordinary human `default` fallback.
 
 ### Config & profile precedence
 [`internal/config/profiles.go`](internal/config/profiles.go) `Load(profile)` picks a **profile name**

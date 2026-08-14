@@ -55,6 +55,9 @@ func loadResolvedToken(res config.Resolved, baseURL string) (token.Token, bool, 
 			}
 			return stored, true, nil
 		}
+		if os.Getenv("CLAUDE_CODE_REMOTE") != "true" {
+			return token.Token{}, false, nil
+		}
 		return token.Token{}, false, fmt.Errorf(
 			"machine token environment variable %q is not set\n  fix: set it or run `rc auth login` from this checkout",
 			res.Brain.MachineTokenEnv,

@@ -162,7 +162,9 @@ shared/public sessions.
 
 Before any command endpoint runs, `rc` verifies that this credential is pinned to the marker's exact
 project and rejects swapped or all-projects tokens. Removing the variable disables a cached machine
-credential; a separately stored human OAuth login for the project still works locally.
+credential; a separately stored human OAuth login for the project still works locally. In a Claude
+cloud session (`CLAUDE_CODE_REMOTE=true`), a missing named variable fails closed instead of using a
+broader `default` token; local sessions retain their normal human OAuth fallback.
 
 For safety, a marker-sourced machine token is accepted only against built-in production
 (`https://app.replypen.com`); use a separate `rc auth login` profile for staging/custom

@@ -51,6 +51,7 @@ func TestLoadResolvedTokenKeepsStoredLoginWhenBrainEnvIsAbsent(t *testing.T) {
 
 func TestLoadResolvedTokenMissingBrainEnvFailsBeforeDefaultFallback(t *testing.T) {
 	isolatedConfig(t)
+	t.Setenv("CLAUDE_CODE_REMOTE", "true")
 	res := config.Resolved{
 		Profile: "acme",
 		Brain:   &config.Brain{Project: "acme", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME"},
@@ -59,6 +60,19 @@ func TestLoadResolvedTokenMissingBrainEnvFailsBeforeDefaultFallback(t *testing.T
 	_, ok, err := loadResolvedToken(res, "https://app.replypen.com")
 	if err == nil || ok || !strings.Contains(err.Error(), "RC_REFRESH_TOKEN_ACME") {
 		t.Fatalf("expected named missing-env error, ok=%v err=%v", ok, err)
+	}
+}
+
+func TestLoadResolvedTokenMissingBrainEnvAllowsLocalDefaultFallback(t *testing.T) {
+	isolatedConfig(t)
+	res := config.Resolved{
+		Profile: "acme",
+		Brain:   &config.Brain{Project: "acme", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME"},
+	}
+
+	_, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+	if err != nil || ok {
+		t.Fatalf("local marker without named token should allow default fallback, ok=%v err=%v", ok, err)
 	}
 }
 
