@@ -181,7 +181,8 @@ capability; omit it when production database reads are not needed. Add `runs:tri
 or other scopes only when the agent actually uses those planes. Verify a fresh session with
 `rc auth status -o json` and one narrow read.
 
-Install `rc` with the short canonical installer when the environment can reach GitHub's release API:
+For an interactive install where no long-lived secret is present during setup, use the short canonical
+installer when the environment can reach GitHub's release API:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.sh | sh
@@ -205,6 +206,25 @@ curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/sc
 Both paths install the latest release and verify its published checksum. The longer form is a proxy
 compatibility workaround, not a generally superior installer. Prefer failing setup visibly; use
 `|| true` only when a later startup hook explicitly verifies `command -v rc` and reports failure.
+
+For a cached cloud image whose setup process can already read long-lived secrets, pin the reviewed
+installer and CLI version. This avoids executing a mutable `main` branch with those secrets present:
+
+```bash
+set -euo pipefail
+RC_VERSION=v1.15.2
+RC_INSTALLER_SHA256=d82554470dd288a4801598be57969e9b2e0795127d66861e68f6047343d9217e
+installer="$(mktemp)"
+trap 'rm -f "$installer"' EXIT
+curl -fsSL "https://raw.githubusercontent.com/rootcause-org/rootcause-cli/${RC_VERSION}/scripts/install.sh" \
+  -o "$installer"
+test "$(sha256sum "$installer" | awk '{print $1}')" = "$RC_INSTALLER_SHA256"
+env RC_VERSION="$RC_VERSION" sh "$installer"
+```
+
+The installer still verifies the downloaded release asset against its published checksum. Upgrade a
+cloud image deliberately by reviewing the release, then updating both pinned values and rebuilding the
+snapshot. The example targets Linux cloud agents; canonical macOS installs stay on Homebrew.
 
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
 sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. On a templated
