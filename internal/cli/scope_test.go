@@ -49,7 +49,9 @@ func TestCanonicalScopeContracts(t *testing.T) {
 		"dev brain preflight":           {Project: true},
 		"dev mirror refresh":            {Project: true},
 		"dev brain developer invite":    {Project: true, Tenant: true},
-		"dev console action run":        {Project: true},
+		"dev console action run":        {Project: true, Tenant: true},
+		"dev console action preflight":  {Project: true, Tenant: true},
+		"dev console action list":       {Project: true, Tenant: true},
 		"dev console database query":    {Project: true, Tenant: true},
 		"dev api routes":                {},
 		"self update":                   {},
@@ -166,6 +168,39 @@ func TestTenantCapableCommandsUseCanonicalTree(t *testing.T) {
 		if seen[path] != 1 {
 			t.Errorf("%s called %d times, want 1", path, seen[path])
 		}
+	}
+}
+
+// TestConsoleActionSelectorsReachURL: an action's tenant IS its data scope, so --tenant must survive
+// scope validation and land in ?tenant= on both the execute and the read routes.
+func TestConsoleActionSelectorsReachURL(t *testing.T) {
+	got := map[string]string{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("POST /api/v1/console/action/{id}/run", func(w http.ResponseWriter, r *http.Request) {
+		got["run"] = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"project":"alpha","tenant":"acme","id":"run-1","status":"succeeded","dry_run":false,"duration_ms":1}`))
+	})
+	mux.HandleFunc("GET /api/v1/console/action", func(w http.ResponseWriter, r *http.Request) {
+		got["list"] = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"project":"alpha","tenant":"acme","actions":[]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	for _, args := range [][]string{
+		{"--project", "alpha", "--tenant", "acme", "dev", "console", "action", "run", "delete_thing", "--params", `{"id":"1"}`},
+		{"--project", "alpha", "--tenant", "acme", "dev", "console", "action", "list"},
+	} {
+		e := newTestEnvAt(t, srv.URL, "json")
+		if err := run(t, e, args...); err != nil {
+			t.Fatalf("%v: %v", args, err)
+		}
+	}
+	if got["run"] != "project=alpha&tenant=acme" || got["list"] != "project=alpha&tenant=acme" {
+		t.Fatalf("queries: run=%q list=%q", got["run"], got["list"])
 	}
 }
 

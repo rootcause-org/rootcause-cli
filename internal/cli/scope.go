@@ -93,6 +93,10 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	case strings.HasPrefix(path, "dev console database "), strings.HasPrefix(path, "dev console bash "), path == "dev console capabilities":
 		return projectTenant
+	// Actions execute against a project's own prod, where the bound tenant IS the data scope: the server's
+	// console action routes read ?tenant= and a tenant-scoped action is refused without it.
+	case strings.HasPrefix(path, "dev console action "):
+		return projectTenant
 	case path == "dev learning evidence", path == "auth status", path == "self doctor":
 		return projectTenant
 	}
@@ -112,7 +116,7 @@ func commandScope(path string) scopeSpec {
 		return projectOnly
 	case strings.HasPrefix(path, "project branding "), strings.HasPrefix(path, "project github "), strings.HasPrefix(path, "project action-settings "):
 		return projectOnly
-	case strings.HasPrefix(path, "dev console action "), path == "auth access":
+	case path == "auth access":
 		return projectOnly
 	}
 
