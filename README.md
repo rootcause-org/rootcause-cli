@@ -62,7 +62,8 @@ curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/sc
 ```
 
 Detects your arch, installs `rc` to `/usr/local/bin` (or `~/.local/bin`), and is idempotent — re-run to
-upgrade. Knobs: `RC_VERSION=v0.5.1` to pin, `RC_INSTALL_DIR=…` to choose where. On macOS the script
+upgrade. Knobs: `RC_VERSION=v0.5.1` to pin, `RC_ASSET_SHA256=…` to pin the reviewed archive digest,
+and `RC_INSTALL_DIR=…` to choose where. On macOS the script
 uses Homebrew unless `RC_INSTALL_DIR` is explicitly set.
 
 **Windows (native PowerShell):**
@@ -214,17 +215,20 @@ installer and CLI version. This avoids executing a mutable `main` branch with th
 set -euo pipefail
 RC_VERSION=v1.15.2
 RC_INSTALLER_SHA256=d82554470dd288a4801598be57969e9b2e0795127d66861e68f6047343d9217e
+# Copy the matching linux_amd64 or linux_arm64 digest from that release's checksums.txt.
+RC_ASSET_SHA256='<reviewed 64-character archive digest>'
 installer="$(mktemp)"
 trap 'rm -f "$installer"' EXIT
 curl -fsSL "https://raw.githubusercontent.com/rootcause-org/rootcause-cli/${RC_VERSION}/scripts/install.sh" \
   -o "$installer"
 test "$(sha256sum "$installer" | awk '{print $1}')" = "$RC_INSTALLER_SHA256"
-env RC_VERSION="$RC_VERSION" sh "$installer"
+env RC_VERSION="$RC_VERSION" RC_ASSET_SHA256="$RC_ASSET_SHA256" sh "$installer"
 ```
 
-The installer still verifies the downloaded release asset against its published checksum. Upgrade a
-cloud image deliberately by reviewing the release, then updating both pinned values and rebuilding the
-snapshot. The example targets Linux cloud agents; canonical macOS installs stay on Homebrew.
+The installer verifies the downloaded archive against the independently pinned digest instead of
+trusting a mutable release checksum file. Upgrade a cloud image deliberately by reviewing the release,
+then updating all three pinned values and rebuilding the snapshot. The example targets Linux cloud
+agents; canonical macOS installs stay on Homebrew.
 
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
 sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. On a templated

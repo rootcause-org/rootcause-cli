@@ -9,6 +9,7 @@
 #
 # Knobs (env vars):
 #   RC_VERSION       install a specific version instead of latest, e.g. RC_VERSION=v0.5.1
+#   RC_ASSET_SHA256  expected archive digest for a reviewed pinned release (requires RC_VERSION)
 #   RC_INSTALL_DIR   install into this dir instead of auto-picking (/usr/local/bin or ~/.local/bin)
 
 set -eu
@@ -67,6 +68,14 @@ else
 fi
 version="${tag#v}"
 
+if [ "${RC_ASSET_SHA256:-}" != "" ]; then
+  [ "${RC_VERSION:-}" != "" ] || err "RC_ASSET_SHA256 requires RC_VERSION"
+  case "$RC_ASSET_SHA256" in
+    *[!0-9a-fA-F]*|'') err "RC_ASSET_SHA256 must be a hexadecimal SHA-256 digest" ;;
+  esac
+  [ "${#RC_ASSET_SHA256}" -eq 64 ] || err "RC_ASSET_SHA256 must contain exactly 64 hex characters"
+fi
+
 asset="rc_${version}_${os}_${arch}.tar.gz"
 url="https://github.com/$REPO/releases/download/$tag/$asset"
 
@@ -96,10 +105,14 @@ trap 'rm -rf "$tmp"' EXIT
 
 info "downloading $asset ($tag)"
 curl -fsSL "$url" -o "$tmp/rc.tar.gz" || err "download failed: $url"
-curl -fsSL "https://github.com/$REPO/releases/download/$tag/checksums.txt" -o "$tmp/checksums.txt" \
-  || err "checksums download failed"
-want="$(awk -v asset="$asset" '$2 == asset {print $1; exit}' "$tmp/checksums.txt")"
-[ -n "$want" ] || err "checksums.txt has no entry for $asset"
+if [ "${RC_ASSET_SHA256:-}" != "" ]; then
+  want="$RC_ASSET_SHA256"
+else
+  curl -fsSL "https://github.com/$REPO/releases/download/$tag/checksums.txt" -o "$tmp/checksums.txt" \
+    || err "checksums download failed"
+  want="$(awk -v asset="$asset" '$2 == asset {print $1; exit}' "$tmp/checksums.txt")"
+  [ -n "$want" ] || err "checksums.txt has no entry for $asset"
+fi
 if command -v sha256sum >/dev/null 2>&1; then
   got="$(sha256sum "$tmp/rc.tar.gz" | awk '{print $1}')"
 elif command -v shasum >/dev/null 2>&1; then
