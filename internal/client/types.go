@@ -923,7 +923,7 @@ type ThreadTrace struct {
 	Runs       []RunSummary        `json:"runs"`
 }
 
-// WatchedMailbox is one row of GET /api/v1/mailboxes/watched — a connection-backed mailbox the channel
+// WatchedMailbox is one row of GET /api/v1/projects/{project}/mailboxes — a connection-backed mailbox the channel
 // plane actively watches. Field
 // names mirror the server verbatim. Tenant/SubscriptionExpiresAt/ErrorMessage are omitempty: absent for
 // a non-tenant mailbox / a provider without a renewable subscription / a healthy mailbox.
@@ -964,12 +964,12 @@ type IMAPProbe struct {
 	Steps []IMAPProbeStep `json:"steps"`
 }
 
-// WatchedMailboxList is GET /api/v1/mailboxes/watched — the watched-mailbox set under its envelope key.
+// WatchedMailboxList is GET /api/v1/projects/{project}/mailboxes — the watched-mailbox set under its envelope key.
 type WatchedMailboxList struct {
 	Mailboxes []WatchedMailbox `json:"mailboxes"`
 }
 
-// HarvestAccepted is the 202 body of POST /api/v1/mailboxes/{id}/harvest — the queued export handle.
+// HarvestAccepted is the 202 body of POST /api/v1/projects/{project}/mailboxes/{id}/harvest — the queued export handle.
 type HarvestAccepted struct {
 	ExportID string `json:"export_id"`
 	Status   string `json:"status"`

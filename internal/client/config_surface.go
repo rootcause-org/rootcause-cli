@@ -88,8 +88,11 @@ func (c *Client) BrainStatus(ctx context.Context, project, tenant string) (*Brai
 	if err := requireTenantProject(project, tenant, "brain"); err != nil {
 		return nil, nil, err
 	}
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "brain commands require a project scope"}
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodGet, scopedTreePath(project, tenant, "/brain/status", "/api/v1/brain/status"), nil, &raw); err != nil {
+	if err := c.do(ctx, http.MethodGet, treePath(project, tenant, "/brain/status"), nil, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out BrainStatusResponse
@@ -104,8 +107,11 @@ func (c *Client) BrainSync(ctx context.Context, project, tenant string) (*BrainS
 	if err := requireTenantProject(project, tenant, "brain"); err != nil {
 		return nil, nil, err
 	}
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "brain commands require a project scope"}
+	}
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/sync", "/api/v1/brain/sync"), map[string]any{}, &raw); err != nil {
+	if err := c.do(ctx, http.MethodPost, treePath(project, tenant, "/brain/sync"), map[string]any{}, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out BrainSyncResponse
@@ -175,7 +181,10 @@ func (c *Client) BrainEdit(ctx context.Context, instruction, project, tenant str
 	if err := requireTenantProject(project, tenant, "brain"); err != nil {
 		return nil, err
 	}
-	return c.Raw(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/edit", "/api/v1/brain/edit"), map[string]any{"instruction": instruction})
+	if project == "" {
+		return nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "brain commands require a project scope"}
+	}
+	return c.Raw(ctx, http.MethodPost, treePath(project, tenant, "/brain/edit"), map[string]any{"instruction": instruction})
 }
 
 // BrainConsolidate queues the consolidation cron on demand; returns {queued, job_id}.
@@ -183,7 +192,10 @@ func (c *Client) BrainConsolidate(ctx context.Context, project, tenant string) (
 	if err := requireTenantProject(project, tenant, "brain"); err != nil {
 		return nil, err
 	}
-	return c.Raw(ctx, http.MethodPost, scopedTreePath(project, tenant, "/brain/consolidate", "/api/v1/brain/consolidate"), map[string]any{})
+	if project == "" {
+		return nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "brain commands require a project scope"}
+	}
+	return c.Raw(ctx, http.MethodPost, treePath(project, tenant, "/brain/consolidate"), map[string]any{})
 }
 
 // InviteBrainDeveloper asks the server's GitHub App to grant one developer access to exactly one
@@ -217,6 +229,12 @@ func scopedTreePath(project, tenant, suffix, fallback string) string {
 		path += "/tenants/" + url.PathEscape(tenant)
 	}
 	return path + suffix
+}
+
+// treePath is scopedTreePath for a route with NO flat form left on the server: the caller has already
+// rejected an empty project, so there is nothing to fall back to.
+func treePath(project, tenant, suffix string) string {
+	return scopedTreePath(project, tenant, suffix, "")
 }
 
 func requireTenantProject(project, tenant, resource string) error {

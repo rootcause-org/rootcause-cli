@@ -22,16 +22,16 @@ type HarvestRequest struct {
 	MaxThreads int   `json:"max_threads,omitempty"`
 }
 
-// StartHarvest posts POST /api/v1/mailboxes/{id}/harvest → the 202 accept body {export_id, status}. It
-// returns the typed accept AND the raw bytes so -o json echoes the verbatim server body. A 409
-// (HARVEST_IN_PROGRESS) surfaces as an APIError through the command layer.
+// StartHarvest posts POST /api/v1/projects/{project}/mailboxes/{id}/harvest → the 202 accept body
+// {export_id, status}. It returns the typed accept AND the raw bytes so -o json echoes the verbatim
+// server body. A 409 (HARVEST_IN_PROGRESS) surfaces as an APIError through the command layer.
 func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool, maxThreads int, project, tenant string) (*HarvestAccepted, json.RawMessage, error) {
 	if err := requireTenantProject(project, tenant, "exports"); err != nil {
 		return nil, nil, err
 	}
 	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(mailboxID)+"/harvest")
 	if path == "" {
-		path = "/api/v1/mailboxes/" + url.PathEscape(mailboxID) + "/harvest"
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "starting a harvest requires a project scope"}
 	}
 	path = collectionScopePath(path, "", tenant)
 	var raw json.RawMessage

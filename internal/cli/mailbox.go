@@ -197,7 +197,7 @@ func isTerminalExportStatus(s string) bool {
 	}
 }
 
-// mailboxLsCmd: GET /api/v1/mailboxes/watched → the watched-mailbox table (or -o json passthrough).
+// mailboxLsCmd: GET /api/v1/projects/{project}/mailboxes → the watched-mailbox table (or -o json passthrough).
 func mailboxLsCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "ls",

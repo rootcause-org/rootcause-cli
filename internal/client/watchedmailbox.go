@@ -19,7 +19,7 @@ func watchedProjectPath(project, suffix string) string {
 	return ""
 }
 
-// WatchedMailboxes fetches GET /api/v1/mailboxes/watched — every connection-backed mailbox the channel
+// WatchedMailboxes fetches GET /api/v1/projects/{project}/mailboxes — every connection-backed mailbox the channel
 // plane watches. Returns the parsed list (for the table) and the raw body (for -o json passthrough).
 func (c *Client) WatchedMailboxes(ctx context.Context, project, tenant string) (*WatchedMailboxList, json.RawMessage, error) {
 	if project == "" {
@@ -40,7 +40,7 @@ func (c *Client) WatchedMailboxes(ctx context.Context, project, tenant string) (
 	return &out, raw, nil
 }
 
-// IMAPConnectRequest is the POST /api/v1/mailboxes/imap/connect body. Field names mirror the server's
+// IMAPConnectRequest is the POST /api/v1/projects/{project}/mailboxes/imap/connect body. Field names mirror the server's
 // imapConnectRequest verbatim. Ports are omitempty so 0 lets the server apply its defaults (993/implicit
 // IMAP, 587/starttls SMTP); optional SMTP overrides fall back server-side to the IMAP username/password.
 type IMAPConnectRequest struct {
@@ -64,7 +64,7 @@ type IMAPEnvResponse struct {
 	Env          map[string]string `json:"env"`
 }
 
-// ConnectIMAPMailbox posts POST /api/v1/mailboxes/imap/connect — the server live-probes IMAP login +
+// ConnectIMAPMailbox posts POST /api/v1/projects/{project}/mailboxes/imap/connect — the server live-probes IMAP login +
 // SELECT INBOX + SMTP AUTH before persisting, so a bad config returns an error envelope
 // (IMAP_PROBE_FAILED / BAD_IMAP_CONFIG) and nothing is saved; a duplicate is a 409 MAILBOX_IN_USE. On
 // success it returns the created watched-mailbox item. The tenant (if any) rides in the body; `project`

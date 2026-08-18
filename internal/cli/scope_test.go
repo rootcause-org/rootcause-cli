@@ -308,7 +308,7 @@ func TestScopeTenantRequiresResolvableTenant(t *testing.T) {
 			mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
 				_, _ = w.Write([]byte(tc.whoami))
 			})
-			mux.HandleFunc("GET /api/v1/brain/status", func(w http.ResponseWriter, _ *http.Request) {
+			mux.HandleFunc("GET /api/v1/projects/alpha/brain/status", func(w http.ResponseWriter, _ *http.Request) {
 				_, _ = w.Write([]byte(`{"project":"alpha","status":{"available":true}}`))
 			})
 			mux.HandleFunc("GET /api/v1/projects/alpha/tenants/acme/brain/status", func(w http.ResponseWriter, _ *http.Request) {

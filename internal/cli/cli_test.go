@@ -433,7 +433,7 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/meta/routes", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"routes":[{"method":"GET","path":"/api/v1/runs/{id}/trace","summary":"Read run trace bundle","auth":"bearer"},{"method":"GET","path":"/api/v1/runs/{id}/full","summary":"Read full run bundle","auth":"bearer","deprecated":true}]}`))
+		_, _ = w.Write([]byte(`{"routes":[{"method":"GET","path":"/api/v1/runs/{id}/trace","summary":"Read run trace bundle","auth":"bearer"},{"method":"GET","path":"/api/v1/triage/rules","summary":"List triage rules","auth":"bearer","deprecated":true}]}`))
 	})
 	mux.HandleFunc("GET /api/v1/meta/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
@@ -807,7 +807,6 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "watched_mailboxes.json"))
 	}
-	mux.HandleFunc("GET /api/v1/mailboxes/watched", watchedList)
 	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes", watchedList)
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/mode", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
@@ -849,7 +848,6 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"mb-imap-1","provider":"imap","email_address":"info@acme.test","status":"connected","processing_enabled":false,"has_sync_cursor":false}`))
 	}
-	mux.HandleFunc("POST /api/v1/mailboxes/imap/connect", imapConnect)
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/imap/connect", imapConnect)
 	// seed (rc project mailbox seed-imap): assert NO password rides along at all and echo the parked row
 	// plus the no-login password link — the link IS the deliverable of this call.
@@ -896,7 +894,6 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"mailbox_id":"` + r.PathValue("id") + `","email_address":"info@acme.test","env":{"RC_MAILBOX_ID":"` + r.PathValue("id") + `","RC_IMAP_EMAIL":"info@acme.test","RC_IMAP_USERNAME":"imap-user","RC_IMAP_PASSWORD":"imap-secret","RC_IMAP_HOST":"imap.acme.test","RC_IMAP_PORT":"993","RC_IMAP_TLS":"implicit","RC_SMTP_HOST":"smtp.acme.test","RC_SMTP_PORT":"587","RC_SMTP_TLS":"starttls","RC_SMTP_USERNAME":"smtp-user","RC_SMTP_PASSWORD":"smtp-secret","RC_UNEXPECTED_SECRET":"do-not-print-me"}}`))
 	}
-	mux.HandleFunc("GET /api/v1/mailboxes/{id}/imap-env", imapEnv)
 	mux.HandleFunc("GET /api/v1/projects/{project}/mailboxes/{id}/imap-env", imapEnv)
 
 	// local-synthesis harvest/export (rc project mailbox harvest, rc project corpus ls/get/download). Harvest asserts the
@@ -930,7 +927,6 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.WriteHeader(http.StatusAccepted)
 		_, _ = w.Write([]byte(`{"export_id":"` + exportID + `","status":"pending"}`))
 	}
-	mux.HandleFunc("POST /api/v1/mailboxes/{id}/harvest", harvest)
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/harvest", harvest)
 	// exportWaitCalls counts GETs for the wait-export so the first read is "running", the second "done".
 	exportWaitCalls := 0
@@ -1110,12 +1106,12 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	})
 
 	// dev brain edit / consolidate — both return {queued, job_id}.
-	mux.HandleFunc("GET /api/v1/brain/status", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("GET /api/v1/projects/{project}/brain/status", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "brain_status.json"))
 	})
-	mux.HandleFunc("POST /api/v1/brain/sync", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/sync", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "brain_sync.json"))
@@ -1169,7 +1165,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "mirror_refresh.json"))
 	})
-	mux.HandleFunc("POST /api/v1/brain/edit", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/edit", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
 		if !strings.Contains(body, `"instruction":"add a runbook for refunds"`) {
@@ -1178,7 +1174,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_edit_001"}`))
 	})
-	mux.HandleFunc("POST /api/v1/brain/consolidate", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/consolidate", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_consolidate_001"}`))
