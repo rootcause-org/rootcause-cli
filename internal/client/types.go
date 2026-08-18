@@ -1464,6 +1464,9 @@ type FieldSchema struct {
 	Sensitive bool            `json:"sensitive,omitempty"`
 	Help      string          `json:"help"`
 	Default   json.RawMessage `json:"default,omitempty"`
+	// Members describes an object-typed field's CLOSED set of scalar members (e.g. models.agent →
+	// tier/model/effort/engine); such a key is written as one JSON object, never member-by-member.
+	Members []FieldSchema `json:"members,omitempty"`
 }
 
 // Access is GET /api/v1/meta/capabilities: what THIS token may do (effective scopes, writable keys,

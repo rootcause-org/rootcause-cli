@@ -6,6 +6,7 @@
 package render
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -928,6 +929,12 @@ func Schema(w io.Writer, resp *client.SchemaResponse) {
 			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
 				f.Key, f.Type, strings.Join(f.Enum, "|"), strings.Join(f.Scopes, ","),
 				jsonScalarOrBlank(f.Default), f.Help)
+			// An object field's members are shown as indented ".member" sub-rows: they share the key's
+			// scopes/default (the whole object is written at once) so those columns stay blank.
+			for _, m := range f.Members {
+				_, _ = fmt.Fprintf(tw, "    .%s\t%s\t%s\t\t\t%s\n",
+					m.Key, m.Type, strings.Join(m.Enum, "|"), m.Help)
+			}
 		}
 		_ = tw.Flush()
 	}
@@ -951,11 +958,31 @@ func ExplainField(w io.Writer, resource string, f client.FieldSchema) {
 	if f.Sensitive {
 		_, _ = fmt.Fprintf(tw, "sensitive:\ttrue\n")
 	}
+	for i, m := range f.Members {
+		label := ""
+		if i == 0 {
+			label = "members:"
+		}
+		_, _ = fmt.Fprintf(tw, "%s\t%s\n", label, memberLine(m))
+	}
 	if v := jsonScalarOrBlank(f.Default); v != "" {
 		_, _ = fmt.Fprintf(tw, "default:\t%s\n", v)
 	}
 	_, _ = fmt.Fprintf(tw, "help:\t%s\n", f.Help)
 	_ = tw.Flush()
+}
+
+// memberLine renders one member of an object field as ".key (type[: a|b|c]) — help".
+func memberLine(m client.FieldSchema) string {
+	typ := m.Type
+	if len(m.Enum) > 0 {
+		typ += ": " + strings.Join(m.Enum, "|")
+	}
+	line := fmt.Sprintf(".%s (%s)", m.Key, typ)
+	if m.Help != "" {
+		line += " — " + m.Help
+	}
+	return line
 }
 
 // Access renders `rc access` — what this token may do: its scope (project/all-projects), effective
@@ -1050,7 +1077,13 @@ func jsonScalar(raw json.RawMessage) string {
 	case bool:
 		return fmt.Sprintf("%t", t)
 	default:
-		return strings.TrimSpace(string(raw))
+		// Objects/arrays (e.g. a models.* record): compact, so a server that pretty-prints can't break
+		// the table with embedded newlines.
+		var buf bytes.Buffer
+		if err := json.Compact(&buf, raw); err != nil {
+			return strings.TrimSpace(string(raw))
+		}
+		return buf.String()
 	}
 }
 

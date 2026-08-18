@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -112,6 +113,7 @@ const (
 	kindNumber           // JSON number (e.g. max_run_usd)
 	kindList             // comma-split → JSON array (e.g. pr.triggers, egress.allowlist)
 	kindBool             // JSON boolean (e.g. actions_enabled, hide_attribution)
+	kindObject           // raw JSON object passed through (e.g. models.agent, a closed record of members)
 )
 
 // coercer resolves a settings key to its value kind. The schema-aware coercer is built from
@@ -171,6 +173,8 @@ func newValueCoercer(e *env, c *client.Client) coercer {
 			return kindNumber
 		case kindBool:
 			return kindBool
+		case kindObject:
+			return kindObject
 		default:
 			// Schema knew the key as a scalar string/enum; still honor a known number/list override in
 			// case the registry's type vocabulary drifts from what the CLI recognizes.
@@ -190,6 +194,8 @@ func normalizeType(typ string) valueKind {
 		return kindNumber
 	case t == "bool" || t == "boolean":
 		return kindBool
+	case t == "object" || t == "record":
+		return kindObject
 	default:
 		return kindString
 	}
@@ -199,7 +205,7 @@ func normalizeType(typ string) valueKind {
 // kind. Keys pass through verbatim (the server owns the whitelist). A LIST key comma-splits into a JSON
 // array (empty value → empty array, the "clear" gesture); a NUMBER key parses to a JSON number, falling
 // back to the raw string so the server returns the precise INVALID_SETTINGS message rather than a
-// client-side guess; everything else is a string.
+// client-side guess; an OBJECT key rides through as raw JSON; everything else is a string.
 func parseSetArgs(args []string, coerce coercer) (map[string]any, error) {
 	patch := make(map[string]any, len(args))
 	for _, arg := range args {
@@ -222,6 +228,12 @@ func parseSetArgs(args []string, coerce coercer) (map[string]any, error) {
 			} else {
 				patch[key] = val // let the server return the precise "must be a boolean" message
 			}
+		case kindObject:
+			obj, err := parseObjectValue(key, val)
+			if err != nil {
+				return nil, err
+			}
+			patch[key] = obj
 		default:
 			patch[key] = val
 		}
@@ -241,4 +253,19 @@ func splitList(val string) []string {
 		out = append(out, strings.TrimSpace(p))
 	}
 	return out
+}
+
+// parseObjectValue passes an object-typed value through as raw JSON: members are kept verbatim so the
+// server (which owns the closed member whitelist and their types) is the only validator. An empty value
+// is the clear gesture — an empty object, mirroring the empty-list clear. Anything that is not a JSON
+// object is rejected here rather than sent, since the server error would blame the whole key.
+func parseObjectValue(key, val string) (map[string]json.RawMessage, error) {
+	if strings.TrimSpace(val) == "" {
+		return map[string]json.RawMessage{}, nil
+	}
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(val), &obj); err != nil || obj == nil {
+		return nil, fmt.Errorf("invalid value for %s: expected a JSON object (e.g. %s='{\"tier\":\"pro\"}'), got %q", key, key, val)
+	}
+	return obj, nil
 }

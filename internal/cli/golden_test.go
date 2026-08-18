@@ -555,7 +555,7 @@ func TestConfigSetTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "runtime", "set", "default_tier=pro", "max_run_usd=5"); err != nil {
+	if err := run(t, e, "project", "settings", "runtime", "set", `models.agent={"tier":"pro"}`, "max_run_usd=5"); err != nil {
 		t.Fatalf("project settings runtime set: %v", err)
 	}
 	assertGolden(t, "config_set.golden", out.String())
@@ -581,6 +581,29 @@ func TestConfigSetListClear(t *testing.T) {
 	e, _, _ := newTestEnv(t, srv, "table")
 	if err := run(t, e, "project", "settings", "runtime", "set", "egress.allowlist="); err != nil {
 		t.Fatalf("project settings runtime set egress.allowlist= : %v", err)
+	}
+}
+
+// TestConfigSetObjectClear locks the empty-object clear gesture for an object key: `models.agent=`
+// sends {} (the server reads that as "drop the override"), not null or "".
+func TestConfigSetObjectClear(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "settings", "runtime", "set", "models.agent="); err != nil {
+		t.Fatalf("project settings runtime set models.agent= : %v", err)
+	}
+}
+
+// TestConfigSetObjectRejectsNonObject asserts a non-JSON-object value for an object key fails
+// client-side with a shape hint instead of being sent as a bare string.
+func TestConfigSetObjectRejectsNonObject(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "project", "settings", "runtime", "set", "models.agent=pro")
+	if err == nil || !strings.Contains(err.Error(), "expected a JSON object") {
+		t.Fatalf("want JSON-object error, got %v", err)
 	}
 }
 
@@ -642,10 +665,10 @@ func TestExplainTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "describe", "default_tier"); err != nil {
+	if err := run(t, e, "project", "settings", "describe", "models.agent"); err != nil {
 		t.Fatalf("explain: %v", err)
 	}
-	assertGolden(t, "explain_default_tier.golden", out.String())
+	assertGolden(t, "explain_models_agent.golden", out.String())
 }
 
 // TestExplainUnknownKey asserts an unknown key is a clear client-side error (not a silent miss).

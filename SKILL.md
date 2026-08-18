@@ -321,7 +321,9 @@ non-decodable body falls back to `error: HTTP <status>` — clean non-zero exit,
   with a stderr "shown once" warning; `connection rm` issues `/revoke` then `DELETE`.
 - **`rc project settings runtime set` coercion:** [`config.go`](internal/cli/config.go) fetches
   `/meta/schema` ONCE and coerces each `k=v` by the field's declared type (a `list`/`array` comma-splits to
-  a JSON array, empty → `[]`; a numeric type → a JSON number). On a schema miss it falls back to a static
+  a JSON array, empty → `[]`; a numeric type → a JSON number; an `object` type — a closed record like
+  `models.agent={"tier":"pro"}` — is parsed as JSON and passed through verbatim, empty → `{}` (clear),
+  non-object rejected client-side). On a schema miss it falls back to a static
   known-key set. The server is always the final validator.
 - **Hierarchy settings coercion:** [`hierarchy_settings.go`](internal/cli/hierarchy_settings.go) validates
   `persona.*` and `channel.*` keys locally before sending the nested patch. Keep its field/type map aligned

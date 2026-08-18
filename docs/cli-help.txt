@@ -3605,7 +3605,7 @@ Usage:
 
 Available Commands:
   ls          List projects
-  add         Create a project (name=… [default_tier=…] [egress_mode=wildcard|enforce])
+  add         Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce])
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3636,7 +3636,7 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc admin project add --help
-Create a project (name=… [default_tier=…] [egress_mode=wildcard|enforce])
+Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce])
 
 Usage:
   rc admin project add k=v [k=v…] [flags]

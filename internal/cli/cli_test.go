@@ -370,6 +370,20 @@ func stubServer(t *testing.T) *httptest.Server {
 				t.Fatalf("pr.triggers array = %v, want [inbound mcp]", arr)
 			}
 		}
+		// An object-typed key must arrive as a JSON OBJECT with its members verbatim — the CLI never
+		// flattens or re-types them.
+		if strings.Contains(body, `"models.agent"`) {
+			var got map[string]any
+			_ = json.Unmarshal([]byte(body), &got)
+			obj, ok := got["models.agent"].(map[string]any)
+			if !ok {
+				t.Fatalf("models.agent = %T %v, want a JSON object\nbody: %s", got["models.agent"], got["models.agent"], body)
+			}
+			// `models.agent=` is the clear gesture — an empty object, not null/"".
+			if len(obj) > 0 && obj["tier"] != "pro" {
+				t.Fatalf("models.agent = %v, want {tier:pro}\nbody: %s", obj, body)
+			}
+		}
 		// An empty list value (egress.allowlist=) is the CLEAR gesture: it must arrive as an empty array,
 		// not null or a string.
 		if strings.Contains(body, `"egress.allowlist"`) {

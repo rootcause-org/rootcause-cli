@@ -1,6 +1,6 @@
 {
   "max_run_usd": { "value": 5, "effective": 5, "default": 1.0, "source": "override" },
-  "default_tier": { "value": "pro", "effective": "pro", "default": "standard", "source": "override" },
-  "image_model": { "value": "", "effective": "vendor/img", "default": "vendor/img", "source": "default" },
+  "models.agent": { "value": { "tier": "pro" }, "effective": { "tier": "pro" }, "default": { "tier": "standard" }, "source": "override" },
+  "models.image": { "value": null, "effective": { "model": "vendor/img" }, "default": { "model": "vendor/img" }, "source": "default" },
   "kb_enrich_model": { "value": "", "effective": "vendor/kb", "default": "vendor/kb", "source": "default" }
 }

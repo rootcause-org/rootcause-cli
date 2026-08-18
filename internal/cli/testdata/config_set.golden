@@ -1,5 +1,5 @@
-KEY              VALUE  EFFECTIVE   DEFAULT     SOURCE
-default_tier     pro    pro         standard    override
-image_model             vendor/img  vendor/img  default
-kb_enrich_model         vendor/kb   vendor/kb   default
-max_run_usd      5      5           1           override
+KEY              VALUE           EFFECTIVE               DEFAULT                 SOURCE
+kb_enrich_model                  vendor/kb               vendor/kb               default
+max_run_usd      5               5                       1                       override
+models.agent     {"tier":"pro"}  {"tier":"pro"}          {"tier":"standard"}     override
+models.image                     {"model":"vendor/img"}  {"model":"vendor/img"}  default

@@ -27,7 +27,7 @@ $ rc dev learning evidence --plane deltas --include-bodies -o json
 $ rc dev brain sync
 $ rc dev brain promote --channel stable --sha "$(git rev-parse HEAD)"
 $ rc dev brain status                 # verify stable/edge resolved SHAs before claiming success
-$ rc project settings runtime set max_run_usd=5 default_tier=pro
+$ rc project settings runtime set max_run_usd=5 'models.agent={"tier":"pro"}'
 $ rc project settings behavior set persona.tone=warm channel.labeling_enabled=true
 $ rc project triage policy get -o json
 $ rc project triage rules ls -o json
@@ -339,7 +339,7 @@ help using `go test ./internal/cli -update`.
 | `rc admin catalog ls` | List catalog |
 | `rc admin catalog upsert` | Create or update a catalog entry (keyed on key=) |
 | `rc admin catalog` | Manage the integration catalog |
-| `rc admin project add` | Create a project (name=… [default_tier=…] [egress_mode=wildcard|enforce]) |
+| `rc admin project add` | Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce]) |
 | `rc admin project ls` | List projects |
 | `rc admin project` | Manage box-level projects |
 | `rc admin user add` | Create a user (email=… [admin=true] [password=…]) |

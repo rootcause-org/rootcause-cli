@@ -1,0 +1,11 @@
+key:           models.agent
+resource:      settings
+type:          object
+scope:         project
+group:         model
+write scopes:  config:write
+members:       .tier (enum: standard|pro|max) — Ladder rung.
+               .model (model) — Pinned model override.
+               .effort (enum: minimal|low|medium|high|xhigh) — Reasoning effort.
+default:       {"tier":"standard"}
+help:          Agent loop model selection.

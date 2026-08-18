@@ -1,6 +1,6 @@
 scope:           project alpha
 scopes:          config:read, config:write, read, runs:read
-writable keys:   max_run_usd, default_tier, image_model
+writable keys:   max_run_usd, models.agent, models.image
 resources:       settings
 console:         db=true bash=true action=false
 harvest corpus:  v3
