@@ -156,7 +156,10 @@ server Markdown formats `v1`, `v2`, and structurally normalized `v3` in the clie
 convenience path. A v3 split requires the complete counts-only diagnostic bundle and preserves it as
 `diagnostics.json` + `diagnostics.md`, linked from `INDEX.md`. `corpus ls|get`
 show the server's `format` projection before download, while `rc self doctor` advertises the formats the
-local splitter supports. The parser recognizes only anchored server thread headers and verifies their
+local splitter supports *plus* the version the server writes today, read from `/meta/capabilities`
+(`formats.harvest_corpus`, also on `rc access`) — never re-pinned in CLI source. The supported list stays
+client-owned on purpose (a downloaded corpus may be any older format we still split); only the server's
+*current* version is fetched, best-effort, so an offline/older server degrades to a note. The parser recognizes only anchored server thread headers and verifies their
 declared count and sequential indices before writing a tree. `--out` may be combined with `--split`; raw
 bytes are written before parsing, so an unknown or malformed future format remains recoverable even when
 splitting fails. Without `--out`, the split error points to a rescue download and names the server's

@@ -106,6 +106,38 @@ func TestRenderDoctorHuman(t *testing.T) {
 	}
 }
 
+// TestDoctorServerHarvestCorpusFormat: doctor reports the version the SERVER writes (read from
+// /meta/capabilities, never re-pinned) next to the versions this binary parses, and names the fix when
+// the server has moved past us. It stays a report, not a finding — the exit code is for PATH problems.
+func TestDoctorServerHarvestCorpusFormat(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		caps   doctorCapabilities
+		want   string
+		update bool
+	}{
+		{name: "in sync", caps: doctorCapabilities{HarvestCorpusFormats: []string{"v1", "v2", "v3"}, ServerHarvestCorpus: "v3"}, want: "server writes:"},
+		{name: "server ahead", caps: doctorCapabilities{HarvestCorpusFormats: []string{"v1", "v2", "v3"}, ServerHarvestCorpus: "v4"}, want: "rc self update", update: true},
+		{name: "unreachable", caps: doctorCapabilities{HarvestCorpusFormats: []string{"v1"}, ServerNote: "server capability check skipped: offline"}, want: "offline"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.caps.unsupported(); got != tc.update {
+				t.Errorf("unsupported() = %v, want %v", got, tc.update)
+			}
+			var out bytes.Buffer
+			if err := renderDoctorHuman(&out, doctorReport{Capabilities: tc.caps}); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), tc.want) {
+				t.Errorf("report missing %q:\n%s", tc.want, out.String())
+			}
+			if !strings.Contains(out.String(), "Findings: none") {
+				t.Errorf("corpus drift must not become a doctor finding:\n%s", out.String())
+			}
+		})
+	}
+}
+
 func TestBuildInfoReadFileOnTestBinary(t *testing.T) {
 	exe, err := os.Executable()
 	if err != nil {

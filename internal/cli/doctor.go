@@ -57,8 +57,19 @@ type doctorUpdate struct {
 	Note      string `json:"note,omitempty"`
 }
 
+// doctorCapabilities pairs the LOCAL parse capability with what the server actually writes today. The
+// plural list is deliberately client-owned (a downloaded corpus can be any older format we still split);
+// the singular server value is READ from /meta/capabilities, never re-pinned here — that duplication is
+// exactly what silently rots when the server bumps its corpus version.
 type doctorCapabilities struct {
 	HarvestCorpusFormats []string `json:"harvest_corpus_formats"`
+	ServerHarvestCorpus  string   `json:"server_harvest_corpus,omitempty"`
+	ServerNote           string   `json:"server_note,omitempty"`
+}
+
+// unsupported reports a server that renders a corpus this binary cannot split.
+func (c doctorCapabilities) unsupported() bool {
+	return c.ServerHarvestCorpus != "" && !supportsHarvestCorpusFormat(c.ServerHarvestCorpus)
 }
 
 type doctorReport struct {
@@ -138,12 +149,33 @@ func collectDoctorReport(e *env, version string) (doctorReport, error) {
 		update.Available = compareVersions(current.Version, latest) < 0
 	}
 
-	formats := append([]string(nil), supportedHarvestCorpusFormats[:]...)
+	caps := doctorCapabilities{HarvestCorpusFormats: append([]string(nil), supportedHarvestCorpusFormats[:]...)}
+	caps.ServerHarvestCorpus, caps.ServerNote = serverHarvestCorpusFormat(e)
 	return doctorReport{
 		Binary: current, Path: pathCopies, Scope: doctorScope,
-		Capabilities: doctorCapabilities{HarvestCorpusFormats: formats},
+		Capabilities: caps,
 		Update:       update, Findings: findings,
 	}, nil
+}
+
+// serverHarvestCorpusFormat asks the configured server which corpus version it writes today. Best-effort
+// like the release check: an unauthenticated/offline/older server yields a note, never a doctor failure —
+// doctor's exit code stays reserved for local PATH problems.
+func serverHarvestCorpusFormat(e *env) (format, note string) {
+	c, err := e.newClient()
+	if err != nil {
+		return "", "server capability check skipped: " + err.Error()
+	}
+	ctx, cancel := context.WithTimeout(e.ctx(), 5*time.Second)
+	defer cancel()
+	access, err := c.GetAccess(ctx, e.scopeProject())
+	if err != nil {
+		return "", "server capability check skipped: " + err.Error()
+	}
+	if access.Formats.HarvestCorpus == "" {
+		return "", "server does not advertise a harvest corpus format (older server)"
+	}
+	return access.Formats.HarvestCorpus, ""
 }
 
 func currentBinaryInfo(version string) (binaryInfo, error) {
@@ -464,7 +496,16 @@ func renderDoctorHuman(w interface{ Write([]byte) (int, error) }, report doctorR
 	_, _ = fmt.Fprintln(tw)
 
 	_, _ = fmt.Fprintln(tw, "Capabilities")
-	_, _ = fmt.Fprintf(tw, "  harvest corpus formats:\t%s\n\n", strings.Join(report.Capabilities.HarvestCorpusFormats, ", "))
+	_, _ = fmt.Fprintf(tw, "  harvest corpus formats:\t%s\n", strings.Join(report.Capabilities.HarvestCorpusFormats, ", "))
+	switch {
+	case report.Capabilities.ServerNote != "":
+		_, _ = fmt.Fprintf(tw, "  server writes:\t%s\n", report.Capabilities.ServerNote)
+	case report.Capabilities.unsupported():
+		_, _ = fmt.Fprintf(tw, "  server writes:\t%s — this rc cannot split it; run: rc self update\n", report.Capabilities.ServerHarvestCorpus)
+	case report.Capabilities.ServerHarvestCorpus != "":
+		_, _ = fmt.Fprintf(tw, "  server writes:\t%s\n", report.Capabilities.ServerHarvestCorpus)
+	}
+	_, _ = fmt.Fprintln(tw)
 
 	_, _ = fmt.Fprintln(tw, "Update")
 	if report.Update.Note != "" {

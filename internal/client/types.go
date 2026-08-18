@@ -1478,6 +1478,14 @@ type Access struct {
 	WritableKeys []string       `json:"writable_keys"`
 	Resources    []string       `json:"resources"`
 	Console      ConsoleCapsSum `json:"console"`
+	Formats      AccessFormats  `json:"formats"`
+}
+
+// AccessFormats is the wire-format versions THAT box currently writes (token-independent). It is the
+// server's own answer to "can this rc still parse what you produce?" — read it instead of re-pinning the
+// server's current corpus version here. Empty against a server older than the field.
+type AccessFormats struct {
+	HarvestCorpus string `json:"harvest_corpus"`
 }
 
 // HierarchySettings is GET/PATCH /api/v1/projects/{project}/settings and its tenant/mailbox children.

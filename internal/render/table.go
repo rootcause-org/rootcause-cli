@@ -974,6 +974,9 @@ func Access(w io.Writer, a *client.Access) {
 	_, _ = fmt.Fprintf(tw, "writable keys:\t%s\n", joinOrDash(a.WritableKeys))
 	_, _ = fmt.Fprintf(tw, "resources:\t%s\n", joinOrDash(a.Resources))
 	_, _ = fmt.Fprintf(tw, "console:\tdb=%t bash=%t action=%t\n", a.Console.DB, a.Console.Bash, a.Console.Action)
+	if a.Formats.HarvestCorpus != "" {
+		_, _ = fmt.Fprintf(tw, "harvest corpus:\t%s\n", a.Formats.HarvestCorpus)
+	}
 	_ = tw.Flush()
 }
 
