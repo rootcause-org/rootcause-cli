@@ -2677,7 +2677,9 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc dev brain render --help
-Show a tenant's compiled brain projection
+Show a tenant's compiled brain projection.
+
+Artifacts are keyed by TENANT, not by sha: every run overwrites .rootcause/output/brain-render-<tenant>/. To compare two shas/channels, move the first render aside before the second.
 
 Usage:
   rc dev brain render --tenant <slug> [--path AGENTS.md] [--all] [--sha <commit> | --channel stable|edge] [flags]

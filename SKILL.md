@@ -255,7 +255,9 @@ still supplies the slug. `--sha` and `--channel` are mutually exclusive (default
 channel); `--path` repeats and defaults to `AGENTS.md`, `--all` dumps every templated file. Human output
 is a short header + degradations + `=== <path> ===` blocks, spilled through the shared progressive-output
 path when large; `-o json` stays a verbatim passthrough. Where `preflight` answers pass/fail for a whole
-channel, `render` answers "what does THIS tenant get".
+channel, `render` answers "what does THIS tenant get". Spill artifacts are keyed by TENANT
+(`brain-render-<tenant>/`), so a second render of another sha/channel overwrites the first — move it
+aside to compare.
 
 ### Database writes
 `rc dev console database query <db> <sql>` ([`console.go`](internal/cli/console.go)) reads through the

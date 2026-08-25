@@ -163,7 +163,10 @@ func brainRenderCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "render --tenant <slug> [--path AGENTS.md] [--all] [--sha <commit> | --channel stable|edge]",
 		Short: "Show a tenant's compiled brain projection",
-		Args:  cobra.NoArgs,
+		Long: "Show a tenant's compiled brain projection.\n\n" +
+			"Artifacts are keyed by TENANT, not by sha: every run overwrites .rootcause/output/brain-render-<tenant>/. " +
+			"To compare two shas/channels, move the first render aside before the second.",
+		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if sha != "" && channel != "" {
 				return fmt.Errorf("--sha and --channel are mutually exclusive")

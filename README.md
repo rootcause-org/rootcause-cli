@@ -257,7 +257,9 @@ placeholders and `rc:branch` regions in memory (the deployed brain cache is unto
 files exactly as `/brain` would mount them: a short header with the resolved commit, the fill/branch/
 degradation counts, then each file under a `=== <path> ===` marker. Without `--sha`/`--channel` it uses
 the tenant's currently resolved channel. Where preflight answers "would this commit break anyone",
-render answers "what does this tenant read".
+render answers "what does this tenant read". Large output spills to
+`.rootcause/output/brain-render-<tenant>/`, keyed by tenant only: rendering a second sha/channel
+overwrites the first, so move it aside if you want to compare.
 
 Tenant-brain repository access also stays server-side: from a tenant brain checkout, run
 `rc dev brain developer invite <github-handle>`. The rootcause GitHub App creates or reuses the
