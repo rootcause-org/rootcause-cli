@@ -229,7 +229,7 @@ normal read-only run env (`env_grounding`); `--plane action` targets the operato
 `.env.action` (`env_action`), never mounted into normal runs.
 
 ### Project-brain publishing
-`rc dev brain {status,sync,preflight,promote,publish}` ([`brain.go`](internal/cli/brain.go)) is the public
+`rc dev brain {status,sync,render,preflight,promote,publish}` ([`brain.go`](internal/cli/brain.go)) is the public
 project-brain loop: push the tested commit, `sync` origin/main into the on-box cache, **promote its exact
 full SHA** to `stable`/`edge`, then `status`-verify the channel's on-box `resolved_sha` plus fetched
 `origin_sha`/`main_sha`. `publish` chains sync → promote → status-verify with gating, forcing sync/status
@@ -246,6 +246,16 @@ identical SHA. It exits **non-zero on a refusing verdict** (a script gates on th
 carries the per-tenant detail). The server enforces the same check on `promote` itself — a refused
 promotion comes back `409 BRAIN_CANARY_FAILED` with one detail row per offending tenant — so preflight is
 for *seeing* the answer early, never the thing that makes promotion safe.
+
+`render` is the projection eyeball: the server compiles ONE named tenant's `{{ }}` placeholders and
+`rc:branch` regions in memory (nothing written to the brain cache) and returns the files verbatim, so a
+brain author sees exactly what `/brain` would mount. Tenant rides in the request body — it is a
+project-brain read *about* a tenant, not a tenant-scoped route — while `--tenant`/brain-checkout context
+still supplies the slug. `--sha` and `--channel` are mutually exclusive (default: the tenant's resolved
+channel); `--path` repeats and defaults to `AGENTS.md`, `--all` dumps every templated file. Human output
+is a short header + degradations + `=== <path> ===` blocks, spilled through the shared progressive-output
+path when large; `-o json` stays a verbatim passthrough. Where `preflight` answers pass/fail for a whole
+channel, `render` answers "what does THIS tenant get".
 
 ### Database writes
 `rc dev console database query <db> <sql>` ([`console.go`](internal/cli/console.go)) reads through the

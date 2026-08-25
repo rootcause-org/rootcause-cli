@@ -184,6 +184,43 @@ type BrainCanaryDegradation struct {
 	Reason string `json:"reason"`
 }
 
+// BrainRenderRequest compiles ONE tenant's projection of a brain commit, in memory — the on-box cache is
+// never touched. Sha and Channel are mutually exclusive; omitting both means the tenant's current channel.
+// Paths are brain-relative paths or globs (ignored when All).
+type BrainRenderRequest struct {
+	Tenant  string   `json:"tenant"`
+	SHA     string   `json:"sha,omitempty"`
+	Channel string   `json:"channel,omitempty"`
+	Paths   []string `json:"paths,omitempty"`
+	All     bool     `json:"all,omitempty"`
+}
+
+// BrainRenderFile is one compiled file exactly as /brain would mount it for this tenant.
+type BrainRenderFile struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type BrainRenderStats struct {
+	FilesRendered      int `json:"files_rendered"`
+	FilesCopied        int `json:"files_copied"`
+	FilesDropped       int `json:"files_dropped"`
+	PlaceholdersFilled int `json:"placeholders_filled"`
+	BranchesCollapsed  int `json:"branches_collapsed"`
+}
+
+// BrainRenderResponse carries the compiled files plus the same key/file/reason degradation shape the
+// promote-time canary reports, so a degraded projection reads identically in preflight and render.
+type BrainRenderResponse struct {
+	Project      string                   `json:"project"`
+	Tenant       string                   `json:"tenant"`
+	SHA          string                   `json:"sha"`
+	Channel      string                   `json:"channel"`
+	Files        []BrainRenderFile        `json:"files"`
+	Stats        BrainRenderStats         `json:"stats"`
+	Degradations []BrainCanaryDegradation `json:"degradations"`
+}
+
 type MirrorRefreshRequest struct {
 	Repo        string `json:"repo"`
 	ExpectedSHA string `json:"expected_sha"`

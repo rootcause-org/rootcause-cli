@@ -1130,6 +1130,22 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "brain_sync.json"))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/render", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body client.BrainRenderRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode brain render body: %v", err)
+		}
+		// The tenant rides in the body, the default path is AGENTS.md, and no channel/sha is sent unless asked.
+		if body.Tenant != "de-linde" || body.SHA != "" || body.Channel != "" || body.All {
+			t.Fatalf("brain render body = %+v", body)
+		}
+		if len(body.Paths) != 1 || body.Paths[0] != "AGENTS.md" {
+			t.Fatalf("brain render paths = %v", body.Paths)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "brain_render.json"))
+	})
 	mux.HandleFunc("POST /api/v1/projects/{project}/brain/preflight", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		var body struct {

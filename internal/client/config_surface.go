@@ -158,6 +158,25 @@ func (c *Client) BrainPreflight(ctx context.Context, project string, req BrainPr
 	return &out, raw, nil
 }
 
+// BrainRender compiles one tenant's projection of a brain commit and returns the files verbatim. The
+// tenant rides in the BODY, not the path: the compile is a project-brain read for one named tenant, and
+// an operator inspecting a tenant must not need a tenant-scoped route.
+func (c *Client) BrainRender(ctx context.Context, project string, req BrainRenderRequest) (*BrainRenderResponse, json.RawMessage, error) {
+	if project == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required to render a brain projection"}
+	}
+	var raw json.RawMessage
+	path := "/api/v1/projects/" + url.PathEscape(project) + "/brain/render"
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out BrainRenderResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
+
 // MirrorRefresh queues the server's existing mirror sweep and verifies one repository reached an
 // exact commit. It is project-only because project mirrors are shared by every tenant.
 func (c *Client) MirrorRefresh(ctx context.Context, project string, req MirrorRefreshRequest) (*MirrorRefreshResponse, json.RawMessage, error) {

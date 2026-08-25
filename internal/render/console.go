@@ -352,6 +352,26 @@ func sortedCanaryTenants(in []client.BrainCanaryTenant) []client.BrainCanaryTena
 	return out
 }
 
+// BrainRender prints a short provenance header, then every compiled file verbatim. The content is the
+// point of the command, so it is never truncated or reflowed here — the caller spills it when large.
+func BrainRender(w io.Writer, r *client.BrainRenderResponse) {
+	s := r.Stats
+	_, _ = fmt.Fprintf(w, "Tenant:   %s\n", r.Tenant)
+	_, _ = fmt.Fprintf(w, "Commit:   %s (%s)\n", dash(shortGit(r.SHA)), dash(r.Channel))
+	_, _ = fmt.Fprintf(w, "Files:    %d rendered, %d copied, %d dropped\n", s.FilesRendered, s.FilesCopied, s.FilesDropped)
+	_, _ = fmt.Fprintf(w, "Filled:   %d placeholders, %d branches collapsed, %d degraded\n", s.PlaceholdersFilled, s.BranchesCollapsed, len(r.Degradations))
+	for _, d := range r.Degradations {
+		_, _ = fmt.Fprintf(w, "  %s  %s  %s\n", d.Key, dash(d.File), d.Reason)
+	}
+	for _, f := range r.Files {
+		_, _ = fmt.Fprintf(w, "\n=== %s ===\n", f.Path)
+		_, _ = fmt.Fprint(w, f.Content)
+		if !strings.HasSuffix(f.Content, "\n") {
+			_, _ = fmt.Fprintln(w)
+		}
+	}
+}
+
 func MirrorRefresh(w io.Writer, r *client.MirrorRefreshResponse) {
 	_, _ = fmt.Fprintf(w, "Project:    %s\n", r.Project)
 	_, _ = fmt.Fprintf(w, "Repository: %s\n", r.Repo)

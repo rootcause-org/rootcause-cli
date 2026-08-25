@@ -251,6 +251,14 @@ that exact SHA — and exits non-zero on any mismatch (`-o json` carries the rec
 in with an authorized project-maintainer login instead. Explicitly narrowed tokens need the dedicated
 `brain:promote` OAuth scope in addition to that project-level admin authority.
 
+To eyeball what one tenant actually gets from a templated brain, run `rc dev brain render --tenant <slug>
+[--path AGENTS.md] [--all] [--sha <SHA> | --channel stable|edge]`. The server compiles that tenant's
+placeholders and `rc:branch` regions in memory (the deployed brain cache is untouched) and returns the
+files exactly as `/brain` would mount them: a short header with the resolved commit, the fill/branch/
+degradation counts, then each file under a `=== <path> ===` marker. Without `--sha`/`--channel` it uses
+the tenant's currently resolved channel. Where preflight answers "would this commit break anyone",
+render answers "what does this tenant read".
+
 Tenant-brain repository access also stays server-side: from a tenant brain checkout, run
 `rc dev brain developer invite <github-handle>`. The rootcause GitHub App creates or reuses the
 repository invitation, and human output prints its acceptance URL; `-o json` returns the raw receipt.
@@ -363,6 +371,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev brain preflight` | Dry-run a channel promotion: which tenants would the candidate commit break? |
 | `rc dev brain promote` | Promote an exact tested commit to a project brain channel |
 | `rc dev brain publish` | Sync, promote an exact tested commit, and verify one project brain channel |
+| `rc dev brain render` | Show a tenant's compiled brain projection |
 | `rc dev brain status` | Show deployed brain cache status |
 | `rc dev brain sync` | Fetch origin/main and refresh deployed brain cache |
 | `rc dev brain` | Inspect, publish, and manage brain repositories |

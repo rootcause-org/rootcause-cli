@@ -1,0 +1,15 @@
+Scope: alpha / de-linde
+Tenant:   de-linde
+Commit:   d2f9de784ab7 (stable)
+Files:    2 rendered, 11 copied, 1 dropped
+Filled:   7 placeholders, 2 branches collapsed, 1 degraded
+  support_phone  contact.md  optional placeholder missing — rendered empty
+
+=== AGENTS.md ===
+# De Linde support brain
+
+Mailbox: support@de-linde.example
+Billing: Mollie
+
+=== skills/refunds.md ===
+Refunds are handled by the office manager.

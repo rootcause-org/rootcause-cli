@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +23,7 @@ var errEmptyInstruction = errors.New("empty instruction — pass it as args or p
 // outside a run. Long edit instructions can be piped on STDIN.
 func newBrainCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "brain", Short: "Inspect, publish, and manage brain repositories"}
-	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainPreflightCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e), newBrainDeveloperCmd(e))
+	cmd.AddCommand(brainStatusCmd(e), brainSyncCmd(e), brainRenderCmd(e), brainPreflightCmd(e), brainPromoteCmd(e), brainPublishCmd(e), brainEditCmd(e), brainConsolidateCmd(e), newBrainDeveloperCmd(e))
 	return cmd
 }
 
@@ -42,7 +43,7 @@ func brainDeveloperInviteCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			project, tenant, err := e.requiredTenantBrainScope(c)
+			project, tenant, err := e.requiredTenantBrainScope(c, "invite a brain developer")
 			if err != nil {
 				return err
 			}
@@ -59,9 +60,10 @@ func brainDeveloperInviteCmd(e *env) *cobra.Command {
 	}
 }
 
-// requiredTenantBrainScope resolves the canonical project+tenant tree for the developer-access write.
-// Explicit selectors and checkout markers win; a tenant-pinned OAuth login fills only missing pieces.
-func (e *env) requiredTenantBrainScope(c *client.Client) (string, string, error) {
+// requiredTenantBrainScope resolves the canonical project+tenant tree for a command that has no
+// project-wide form. Explicit selectors and checkout markers win; a tenant-pinned OAuth login fills only
+// missing pieces. purpose completes "tenant scope is required to …" in the fail-closed error.
+func (e *env) requiredTenantBrainScope(c *client.Client, purpose string) (string, string, error) {
 	project := e.scopeProject()
 	if project == "" {
 		project = e.resolved.Project
@@ -92,7 +94,7 @@ func (e *env) requiredTenantBrainScope(c *client.Client) (string, string, error)
 		return "", "", &client.APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required for an all-projects login"}
 	}
 	if tenant == "" {
-		return "", "", &client.APIError{Status: http.StatusBadRequest, Code: "TENANT_REQUIRED", Message: "tenant scope is required to invite a brain developer (use --tenant or a tenant brain checkout)"}
+		return "", "", &client.APIError{Status: http.StatusBadRequest, Code: "TENANT_REQUIRED", Message: "tenant scope is required to " + purpose + " (use --tenant or a tenant brain checkout)"}
 	}
 	return project, tenant, nil
 }
@@ -150,6 +152,58 @@ func brainSyncCmd(e *env) *cobra.Command {
 }
 
 var fullGitSHA = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
+
+// brainRenderCmd shows what ONE tenant actually gets: the server compiles the projection ({{ }}
+// placeholders + rc:branch regions) in memory and returns the files verbatim. preflight answers
+// pass/fail for a whole channel; render is the eyeball. Nothing is written to the brain cache.
+func brainRenderCmd(e *env) *cobra.Command {
+	var channel, sha string
+	var paths []string
+	var all bool
+	cmd := &cobra.Command{
+		Use:   "render --tenant <slug> [--path AGENTS.md] [--all] [--sha <commit> | --channel stable|edge]",
+		Short: "Show a tenant's compiled brain projection",
+		Args:  cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if sha != "" && channel != "" {
+				return fmt.Errorf("--sha and --channel are mutually exclusive")
+			}
+			if sha != "" && !fullGitSHA.MatchString(sha) {
+				return fmt.Errorf("--sha must be an exact full 40-character commit SHA")
+			}
+			if channel != "" && channel != "stable" && channel != "edge" {
+				return fmt.Errorf("--channel must be stable or edge")
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			project, tenant, err := e.requiredTenantBrainScope(c, "render a brain projection")
+			if err != nil {
+				return err
+			}
+			req := client.BrainRenderRequest{Tenant: tenant, SHA: strings.ToLower(sha), Channel: channel, All: all}
+			if !all {
+				req.Paths = paths
+			}
+			resp, raw, err := c.BrainRender(e.ctx(), project, req)
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("brain-render-"+tenant, raw)
+			}
+			var out bytes.Buffer
+			render.BrainRender(&out, resp)
+			return e.renderBytes("brain-render-"+tenant, "render.txt", out.Bytes(), "text")
+		},
+	}
+	cmd.Flags().StringArrayVar(&paths, "path", []string{"AGENTS.md"}, "brain-relative path or glob to render (repeatable)")
+	cmd.Flags().BoolVar(&all, "all", false, "render every templated file (ignores --path)")
+	cmd.Flags().StringVar(&sha, "sha", "", "exact full 40-character commit SHA to compile (default: the tenant's resolved channel)")
+	cmd.Flags().StringVar(&channel, "channel", "", "managed channel to compile (stable or edge)")
+	return cmd
+}
 
 func brainPromoteCmd(e *env) *cobra.Command {
 	var channel, sha string

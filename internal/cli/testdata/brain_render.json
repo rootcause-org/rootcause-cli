@@ -1,0 +1,30 @@
+{
+  "project": "alpha",
+  "tenant": "de-linde",
+  "sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
+  "channel": "stable",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "content": "# De Linde support brain\n\nMailbox: support@de-linde.example\nBilling: Mollie\n"
+    },
+    {
+      "path": "skills/refunds.md",
+      "content": "Refunds are handled by the office manager.\n"
+    }
+  ],
+  "stats": {
+    "files_rendered": 2,
+    "files_copied": 11,
+    "files_dropped": 1,
+    "placeholders_filled": 7,
+    "branches_collapsed": 2
+  },
+  "degradations": [
+    {
+      "key": "support_phone",
+      "file": "contact.md",
+      "reason": "optional placeholder missing — rendered empty"
+    }
+  ]
+}

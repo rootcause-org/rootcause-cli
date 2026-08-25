@@ -373,6 +373,38 @@ func TestBrainPromoteJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "brain_promote.json"), out.Bytes())
 }
 
+func TestBrainRenderTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render"); err != nil {
+		t.Fatalf("dev brain render: %v", err)
+	}
+	assertGolden(t, "brain_render.golden", out.String())
+}
+
+func TestBrainRenderJSONPassthrough(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render"); err != nil {
+		t.Fatalf("dev brain render -o json: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "brain_render.json"), out.Bytes())
+}
+
+// --sha and --channel name two different commits; accepting both would silently pick one.
+func TestBrainRenderRejectsShaAndChannelTogether(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render",
+		"--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce", "--channel", "stable")
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("sha+channel error = %v", err)
+	}
+}
+
 // A refusing preflight must render the offenders AND exit non-zero, so a script can gate on it.
 func TestBrainPreflightTableRefusesWithNonZeroExit(t *testing.T) {
 	srv := stubServer(t)
