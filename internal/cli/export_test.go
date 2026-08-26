@@ -86,6 +86,18 @@ func TestMailboxHarvestAccepted(t *testing.T) {
 	}
 }
 
+func TestMailboxTemplatesAccepted(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "mailbox", "templates", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("project mailbox templates: %v", err)
+	}
+	if !strings.Contains(out.String(), "export_id: templates-export") || !strings.Contains(errb.String(), "rc project corpus get") {
+		t.Fatalf("stdout=%q stderr=%q", out.String(), errb.String())
+	}
+}
+
 // TestMailboxHarvestConflict: a mailbox already harvesting returns 409 HARVEST_IN_PROGRESS, surfaced
 // verbatim as a typed APIError.
 func TestMailboxHarvestConflict(t *testing.T) {

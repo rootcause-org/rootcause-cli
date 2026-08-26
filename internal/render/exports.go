@@ -20,10 +20,14 @@ func Exports(w io.Writer, l *client.ExportList) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ID\tKIND\tFORMAT\tSTATUS\tTHREADS\tTRUNCATED\tCREATED\tCOMPLETED")
+	_, _ = fmt.Fprintln(tw, "ID\tKIND\tFORMAT\tSTATUS\tITEMS\tTRUNCATED\tCREATED\tCOMPLETED")
 	for _, x := range l.Exports {
+		count := x.ThreadCount
+		if x.Kind == "templates" {
+			count = x.TemplateCount
+		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			x.ID, x.Kind, strOrBlank(x.Format), x.Status, intPtrOrBlank(x.ThreadCount), boolLabel(x.Truncated),
+			x.ID, x.Kind, strOrBlank(x.Format), x.Status, intPtrOrBlank(count), boolLabel(x.Truncated),
 			strOrBlank(x.CreatedAt), strOrBlank(x.CompletedAt))
 	}
 	_ = tw.Flush()
@@ -51,6 +55,9 @@ func Export(w io.Writer, x *client.ExportItem) {
 	}
 	if x.ThreadCount != nil {
 		_, _ = fmt.Fprintf(tw, "threads:\t%d\n", *x.ThreadCount)
+	}
+	if x.TemplateCount != nil {
+		_, _ = fmt.Fprintf(tw, "templates:\t%d\n", *x.TemplateCount)
 	}
 	_, _ = fmt.Fprintf(tw, "truncated:\t%s\n", boolLabel(x.Truncated))
 	if x.CreatedAt != "" {

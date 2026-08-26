@@ -45,6 +45,28 @@ func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool
 	return &out, raw, nil
 }
 
+// StartTemplates starts a Gmail canned-response export. The accepted handle is
+// polled and downloaded through the same generic export endpoints as harvest.
+func (c *Client) StartTemplates(ctx context.Context, mailboxID, project, tenant string) (*HarvestAccepted, json.RawMessage, error) {
+	if err := requireTenantProject(project, tenant, "exports"); err != nil {
+		return nil, nil, err
+	}
+	path := watchedProjectPath(project, "/mailboxes/"+url.PathEscape(mailboxID)+"/templates")
+	if path == "" {
+		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "exporting templates requires a project scope"}
+	}
+	path = collectionScopePath(path, "", tenant)
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, path, nil, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out HarvestAccepted
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, fmt.Errorf("decode templates accept: %w", err)
+	}
+	return &out, raw, nil
+}
+
 // MineSettings posts POST /api/v1/exports/{id}/mine-settings → the 202 accept body {export_id, status}:
 // it enqueues a shallow-mining pass over the completed harvest's corpus (→ proposed persona/triage
 // settings). Reuses HarvestAccepted (same {export_id,status} shape). A non-harvest / not-done / evicted
@@ -99,7 +121,7 @@ func (c *Client) Export(ctx context.Context, id, project, tenant string) (*Expor
 	return &out, raw, nil
 }
 
-// DownloadExport fetches GET /api/v1/exports/{id}/download → the raw Markdown corpus bytes. This
+// DownloadExport fetches GET /api/v1/exports/{id}/download → raw artifact bytes. This
 // request marks the export consumed server-side. Unlike the JSON methods it sets Accept: text/markdown
 // and returns the body bytes as-is; a non-2xx still decodes the JSON error envelope (e.g. 404
 // BODY_UNAVAILABLE when the body isn't ready/was evicted).

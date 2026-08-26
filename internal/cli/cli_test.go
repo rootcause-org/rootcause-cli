@@ -942,6 +942,12 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"export_id":"` + exportID + `","status":"pending"}`))
 	}
 	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/harvest", harvest)
+	mux.HandleFunc("POST /api/v1/projects/{project}/mailboxes/{id}/templates", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"export_id":"templates-export","status":"pending"}`))
+	})
 	// exportWaitCalls counts GETs for the wait-export so the first read is "running", the second "done".
 	exportWaitCalls := 0
 	mux.HandleFunc("GET /api/v1/exports", func(w http.ResponseWriter, r *http.Request) {

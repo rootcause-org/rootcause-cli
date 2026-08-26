@@ -1017,19 +1017,20 @@ type HarvestAccepted struct {
 // counts/timestamps are omitempty (absent until the export runs/completes/is consumed). Truncated is
 // always present (a harvest either hit its thread cap or didn't).
 type ExportItem struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind"`             // harvest|survey
-	Format      string `json:"format,omitempty"` // harvest corpus render version; absent for surveys/unfinished legacy rows
-	Status      string `json:"status"`           // pending|running|done|error|failed
-	MailboxID   string `json:"mailbox_id"`
-	Tenant      string `json:"tenant,omitempty"`
-	Cleaned     *bool  `json:"cleaned,omitempty"`
-	ThreadCount *int   `json:"thread_count,omitempty"`
-	Truncated   bool   `json:"truncated"`
-	CreatedAt   string `json:"created_at,omitempty"`
-	CompletedAt string `json:"completed_at,omitempty"`
-	ConsumedAt  string `json:"consumed_at,omitempty"`
-	Error       string `json:"error,omitempty"`
+	ID            string `json:"id"`
+	Kind          string `json:"kind"`             // harvest|survey|templates
+	Format        string `json:"format,omitempty"` // retained artifact version; absent for surveys/unfinished legacy rows
+	Status        string `json:"status"`           // pending|running|done|error|failed
+	MailboxID     string `json:"mailbox_id"`
+	Tenant        string `json:"tenant,omitempty"`
+	Cleaned       *bool  `json:"cleaned,omitempty"`
+	ThreadCount   *int   `json:"thread_count,omitempty"`
+	TemplateCount *int   `json:"template_count,omitempty"`
+	Truncated     bool   `json:"truncated"`
+	CreatedAt     string `json:"created_at,omitempty"`
+	CompletedAt   string `json:"completed_at,omitempty"`
+	ConsumedAt    string `json:"consumed_at,omitempty"`
+	Error         string `json:"error,omitempty"`
 }
 
 // Export aliases ExportItem for the single-item GET, matching the WatchedMailbox naming split.

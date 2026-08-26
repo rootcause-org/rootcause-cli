@@ -26,6 +26,7 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxLsCmd(e),
 		mailboxModeCmd(e),
 		mailboxHarvestCmd(e),
+		mailboxTemplatesCmd(e),
 		mailboxIMAPEnvCmd(e),
 		newMailboxSettingsCmd(e),
 		mailboxConnectCmd(e),
@@ -34,6 +35,49 @@ func newMailboxCmd(e *env) *cobra.Command {
 		mailboxPasswordLinkCmd(e),
 		mailboxTestCmd(e),
 	)
+	return cmd
+}
+
+func mailboxTemplatesCmd(e *env) *cobra.Command {
+	var wait bool
+	var timeout time.Duration
+	cmd := &cobra.Command{
+		Use:   "templates <mailbox-id>",
+		Short: "Export Gmail canned responses as a separate JSON artifact",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if err := e.resolvePinnedProject(c); err != nil {
+				return err
+			}
+			acc, raw, err := c.StartTemplates(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
+			if err != nil {
+				return err
+			}
+			if !wait {
+				if e.jsonOut() {
+					return render.JSON(e.out, raw)
+				}
+				_, _ = fmt.Fprintf(e.out, "export_id: %s\nstatus: %s\n", acc.ExportID, acc.Status)
+				_, _ = fmt.Fprintf(e.err, "queued — poll with: rc project corpus get %s\n", acc.ExportID)
+				return nil
+			}
+			x, xraw, err := waitForExport(e, c, acc.ExportID, timeout)
+			if err != nil {
+				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, xraw)
+			}
+			render.Export(e.out, x)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&wait, "wait", false, "poll the export until it reaches a terminal status")
+	cmd.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "max time to wait under --wait")
 	return cmd
 }
 

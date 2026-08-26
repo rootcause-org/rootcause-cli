@@ -432,11 +432,11 @@ help using `go test ./internal/cli -update`.
 | `rc project connection rm` | Revoke and delete a connection |
 | `rc project connection rotate` | Rotate a connection's secret |
 | `rc project connection` | Manage outbound integration connections |
-| `rc project corpus download` | Download the export's Markdown corpus (stdout, raw file, and/or split tree) |
+| `rc project corpus download` | Download an export artifact (Markdown corpus or templates JSON) |
 | `rc project corpus get` | Show one export |
-| `rc project corpus ls` | List exports (id, kind, format, status, threads, truncated, created/completed) |
+| `rc project corpus ls` | List exports (id, kind, format, status, items, truncated, created/completed) |
 | `rc project corpus mine-settings` | Mine a completed harvest for persona/triage setting proposals |
-| `rc project corpus` | Read local-synthesis corpus exports (harvest/survey) |
+| `rc project corpus` | Read mailbox exports (harvest/survey/templates) |
 | `rc project database controls get` | Show a database's controls |
 | `rc project database controls set` | Change a database's controls (JSON object or k=v pairs; sparse) |
 | `rc project database controls` | Read or change a database's access controls |
@@ -475,6 +475,7 @@ help using `go test ./internal/cli -update`.
 | `rc project mailbox settings get` | Show settings with resolved provenance |
 | `rc project mailbox settings set` | Patch settings (nested; key= or --unset clears local override) |
 | `rc project mailbox settings` | Read or edit nested mailbox settings (persona/channel) |
+| `rc project mailbox templates` | Export Gmail canned responses as a separate JSON artifact |
 | `rc project mailbox test` | Re-run the live IMAP/SMTP check on a connected mailbox and print the checklist |
 | `rc project mailbox` | Manage watched mailboxes (the channel plane's inbox watch) |
 | `rc project member add` | Create a member |

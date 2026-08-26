@@ -18,7 +18,7 @@ import (
 // split into a per-thread tree the local dream-cycle can grep. All endpoints need a connections:manage
 // token; an all-projects token scopes with --project.
 func newCorpusCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "corpus", Short: "Read local-synthesis corpus exports (harvest/survey)"}
+	cmd := &cobra.Command{Use: "corpus", Short: "Read mailbox exports (harvest/survey/templates)"}
 	cmd.AddCommand(
 		exportLsCmd(e),
 		exportGetCmd(e),
@@ -58,7 +58,7 @@ func exportMineSettingsCmd(e *env) *cobra.Command {
 func exportLsCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "ls",
-		Short: "List exports (id, kind, format, status, threads, truncated, created/completed)",
+		Short: "List exports (id, kind, format, status, items, truncated, created/completed)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()
@@ -113,7 +113,7 @@ func exportDownloadCmd(e *env) *cobra.Command {
 	var split string
 	cmd := &cobra.Command{
 		Use:   "download <export-id>",
-		Short: "Download the export's Markdown corpus (stdout, raw file, and/or split tree)",
+		Short: "Download an export artifact (Markdown corpus or templates JSON)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			splitSet := cmd.Flags().Changed("split")
