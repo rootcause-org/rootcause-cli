@@ -104,7 +104,7 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs/{id}/actions", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[{"id":"action-run-1","run_id":"` + r.PathValue("id") + `","action_id":"create_order","status":"succeeded","digest":"sha256:action","params_hash":"sha256:params","duration_ms":320,"created_at":"2026-06-19T09:01:00Z","completed_at":"2026-06-19T09:01:01Z"}]}`))
+		_, _ = w.Write([]byte(`{"items":[{"id":"action-run-1","run_id":"` + r.PathValue("id") + `","action_id":"create_order","status":"succeeded","digest":"sha256:action","params_hash":"sha256:params","duration_ms":320,"created_at":"2026-06-19T09:01:00Z","completed_at":"2026-06-19T09:01:01Z"},{"id":"action-run-2","run_id":"` + r.PathValue("id") + `","action_id":"create_order","status":"failed","digest":"sha256:action","params_hash":"sha256:params","created_at":"2026-06-19T09:02:00Z","completed_at":"2026-06-19T09:02:01Z","error_class":"executor_predispatch"}]}`))
 	})
 	mux.HandleFunc("GET /api/v1/deploy-state", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

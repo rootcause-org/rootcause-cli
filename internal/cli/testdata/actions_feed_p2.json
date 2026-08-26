@@ -5,7 +5,7 @@
       "run_id": null,
       "tenant_id": null,
       "action_id": "update_appointment",
-      "status": "proposed",
+      "status": "failed",
       "params": {
         "appointment_id": 987,
         "starts_at": "2026-07-23T11:30:00+02:00",
@@ -14,7 +14,9 @@
       "duration_ms": null,
       "proposed_at": "2026-07-21T10:20:30Z",
       "executed_at": null,
-      "run_url": null
+      "run_url": null,
+      "error_class": "executor_predispatch",
+      "error_message": "docker exec failed: fork/exec /usr/bin/docker: argument list too long (argv element 131414 bytes exceeds the 122880 byte limit)"
     }
   ]
 }

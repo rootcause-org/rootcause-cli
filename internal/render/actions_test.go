@@ -88,3 +88,35 @@ func TestActionsAgentIsTokenLeanAndComplete(t *testing.T) {
 		}
 	}
 }
+
+func TestActionsSurfacesSettledFailureClampedButClassed(t *testing.T) {
+	long := "docker exec failed: fork/exec /usr/bin/docker: argument list too long\n(argv element 131414 bytes exceeds the 122880 byte limit)"
+	items := []client.ActionFeedItem{{
+		ID:           "86fb",
+		ActionID:     "confirm_reschedule",
+		Status:       "failed",
+		Params:       json.RawMessage(`{}`),
+		ProposedAt:   "2026-08-25T08:58:11.123Z",
+		ErrorClass:   "executor_predispatch",
+		ErrorMessage: long,
+	}}
+
+	var human, agent bytes.Buffer
+	Actions(&human, items, "human")
+	Actions(&agent, items, "agent")
+	for name, got := range map[string]string{"human": human.String(), "agent": agent.String()} {
+		if !strings.Contains(got, "executor_predispatch") {
+			t.Fatalf("%s view lost the error class:\n%s", name, got)
+		}
+		if !strings.Contains(got, "docker exec failed") {
+			t.Fatalf("%s view lost the error message:\n%s", name, got)
+		}
+		// Clamped to one readable line — the untruncated message stays in `-o json`.
+		if strings.Contains(got, "122880") || strings.Contains(got, "\n(argv") {
+			t.Fatalf("%s view did not clamp/flatten the error message:\n%s", name, got)
+		}
+	}
+	if strings.Count(agent.String(), "\n") != 1 {
+		t.Fatalf("agent view should stay one line per item:\n%s", agent.String())
+	}
+}

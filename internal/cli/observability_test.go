@@ -624,6 +624,8 @@ func TestEgressInspectionCommands(t *testing.T) {
 	}{
 		{name: "run egress", args: []string{"run", "egress", "run-1"}, want: "HTTP attempts"},
 		{name: "run actions", args: []string{"run", "actions", "run-1"}, want: "create_order"},
+		// The whitelisted class column tells an infra failure from a domain one on the customer-safe endpoint.
+		{name: "run actions error class", args: []string{"run", "actions", "run-1"}, want: "executor_predispatch"},
 		{name: "project egress", args: []string{"project", "egress"}, want: "Unattributed gateway connections"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

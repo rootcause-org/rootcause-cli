@@ -86,10 +86,18 @@ func TestFleetActionsHumanIncludesParamsAndTokenizedURL(t *testing.T) {
 		"96fc4444-4444-4444-8444-444444444444",
 		"update_appointment",
 		`"appointment_id":987`,
+		// The settled failure is readable without opening the run trace: class in the index table,
+		// message on the detail line (clamped; `-o json` keeps it whole).
+		"CLASS",
+		"executor_predispatch",
+		"Error: executor_predispatch: docker exec failed",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("table missing %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "122880 byte limit") {
+		t.Fatalf("table should clamp the error message to one line:\n%s", got)
 	}
 }
 

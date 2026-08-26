@@ -67,14 +67,15 @@ func ActionHistory(w io.Writer, rows []client.ActionHistoryRow) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ID\tACTION\tSTATUS\tDIGEST\tPARAMS_HASH\tDURATION\tCREATED\tCOMPLETED")
+	_, _ = fmt.Fprintln(tw, "ID\tACTION\tSTATUS\tCLASS\tDIGEST\tPARAMS_HASH\tDURATION\tCREATED\tCOMPLETED")
 	for _, row := range rows {
 		duration := "-"
 		if row.DurationMs != nil {
 			duration = fmt.Sprintf("%dms", *row.DurationMs)
 		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			row.ID, row.ActionID, row.Status, row.Digest, row.ParamsHash, duration, row.CreatedAt, blank(row.CompletedAt))
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			row.ID, row.ActionID, row.Status, blankDash(row.ErrorClass), row.Digest, row.ParamsHash,
+			duration, row.CreatedAt, blank(row.CompletedAt))
 	}
 	_ = tw.Flush()
 }

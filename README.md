@@ -315,8 +315,15 @@ breakdown is a superadmin `db.py` query now, not a `rc` view.
 without downloading the much larger event feed or calling every run separately. Repeat `--action` and
 `--status` to OR exact filters; statuses are `proposed`, `executing`, `succeeded`, `failed`, and
 `canceled`. Human output includes each action-run/run id, timestamps and duration, exact structured
-params, and the full freshly tokenized run URL by default. Piped/`-o json` output preserves the complete
-raw action rows; explicit `--format agent` pins a one-line-per-action complete view even through a pipe.
+params, and the full freshly tokenized run URL by default. A settled failure renders as a `CLASS` column
+plus an `Error:` detail line: the host-stamped infra classes (`executor_predispatch` — provably nothing
+ran, retry-safe; `executor_error`, `no_executor`, `no_runner_url`, `attachment_fetch`) mean rootcause's
+own machinery failed, anything else is the action's own domain refusal. The message is clamped to one
+readable line in table/agent output. Piped/`-o json` output preserves the complete raw action rows —
+including the untruncated `error_message`; explicit `--format agent` pins a one-line-per-action complete
+view even through a pipe. `rc run actions` shows the same class column, narrowed server-side to the host
+vocabulary (an action-authored class collapses to `action_error`) and without the message, which can echo
+customer data.
 The endpoint needs `console:action` plus operator/admin action-view authority because grounded params may
 contain customer values.
 

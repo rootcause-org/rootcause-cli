@@ -1254,7 +1254,11 @@ type ActionHistoryRow struct {
 	DurationMs  *int64 `json:"duration_ms,omitempty"`
 	CreatedAt   string `json:"created_at"`
 	CompletedAt string `json:"completed_at,omitempty"`
-	raw         json.RawMessage
+	// ErrorClass is the customer-safe, host-whitelisted failure class (executor_predispatch,
+	// executor_error, no_executor, no_runner_url, attachment_fetch); anything action-authored
+	// collapses to action_error server-side. The message stays off this endpoint.
+	ErrorClass string `json:"error_class,omitempty"`
+	raw        json.RawMessage
 }
 
 func (a *ActionHistoryRow) UnmarshalJSON(data []byte) error {
@@ -1296,7 +1300,12 @@ type ActionFeedItem struct {
 	ProposedAt string          `json:"proposed_at"`
 	ExecutedAt *string         `json:"executed_at"`
 	RunURL     *string         `json:"run_url"`
-	raw        json.RawMessage
+	// ErrorClass/ErrorMessage are the settled failure verbatim (operator-only endpoint): the class
+	// tells an infra fault (executor_predispatch = provably nothing ran, executor_error) from a
+	// domain refusal stamped by the action itself.
+	ErrorClass   string `json:"error_class,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	raw          json.RawMessage
 }
 
 func (a *ActionFeedItem) UnmarshalJSON(data []byte) error {

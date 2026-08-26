@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
@@ -23,14 +24,15 @@ func Actions(w io.Writer, items []client.ActionFeedItem, format string) {
 	}
 
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ACTION_RUN\tRUN\tTENANT\tACTION\tSTATUS\tPROPOSED\tEXECUTED\tDURATION")
+	_, _ = fmt.Fprintln(tw, "ACTION_RUN\tRUN\tTENANT\tACTION\tSTATUS\tCLASS\tPROPOSED\tEXECUTED\tDURATION")
 	for _, item := range items {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			item.ID,
 			nullableString(item.RunID),
 			nullableString(item.TenantID),
 			item.ActionID,
 			item.Status,
+			blankDash(item.ErrorClass),
 			item.ProposedAt,
 			nullableString(item.ExecutedAt),
 			nullableDuration(item.DurationMs),
@@ -46,6 +48,10 @@ func Actions(w io.Writer, items []client.ActionFeedItem, format string) {
 		}
 		_, _ = fmt.Fprintf(w, "%s\n  Params: %s\n  Run URL: %s\n",
 			item.ID, params, nullableString(item.RunURL))
+		if item.ErrorClass != "" || item.ErrorMessage != "" {
+			_, _ = fmt.Fprintf(w, "  Error: %s: %s\n",
+				blankDash(item.ErrorClass), errorMessage(item.ErrorMessage))
+		}
 	}
 }
 
@@ -56,7 +62,7 @@ func actionsAgent(w io.Writer, items []client.ActionFeedItem) {
 			params = "null"
 		}
 		_, _ = fmt.Fprintf(w,
-			"ACTION id=%s run_id=%s tenant_id=%s action_id=%s status=%s proposed_at=%s executed_at=%s duration_ms=%s params=%s run_url=%s\n",
+			"ACTION id=%s run_id=%s tenant_id=%s action_id=%s status=%s proposed_at=%s executed_at=%s duration_ms=%s params=%s run_url=%s",
 			item.ID,
 			agentValue(item.RunID),
 			agentValue(item.TenantID),
@@ -68,7 +74,31 @@ func actionsAgent(w io.Writer, items []client.ActionFeedItem) {
 			params,
 			agentValue(item.RunURL),
 		)
+		if item.ErrorClass != "" || item.ErrorMessage != "" {
+			_, _ = fmt.Fprintf(w, " error_class=%s error_message=%s",
+				strconv.Quote(item.ErrorClass), strconv.Quote(errorMessage(item.ErrorMessage)))
+		}
+		_, _ = fmt.Fprintln(w)
 	}
+}
+
+// errorMessageWidth keeps a settled failure readable in a table/agent line; the untruncated message
+// is always available via `-o json`.
+const errorMessageWidth = 80
+
+// errorMessage collapses whitespace and clamps the settled failure to one skimmable line.
+func errorMessage(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "-"
+	}
+	return truncate(strings.Join(strings.Fields(value), " "), errorMessageWidth)
+}
+
+func blankDash(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "-"
+	}
+	return value
 }
 
 func agentValue(value *string) string {
