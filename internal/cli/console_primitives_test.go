@@ -110,6 +110,20 @@ func TestDBQueryRejectsAllLimitAboveServerMaximum(t *testing.T) {
 	}
 }
 
+func TestDBQueryRejectsServerLimitClamp(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":"alpha","db":"prod","run_id":"aaaaaaaa-bbbb","columns":["id"],"rows":[["1"]],"row_count":1,"truncated":true,"next_cursor":"c2","limit":5000,"limit_clamped":true}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "console", "database", "query", "prod", "select 1 order by 1", "--all", "--limit", "5000")
+	if err == nil || !strings.Contains(err.Error(), "clamped by the server to 5000") || out.Len() != 0 {
+		t.Fatalf("clamp error/output = %v/%q", err, out.String())
+	}
+}
+
 func TestDBQueryAutoOutputUsesRunID(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, _ *http.Request) {

@@ -150,6 +150,9 @@ func newDBQueryCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if resp.LimitClamped {
+				return fmt.Errorf("--limit was clamped by the server to %d; choose a value at or below the server maximum", resp.Limit)
+			}
 			if !all && resp.Truncated && !allowTruncated {
 				return truncationError(fmt.Sprintf("query returned more than %d rows; rerun with --all or --allow-truncated", resp.RowCount))
 			}

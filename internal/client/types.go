@@ -322,6 +322,7 @@ type DBQueryResponse struct {
 	Truncated    bool   `json:"truncated"`
 	NextCursor   string `json:"next_cursor,omitempty"`
 	Limit        int    `json:"limit,omitempty"`
+	LimitClamped bool   `json:"limit_clamped,omitempty"`
 	Offset       int    `json:"offset,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
 }
