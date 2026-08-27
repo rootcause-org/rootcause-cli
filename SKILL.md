@@ -151,6 +151,8 @@ that lossless shape. `--all` consumes one NDJSON-framed response from a server-s
 repeatable-read transaction; its required final metadata frame verifies the received row count. Inline
 truncation fails with exit 3 unless `--allow-truncated`. `--out PATH|-|auto` bypasses heuristic spill behavior and, for a file,
 prints a JSON manifest. Auto and implicit spill labels include the server run's first eight hex digits.
+SIGINT/SIGTERM cancel the active HTTP stream; named outputs remove their hidden temporary file and leave
+the prior destination untouched, while stdout may already contain a prefix and must be rejected on nonzero exit.
 
 `rc fleet actions` follows the same progressive-output path: it exhausts the opaque cursor over the
 requested window, warns on stderr if the client page cap is reached, then emits/spills one raw

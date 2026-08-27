@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -145,6 +147,74 @@ func TestDBQueryAllMissingMetaKeepsDestinationAtomic(t *testing.T) {
 	got, readErr := os.ReadFile(path)
 	if readErr != nil || string(got) != "old\n" {
 		t.Fatalf("destination = %q err=%v, want original file", got, readErr)
+	}
+}
+
+func TestDBQueryAllStreamFailureKeepsDestinationAtomic(t *testing.T) {
+	tests := []struct {
+		name    string
+		trailer string
+	}{
+		{name: "error frame", trailer: `{"type":"error","error":{"code":"QUERY_FAILED","message":"stream failed","status":500}}`},
+		{name: "row count mismatch", trailer: `{"type":"meta","row_count":2,"duration_ms":12,"truncated":false}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/x-ndjson")
+				_, _ = w.Write([]byte("{\"type\":\"header\",\"project\":\"alpha\",\"db\":\"prod\",\"run_id\":\"aaaaaaaa-bbbb\",\"columns\":[\"id\"],\"batch_size\":5000}\n" +
+					"{\"type\":\"row\",\"row\":[\"partial\"]}\n" + tt.trailer + "\n"))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+			e, _, _ := newTestEnv(t, srv, "json")
+			dir := t.TempDir()
+			path := filepath.Join(dir, "rows.csv")
+			err := run(t, e, "dev", "console", "database", "query", "prod", "select id from rows", "--all", "--format", "csv", "--out", path)
+			if exitCodeFor(err) != exitServer {
+				t.Fatalf("exit = %d err=%v", exitCodeFor(err), err)
+			}
+			if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+				t.Fatalf("partial destination installed: %v", statErr)
+			}
+			matches, globErr := filepath.Glob(filepath.Join(dir, ".rc-output-*"))
+			if globErr != nil || len(matches) != 0 {
+				t.Fatalf("orphaned temp outputs = %v, err=%v", matches, globErr)
+			}
+		})
+	}
+}
+
+func TestDBQueryAllCancellationRemovesTemporaryOutput(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte("{\"type\":\"header\",\"project\":\"alpha\",\"db\":\"prod\",\"run_id\":\"aaaaaaaa-bbbb\",\"columns\":[\"id\"],\"batch_size\":5000}\n" +
+			"{\"type\":\"row\",\"row\":[\"partial\"]}\n"))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		<-r.Context().Done()
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	ctx, cancel := context.WithCancel(context.Background())
+	e.requestCtx = ctx
+	dir := t.TempDir()
+	path := filepath.Join(dir, "rows.csv")
+	time.AfterFunc(50*time.Millisecond, cancel)
+	err := run(t, e, "dev", "console", "database", "query", "prod", "select id from rows", "--all", "--format", "csv", "--out", path)
+	if exitCodeFor(err) != exitServer {
+		t.Fatalf("exit = %d err=%v", exitCodeFor(err), err)
+	}
+	matches, globErr := filepath.Glob(filepath.Join(dir, ".rc-output-*"))
+	if globErr != nil || len(matches) != 0 {
+		t.Fatalf("orphaned temp outputs = %v, err=%v", matches, globErr)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("partial destination installed: %v", statErr)
 	}
 }
 

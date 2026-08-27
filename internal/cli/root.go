@@ -12,7 +12,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/spf13/cobra"
 
@@ -58,14 +60,17 @@ type env struct {
 	autoProject string
 	loginTenant string
 	scopeHeader bool
+	requestCtx  context.Context
 }
 
 // Execute is the binary entrypoint. It returns the process exit code so main stays trivial; any
 // command error (including a typed APIError) is printed to stderr here, once.
 func Execute(version string) int {
-	e := &env{out: os.Stdout, err: os.Stderr, in: os.Stdin}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	e := &env{out: os.Stdout, err: os.Stderr, in: os.Stdin, requestCtx: ctx}
 	root := newRootCmd(e, version)
-	if err := root.Execute(); err != nil {
+	if err := root.ExecuteContext(ctx); err != nil {
 		return reportCommandError(e, err)
 	}
 	return exitOK
@@ -396,9 +401,13 @@ func (e *env) validateProjectScope(c *client.Client) error {
 	}
 }
 
-// ctx is the per-command context. A single place to add a timeout/signal later without touching each
-// command.
-func (e *env) ctx() context.Context { return context.Background() }
+// ctx carries process cancellation through every request and stream.
+func (e *env) ctx() context.Context {
+	if e.requestCtx != nil {
+		return e.requestCtx
+	}
+	return context.Background()
+}
 
 // printError renders any command error to stderr. A JSON-envelope APIError is surfaced verbatim
 // (code: message), with INVALID_SETTINGS field lines indented beneath. A no-envelope APIError (a
