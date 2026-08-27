@@ -159,7 +159,7 @@ func TestJSONErrorEnvelopeAndExitClassification(t *testing.T) {
 	if writeErr := writeJSONError(&out, err); writeErr != nil {
 		t.Fatal(writeErr)
 	}
-	if exitCodeFor(err) != 3 || out.String() != "{\"error\":{\"code\":\"TRUNCATED\",\"message\":\"too many rows\"}}\n" {
+	if exitCodeFor(err) != 3 || out.String() != "{\"error\":{\"code\":\"TRUNCATED\",\"message\":\"too many rows\",\"status\":0,\"fields\":[]}}\n" {
 		t.Fatalf("exit/envelope = %d/%s", exitCodeFor(err), out.String())
 	}
 }

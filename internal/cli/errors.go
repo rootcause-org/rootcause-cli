@@ -80,12 +80,12 @@ type jsonErrorEnvelope struct {
 type jsonErrorBody struct {
 	Code    string              `json:"code"`
 	Message string              `json:"message"`
-	Status  int                 `json:"status,omitempty"`
-	Fields  []client.FieldError `json:"fields,omitempty"`
+	Status  int                 `json:"status"`
+	Fields  []client.FieldError `json:"fields"`
 }
 
 func writeJSONError(w io.Writer, err error) error {
-	body := jsonErrorBody{Code: "USAGE", Message: err.Error()}
+	body := jsonErrorBody{Code: "USAGE", Message: err.Error(), Fields: []client.FieldError{}}
 	var ce *commandError
 	var apiErr *client.APIError
 	var transport *client.TransportError
