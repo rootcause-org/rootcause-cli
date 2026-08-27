@@ -127,7 +127,7 @@ func (t *outputTarget) abort() {
 	_ = os.Remove(t.tempPath)
 }
 
-func (t *outputTarget) finish(e *env) error {
+func (t *outputTarget) finish(e *env, truncated bool) error {
 	if t.file == nil {
 		return nil
 	}
@@ -154,7 +154,7 @@ func (t *outputTarget) finish(e *env) error {
 		lines++
 	}
 	art := outputspill.Artifact{Path: t.finalPath, Format: t.format, Bytes: t.bytes, Lines: lines,
-		Hints: outputspill.Hints(t.format, t.finalPath)}
+		Hints: outputspill.Hints(t.format, t.finalPath), ServerTruncated: truncated}
 	return outputspill.WriteManifest(e.out, outputspill.ManifestForArtifact(art))
 }
 

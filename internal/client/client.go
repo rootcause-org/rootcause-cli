@@ -481,12 +481,20 @@ func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
 			return &TransportError{Err: fmt.Errorf("request GET %s (base %s): %w", path, c.baseURL, err)}
 		}
 		if resp.StatusCode == http.StatusUnauthorized && !refreshed {
+			data, readErr := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
 			newToken, refreshErr := c.tokens.Refresh(ctx)
-			if refreshErr == nil && newToken != "" && newToken != token {
+			if refreshErr != nil {
+				return refreshErr
+			}
+			if newToken != "" && newToken != token {
 				token, refreshed = newToken, true
 				continue
 			}
+			if readErr != nil {
+				return &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
+			}
+			return decodeAPIError(resp.StatusCode, http.MethodGet, path, c.baseURL, data)
 		}
 		if retryableStatus(resp.StatusCode) && attempt < 3 {
 			delay := retryDelay(resp, attempt)
@@ -507,13 +515,16 @@ func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
 			}
 			return decodeAPIError(resp.StatusCode, http.MethodGet, path, c.baseURL, data)
 		}
-		_, copyErr := io.Copy(w, resp.Body)
+		written, copyErr := io.Copy(w, resp.Body)
 		closeErr := resp.Body.Close()
 		if copyErr != nil {
 			return &TransportError{Err: fmt.Errorf("stream response: %w", copyErr)}
 		}
 		if closeErr != nil {
 			return &TransportError{Err: fmt.Errorf("close response: %w", closeErr)}
+		}
+		if resp.ContentLength >= 0 && written != resp.ContentLength {
+			return &TransportError{Err: fmt.Errorf("incomplete response: received %d of %d bytes", written, resp.ContentLength)}
 		}
 		return nil
 	}

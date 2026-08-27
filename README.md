@@ -625,8 +625,11 @@ defaults for their matching global flags. HTTP requests time out after 10 minute
 
 Inline database reads stay capped at 500 rows. A truncated inline result fails closed with exit 3;
 use `--allow-truncated` only when a partial answer is intentional, or `--all` to stream every page.
-Ordered columns plus array rows preserve duplicate column names, UUIDs, numerics, timestamps, and
-binary values losslessly. Explicit formats are `json`, `ndjson`, `csv`, and `tsv`:
+An `--all` query must end in an `ORDER BY` that totally orders the rows (include a unique tiebreaker);
+its page size defaults to 5000 and `--limit` cannot exceed 5000. Ordered columns plus array rows preserve
+duplicate column names, UUIDs, numerics, timestamps, and binary values losslessly. Dates render as
+`YYYY-MM-DD`, intervals as PostgreSQL text, and `bytea` as base64. Explicit formats are `json`, `ndjson`,
+`csv`, and `tsv`:
 
 ```bash
 rc dev console database query prod @report.sql --all --format csv --out ./report.csv
@@ -635,10 +638,10 @@ printf 'SELECT id, amount FROM invoices WHERE state = @state' |
   jq '.rows[]'
 ```
 
-SQL and bash commands accept a literal argument, `-` for stdin, or `@file`. SQL uses `@key`
-placeholders; repeated `--param k=v` values are bound server-side as text and never interpolated.
-`--limit >500` requires
-`--all`. Multi-statement SQL and cross-database queries remain unsupported.
+SQL and bash commands accept a literal argument, `-` for stdin, or `@file`. Console SQL uses `@key`
+placeholders; repeated `--param k=v` values are bound server-side as text and never interpolated. The
+brain runtime's in-process `lib.db.query` API instead uses its driver's `%s` placeholders. `--limit >500`
+requires `--all`. Multi-statement SQL and cross-database queries remain unsupported.
 
 `--out <path>` atomically writes data there and prints a JSON manifest. `--out -` writes data directly
 to stdout. `--out auto` writes a unique `.rootcause/output/<command>-<runid8>.<ext>` artifact, so
@@ -649,9 +652,14 @@ rc dev console file get /tmp/rootcause-out/report-abc123.csv --out ./report.csv
 ```
 
 Stable process exits: `0` success, `1` usage, `2` auth/scope, `3` truncated, `4` remote bash
-non-zero/timeout, `5` server/network. With explicit `-o json`, command errors use
+non-zero/timeout, `5` server/network. In JSON/auto-piped mode, command errors use
 `{"error":{"code","message","status","fields"}}` on stdout. A bash result is emitted before exit 4
 so its `exit_code`, `timed_out`, stdout, and stderr remain inspectable.
+
+Compatibility note for scripts upgrading from rc 1.18: query spills now use unique
+`.rootcause/output/console-db-query-<run8>.*` paths rather than the old fixed
+`.rootcause/output/console-db-query/response.json`, and a result above the inline 500-row cap exits 3
+instead of succeeding with partial data.
 
 ### `rc project env` — self-serve grounding-env sync
 

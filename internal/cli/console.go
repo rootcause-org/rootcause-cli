@@ -107,6 +107,7 @@ func newDBSchemaCmd(e *env) *cobra.Command {
 }
 
 func newDBQueryCmd(e *env) *cobra.Command {
+	const maxAllPageRows = 5000
 	var limit int
 	var write bool
 	var dryRun bool
@@ -128,6 +129,9 @@ func newDBQueryCmd(e *env) *cobra.Command {
 			}
 			if limit > 500 && !all {
 				return fmt.Errorf("--limit above 500 requires --all")
+			}
+			if limit > maxAllPageRows {
+				return fmt.Errorf("--limit cannot exceed %d", maxAllPageRows)
 			}
 			sql, err := consoleInput(e, args[1])
 			if err != nil {
@@ -178,7 +182,6 @@ func newDBQueryCmd(e *env) *cobra.Command {
 				return err
 			}
 			rowCount := 0
-			truncated := resp.Truncated
 			seenCursors := map[string]bool{}
 			for {
 				if err := encoder.checkColumns(resp.Columns); err != nil {
@@ -190,7 +193,10 @@ func newDBQueryCmd(e *env) *cobra.Command {
 					return err
 				}
 				rowCount += len(resp.Rows)
-				truncated = resp.Truncated
+				if all && resp.Truncated && resp.NextCursor == "" {
+					target.abort()
+					return truncationError("server ended paginated query without a continuation cursor")
+				}
 				if !all || resp.NextCursor == "" {
 					break
 				}
@@ -206,25 +212,21 @@ func newDBQueryCmd(e *env) *cobra.Command {
 					return err
 				}
 			}
-			if all && truncated {
-				target.abort()
-				return truncationError("server ended paginated query without a continuation cursor")
-			}
-			if err := encoder.finish(rowCount, truncated); err != nil {
+			if err := encoder.finish(rowCount, resp.Truncated); err != nil {
 				target.abort()
 				return err
 			}
-			return target.finish(e)
+			return target.finish(e, resp.Truncated)
 		},
 	}
-	cmd.Flags().IntVar(&limit, "limit", 0, "max rows per page (inline cap 500; larger values require --all)")
+	cmd.Flags().IntVar(&limit, "limit", 0, "max rows per page (inline cap 500; --all default/max 5000)")
 	cmd.Flags().BoolVar(&write, "write", false, "execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "execute on the write plane, report rows affected + RETURNING rows, then ROLL BACK; requires --write")
-	cmd.Flags().BoolVar(&all, "all", false, "fetch every row through server-side pagination")
+	cmd.Flags().BoolVar(&all, "all", false, "fetch every row; SQL must end in a total ORDER BY")
 	cmd.Flags().BoolVar(&allowTruncated, "allow-truncated", false, "accept an inline result that the server truncated")
 	cmd.Flags().StringVar(&format, "format", "", "query data format: json|ndjson|csv|tsv")
 	cmd.Flags().StringVar(&out, "out", "", "write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact")
-	cmd.Flags().StringArrayVar(&paramValues, "param", nil, "bind a text query parameter as k=v (repeatable)")
+	cmd.Flags().StringArrayVar(&paramValues, "param", nil, "bind @k in SQL as text using k=v (repeatable)")
 	return cmd
 }
 
@@ -325,7 +327,7 @@ func newBashCmd(e *env) *cobra.Command {
 					target.abort()
 					return err
 				}
-				if err := target.finish(e); err != nil {
+				if err := target.finish(e, false); err != nil {
 					return err
 				}
 				if !e.jsonOut() && resp.Stderr != "" {
@@ -376,7 +378,7 @@ func newConsoleFileCmd(e *env) *cobra.Command {
 				target.abort()
 				return err
 			}
-			return target.finish(e)
+			return target.finish(e, false)
 		},
 	}
 	get.Flags().StringVar(&out, "out", "", "local destination path, or - for stdout")

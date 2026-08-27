@@ -277,8 +277,10 @@ confirm the commit's row count still matches. (User-facing rehearse-then-commit 
 
 Read queries accept literal SQL, stdin (`-`), or `@file`; `@key` placeholders plus repeatable
 `--param k=v` values are bound as
-text server-side. The default stays one 500-row page. `--all` streams cursor pages, while a truncated
-inline response is exit 3 unless explicitly allowed. `rc dev console bash run` accepts the same input
+text server-side (`@key` placeholders here; the in-process brain `lib.db.query` API uses `%s`). The
+default stays one 500-row page. `--all` requires a total trailing `ORDER BY`, streams 5000-row cursor
+pages, and rejects a page limit above 5000; a truncated inline response is exit 3 unless explicitly allowed.
+Dates stay `YYYY-MM-DD`, intervals use PostgreSQL text, and bytea uses base64. `rc dev console bash run` accepts the same input
 forms, propagates a remote non-zero/timeout as exit 4, and supports deterministic `--out`. `rc dev
 console file get` streams an allowed workspace or `/tmp` file to a local atomic output.
 
@@ -318,8 +320,8 @@ full detail, the pre-redaction contract.
 ### Errors
 Any non-2xx → the client decodes `{"error":{code,message,details?}}` into a typed `APIError`. Stable exits
 are 1 usage, 2 auth/scope, 3 truncation, 4 remote non-zero/timeout, and 5 server/network (0 success).
-Ordinary output prints `CODE: message` to stderr; explicit `-o json` emits a JSON error envelope on
-stdout. `INVALID_SETTINGS` field errors remain attached. A
+Ordinary table output prints `CODE: message` to stderr; JSON output, including auto-detected piped
+output, emits a JSON error envelope on stdout. `INVALID_SETTINGS` field errors remain attached. A
 non-decodable body falls back to `error: HTTP <status>` — clean non-zero exit, never a panic.
 
 ## Working on it

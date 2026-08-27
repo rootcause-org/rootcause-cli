@@ -1317,9 +1317,9 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		processed, _ := got["processed"].(bool)
 		note, _ := got["resolution_note"].(string)
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(fmt.Sprintf(
+		_, _ = fmt.Fprintf(w,
 			`{"score":1,"comment":"great draft","processed":%t,"processed_at":"2024-05-01T10:00:00Z","resolution_note":%q}`,
-			processed, note)))
+			processed, note)
 	})
 	mux.HandleFunc("POST /api/v1/runs/{id}/retry", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)

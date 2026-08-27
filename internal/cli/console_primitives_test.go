@@ -90,6 +90,24 @@ func TestDBQueryTruncationExitAndAllow(t *testing.T) {
 	if !strings.Contains(out.String(), `"truncated": true`) {
 		t.Fatalf("allowed output = %s", out.String())
 	}
+	e, out, _ = newTestEnv(t, srv, "json")
+	path := filepath.Join(t.TempDir(), "partial.csv")
+	if err := run(t, e, "dev", "console", "database", "query", "prod", "select 1", "--allow-truncated", "--format", "csv", "--out", path); err != nil {
+		t.Fatalf("allow truncated to file: %v", err)
+	}
+	if !strings.Contains(out.String(), `"truncated": true`) {
+		t.Fatalf("truncated manifest = %s", out.String())
+	}
+}
+
+func TestDBQueryRejectsAllLimitAboveServerMaximum(t *testing.T) {
+	srv := httptest.NewServer(http.NotFoundHandler())
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "console", "database", "query", "prod", "select 1 order by 1", "--all", "--limit", "5001")
+	if err == nil || !strings.Contains(err.Error(), "cannot exceed 5000") {
+		t.Fatalf("limit error = %v", err)
+	}
 }
 
 func TestDBQueryAutoOutputUsesRunID(t *testing.T) {
@@ -137,6 +155,41 @@ func TestConsoleFileGetStreamsToAtomicOutput(t *testing.T) {
 	}
 }
 
+func TestConsoleFileGetRejectsIncompleteBodyAndKeepsDestinationAtomic(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/console/file", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Length", "20")
+		_, _ = w.Write([]byte("partial"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	path := filepath.Join(t.TempDir(), "must-not-exist.csv")
+	err := run(t, e, "dev", "console", "file", "get", "/tmp/export.csv", "--out", path)
+	if exitCodeFor(err) != exitServer {
+		t.Fatalf("incomplete file exit = %d, err=%v", exitCodeFor(err), err)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("partial destination installed: %v", statErr)
+	}
+}
+
+func TestConsoleFileGetUnauthorizedPreservesServerError(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/console/file", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"error":{"code":"TOKEN_EXPIRED","message":"log in again"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "dev", "console", "file", "get", "/tmp/export.csv", "--out", filepath.Join(t.TempDir(), "out"))
+	if exitCodeFor(err) != exitAuth || !strings.Contains(err.Error(), "log in again") {
+		t.Fatalf("auth exit/error = %d/%v", exitCodeFor(err), err)
+	}
+}
+
 func TestBashRunJSONPreservesUnknownServerFields(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/console/bash/run", func(w http.ResponseWriter, _ *http.Request) {
@@ -161,6 +214,17 @@ func TestJSONErrorEnvelopeAndExitClassification(t *testing.T) {
 	}
 	if exitCodeFor(err) != 3 || out.String() != "{\"error\":{\"code\":\"TRUNCATED\",\"message\":\"too many rows\",\"status\":0,\"fields\":[]}}\n" {
 		t.Fatalf("exit/envelope = %d/%s", exitCodeFor(err), out.String())
+	}
+}
+
+func TestAutoOutputUsesJSONErrorEnvelopeWhenPiped(t *testing.T) {
+	var out, errOut bytes.Buffer
+	e := &env{out: &out, err: &errOut}
+	if got := reportCommandError(e, truncationError("too many rows")); got != exitTruncated {
+		t.Fatalf("exit = %d", got)
+	}
+	if !strings.Contains(out.String(), `"code":"TRUNCATED"`) || errOut.Len() != 0 {
+		t.Fatalf("stdout/stderr = %q/%q", out.String(), errOut.String())
 	}
 }
 

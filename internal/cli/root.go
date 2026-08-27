@@ -66,18 +66,22 @@ func Execute(version string) int {
 	e := &env{out: os.Stdout, err: os.Stderr, in: os.Stdin}
 	root := newRootCmd(e, version)
 	if err := root.Execute(); err != nil {
-		var ce *commandError
-		if errors.As(err, &ce) && ce.silent {
-			return exitCodeFor(err)
-		}
-		if e.output == "json" {
-			_ = writeJSONError(e.out, err)
-		} else {
-			printError(e.err, err)
-		}
-		return exitCodeFor(err)
+		return reportCommandError(e, err)
 	}
 	return exitOK
+}
+
+func reportCommandError(e *env, err error) int {
+	var ce *commandError
+	if errors.As(err, &ce) && ce.silent {
+		return exitCodeFor(err)
+	}
+	if e.jsonOut() {
+		_ = writeJSONError(e.out, err)
+	} else {
+		printError(e.err, err)
+	}
+	return exitCodeFor(err)
 }
 
 // newRootCmd assembles the root command + global flags + subcommands. Split out so tests can build a

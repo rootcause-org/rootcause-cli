@@ -137,7 +137,7 @@ func renderUpdateCheck(e *env, current, latest string, inv rcInstallInventory) {
 func updateHomebrew(e *env) error {
 	brew, err := exec.LookPath("brew")
 	if err != nil {
-		return fmt.Errorf("Homebrew is required for the canonical macOS rc: %w", err)
+		return fmt.Errorf("Homebrew is required for the canonical macOS rc: %w", err) //nolint:staticcheck // product name
 	}
 	if err := runUpgradeCommand(e, brew, "update"); err != nil {
 		return err
@@ -201,7 +201,7 @@ func migrateToHomebrew(e *env, latest string, inv rcInstallInventory) error {
 	after := inspectRCInstallations(canonical, os.Getenv("PATH"), runtime.GOOS)
 	selected := findSelectedInstall(after.Paths)
 	if selected == nil || selected.Shim || !samePath(selected.ResolvedPath, canonical) || after.Installations != 1 {
-		return fmt.Errorf("Homebrew rc %s is verified, but another rc still shadows or duplicates it; run `%s self doctor` and remove only the reported unknown install", canonical, canonicalLink)
+		return fmt.Errorf("Homebrew rc %s is verified, but another rc still shadows or duplicates it; run `%s self doctor` and remove only the reported unknown install", canonical, canonicalLink) //nolint:staticcheck // product name
 	}
 	_, _ = fmt.Fprintf(e.out, "rc is canonical on Homebrew (%s, %s)\n", normVersion(gotVersion), canonical)
 	return nil
@@ -224,7 +224,7 @@ func verifyHomebrewLatest(ctx context.Context, latest string) (string, string, e
 		return "", "", fmt.Errorf("verifying Homebrew rc at %s: %w", canonicalLink, err)
 	}
 	if compareVersions(gotVersion, latest) != 0 {
-		return "", "", fmt.Errorf("Homebrew rc is %s after upgrade, but GitHub latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest))
+		return "", "", fmt.Errorf("Homebrew rc is %s after upgrade, but GitHub latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest)) //nolint:staticcheck // product names
 	}
 	return canonical, gotVersion, nil
 }

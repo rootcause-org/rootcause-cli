@@ -49,6 +49,7 @@ type Artifact struct {
 
 type Manifest struct {
 	Spilled     bool                `json:"spilled"`
+	Truncated   bool                `json:"truncated,omitempty"`
 	Path        string              `json:"path,omitempty"`
 	Format      string              `json:"format,omitempty"`
 	Bytes       int                 `json:"bytes,omitempty"`
@@ -196,6 +197,7 @@ func MaybeSpillJSON(c Config, label string, raw json.RawMessage) (*Manifest, err
 func ManifestForArtifact(art Artifact) Manifest {
 	return Manifest{
 		Spilled:     true,
+		Truncated:   art.ServerTruncated,
 		Path:        art.Path,
 		Format:      art.Format,
 		Bytes:       art.Bytes,

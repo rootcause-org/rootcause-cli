@@ -3011,13 +3011,13 @@ Usage:
   rc dev console database query <db> <sql|-> [flags]
 
 Flags:
-      --all                 fetch every row through server-side pagination
+      --all                 fetch every row; SQL must end in a total ORDER BY
       --allow-truncated     accept an inline result that the server truncated
       --dry-run             execute on the write plane, report rows affected + RETURNING rows, then ROLL BACK; requires --write
       --format string       query data format: json|ndjson|csv|tsv
-      --limit int           max rows per page (inline cap 500; larger values require --all)
+      --limit int           max rows per page (inline cap 500; --all default/max 5000)
       --out string          write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact
-      --param stringArray   bind a text query parameter as k=v (repeatable)
+      --param stringArray   bind @k in SQL as text using k=v (repeatable)
       --write               execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write
 
 Global Flags:
