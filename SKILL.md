@@ -279,7 +279,8 @@ Read queries accept literal SQL, stdin (`-`), or `@file`; `@key` placeholders pl
 `--param k=v` values are bound as
 text server-side (`@key` placeholders here; the in-process brain `lib.db.query` API uses `%s`). The
 default stays one 500-row page. `--all` requires a total trailing `ORDER BY`, streams 5000-row cursor
-pages, and rejects a page limit above 5000; a truncated inline response is exit 3 unless explicitly allowed.
+pages, and rejects a page limit above 5000. The cursor currently carries an offset: paging is exact for
+a stable dataset, while concurrent inserts/deletes can shift later pages. A truncated inline response is exit 3 unless explicitly allowed.
 Dates stay `YYYY-MM-DD`, intervals use PostgreSQL text, and bytea uses base64. `rc dev console bash run` accepts the same input
 forms, propagates a remote non-zero/timeout as exit 4, and supports deterministic `--out`. `rc dev
 console file get` streams an allowed workspace or `/tmp` file to a local atomic output.

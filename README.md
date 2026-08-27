@@ -626,7 +626,8 @@ defaults for their matching global flags. HTTP requests time out after 10 minute
 Inline database reads stay capped at 500 rows. A truncated inline result fails closed with exit 3;
 use `--allow-truncated` only when a partial answer is intentional, or `--all` to stream every page.
 An `--all` query must end in an `ORDER BY` that totally orders the rows (include a unique tiebreaker);
-its page size defaults to 5000 and `--limit` cannot exceed 5000. Ordered columns plus array rows preserve
+its page size defaults to 5000 and `--limit` cannot exceed 5000. Paging is offset-based, so it is exact
+for a stable dataset; concurrent inserts/deletes can shift later pages even with a total order. Ordered columns plus array rows preserve
 duplicate column names, UUIDs, numerics, timestamps, and binary values losslessly. Dates render as
 `YYYY-MM-DD`, intervals as PostgreSQL text, and `bytea` as base64. Explicit formats are `json`, `ndjson`,
 `csv`, and `tsv`:
