@@ -9,12 +9,13 @@
   "project": "pro-backup",
   "row_count": 1,
   "rows": [
-    {
-      "id": 7,
-      "plan": "pro"
-    }
+    [
+      7,
+      "pro"
+    ]
   ],
   "rows_affected": 1,
   "run_id": "run-1",
+  "truncated": false,
   "write": true
 }

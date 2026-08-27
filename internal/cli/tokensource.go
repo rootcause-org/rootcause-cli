@@ -111,5 +111,5 @@ func (s *liveSource) refreshLocked(ctx context.Context, t token.Token) (string, 
 
 // reauthError is the shared "session can't be refreshed — log in again" error.
 func reauthError(profile string) error {
-	return fmt.Errorf("session expired (profile %q) — run `rc auth login`", profile)
+	return authenticationError(fmt.Sprintf("session expired (profile %q) — run `rc auth login`", profile))
 }

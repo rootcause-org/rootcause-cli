@@ -10,6 +10,13 @@ import (
 	"sort"
 )
 
+// TransportError marks failures before a valid API response was available. Command callers map this
+// to the stable server/network exit code without having to inspect error strings.
+type TransportError struct{ Err error }
+
+func (e *TransportError) Error() string { return e.Err.Error() }
+func (e *TransportError) Unwrap() error { return e.Err }
+
 // FieldError is one entry in an INVALID_SETTINGS envelope: which key failed and why.
 type FieldError struct {
 	Key     string `json:"key"`

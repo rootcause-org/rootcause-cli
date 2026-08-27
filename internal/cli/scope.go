@@ -91,7 +91,7 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	case strings.HasPrefix(path, "dev brain "):
 		return projectTenant
-	case strings.HasPrefix(path, "dev console database "), strings.HasPrefix(path, "dev console bash "), path == "dev console capabilities":
+	case strings.HasPrefix(path, "dev console database "), strings.HasPrefix(path, "dev console bash "), strings.HasPrefix(path, "dev console file "), path == "dev console capabilities":
 		return projectTenant
 	// Actions execute against a project's own prod, where the bound tenant IS the data scope: the server's
 	// console action routes read ?tenant= and a tenant-scoped action is refused without it.
@@ -151,6 +151,11 @@ func validateCommandScope(e *env, cmd *cobra.Command) error {
 			return err
 		}
 		if all {
+			// Database query --all exhausts one query's server cursor; it is unrelated to the fleet-wide
+			// --all selector and deliberately remains compatible with project/tenant scope.
+			if cmd.CommandPath() == "rc dev console database query" {
+				return nil
+			}
 			if !spec.AllProjects {
 				return fmt.Errorf("--all is not supported by `%s`", cmd.CommandPath())
 			}

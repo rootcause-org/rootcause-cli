@@ -292,8 +292,11 @@ type DBSchemaColumn struct {
 }
 
 type DBQueryRequest struct {
-	SQL   string `json:"sql"`
-	Limit int    `json:"limit,omitempty"`
+	SQL    string            `json:"sql"`
+	Params map[string]string `json:"params,omitempty"`
+	Limit  int               `json:"limit,omitempty"`
+	All    bool              `json:"all,omitempty"`
+	Cursor string            `json:"cursor,omitempty"`
 	// Write routes the statement to the project's sealed write-plane DSN (scope console:db:write) and
 	// commits unless DryRun is set; omitempty so a plain read never carries it.
 	Write bool `json:"write,omitempty"`
@@ -302,12 +305,13 @@ type DBQueryRequest struct {
 }
 
 type DBQueryResponse struct {
-	Project string           `json:"project"`
-	Tenant  string           `json:"tenant,omitempty"`
-	DB      string           `json:"db"`
-	RunID   string           `json:"run_id"`
-	Columns []string         `json:"columns"`
-	Rows    []map[string]any `json:"rows"`
+	Project    string          `json:"project"`
+	Tenant     string          `json:"tenant,omitempty"`
+	DB         string          `json:"db"`
+	RunID      string          `json:"run_id"`
+	Columns    []string        `json:"columns"`
+	ColumnInfo []DBQueryColumn `json:"column_info,omitempty"`
+	Rows       [][]any         `json:"rows"`
 	// RowsAffected is the write's CommandTag row count; a pointer because it is present only on a write
 	// response (absent on a read), distinct from a real 0-row write. Write echoes that the statement ran
 	// on the write plane.
@@ -316,7 +320,17 @@ type DBQueryResponse struct {
 	DryRun       bool   `json:"dry_run,omitempty"`
 	RowCount     int    `json:"row_count"`
 	Truncated    bool   `json:"truncated"`
+	NextCursor   string `json:"next_cursor,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+	Offset       int    `json:"offset,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
+}
+
+type DBQueryColumn struct {
+	Name    string `json:"name"`
+	TypeOID uint32 `json:"type_oid"`
+	Type    string `json:"type,omitempty"`
+	Format  string `json:"format,omitempty"`
 }
 
 type BashListResponse struct {

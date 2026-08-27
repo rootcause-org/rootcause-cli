@@ -151,8 +151,8 @@ func TestBashRunTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
-		t.Fatalf("dev console bash run: %v", err)
+	if err := run(t, e, "dev", "console", "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); exitCodeFor(err) != exitRemote {
+		t.Fatalf("dev console bash run exit = %v (%v), want %d", exitCodeFor(err), err, exitRemote)
 	}
 	assertGolden(t, "bash_run.golden", out.String())
 }
@@ -161,8 +161,8 @@ func TestBashRunJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "dev", "console", "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); err != nil {
-		t.Fatalf("dev console bash run -o json: %v", err)
+	if err := run(t, e, "dev", "console", "bash", "run", "--timeout", "45", "printf hello && >&2 echo warn && exit 7"); exitCodeFor(err) != exitRemote {
+		t.Fatalf("dev console bash run -o json exit = %v (%v), want %d", exitCodeFor(err), err, exitRemote)
 	}
 	assertJSONEqual(t, fixture(t, "bash_run.json"), out.Bytes())
 }

@@ -7,6 +7,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -65,10 +66,18 @@ func Execute(version string) int {
 	e := &env{out: os.Stdout, err: os.Stderr, in: os.Stdin}
 	root := newRootCmd(e, version)
 	if err := root.Execute(); err != nil {
-		printError(e.err, err)
-		return 1
+		var ce *commandError
+		if errors.As(err, &ce) && ce.silent {
+			return exitCodeFor(err)
+		}
+		if e.output == "json" {
+			_ = writeJSONError(e.out, err)
+		} else {
+			printError(e.err, err)
+		}
+		return exitCodeFor(err)
 	}
-	return 0
+	return exitOK
 }
 
 // newRootCmd assembles the root command + global flags + subcommands. Split out so tests can build a
@@ -99,8 +108,14 @@ func newRootCmd(e *env, version string) *cobra.Command {
 	)
 	root.SetHelpCommandGroupID("local")
 	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
-	root.PersistentFlags().StringVar(&e.project, "project", "", "scope the request to one project by name or id (requires an all-projects token)")
-	root.PersistentFlags().StringVar(&e.tenant, "tenant", "", "override the login tenant where supported")
+	if e.project == "" {
+		e.project = os.Getenv("RC_PROJECT")
+	}
+	if e.tenant == "" {
+		e.tenant = os.Getenv("RC_TENANT")
+	}
+	root.PersistentFlags().StringVar(&e.project, "project", e.project, "scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)")
+	root.PersistentFlags().StringVar(&e.tenant, "tenant", e.tenant, "override the login tenant where supported (default: RC_TENANT)")
 	root.PersistentFlags().StringVar(&e.scope, "scope", "", "force request routing: project|tenant. \"project\" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; \"tenant\" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
 	root.PersistentFlags().StringVar(&e.outDir, "out-dir", "", "directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)")
@@ -190,6 +205,9 @@ func (e *env) newClient() (*client.Client, error) {
 
 	_, ok, err := loadResolvedToken(res, baseURL)
 	if err != nil {
+		if res.Brain != nil && res.Brain.MachineTokenEnv != "" {
+			return nil, authenticationError(err.Error())
+		}
 		return nil, err
 	}
 	if !ok {
@@ -214,7 +232,7 @@ func (e *env) newClient() (*client.Client, error) {
 			return nil, scopeErr
 		}
 		if scopeErr := validateMachineTokenScope(res, scope); scopeErr != nil {
-			return nil, scopeErr
+			return nil, authenticationError(scopeErr.Error())
 		}
 	}
 	if err := e.resolveProjectForTenant(c); err != nil {
@@ -305,10 +323,10 @@ func (e *env) resolvePinnedProject(c *client.Client) error {
 // when neither the brain-named profile nor default has a token, so name the project and the fix.
 func notLoggedIn(res config.Resolved) error {
 	if res.Brain != nil {
-		return fmt.Errorf("this brain is project %q but you're not logged in for it\n"+
-			"  fix: run `rc auth login` from here (use --device on a headless box)", res.Brain.Project)
+		return authenticationError(fmt.Sprintf("this brain is project %q but you're not logged in for it\n"+
+			"  fix: run `rc auth login` from here (use --device on a headless box)", res.Brain.Project))
 	}
-	return fmt.Errorf("not logged in (profile %q) — run `rc auth login`", res.Profile)
+	return authenticationError(fmt.Sprintf("not logged in (profile %q) — run `rc auth login`", res.Profile))
 }
 
 // tenantOr returns the explicit --tenant flag when set, else any local tenant override captured by

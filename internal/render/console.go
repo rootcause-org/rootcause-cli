@@ -85,8 +85,10 @@ func DBQuery(w io.Writer, r *client.DBQueryResponse) {
 	_, _ = fmt.Fprintln(tw, strings.Join(r.Columns, "\t"))
 	for _, row := range r.Rows {
 		vals := make([]string, len(r.Columns))
-		for i, col := range r.Columns {
-			vals[i] = scalar(row[col])
+		for i := range r.Columns {
+			if i < len(row) {
+				vals[i] = scalar(row[i])
+			}
 		}
 		_, _ = fmt.Fprintln(tw, strings.Join(vals, "\t"))
 	}

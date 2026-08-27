@@ -110,48 +110,137 @@ func newDBQueryCmd(e *env) *cobra.Command {
 	var limit int
 	var write bool
 	var dryRun bool
+	var all bool
+	var allowTruncated bool
+	var format string
+	var out string
+	var paramValues []string
 	cmd := &cobra.Command{
-		Use:   "query <db> <sql>",
+		Use:   "query <db> <sql|->",
 		Short: "Run a guarded production database query",
 		Args:  cobra.ExactArgs(2),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			if dryRun && !write {
 				return fmt.Errorf("--dry-run requires --write; reads are already side-effect free")
+			}
+			if all && write {
+				return fmt.Errorf("--all cannot be combined with --write")
+			}
+			if limit > 500 && !all {
+				return fmt.Errorf("--limit above 500 requires --all")
+			}
+			sql, err := consoleInput(e, args[1])
+			if err != nil {
+				return err
+			}
+			params, err := parseConsoleParams(paramValues)
+			if err != nil {
+				return err
 			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			req := map[string]any{"sql": args[1]}
-			if limit > 0 {
-				req["limit"] = limit
-			}
-			if write {
-				req["write"] = true
-			}
-			if dryRun {
-				req["dry_run"] = true
-			}
-			path := "/api/v1/console/db/" + url.PathEscape(args[0]) + "/query" + consoleScope(e.scopeProject(), e.scopeTenant())
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodPost, path, req)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-db-query", raw)
-			}
-			resp, err := c.DBQuery(e.ctx(), args[0], client.DBQueryRequest{SQL: args[1], Limit: limit, Write: write, DryRun: dryRun}, e.scopeProject(), e.scopeTenant())
+			req := client.DBQueryRequest{SQL: sql, Params: params, Limit: limit, All: all, Write: write, DryRun: dryRun}
+			resp, err := c.DBQuery(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
-			render.DBQuery(e.out, resp)
-			return nil
+			if !all && resp.Truncated && !allowTruncated {
+				return truncationError(fmt.Sprintf("query returned more than %d rows; rerun with --all or --allow-truncated", resp.RowCount))
+			}
+			explicitFormat := cmd.Flags().Changed("format")
+			if !all && out == "" && !explicitFormat {
+				if !e.jsonOut() {
+					render.DBQuery(e.out, resp)
+					return nil
+				}
+				raw, err := json.Marshal(resp)
+				if err != nil {
+					return fmt.Errorf("encode query response: %w", err)
+				}
+				return e.renderJSON("console-db-query-"+shortRunID(resp.RunID), raw)
+			}
+			if format == "" {
+				format = "json"
+			}
+			ext := queryFormatExtension(format)
+			if ext == "" {
+				return fmt.Errorf("--format must be json, ndjson, csv, or tsv")
+			}
+			target, err := openOutputTarget(e, out, "console-db-query-"+shortRunID(resp.RunID)+ext, format)
+			if err != nil {
+				return err
+			}
+			encoder, err := newQueryOutputEncoder(target.Writer(), format, resp.Columns)
+			if err != nil {
+				target.abort()
+				return err
+			}
+			rowCount := 0
+			truncated := resp.Truncated
+			seenCursors := map[string]bool{}
+			for {
+				if err := encoder.checkColumns(resp.Columns); err != nil {
+					target.abort()
+					return err
+				}
+				if err := encoder.writeRows(resp.Rows); err != nil {
+					target.abort()
+					return err
+				}
+				rowCount += len(resp.Rows)
+				truncated = resp.Truncated
+				if !all || resp.NextCursor == "" {
+					break
+				}
+				if seenCursors[resp.NextCursor] {
+					target.abort()
+					return fmt.Errorf("server repeated query cursor %q", resp.NextCursor)
+				}
+				seenCursors[resp.NextCursor] = true
+				req.Cursor = resp.NextCursor
+				resp, err = c.DBQuery(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
+				if err != nil {
+					target.abort()
+					return err
+				}
+			}
+			if all && truncated {
+				target.abort()
+				return truncationError("server ended paginated query without a continuation cursor")
+			}
+			if err := encoder.finish(rowCount, truncated); err != nil {
+				target.abort()
+				return err
+			}
+			return target.finish(e)
 		},
 	}
-	cmd.Flags().IntVar(&limit, "limit", 0, "max rows to return inline (server cap 500)")
+	cmd.Flags().IntVar(&limit, "limit", 0, "max rows per page (inline cap 500; larger values require --all)")
 	cmd.Flags().BoolVar(&write, "write", false, "execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "execute on the write plane, report rows affected + RETURNING rows, then ROLL BACK; requires --write")
+	cmd.Flags().BoolVar(&all, "all", false, "fetch every row through server-side pagination")
+	cmd.Flags().BoolVar(&allowTruncated, "allow-truncated", false, "accept an inline result that the server truncated")
+	cmd.Flags().StringVar(&format, "format", "", "query data format: json|ndjson|csv|tsv")
+	cmd.Flags().StringVar(&out, "out", "", "write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact")
+	cmd.Flags().StringArrayVar(&paramValues, "param", nil, "bind a text query parameter as k=v (repeatable)")
 	return cmd
+}
+
+func queryFormatExtension(format string) string {
+	switch format {
+	case "json":
+		return ".json"
+	case "ndjson":
+		return ".ndjson"
+	case "csv":
+		return ".csv"
+	case "tsv":
+		return ".tsv"
+	default:
+		return ""
+	}
 }
 
 func newBashCmd(e *env) *cobra.Command {
@@ -182,47 +271,116 @@ func newBashCmd(e *env) *cobra.Command {
 		},
 	})
 	var timeout int
+	var out string
 	runCmd := &cobra.Command{
-		Use:   "run [--timeout N] <command>",
+		Use:   "run [--timeout N] <command|->",
 		Short: "Run one command in the guarded workspace console",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			command, err := consoleInput(e, args[0])
+			if err != nil {
+				return err
+			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			req := client.BashRunRequest{Command: args[0], TimeoutS: timeout}
 			path := "/api/v1/console/bash/run" + consoleScope(e.scopeProject(), e.scopeTenant())
-			body := map[string]any{"command": req.Command}
-			if req.TimeoutS > 0 {
-				body["timeout_s"] = req.TimeoutS
+			body := map[string]any{"command": command}
+			if timeout > 0 {
+				body["timeout_s"] = timeout
 			}
 			raw, err := c.Raw(e.ctx(), http.MethodPost, path, body)
 			if err != nil {
 				return err
 			}
-			if e.jsonOut() {
-				var meta client.BashRunResponse
-				label := "bash-run"
-				if json.Unmarshal(raw, &meta) == nil {
-					label = bashRunLabel(&meta)
-				}
-				return e.renderJSON(label, raw)
-			}
 			var resp client.BashRunResponse
 			if err := json.Unmarshal(raw, &resp); err != nil {
 				return fmt.Errorf("decode bash run response: %w", err)
 			}
-			manifest, err := outputspill.MaybeSpillJSON(e.spillConfig(), bashRunLabel(&resp), raw)
-			if err != nil {
-				return err
+			if out == "" {
+				if e.jsonOut() {
+					if err := e.renderJSON(bashRunLabel(&resp), raw); err != nil {
+						return err
+					}
+				} else {
+					manifest, err := outputspill.MaybeSpillJSON(e.spillConfig(), bashRunLabel(&resp), raw)
+					if err != nil {
+						return err
+					}
+					render.BashRun(e.out, &resp, bashArtifacts(manifest))
+				}
+			} else {
+				format := "text"
+				data := []byte(resp.Stdout)
+				ext := ".txt"
+				if e.jsonOut() {
+					format, data, ext = "json", append(raw, '\n'), ".json"
+				}
+				target, err := openOutputTarget(e, out, "console-bash-run-"+shortRunID(resp.RunID)+ext, format)
+				if err != nil {
+					return err
+				}
+				if _, err := target.Writer().Write(data); err != nil {
+					target.abort()
+					return err
+				}
+				if err := target.finish(e); err != nil {
+					return err
+				}
+				if !e.jsonOut() && resp.Stderr != "" {
+					_, _ = fmt.Fprint(e.err, resp.Stderr)
+					if resp.Stderr[len(resp.Stderr)-1] != '\n' {
+						_, _ = fmt.Fprintln(e.err)
+					}
+				}
 			}
-			render.BashRun(e.out, &resp, bashArtifacts(manifest))
+			if resp.ExitCode != 0 || resp.TimedOut {
+				return remoteExitError()
+			}
 			return nil
 		},
 	}
 	runCmd.Flags().IntVar(&timeout, "timeout", 0, "per-command timeout in seconds")
+	runCmd.Flags().StringVar(&out, "out", "", "write command data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact")
 	cmd.AddCommand(runCmd)
+	return cmd
+}
+
+func newConsoleFileCmd(e *env) *cobra.Command {
+	cmd := &cobra.Command{Use: "file", Short: "Transfer files from a guarded workspace console"}
+	var out string
+	get := &cobra.Command{
+		Use:   "get <remote-path>",
+		Short: "Fetch a workspace or /tmp file without the bash output cap",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			if out == "" {
+				return fmt.Errorf("--out <local-path> is required (use --out - for stdout)")
+			}
+			if out == "auto" {
+				return fmt.Errorf("file get requires an explicit local path or --out -")
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			if out == "-" {
+				return c.FileGet(e.ctx(), args[0], e.scopeProject(), e.scopeTenant(), e.out)
+			}
+			target, err := openOutputTarget(e, out, "", "binary")
+			if err != nil {
+				return err
+			}
+			if err := c.FileGet(e.ctx(), args[0], e.scopeProject(), e.scopeTenant(), target.Writer()); err != nil {
+				target.abort()
+				return err
+			}
+			return target.finish(e)
+		},
+	}
+	get.Flags().StringVar(&out, "out", "", "local destination path, or - for stdout")
+	cmd.AddCommand(get)
 	return cmd
 }
 

@@ -145,6 +145,12 @@ manifest with copyable `sed`/`rg`/`jq` hints. Global knobs: `--out-dir` / `RC_OU
 `--no-preview`, `--raw-output` (exact full stdout, no spill). Intentional one-time secret reveals stay
 raw. Contract detail: [docs/specs/progressive-output-disclosure.md](docs/specs/progressive-output-disclosure.md).
 
+Console query output is the deliberate normalized exception to verbatim JSON passthrough: the server
+returns ordered `columns` + positional array `rows`, and explicit `--format json|ndjson|csv|tsv` streams
+that lossless shape. `--all` follows the server cursor until complete; inline truncation fails with exit
+3 unless `--allow-truncated`. `--out PATH|-|auto` bypasses heuristic spill behavior and, for a file,
+prints a JSON manifest. Auto and implicit spill labels include the server run's first eight hex digits.
+
 `rc fleet actions` follows the same progressive-output path: it exhausts the opaque cursor over the
 requested window, warns on stderr if the client page cap is reached, then emits/spills one raw
 `{"items":[…]}` envelope in JSON mode. Human output keeps each row compact but never truncates its exact
@@ -269,6 +275,13 @@ effects (e.g. `NOTIFY`) but sequence increments and volatile-function effects re
 rollback, bounded by the server's 30s statement timeout. Rehearsal and commit are two executions, so
 confirm the commit's row count still matches. (User-facing rehearse-then-commit playbook: README.)
 
+Read queries accept literal SQL, stdin (`-`), or `@file`; `@key` placeholders plus repeatable
+`--param k=v` values are bound as
+text server-side. The default stays one 500-row page. `--all` streams cursor pages, while a truncated
+inline response is exit 3 unless explicitly allowed. `rc dev console bash run` accepts the same input
+forms, propagates a remote non-zero/timeout as exit 4, and supports deterministic `--out`. `rc dev
+console file get` streams an allowed workspace or `/tmp` file to a local atomic output.
+
 ### The `rc run debug` decomposer
 [`internal/debugdump`](internal/debugdump/emit.go) ports rootcause's `rc_agent_debug.py` to Go: it pulls
 `/trace` (cross-project for an all-projects admin token) and writes a **jq-able JSONL** event log + a
@@ -303,8 +316,10 @@ across pages, alongside `Capped`). All fields are `omitempty` and absent on olde
 full detail, the pre-redaction contract.
 
 ### Errors
-Any non-2xx → the client decodes `{"error":{code,message,details?}}` into a typed `APIError` and the CLI
-prints `CODE: message` to stderr (exit 1); `INVALID_SETTINGS` field errors print one indented line each. A
+Any non-2xx → the client decodes `{"error":{code,message,details?}}` into a typed `APIError`. Stable exits
+are 1 usage, 2 auth/scope, 3 truncation, 4 remote non-zero/timeout, and 5 server/network (0 success).
+Ordinary output prints `CODE: message` to stderr; explicit `-o json` emits a JSON error envelope on
+stdout. `INVALID_SETTINGS` field errors remain attached. A
 non-decodable body falls back to `error: HTTP <status>` — clean non-zero exit, never a panic.
 
 ## Working on it

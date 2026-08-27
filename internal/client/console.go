@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -68,6 +69,18 @@ func (c *Client) BashRun(ctx context.Context, req BashRunRequest, project, tenan
 	var out BashRunResponse
 	err := c.do(ctx, http.MethodPost, "/api/v1/console/bash/run"+consoleScope(project, tenant), req, &out)
 	return &out, err
+}
+
+func (c *Client) FileGet(ctx context.Context, remote, project, tenant string, w io.Writer) error {
+	q := url.Values{}
+	q.Set("path", remote)
+	if project != "" {
+		q.Set("project", project)
+	}
+	if tenant != "" {
+		q.Set("tenant", tenant)
+	}
+	return c.Download(ctx, "/api/v1/console/file?"+q.Encode(), w)
 }
 
 func (c *Client) ActionList(ctx context.Context, project, tenant string) (*ActionListResponse, error) {

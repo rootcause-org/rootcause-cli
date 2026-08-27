@@ -397,6 +397,8 @@ help using `go test ./internal/cli -update`.
 | `rc dev console database query` | Run a guarded production database query |
 | `rc dev console database schema` | Fetch database schema, optionally one table |
 | `rc dev console database` | Access guarded production databases |
+| `rc dev console file get` | Fetch a workspace or /tmp file without the bash output cap |
+| `rc dev console file` | Transfer files from a guarded workspace console |
 | `rc dev console` | Use guarded production consoles |
 | `rc dev context-export` | Render a project's full opening context offline (needs a rootcause host checkout) |
 | `rc dev learning evidence` | List feedback, sent-edit, and triage evidence for consolidation |
@@ -615,7 +617,41 @@ turn's answer; phrase follow-ups to stand on their own rather than referring bac
 second option"). `--no-wait` prints just the `run_id`; the `session_id` is the one you passed in.
 
 Output auto-detects: **TTY → table, piped → JSON**. Force with `-o json` / `-o table`. API errors are
-surfaced verbatim (`CODE: message`) with a non-zero exit.
+surfaced verbatim (`CODE: message`) with a non-zero exit. `RC_PROJECT` and `RC_TENANT` provide the
+defaults for their matching global flags. HTTP requests time out after 10 minutes by default
+(`RC_HTTP_TIMEOUT=2m` overrides it); safe reads retry 429/5xx responses three times.
+
+### Composable console primitives
+
+Inline database reads stay capped at 500 rows. A truncated inline result fails closed with exit 3;
+use `--allow-truncated` only when a partial answer is intentional, or `--all` to stream every page.
+Ordered columns plus array rows preserve duplicate column names, UUIDs, numerics, timestamps, and
+binary values losslessly. Explicit formats are `json`, `ndjson`, `csv`, and `tsv`:
+
+```bash
+rc dev console database query prod @report.sql --all --format csv --out ./report.csv
+printf 'SELECT id, amount FROM invoices WHERE state = @state' |
+  rc dev console database query prod - --param state=open --all --format json --out - |
+  jq '.rows[]'
+```
+
+SQL and bash commands accept a literal argument, `-` for stdin, or `@file`. SQL uses `@key`
+placeholders; repeated `--param k=v` values are bound server-side as text and never interpolated.
+`--limit >500` requires
+`--all`. Multi-statement SQL and cross-database queries remain unsupported.
+
+`--out <path>` atomically writes data there and prints a JSON manifest. `--out -` writes data directly
+to stdout. `--out auto` writes a unique `.rootcause/output/<command>-<runid8>.<ext>` artifact, so
+concurrent calls do not clobber each other. Fetch a brain-side spill without the bash 64 KiB cap with:
+
+```bash
+rc dev console file get /tmp/rootcause-out/report-abc123.csv --out ./report.csv
+```
+
+Stable process exits: `0` success, `1` usage, `2` auth/scope, `3` truncated, `4` remote bash
+non-zero/timeout, `5` server/network. With explicit `-o json`, command errors use
+`{"error":{"code","message","status","fields"}}` on stdout. A bash result is emitted before exit 4
+so its `exit_code`, `timed_out`, stdout, and stderr remain inspectable.
 
 ### `rc project env` — self-serve grounding-env sync
 

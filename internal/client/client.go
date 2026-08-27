@@ -13,7 +13,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 // Client is an OAuth-bearer handle to the API. The access token resolves the caller's project +
@@ -41,8 +44,22 @@ func New(baseURL string, tokens TokenSource) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		tokens:  tokens,
-		http:    &http.Client{},
+		http:    &http.Client{Timeout: httpTimeout()},
 	}
+}
+
+const defaultHTTPTimeout = 10 * time.Minute
+
+func httpTimeout() time.Duration {
+	raw := os.Getenv("RC_HTTP_TIMEOUT")
+	if raw == "" {
+		return defaultHTTPTimeout
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return defaultHTTPTimeout
+	}
+	return d
 }
 
 // BaseURL is the resolved API base URL (no trailing slash). Exposed so a command that composes a
@@ -444,9 +461,87 @@ func (c *Client) Raw(ctx context.Context, method, path string, body map[string]a
 	return raw, nil
 }
 
+// Download streams one successful response directly to w. It keeps the normal OAuth refresh and safe
+// GET retry policy without buffering potentially large artifacts in memory.
+func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
+	token, err := c.tokens.Token(ctx)
+	if err != nil {
+		return err
+	}
+	refreshed := false
+	for attempt := 0; ; {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+		if err != nil {
+			return fmt.Errorf("build request: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept", "application/octet-stream")
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return &TransportError{Err: fmt.Errorf("request GET %s (base %s): %w", path, c.baseURL, err)}
+		}
+		if resp.StatusCode == http.StatusUnauthorized && !refreshed {
+			_ = resp.Body.Close()
+			newToken, refreshErr := c.tokens.Refresh(ctx)
+			if refreshErr == nil && newToken != "" && newToken != token {
+				token, refreshed = newToken, true
+				continue
+			}
+		}
+		if retryableStatus(resp.StatusCode) && attempt < 3 {
+			delay := retryDelay(resp, attempt)
+			_ = resp.Body.Close()
+			attempt++
+			select {
+			case <-ctx.Done():
+				return &TransportError{Err: ctx.Err()}
+			case <-time.After(delay):
+			}
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			data, readErr := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if readErr != nil {
+				return &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
+			}
+			return decodeAPIError(resp.StatusCode, http.MethodGet, path, c.baseURL, data)
+		}
+		_, copyErr := io.Copy(w, resp.Body)
+		closeErr := resp.Body.Close()
+		if copyErr != nil {
+			return &TransportError{Err: fmt.Errorf("stream response: %w", copyErr)}
+		}
+		if closeErr != nil {
+			return &TransportError{Err: fmt.Errorf("close response: %w", closeErr)}
+		}
+		return nil
+	}
+}
+
 // attempt builds and sends one request with the given bearer token, draining and returning the response
 // body bytes (the body is closed before return so the caller can retry without leaking a connection).
 func (c *Client) attempt(ctx context.Context, method, path string, reqBody []byte, token string) (*http.Response, []byte, error) {
+	return c.attemptOnce(ctx, method, path, reqBody, token, true)
+}
+
+func (c *Client) attemptOnce(ctx context.Context, method, path string, reqBody []byte, token string, backoff bool) (*http.Response, []byte, error) {
+	const maxRetries = 3
+	for attempt := 0; ; attempt++ {
+		resp, data, err := c.send(ctx, method, path, reqBody, token)
+		if err != nil || !backoff || !retryableRequest(method, path, reqBody) || !retryableStatus(resp.StatusCode) || attempt >= maxRetries {
+			return resp, data, err
+		}
+		delay := retryDelay(resp, attempt)
+		select {
+		case <-ctx.Done():
+			return nil, nil, &TransportError{Err: ctx.Err()}
+		case <-time.After(delay):
+		}
+	}
+}
+
+func (c *Client) send(ctx context.Context, method, path string, reqBody []byte, token string) (*http.Response, []byte, error) {
 	var r io.Reader
 	if reqBody != nil {
 		r = bytes.NewReader(reqBody)
@@ -464,14 +559,38 @@ func (c *Client) attempt(ctx context.Context, method, path string, reqBody []byt
 	if err != nil {
 		// Connection-level failure (DNS, refused, TLS, timeout): include the base URL so a request that
 		// silently went to the localhost default instead of the intended host is obvious.
-		return nil, nil, fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
+		return nil, nil, &TransportError{Err: fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)}
 	}
 	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read response: %w", err)
+		return nil, nil, &TransportError{Err: fmt.Errorf("read response: %w", err)}
 	}
 	return resp, data, nil
+}
+
+func retryableStatus(status int) bool {
+	return status == http.StatusTooManyRequests || status >= 500
+}
+
+func retryableRequest(method, path string, body []byte) bool {
+	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
+		return true
+	}
+	if method != http.MethodPost || !strings.Contains(pathOnly(path), "/console/db/") || !strings.HasSuffix(pathOnly(path), "/query") {
+		return false
+	}
+	var req DBQueryRequest
+	return json.Unmarshal(body, &req) == nil && !req.Write
+}
+
+func retryDelay(resp *http.Response, attempt int) time.Duration {
+	if raw := resp.Header.Get("Retry-After"); raw != "" {
+		if seconds, err := strconv.Atoi(raw); err == nil && seconds >= 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return time.Duration(1<<attempt) * 250 * time.Millisecond
 }
 
 // do issues one request: OAuth bearer auth, JSON body in/out, and on non-2xx decodes the error
@@ -521,7 +640,9 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		if _, raw := out.(*json.RawMessage); raw && len(bytes.TrimSpace(data)) == 0 {
 			return nil
 		}
-		if err := json.Unmarshal(data, out); err != nil {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.UseNumber()
+		if err := dec.Decode(out); err != nil {
 			return fmt.Errorf("decode response: %w", err)
 		}
 	}
