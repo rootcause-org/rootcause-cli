@@ -1868,7 +1868,21 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc project database --help
-Manage registered databases (list/read/update + access controls)
+Manage registered databases (list/read/update + access controls).
+
+There is no "database add": a database EXISTS because a sealed grounding env key named
+<PROJECT>_<DBKEY>_DSN exists. To register one (read-only DB role; the rootcause box must be
+network-allowlisted by your DB provider):
+
+  printf %s "$DSN" | rc project env set key=<PROJECT>_<DBKEY>_DSN
+
+<dbkey> lowercased is the db= short name brain scripts use: PROBACKUP_BACKUPS_DSN <-> lib.db(db="backups").
+Verify the DSN env actually resolves with `rc dev console database list`.
+
+`ls` here lists the DSNs this project has CONFIGURED (description, scope manifest, or PII columns) —
+a brand-new DSN shows up once you annotate it: `rc project database set <PROJECT>_<DBKEY>_DSN description=…`.
+
+`*_WRITE_DSN` keys are the action/write plane (--plane action), not grounding databases.
 
 Usage:
   rc project database [flags]
@@ -1926,7 +1940,13 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc project database set --help
-Update a database
+Update a database (sparse k=v).
+
+Accepted keys:
+  description=<text>   one-line description shown to the agent (empty value clears it)
+
+Scope/PII controls live under `rc project database controls set`, not here. The DSN itself is the
+sealed grounding env key `<PROJECT>_<DBKEY>_DSN` — set it with `rc project env set`.
 
 Usage:
   rc project database set <dsn> k=v [k=v…] [flags]
@@ -2362,7 +2382,10 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc project env --help
-Manage this project's sealed env secrets
+Manage this project's sealed env secrets.
+
+A grounding key named `<PROJECT>_<DBKEY>_DSN` auto-registers a database (see `rc project database --help`);
+`*_WRITE_DSN` belongs on --plane action.
 
 Usage:
   rc project env [flags]
@@ -2437,7 +2460,10 @@ Global Flags:
       --tenant string    override the login tenant where supported
 
 $ rc project env set --help
-Upsert one env var (value from STDIN by default; never echoed)
+Upsert one env var (value from STDIN by default; never echoed).
+
+A grounding key named `<PROJECT>_<DBKEY>_DSN` registers a database (`rc project database ls`); e.g.
+`printf %s "$DSN" | rc project env set key=PROBACKUP_BACKUPS_DSN` ⇄ brain `lib.db(db="backups")`.
 
 Usage:
   rc project env set key=<K> [value=<V>] [--plane grounding|action] [flags]

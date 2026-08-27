@@ -29,6 +29,10 @@ func newEnvCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "env",
 		Short: "Manage this project's sealed env secrets",
+		Long: `Manage this project's sealed env secrets.
+
+A grounding key named ` + "`<PROJECT>_<DBKEY>_DSN`" + ` auto-registers a database (see ` + "`rc project database --help`" + `);
+` + "`*_WRITE_DSN`" + ` belongs on --plane action.`,
 	}
 	cmd.AddCommand(newEnvPullCmd(e), newEnvDiffCmd(e), newEnvKeysCmd(e),
 		newEnvSetCmd(e), newEnvRmCmd(e), newEnvRevealCmd(e))
@@ -58,7 +62,11 @@ func newEnvSetCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "set key=<K> [value=<V>] [--plane grounding|action]",
 		Short: "Upsert one env var (value from STDIN by default; never echoed)",
-		Args:  cobra.MinimumNArgs(1),
+		Long: `Upsert one env var (value from STDIN by default; never echoed).
+
+A grounding key named ` + "`<PROJECT>_<DBKEY>_DSN`" + ` registers a database (` + "`rc project database ls`" + `); e.g.
+` + "`printf %s \"$DSN\" | rc project env set key=PROBACKUP_BACKUPS_DSN`" + ` ⇄ brain ` + "`lib.db(db=\"backups\")`" + `.`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			resource, err := envPlaneResource(plane)
 			if err != nil {

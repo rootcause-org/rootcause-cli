@@ -641,6 +641,13 @@ rc project env reveal FOO_API_TOKEN # prints the value once; sensitive
 > tenant-enabled bulk pull uses the tenant bound to your `rc auth login`, or requires `--tenant` when the
 > login is project-pinned.
 
+**Adding a database:** there is no `rc project database add` — a database exists because a sealed
+grounding key named `<PROJECT>_<DBKEY>_DSN` exists. `printf %s "$DSN" | rc project env set
+key=PROBACKUP_BACKUPS_DSN` registers the DB the brain reaches as `lib.db(db="backups")` (use a read-only
+role; the rootcause box must be network-allowlisted). Confirm it resolves with `rc dev console database
+list`, then annotate it (`rc project database set PROBACKUP_BACKUPS_DSN description=…`) so it appears in
+`rc project database ls`. `*_WRITE_DSN` keys belong on `--plane action`, not the grounding plane.
+
 `rc project env set/rm/reveal` targets the grounding plane by default (`/api/v1/env_grounding`), which is
 injected into normal read-only runs. Per-key commands target a tenant env only when the OAuth token
 itself is tenant-bound; `--tenant` does not retarget `set/rm/reveal`. `--plane action` targets

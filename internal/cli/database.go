@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -13,14 +15,69 @@ import (
 // `controls` sub-group over the nested /databases/{dsn}/controls sub-resource. Guarded production reads
 // live separately at `rc dev console database`.
 func newDatabaseCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "database", Short: "Manage registered databases (list/read/update + access controls)"}
+	cmd := &cobra.Command{
+		Use:   "database",
+		Short: "Manage registered databases (list/read/update + access controls)",
+		Long: `Manage registered databases (list/read/update + access controls).
+
+There is no "database add": a database EXISTS because a sealed grounding env key named
+<PROJECT>_<DBKEY>_DSN exists. To register one (read-only DB role; the rootcause box must be
+network-allowlisted by your DB provider):
+
+  printf %s "$DSN" | rc project env set key=<PROJECT>_<DBKEY>_DSN
+
+<dbkey> lowercased is the db= short name brain scripts use: PROBACKUP_BACKUPS_DSN <-> lib.db(db="backups").
+Verify the DSN env actually resolves with ` + "`rc dev console database list`" + `.
+
+` + "`ls`" + ` here lists the DSNs this project has CONFIGURED (description, scope manifest, or PII columns) —
+a brand-new DSN shows up once you annotate it: ` + "`rc project database set <PROJECT>_<DBKEY>_DSN description=…`" + `.
+
+` + "`*_WRITE_DSN`" + ` keys are the action/write plane (--plane action), not grounding databases.`,
+	}
 	cmd.AddCommand(
 		listSubCmd(e, "databases"),
-		getSubCmd(e, "databases", "dsn"),
-		setSubCmd(e, "databases", "dsn"),
+		withDSNHint(getSubCmd(e, "databases", "dsn")),
+		withDSNHint(databaseSetCmd(e)),
 		newDatabaseControlsCmd(e),
 		newDatabasePreviewCmd(e),
 	)
+	return cmd
+}
+
+// databaseConventionHint is the one-line discovery hint for the implicit registration convention: a
+// database is not created through this surface, it exists because its grounding DSN env exists.
+const databaseConventionHint = "databases come from grounding env keys `<PROJECT>_<DBKEY>_DSN` " +
+	"(register: printf %s \"$DSN\" | rc project env set key=<PROJECT>_<DBKEY>_DSN); " +
+	"`rc dev console database list` shows which DSN envs actually exist"
+
+// databaseSetCmd is the generic collection `set` with a databases-specific Long listing the ONE editable
+// field, so an agent doesn't have to guess the k=v vocabulary (server: databasesAdapter.update).
+func databaseSetCmd(e *env) *cobra.Command {
+	cmd := setSubCmd(e, "databases", "dsn")
+	cmd.Long = `Update a database (sparse k=v).
+
+Accepted keys:
+  description=<text>   one-line description shown to the agent (empty value clears it)
+
+Scope/PII controls live under ` + "`rc project database controls set`" + `, not here. The DSN itself is the
+sealed grounding env key ` + "`<PROJECT>_<DBKEY>_DSN`" + ` — set it with ` + "`rc project env set`" + `.`
+	return cmd
+}
+
+// withDSNHint appends the registration convention to a 404 from a databases get/set, so an unknown dsn
+// teaches the caller how databases come into being instead of a bare NOT_FOUND.
+func withDSNHint(cmd *cobra.Command) *cobra.Command {
+	inner := cmd.RunE
+	cmd.RunE = func(c *cobra.Command, args []string) error {
+		err := inner(c, args)
+		var apiErr *client.APIError
+		if err != nil && asAPIError(err, &apiErr) && apiErr.Status == http.StatusNotFound && apiErr.Code != "" {
+			clone := *apiErr
+			clone.Message = apiErr.Message + "\n  " + databaseConventionHint
+			return &clone
+		}
+		return err
+	}
 	return cmd
 }
 
