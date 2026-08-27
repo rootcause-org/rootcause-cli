@@ -23,11 +23,12 @@ func TestDBQueryAllStreamsCSVWithParamsAndStdin(t *testing.T) {
 		}
 		requests = append(requests, req)
 		w.Header().Set("Content-Type", "application/json")
-		if req.Cursor == "" {
-			_, _ = w.Write([]byte(`{"project":"kampkompas","db":"prod","run_id":"11111111-aaaa","columns":["id","id","amount"],"rows":[["a","shadow","10.00"],["b","shadow2","20.00"]],"row_count":2,"truncated":true,"next_cursor":"c2"}`))
-			return
-		}
-		_, _ = w.Write([]byte(`{"project":"kampkompas","db":"prod","run_id":"22222222-bbbb","columns":["id","id","amount"],"rows":[["c","shadow3","30.00"]],"row_count":1,"truncated":false}`))
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte("{\"type\":\"header\",\"project\":\"kampkompas\",\"db\":\"prod\",\"run_id\":\"11111111-aaaa\",\"columns\":[\"id\",\"id\",\"amount\"],\"batch_size\":5000}\n" +
+			"{\"type\":\"row\",\"row\":[\"a\",\"shadow\",\"10.00\"]}\n" +
+			"{\"type\":\"row\",\"row\":[\"b\",\"shadow2\",\"20.00\"]}\n" +
+			"{\"type\":\"row\",\"row\":[\"c\",\"shadow3\",\"30.00\"]}\n" +
+			"{\"type\":\"meta\",\"row_count\":3,\"duration_ms\":12,\"truncated\":false}\n"))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -40,7 +41,7 @@ func TestDBQueryAllStreamsCSVWithParamsAndStdin(t *testing.T) {
 	if out.String() != want {
 		t.Fatalf("CSV = %q, want %q", out.String(), want)
 	}
-	if len(requests) != 2 || !requests[0].All || requests[0].Params["tenant"] != "acme" || requests[1].Cursor != "c2" {
+	if len(requests) != 1 || !requests[0].All || requests[0].Params["tenant"] != "acme" {
 		t.Fatalf("requests = %+v", requests)
 	}
 	if requests[0].SQL != "select id, parent_id as id, amount from values\n" {
@@ -68,7 +69,6 @@ type clientQueryRequest struct {
 	SQL    string            `json:"sql"`
 	Params map[string]string `json:"params"`
 	All    bool              `json:"all"`
-	Cursor string            `json:"cursor"`
 }
 
 func TestDBQueryTruncationExitAndAllow(t *testing.T) {
@@ -113,7 +113,7 @@ func TestDBQueryRejectsAllLimitAboveServerMaximum(t *testing.T) {
 func TestDBQueryRejectsServerLimitClamp(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"project":"alpha","db":"prod","run_id":"aaaaaaaa-bbbb","columns":["id"],"rows":[["1"]],"row_count":1,"truncated":true,"next_cursor":"c2","limit":5000,"limit_clamped":true}`))
+		_, _ = w.Write([]byte("{\"type\":\"header\",\"project\":\"alpha\",\"db\":\"prod\",\"run_id\":\"aaaaaaaa-bbbb\",\"columns\":[\"id\"],\"batch_size\":5000,\"limit_clamped\":true}\n"))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -121,6 +121,30 @@ func TestDBQueryRejectsServerLimitClamp(t *testing.T) {
 	err := run(t, e, "dev", "console", "database", "query", "prod", "select 1 order by 1", "--all", "--limit", "5000")
 	if err == nil || !strings.Contains(err.Error(), "clamped by the server to 5000") || out.Len() != 0 {
 		t.Fatalf("clamp error/output = %v/%q", err, out.String())
+	}
+}
+
+func TestDBQueryAllMissingMetaKeepsDestinationAtomic(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		_, _ = w.Write([]byte("{\"type\":\"header\",\"project\":\"alpha\",\"db\":\"prod\",\"run_id\":\"aaaaaaaa-bbbb\",\"columns\":[\"id\"],\"batch_size\":5000}\n" +
+			"{\"type\":\"row\",\"row\":[\"partial\"]}\n"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, _ := newTestEnv(t, srv, "json")
+	path := filepath.Join(t.TempDir(), "rows.csv")
+	if err := os.WriteFile(path, []byte("old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := run(t, e, "dev", "console", "database", "query", "prod", "select id from rows", "--all", "--format", "csv", "--out", path)
+	if exitCodeFor(err) != exitServer {
+		t.Fatalf("exit = %d err=%v, want server/transport failure", exitCodeFor(err), err)
+	}
+	got, readErr := os.ReadFile(path)
+	if readErr != nil || string(got) != "old\n" {
+		t.Fatalf("destination = %q err=%v, want original file", got, readErr)
 	}
 }
 

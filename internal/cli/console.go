@@ -146,6 +146,15 @@ func newDBQueryCmd(e *env) *cobra.Command {
 				return err
 			}
 			req := client.DBQueryRequest{SQL: sql, Params: params, Limit: limit, All: all, Write: write, DryRun: dryRun}
+			if all {
+				if format == "" {
+					format = "json"
+				}
+				if queryFormatExtension(format) == "" {
+					return fmt.Errorf("--format must be json, ndjson, csv, or tsv")
+				}
+				return streamAllDBQuery(e, c, args[0], req, format, out)
+			}
 			resp, err := c.DBQuery(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
@@ -153,11 +162,11 @@ func newDBQueryCmd(e *env) *cobra.Command {
 			if resp.LimitClamped {
 				return fmt.Errorf("--limit was clamped by the server to %d; choose a value at or below the server maximum", resp.Limit)
 			}
-			if !all && resp.Truncated && !allowTruncated {
+			if resp.Truncated && !allowTruncated {
 				return truncationError(fmt.Sprintf("query returned more than %d rows; rerun with --all or --allow-truncated", resp.RowCount))
 			}
 			explicitFormat := cmd.Flags().Changed("format")
-			if !all && out == "" && !explicitFormat {
+			if out == "" && !explicitFormat {
 				if !e.jsonOut() {
 					render.DBQuery(e.out, resp)
 					return nil
@@ -184,53 +193,70 @@ func newDBQueryCmd(e *env) *cobra.Command {
 				target.abort()
 				return err
 			}
-			rowCount := 0
-			seenCursors := map[string]bool{}
-			for {
-				if err := encoder.checkColumns(resp.Columns); err != nil {
-					target.abort()
-					return err
-				}
-				if err := encoder.writeRows(resp.Rows); err != nil {
-					target.abort()
-					return err
-				}
-				rowCount += len(resp.Rows)
-				if all && resp.Truncated && resp.NextCursor == "" {
-					target.abort()
-					return truncationError("server ended paginated query without a continuation cursor")
-				}
-				if !all || resp.NextCursor == "" {
-					break
-				}
-				if seenCursors[resp.NextCursor] {
-					target.abort()
-					return fmt.Errorf("server repeated query cursor %q", resp.NextCursor)
-				}
-				seenCursors[resp.NextCursor] = true
-				req.Cursor = resp.NextCursor
-				resp, err = c.DBQuery(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
-				if err != nil {
-					target.abort()
-					return err
-				}
+			if err := encoder.writeRows(resp.Rows); err != nil {
+				target.abort()
+				return err
 			}
-			if err := encoder.finish(rowCount, resp.Truncated); err != nil {
+			if err := encoder.finish(len(resp.Rows), resp.Truncated); err != nil {
 				target.abort()
 				return err
 			}
 			return target.finish(e, resp.Truncated)
 		},
 	}
-	cmd.Flags().IntVar(&limit, "limit", 0, "max rows per page (inline cap 500; --all default/max 5000)")
+	cmd.Flags().IntVar(&limit, "limit", 0, "max inline rows, or --all stream batch size (defaults: 500 inline, 5000 all; max 5000)")
 	cmd.Flags().BoolVar(&write, "write", false, "execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "execute on the write plane, report rows affected + RETURNING rows, then ROLL BACK; requires --write")
-	cmd.Flags().BoolVar(&all, "all", false, "fetch every row; SQL must end in a total ORDER BY")
+	cmd.Flags().BoolVar(&all, "all", false, "stream every row from one repeatable-read database snapshot")
 	cmd.Flags().BoolVar(&allowTruncated, "allow-truncated", false, "accept an inline result that the server truncated")
 	cmd.Flags().StringVar(&format, "format", "", "query data format: json|ndjson|csv|tsv")
 	cmd.Flags().StringVar(&out, "out", "", "write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact")
 	cmd.Flags().StringArrayVar(&paramValues, "param", nil, "bind @k in SQL as text using k=v (repeatable)")
 	return cmd
+}
+
+func streamAllDBQuery(e *env, c *client.Client, db string, req client.DBQueryRequest, format, out string) error {
+	var target *outputTarget
+	var encoder *queryOutputEncoder
+	abort := func() {
+		if target != nil {
+			target.abort()
+		}
+	}
+	meta, err := c.DBQueryStream(e.ctx(), db, req, e.scopeProject(), e.scopeTenant(),
+		func(header *client.DBQueryStreamHeader) error {
+			if header.LimitClamped {
+				return fmt.Errorf("--limit was clamped by the server to %d; choose a value at or below the server maximum", header.BatchSize)
+			}
+			ext := queryFormatExtension(format)
+			var err error
+			target, err = openOutputTarget(e, out, "console-db-query-"+shortRunID(header.RunID)+ext, format)
+			if err != nil {
+				return err
+			}
+			encoder, err = newQueryOutputEncoder(target.Writer(), format, header.Columns)
+			return err
+		},
+		func(row []any) error {
+			if encoder == nil {
+				return fmt.Errorf("query stream row arrived before columns")
+			}
+			return encoder.writeRows([][]any{row})
+		},
+	)
+	if err != nil {
+		abort()
+		return err
+	}
+	if target == nil || encoder == nil {
+		abort()
+		return fmt.Errorf("query stream omitted its header")
+	}
+	if err := encoder.finish(meta.RowCount, false); err != nil {
+		abort()
+		return err
+	}
+	return target.finish(e, false)
 }
 
 func queryFormatExtension(format string) string {

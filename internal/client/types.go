@@ -296,7 +296,6 @@ type DBQueryRequest struct {
 	Params map[string]string `json:"params,omitempty"`
 	Limit  int               `json:"limit,omitempty"`
 	All    bool              `json:"all,omitempty"`
-	Cursor string            `json:"cursor,omitempty"`
 	// Write routes the statement to the project's sealed write-plane DSN (scope console:db:write) and
 	// commits unless DryRun is set; omitempty so a plain read never carries it.
 	Write bool `json:"write,omitempty"`
@@ -320,11 +319,26 @@ type DBQueryResponse struct {
 	DryRun       bool   `json:"dry_run,omitempty"`
 	RowCount     int    `json:"row_count"`
 	Truncated    bool   `json:"truncated"`
-	NextCursor   string `json:"next_cursor,omitempty"`
 	Limit        int    `json:"limit,omitempty"`
 	LimitClamped bool   `json:"limit_clamped,omitempty"`
-	Offset       int    `json:"offset,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
+}
+
+type DBQueryStreamHeader struct {
+	Project      string          `json:"project"`
+	Tenant       string          `json:"tenant,omitempty"`
+	DB           string          `json:"db"`
+	RunID        string          `json:"run_id"`
+	Columns      []string        `json:"columns"`
+	ColumnInfo   []DBQueryColumn `json:"column_info,omitempty"`
+	BatchSize    int             `json:"batch_size"`
+	LimitClamped bool            `json:"limit_clamped,omitempty"`
+}
+
+type DBQueryStreamMeta struct {
+	RowCount   int   `json:"row_count"`
+	DurationMs int64 `json:"duration_ms"`
+	Truncated  bool  `json:"truncated"`
 }
 
 type DBQueryColumn struct {

@@ -147,8 +147,9 @@ raw. Contract detail: [docs/specs/progressive-output-disclosure.md](docs/specs/p
 
 Console query output is the deliberate normalized exception to verbatim JSON passthrough: the server
 returns ordered `columns` + positional array `rows`, and explicit `--format json|ndjson|csv|tsv` streams
-that lossless shape. `--all` follows the server cursor until complete; inline truncation fails with exit
-3 unless `--allow-truncated`. `--out PATH|-|auto` bypasses heuristic spill behavior and, for a file,
+that lossless shape. `--all` consumes one NDJSON-framed response from a server-side cursor held in one
+repeatable-read transaction; its required final metadata frame verifies the received row count. Inline
+truncation fails with exit 3 unless `--allow-truncated`. `--out PATH|-|auto` bypasses heuristic spill behavior and, for a file,
 prints a JSON manifest. Auto and implicit spill labels include the server run's first eight hex digits.
 
 `rc fleet actions` follows the same progressive-output path: it exhausts the opaque cursor over the
@@ -278,9 +279,10 @@ confirm the commit's row count still matches. (User-facing rehearse-then-commit 
 Read queries accept literal SQL, stdin (`-`), or `@file`; `@key` placeholders plus repeatable
 `--param k=v` values are bound as
 text server-side (`@key` placeholders here; the in-process brain `lib.db.query` API uses `%s`). The
-default stays one 500-row page. `--all` requires a total trailing `ORDER BY`, streams 5000-row cursor
-pages, and rejects a page limit above 5000. The cursor currently carries an offset: paging is exact for
-a stable dataset, while concurrent inserts/deletes can shift later pages. A truncated inline response is exit 3 unless explicitly allowed.
+default stays one 500-row page. `--all` makes one HTTP request whose server-side cursor fetches batches
+of at most 5000 rows inside a single read-only `REPEATABLE READ` transaction; no `ORDER BY` is required
+for completeness, though deterministic output order still needs one. A required terminal row-count frame
+makes a cut-off stream fail instead of installing a partial file. A truncated inline response is exit 3 unless explicitly allowed.
 Dates stay `YYYY-MM-DD`, intervals use PostgreSQL text, and bytea uses base64. `rc dev console bash run` accepts the same input
 forms, propagates a remote non-zero/timeout as exit 4, and supports deterministic `--out`. `rc dev
 console file get` streams an allowed workspace or `/tmp` file to a local atomic output.

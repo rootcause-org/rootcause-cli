@@ -39,8 +39,11 @@ destructive once (pro-backup orphan-S3 cleanup). Audit facts below are from rc 1
    `latest` symlink if you want the old path to keep working).
 2. `--format json|ndjson|csv|tsv` for query results. Fix encoder: uuid/numeric/timestamptz/bytea
    as text (or lossless), preserve column order + duplicate columns (emit rows as arrays + `columns`).
-3. `--all`: server-side keyset (or offset) pagination streamed to `--out`; inline default stays
-   500. `truncated:true` without `--allow-truncated` → exit 3. `--limit >500` without `--all` → error.
+3. `--all`: one chunked HTTP response backed by a server-side cursor inside one read-only
+   `REPEATABLE READ` transaction. The server fetches at most 5000 rows per batch and ends the NDJSON
+   stream with an exact row-count frame; the client accepts file output atomically only after that
+   frame verifies. No `ORDER BY` is required for completeness. Inline default stays 500.
+   `truncated:true` without `--allow-truncated` → exit 3. `--limit >500` without `--all` → error.
 4. Typed exit codes: 0 ok · 1 usage · 2 auth · 3 truncated · 4 remote non-zero/timeout · 5 server/network.
    Under `-o json` errors are a JSON envelope on stdout `{error:{code,message,status,fields}}`.
    `bash run` propagates remote exit code (4) and `timed_out`.

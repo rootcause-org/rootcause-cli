@@ -624,13 +624,16 @@ defaults for their matching global flags. HTTP requests time out after 10 minute
 ### Composable console primitives
 
 Inline database reads stay capped at 500 rows. A truncated inline result fails closed with exit 3;
-use `--allow-truncated` only when a partial answer is intentional, or `--all` to stream every page.
-An `--all` query must end in an `ORDER BY` that totally orders the rows (include a unique tiebreaker);
-its page size defaults to 5000 and `--limit` cannot exceed 5000. Paging is offset-based, so it is exact
-for a stable dataset; concurrent inserts/deletes can shift later pages even with a total order. Ordered columns plus array rows preserve
+use `--allow-truncated` only when a partial answer is intentional, or `--all` to stream every row.
+An `--all` query is one HTTP response backed by a server-side cursor in a single read-only
+`REPEATABLE READ` transaction, so concurrent inserts/deletes cannot duplicate or omit rows. It fetches
+at most 5000 rows into memory per batch (`--limit` changes that batch size, max 5000). `ORDER BY` is
+optional for completeness; include it when deterministic output order matters. Ordered columns plus array rows preserve
 duplicate column names, UUIDs, numerics, timestamps, and binary values losslessly. Dates render as
 `YYYY-MM-DD`, intervals as PostgreSQL text, and `bytea` as base64. Explicit formats are `json`, `ndjson`,
 `csv`, and `tsv`:
+
+This snapshot-safe stream replaces the offset-paged `--all` behavior from `rc` 1.19.3 and earlier.
 
 ```bash
 rc dev console database query prod @report.sql --all --format csv --out ./report.csv
@@ -653,7 +656,8 @@ rc dev console file get /tmp/rootcause-out/report-abc123.csv --out ./report.csv
 ```
 
 Stable process exits: `0` success, `1` usage, `2` auth/scope, `3` truncated, `4` remote bash
-non-zero/timeout, `5` server/network. In JSON/auto-piped mode, command errors use
+non-zero/timeout, `5` server/network or incomplete stream. File outputs are installed atomically only
+after the stream's final row-count frame matches the received rows. In JSON/auto-piped mode, command errors use
 `{"error":{"code","message","status","fields"}}` on stdout. A bash result is emitted before exit 4
 so its `exit_code`, `timed_out`, stdout, and stderr remain inspectable.
 

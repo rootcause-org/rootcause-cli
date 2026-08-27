@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"reflect"
 )
 
 type queryOutputEncoder struct {
@@ -92,13 +91,6 @@ func (q *queryOutputEncoder) finish(rowCount int, truncated bool) error {
 	default:
 		return nil
 	}
-}
-
-func (q *queryOutputEncoder) checkColumns(columns []string) error {
-	if !reflect.DeepEqual(q.columns, columns) {
-		return fmt.Errorf("query columns changed between pages")
-	}
-	return nil
 }
 
 func writeJSONLine(w io.Writer, value any) error {

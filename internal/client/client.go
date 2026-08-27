@@ -464,45 +464,66 @@ func (c *Client) Raw(ctx context.Context, method, path string, body map[string]a
 // Download streams one successful response directly to w. It keeps the normal OAuth refresh and safe
 // GET retry policy without buffering potentially large artifacts in memory.
 func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
-	token, err := c.tokens.Token(ctx)
+	resp, err := c.openStream(ctx, http.MethodGet, path, nil, "application/octet-stream")
 	if err != nil {
 		return err
 	}
+	written, copyErr := io.Copy(w, resp.Body)
+	closeErr := resp.Body.Close()
+	if copyErr != nil {
+		return &TransportError{Err: fmt.Errorf("stream response: %w", copyErr)}
+	}
+	if closeErr != nil {
+		return &TransportError{Err: fmt.Errorf("close response: %w", closeErr)}
+	}
+	if resp.ContentLength >= 0 && written != resp.ContentLength {
+		return &TransportError{Err: fmt.Errorf("incomplete response: received %d of %d bytes", written, resp.ContentLength)}
+	}
+	return nil
+}
+
+// openStream performs the authenticated/retryable part of a request but leaves a successful body open
+// for incremental consumers. A failed refresh preserves the server's original 401 envelope, matching do.
+func (c *Client) openStream(ctx context.Context, method, path string, body []byte, accept string) (*http.Response, error) {
+	token, err := c.tokens.Token(ctx)
+	if err != nil {
+		return nil, err
+	}
 	refreshed := false
 	for attempt := 0; ; {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+		req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(body))
 		if err != nil {
-			return fmt.Errorf("build request: %w", err)
+			return nil, fmt.Errorf("build request: %w", err)
 		}
 		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("Accept", "application/octet-stream")
+		req.Header.Set("Accept", accept)
+		if len(body) > 0 {
+			req.Header.Set("Content-Type", "application/json")
+		}
 		resp, err := c.http.Do(req)
 		if err != nil {
-			return &TransportError{Err: fmt.Errorf("request GET %s (base %s): %w", path, c.baseURL, err)}
+			return nil, &TransportError{Err: fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)}
 		}
 		if resp.StatusCode == http.StatusUnauthorized && !refreshed {
 			data, readErr := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
 			newToken, refreshErr := c.tokens.Refresh(ctx)
-			if refreshErr != nil {
-				return refreshErr
-			}
-			if newToken != "" && newToken != token {
+			if refreshErr == nil && newToken != "" && newToken != token {
 				token, refreshed = newToken, true
 				continue
 			}
 			if readErr != nil {
-				return &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
+				return nil, &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
 			}
-			return decodeAPIError(resp.StatusCode, http.MethodGet, path, c.baseURL, data)
+			return nil, decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
 		}
-		if retryableStatus(resp.StatusCode) && attempt < 3 {
+		if retryableStatus(resp.StatusCode) && retryableRequest(method, path, body) && attempt < 3 {
 			delay := retryDelay(resp, attempt)
 			_ = resp.Body.Close()
 			attempt++
 			select {
 			case <-ctx.Done():
-				return &TransportError{Err: ctx.Err()}
+				return nil, &TransportError{Err: ctx.Err()}
 			case <-time.After(delay):
 			}
 			continue
@@ -511,22 +532,11 @@ func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
 			data, readErr := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
 			if readErr != nil {
-				return &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
+				return nil, &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
 			}
-			return decodeAPIError(resp.StatusCode, http.MethodGet, path, c.baseURL, data)
+			return nil, decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
 		}
-		written, copyErr := io.Copy(w, resp.Body)
-		closeErr := resp.Body.Close()
-		if copyErr != nil {
-			return &TransportError{Err: fmt.Errorf("stream response: %w", copyErr)}
-		}
-		if closeErr != nil {
-			return &TransportError{Err: fmt.Errorf("close response: %w", closeErr)}
-		}
-		if resp.ContentLength >= 0 && written != resp.ContentLength {
-			return &TransportError{Err: fmt.Errorf("incomplete response: received %d of %d bytes", written, resp.ContentLength)}
-		}
-		return nil
+		return resp, nil
 	}
 }
 
