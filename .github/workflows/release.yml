@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write # upload release assets
+  id-token: write # assume the S3 mirror publisher role via GitHub OIDC
 
 concurrency:
   group: rootcause-cli-release
@@ -32,3 +33,53 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Lets GoReleaser push the Homebrew cask to rootcause-org/homebrew-tap (see .goreleaser.yaml):
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      # The role is trusted only for v* tag refs from this repository and can write only the release
+      # mirror prefix. Keep this after GoReleaser: gh downloads the assets it just published.
+      - name: Configure AWS credentials for release mirror
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::036451323796:role/rootcause-cli-release-mirror
+          aws-region: eu-central-1
+          role-session-name: rootcause-cli-release-mirror
+
+      - name: Publish release mirror
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          S3_MIRROR: s3://kampkompas-eu-central-1/cloud-bootstrap/rc
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          out="${RUNNER_TEMP}/rootcause-cli-release"
+          mkdir -p "$out"
+
+          gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$out" \
+            --pattern "rc_${version}_linux_amd64.tar.gz" \
+            --pattern "rc_${version}_linux_arm64.tar.gz" \
+            --pattern "rc_${version}_darwin_amd64.tar.gz" \
+            --pattern "rc_${version}_darwin_arm64.tar.gz" \
+            --pattern checksums.txt
+
+          for asset in \
+            "rc_${version}_linux_amd64.tar.gz" \
+            "rc_${version}_linux_arm64.tar.gz" \
+            "rc_${version}_darwin_amd64.tar.gz" \
+            "rc_${version}_darwin_arm64.tar.gz"; do
+            aws s3 cp "$out/$asset" "$S3_MIRROR/$tag/$asset" \
+              --content-type application/gzip \
+              --cache-control 'public,max-age=31536000,immutable' \
+              --only-show-errors
+          done
+
+          aws s3 cp "$out/checksums.txt" "$S3_MIRROR/$tag/checksums.txt" \
+            --content-type text/plain \
+            --cache-control 'public,max-age=31536000,immutable' \
+            --only-show-errors
+          printf '%s\n' "$tag" > "$out/latest"
+          aws s3 cp "$out/latest" "$S3_MIRROR/latest" \
+            --content-type text/plain \
+            --cache-control no-cache \
+            --only-show-errors

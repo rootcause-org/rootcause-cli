@@ -13,7 +13,9 @@ builds:
     env:
       - CGO_ENABLED=0 # static binaries — no libc dependency, run anywhere
     ldflags:
-      - -s -w -X main.version={{ .Version }}
+      # Release binaries normally resolve GitHub first. This mirror is the trusted fallback for cloud
+      # sandboxes that reject GitHub release traffic; developers keep it empty in ordinary local builds.
+      - -s -w -X main.version={{ .Version }} -X github.com/rootcause-org/rootcause-cli/internal/cli.defaultMirror=https://kampkompas-eu-central-1.s3.eu-central-1.amazonaws.com/cloud-bootstrap/rc
     goos:
       - linux
       - darwin

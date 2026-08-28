@@ -372,9 +372,12 @@ version when release ldflags are absent. macOS has one canonical install: the `r
 Homebrew cask.
 
 [`upgrade.go`](internal/cli/upgrade.go) is the deliberate exception to "every command is one `/api/v1`
-call": it talks to the **GitHub releases** API (no bearer key), then self-replaces its own binary with the
-latest OS/arch archive (sha256-verified against `checksums.txt`, atomic same-dir rename); on macOS it runs
-Homebrew's updater instead. `--migrate` idempotently canonicalizes a mixed setup: verify the updated cask,
+call": it talks to **GitHub Releases** (no bearer key), or `RC_RELEASE_MIRROR` when explicitly set, then
+self-replaces its own binary with the latest OS/arch archive (sha256-verified against that source's
+`checksums.txt`, atomic same-dir rename); on macOS it runs Homebrew's updater instead. Release binaries have
+a build-injected mirror fallback only for GitHub 403/404 (cloud sandboxes); `rc self update --check` reports
+`source: github|mirror`. The mirror's HTTPS endpoint is the trust root, while checksums retain accidental-
+corruption protection. `--migrate` idempotently canonicalizes a mixed setup: verify the updated cask,
 remove only Go binaries whose embedded metadata identifies rootcause-cli ([`install.go`](internal/cli/install.go)),
 `mise reshim`, then require PATH to resolve solely to Homebrew. Unknown binaries fail closed. Keep this the
 *only* command that reaches outside `/api/v1`.

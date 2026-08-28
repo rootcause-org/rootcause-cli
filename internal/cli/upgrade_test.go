@@ -1,9 +1,15 @@
 package cli
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -187,11 +193,127 @@ func TestRenderUpdateCheckReportsAlreadyLatestDuplicates(t *testing.T) {
 	other := executableFile(t, filepath.Join(t.TempDir(), "bin", "rc"))
 	inv := inspectRCInstallations(running, strings.Join([]string{filepath.Dir(running), filepath.Dir(other)}, string(os.PathListSeparator)), "linux")
 	var out bytes.Buffer
-	renderUpdateCheck(&env{out: &out}, "1.1.3", "v1.1.3", inv)
+	renderUpdateCheck(&env{out: &out}, "1.1.3", "v1.1.3", inv, "github")
 	got := out.String()
-	if !strings.Contains(got, "up to date") || !strings.Contains(got, "installation problem: 2 distinct binaries") {
+	if !strings.Contains(got, "source: github") || !strings.Contains(got, "up to date") || !strings.Contains(got, "installation problem: 2 distinct binaries") {
 		t.Fatalf("check hid duplicate at latest version:\n%s", got)
 	}
+}
+
+func TestResolveReleaseAtUsesGitHub(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/github/latest" {
+			t.Fatalf("unexpected request %s", r.URL)
+		}
+		_, _ = w.Write([]byte(`{"tag_name":"v1.2.3"}`))
+	}))
+	defer server.Close()
+
+	tag, source, err := resolveReleaseAt(context.Background(), "", "", server.URL+"/github/latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag != "v1.2.3" || source != githubReleaseSource {
+		t.Fatalf("resolve = %q, %#v; want v1.2.3, %#v", tag, source, githubReleaseSource)
+	}
+}
+
+func TestResolveReleaseAtUsesConfiguredMirror(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mirror/latest":
+			_, _ = w.Write([]byte("v1.2.3\n"))
+		default:
+			t.Fatalf("unexpected request %s", r.URL)
+		}
+	}))
+	defer server.Close()
+
+	tag, source, err := resolveReleaseAt(context.Background(), server.URL+"/mirror/", server.URL+"/fallback", server.URL+"/github/latest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tag != "v1.2.3" || source.kind != "mirror" || source.baseURL != server.URL+"/mirror" {
+		t.Fatalf("resolve = %q, %#v", tag, source)
+	}
+}
+
+func TestReleaseMirrorReadsEnvironment(t *testing.T) {
+	t.Setenv("RC_RELEASE_MIRROR", " https://mirror.example/rc/ ")
+	if got := releaseMirror(); got != "https://mirror.example/rc" {
+		t.Fatalf("releaseMirror() = %q", got)
+	}
+}
+
+func TestResolveReleaseAtFallsBackToDefaultMirrorOnGitHubDeniedOrMissing(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusNotFound} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/github/latest":
+					w.WriteHeader(status)
+				case "/mirror/latest":
+					_, _ = w.Write([]byte("v1.2.3"))
+				default:
+					t.Fatalf("unexpected request %s", r.URL)
+				}
+			}))
+			defer server.Close()
+
+			tag, source, err := resolveReleaseAt(context.Background(), "", server.URL+"/mirror", server.URL+"/github/latest")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tag != "v1.2.3" || source.kind != "mirror" || source.baseURL != server.URL+"/mirror" {
+				t.Fatalf("resolve = %q, %#v", tag, source)
+			}
+		})
+	}
+}
+
+func TestFetchReleaseBinaryFromMirrorVerifiesChecksum(t *testing.T) {
+	archive := archiveWithBinary(t, "linux", []byte("mirror rc binary"))
+	asset := assetName("1.2.3", "linux", "amd64")
+	sum := sha256.Sum256(archive)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mirror/v1.2.3/checksums.txt":
+			_, _ = fmt.Fprintf(w, "%x  %s\n", sum, asset)
+		case "/mirror/v1.2.3/" + asset:
+			_, _ = w.Write(archive)
+		default:
+			t.Fatalf("unexpected request %s", r.URL)
+		}
+	}))
+	defer server.Close()
+
+	bin, err := fetchReleaseBinaryFrom(context.Background(), releaseSource{kind: "mirror", baseURL: server.URL + "/mirror"}, "v1.2.3", "linux", "amd64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(bin) != "mirror rc binary" {
+		t.Fatalf("binary = %q", bin)
+	}
+}
+
+func archiveWithBinary(t *testing.T, goos string, binary []byte) []byte {
+	t.Helper()
+	var out bytes.Buffer
+	gz := gzip.NewWriter(&out)
+	tw := tar.NewWriter(gz)
+	if err := tw.WriteHeader(&tar.Header{Name: binaryName(goos), Mode: 0o755, Size: int64(len(binary))}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tw.Write(binary); err != nil {
+		t.Fatal(err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
 }
 
 func TestVerifyHomebrewLatestChecksCanonicalVersion(t *testing.T) {

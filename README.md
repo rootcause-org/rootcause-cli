@@ -98,7 +98,11 @@ rc self update --migrate  # macOS: canonicalize on Homebrew; remove verified leg
 ```
 
 `rc self update` replaces its own binary with the latest release for your OS/arch (verifying the published
-checksum first). On macOS it runs the Homebrew updater; a standalone or duplicate setup requires the
+checksum first). It normally reads GitHub Releases; set `RC_RELEASE_MIRROR=https://mirror.example/rc` to read a
+trusted mirror whose `latest`, archive, and `checksums.txt` objects share the release layout. Release builds
+also fall back to the built-in Rootcause mirror only when GitHub returns 403 or 404 (use `--check` to see
+`source: github` or `source: mirror`). HTTPS to that mirror is the trust root; the archive is still checked
+against its mirrored `checksums.txt`. On macOS it runs the Homebrew updater; a standalone or duplicate setup requires the
 explicit, idempotent `--migrate` path. Migration installs/upgrades the cask, verifies its version, removes
 only binaries whose Go build metadata proves they are legacy rootcause-cli installs, reshims mise, and
 then verifies PATH selects the cask. Unknown binaries are reported for manual review, never deleted.

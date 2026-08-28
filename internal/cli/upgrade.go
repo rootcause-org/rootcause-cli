@@ -10,6 +10,7 @@ import (
 	"debug/buildinfo"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -24,7 +25,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// `rc self update` replaces the binary with the latest GitHub release for the
+// `rc self update` replaces the binary with the latest published release for the
 // running OS/arch, so non-Homebrew installs (Linux/WSL/Windows, the install.sh / install.ps1 path) get
 // the same one-command update as `brew upgrade rc` — no need to re-paste the install URL. When rc was
 // installed via Homebrew it refuses and points at `brew update && brew upgrade rc`, so it never fights brew's
@@ -34,6 +35,18 @@ const (
 	ghLatestAPI = "https://api.github.com/repos/" + ghRepo + "/releases/latest"
 	ghDownload  = "https://github.com/" + ghRepo + "/releases/download" // /<tag>/<asset>
 )
+
+// defaultMirror is injected into release binaries with -ldflags. It deliberately remains empty for
+// development builds: GitHub is still the normal public release source, and the mirror is only the
+// automatic escape hatch for environments where GitHub rejects release traffic.
+var defaultMirror string
+
+type releaseSource struct {
+	kind    string // github | mirror; surfaced by `rc self update --check`
+	baseURL string // archive/checksum directory, before /<tag>/<asset>
+}
+
+var githubReleaseSource = releaseSource{kind: "github", baseURL: ghDownload}
 
 func newSelfUpdateCmd(e *env, version string) *cobra.Command {
 	var checkOnly bool
@@ -60,13 +73,13 @@ func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
 		return fmt.Errorf("cannot locate the running rc binary: %w", err)
 	}
 	inv := inspectRCInstallations(running, os.Getenv("PATH"), runtime.GOOS)
-	latest, err := latestReleaseTag(e.ctx())
+	latest, source, err := resolveRelease(e.ctx())
 	if err != nil {
 		return err
 	}
 
 	if checkOnly {
-		renderUpdateCheck(e, current, latest, inv)
+		renderUpdateCheck(e, current, latest, inv, source.kind)
 		return nil
 	}
 
@@ -102,7 +115,7 @@ func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
 	}
 
 	_, _ = fmt.Fprintf(e.err, "==> downloading rc %s for %s/%s\n", normVersion(latest), runtime.GOOS, runtime.GOARCH)
-	bin, err := fetchReleaseBinary(e.ctx(), latest, runtime.GOOS, runtime.GOARCH)
+	bin, err := fetchReleaseBinaryFrom(e.ctx(), source, latest, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return err
 	}
@@ -113,8 +126,9 @@ func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
 	return nil
 }
 
-func renderUpdateCheck(e *env, current, latest string, inv rcInstallInventory) {
+func renderUpdateCheck(e *env, current, latest string, inv rcInstallInventory, source string) {
 	running := findRunningInstall(inv.Paths)
+	_, _ = fmt.Fprintf(e.out, "source: %s\n", source)
 	_, _ = fmt.Fprintf(e.out, "running rc: %s (%s, %s)\n", inv.RunningPath, running.Kind, normVersion(current))
 	if compareVersions(current, latest) < 0 {
 		_, _ = fmt.Fprintf(e.out, "latest rc:  %s (update available)\n", normVersion(latest))
@@ -224,7 +238,7 @@ func verifyHomebrewLatest(ctx context.Context, latest string) (string, string, e
 		return "", "", fmt.Errorf("verifying Homebrew rc at %s: %w", canonicalLink, err)
 	}
 	if compareVersions(gotVersion, latest) != 0 {
-		return "", "", fmt.Errorf("homebrew rc is %s after upgrade, but GitHub latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest))
+		return "", "", fmt.Errorf("homebrew rc is %s after upgrade, but published latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest))
 	}
 	return canonical, gotVersion, nil
 }
@@ -311,7 +325,7 @@ func removeVerifiedLegacyGoBinaries(paths []string, protected string, verified f
 	return removed, nil
 }
 
-// --- GitHub release resolution ----------------------------------------------------------------------
+// --- Release resolution -----------------------------------------------------------------------------
 
 func httpGet(ctx context.Context, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -323,8 +337,55 @@ func httpGet(ctx context.Context, url string) (*http.Response, error) {
 	return client.Do(req)
 }
 
+func releaseMirror() string {
+	if mirror := strings.TrimSpace(os.Getenv("RC_RELEASE_MIRROR")); mirror != "" {
+		return strings.TrimRight(mirror, "/")
+	}
+	return ""
+}
+
 func latestReleaseTag(ctx context.Context) (string, error) {
-	return latestReleaseTagAt(ctx, ghLatestAPI)
+	tag, _, err := resolveRelease(ctx)
+	return tag, err
+}
+
+func resolveRelease(ctx context.Context) (string, releaseSource, error) {
+	return resolveReleaseAt(ctx, releaseMirror(), defaultMirror, ghLatestAPI)
+}
+
+func resolveReleaseAt(ctx context.Context, configuredMirror, fallbackMirror, githubLatestURL string) (string, releaseSource, error) {
+	if configuredMirror = strings.TrimRight(strings.TrimSpace(configuredMirror), "/"); configuredMirror != "" {
+		tag, err := latestMirrorReleaseTagAt(ctx, configuredMirror)
+		return tag, releaseSource{kind: "mirror", baseURL: configuredMirror}, err
+	}
+
+	tag, err := latestReleaseTagAt(ctx, githubLatestURL)
+	if err == nil {
+		return tag, githubReleaseSource, nil
+	}
+	if !githubDeniedOrMissing(err) || strings.TrimSpace(fallbackMirror) == "" {
+		return "", releaseSource{}, err
+	}
+	fallbackMirror = strings.TrimRight(strings.TrimSpace(fallbackMirror), "/")
+	tag, mirrorErr := latestMirrorReleaseTagAt(ctx, fallbackMirror)
+	if mirrorErr != nil {
+		return "", releaseSource{}, mirrorErr
+	}
+	return tag, releaseSource{kind: "mirror", baseURL: fallbackMirror}, nil
+}
+
+type releaseHTTPStatusError struct {
+	operation string
+	status    int
+}
+
+func (e *releaseHTTPStatusError) Error() string {
+	return fmt.Sprintf("%s returned HTTP %d", e.operation, e.status)
+}
+
+func githubDeniedOrMissing(err error) bool {
+	var statusErr *releaseHTTPStatusError
+	return errors.As(err, &statusErr) && (statusErr.status == http.StatusForbidden || statusErr.status == http.StatusNotFound)
 }
 
 func latestReleaseTagAt(ctx context.Context, url string) (string, error) {
@@ -334,7 +395,7 @@ func latestReleaseTagAt(ctx context.Context, url string) (string, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("checking the latest release: GitHub API returned HTTP %d", resp.StatusCode)
+		return "", &releaseHTTPStatusError{operation: "checking the latest release: GitHub API", status: resp.StatusCode}
 	}
 	var rel struct {
 		TagName string `json:"tag_name"`
@@ -352,12 +413,37 @@ func latestReleaseTagAt(ctx context.Context, url string) (string, error) {
 	return rel.TagName, nil
 }
 
+func latestMirrorReleaseTagAt(ctx context.Context, baseURL string) (string, error) {
+	resp, err := httpGet(ctx, baseURL+"/latest")
+	if err != nil {
+		return "", fmt.Errorf("checking mirror latest: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", &releaseHTTPStatusError{operation: "checking mirror latest", status: resp.StatusCode}
+	}
+	tagBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading mirror latest: %w", err)
+	}
+	tag := strings.TrimSpace(string(tagBytes))
+	parsed, ok := parseVersion(tag)
+	if !ok || parsed.prerelease != "" || tag != fmt.Sprintf("v%d.%d.%d", parsed.major, parsed.minor, parsed.patch) {
+		return "", fmt.Errorf("the mirror latest tag %q is not a stable vX.Y.Z version", tag)
+	}
+	return tag, nil
+}
+
 // fetchReleaseBinary downloads the archive for goos/goarch, verifies its sha256 against the release's
 // checksums.txt, and returns the extracted rc (or rc.exe) bytes.
 func fetchReleaseBinary(ctx context.Context, tag, goos, goarch string) ([]byte, error) {
+	return fetchReleaseBinaryFrom(ctx, githubReleaseSource, tag, goos, goarch)
+}
+
+func fetchReleaseBinaryFrom(ctx context.Context, source releaseSource, tag, goos, goarch string) ([]byte, error) {
 	asset := assetName(normVersion(tag), goos, goarch)
 
-	sums, err := downloadBytes(ctx, fmt.Sprintf("%s/%s/checksums.txt", ghDownload, tag))
+	sums, err := downloadBytes(ctx, fmt.Sprintf("%s/%s/checksums.txt", source.baseURL, tag))
 	if err != nil {
 		return nil, fmt.Errorf("downloading checksums: %w", err)
 	}
@@ -366,7 +452,7 @@ func fetchReleaseBinary(ctx context.Context, tag, goos, goarch string) ([]byte, 
 		return nil, err
 	}
 
-	archive, err := downloadBytes(ctx, fmt.Sprintf("%s/%s/%s", ghDownload, tag, asset))
+	archive, err := downloadBytes(ctx, fmt.Sprintf("%s/%s/%s", source.baseURL, tag, asset))
 	if err != nil {
 		return nil, fmt.Errorf("downloading %s: %w", asset, err)
 	}
