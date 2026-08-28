@@ -110,7 +110,7 @@ func commandScope(path string) scopeSpec {
 		return projectOnly
 	case strings.HasPrefix(path, "project mailbox settings "):
 		return projectOnly
-	case strings.HasPrefix(path, "project model-key "), strings.HasPrefix(path, "project knowledge sync "):
+	case strings.HasPrefix(path, "project knowledge sync "):
 		return projectOnly
 	case strings.HasPrefix(path, "project database "), strings.HasPrefix(path, "project token "):
 		return projectOnly

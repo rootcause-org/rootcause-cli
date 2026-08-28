@@ -221,52 +221,6 @@ func TestDatabaseControlsSetJSON(t *testing.T) {
 	}
 }
 
-// --- config openrouter-key (secret via stdin) ---
-
-func TestOpenRouterKeySetFromStdin(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	e.in = strings.NewReader("sk-or-FROM_STDIN\n")
-	if err := run(t, e, "project", "model-key", "openrouter", "set"); err != nil {
-		t.Fatalf("openrouter-key set: %v", err)
-	}
-	got := out.String()
-	if strings.Contains(got, "sk-or-FROM_STDIN") {
-		t.Errorf("openrouter-key set echoed the secret: %q", got)
-	}
-	if got != "OpenRouter key stored\n" {
-		t.Errorf("openrouter-key set output = %q", got)
-	}
-}
-
-func TestOpenRouterKeyClear(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "model-key", "openrouter", "clear"); err != nil {
-		t.Fatalf("openrouter-key clear: %v", err)
-	}
-	if got := out.String(); got != "OpenRouter key cleared\n" {
-		t.Errorf("openrouter-key clear output = %q", got)
-	}
-}
-
-func TestOpenRouterKeyReveal(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, errb := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "model-key", "openrouter", "reveal"); err != nil {
-		t.Fatalf("openrouter-key reveal: %v", err)
-	}
-	if got := out.String(); got != "sk-or-REVEALED_ONCE\n" {
-		t.Errorf("openrouter-key reveal stdout = %q, want the bare secret", got)
-	}
-	if !strings.Contains(errb.String(), "live secret") {
-		t.Errorf("openrouter-key reveal missing stderr warning: %q", errb.String())
-	}
-}
-
 // --- branding logo (multipart) ---
 
 func TestBrandingLogoSetTable(t *testing.T) {

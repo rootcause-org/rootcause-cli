@@ -809,7 +809,7 @@ func largeEventsJSON() []byte {
 }
 
 // registerConfigSurfaceStubs wires the config-surface endpoints (mailboxes / env per-key / databases +
-// controls / openrouter-key / branding logo / github / brain / run feedback+retry / admin). Split into
+// controls / branding logo / github / brain / run feedback+retry / admin). Split into
 // its own helper to keep stubServer readable; each handler asserts auth and (where load-bearing) the
 // request body, then echoes a canned shape.
 func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
@@ -1075,25 +1075,6 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "database_controls.json"))
-	})
-
-	// openrouter-key: PUT (asserts key in body, not URL) / DELETE / reveal.
-	mux.HandleFunc("PUT /api/v1/settings/openrouter-key", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		body := readBody(t, r)
-		if !strings.Contains(body, `"key":"sk-or-FROM_STDIN"`) {
-			t.Fatalf("openrouter-key PUT body missing key: %s", body)
-		}
-		w.WriteHeader(http.StatusNoContent)
-	})
-	mux.HandleFunc("DELETE /api/v1/settings/openrouter-key", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		w.WriteHeader(http.StatusNoContent)
-	})
-	mux.HandleFunc("POST /api/v1/settings/openrouter-key/reveal", func(w http.ResponseWriter, r *http.Request) {
-		requireAuth(t, r)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"secret":"sk-or-REVEALED_ONCE"}`))
 	})
 
 	// branding logo: PUT multipart (asserts the multipart file part + content type) / DELETE.

@@ -11,10 +11,10 @@ import (
 )
 
 // readSecretStdin reads a secret VALUE from stdin so it never lands in argv / the process table /
-// shell history — the hygiene the connection/openrouter-key reveal commands also honor. It reads the
+// shell history — the hygiene the connection reveal commands also honor. It reads the
 // first line (trailing CR/LF trimmed); an entirely empty read is an error pointing the caller at the
 // expected pipe. On an interactive TTY it prints a one-line prompt to stderr first (stdout stays
-// reserved for machine output). `label` names what's being read (e.g. "OpenRouter key").
+// reserved for machine output). `label` names what's being read.
 func readSecretStdin(e *env, label string) (string, error) {
 	r := e.in
 	if r == nil {

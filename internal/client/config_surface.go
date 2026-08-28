@@ -11,8 +11,8 @@ import (
 	"net/url"
 )
 
-// This file holds the bespoke (non-collection, non-bag) config-surface calls: the OpenRouter key,
-// the branding logo binary, GitHub install status, the brain edit/consolidate queue, run
+// This file holds the bespoke (non-collection, non-bag) config-surface calls: the branding logo
+// binary, GitHub install status, the brain edit/consolidate queue, run
 // feedback/retry, the database controls sub-resource, and the box-level admin endpoints. Each is one
 // request mapping straight onto one endpoint — same "render, don't reshape" invariant as the rest of
 // the client. JSON-shaped calls return the raw body for the -o json passthrough plus a typed view.
@@ -26,24 +26,6 @@ func (c *Client) RawScoped(ctx context.Context, method, path string, body any, p
 		return nil, err
 	}
 	return raw, nil
-}
-
-// --- OpenRouter key (PUT/DELETE/reveal at /api/v1/settings/openrouter-key) ---
-
-// SetOpenRouterKey stores the box-wide OpenRouter API key (PUT {key}). The key never rides in a URL
-// or a log line — it's a JSON body field only.
-func (c *Client) SetOpenRouterKey(ctx context.Context, key, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPut, "/api/v1/settings/openrouter-key", map[string]any{"key": key}, project, "")
-}
-
-// ClearOpenRouterKey removes the stored OpenRouter key (DELETE).
-func (c *Client) ClearOpenRouterKey(ctx context.Context, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodDelete, "/api/v1/settings/openrouter-key", nil, project, "")
-}
-
-// RevealOpenRouterKey returns {secret} — the stored key, shown once (POST .../reveal).
-func (c *Client) RevealOpenRouterKey(ctx context.Context, project string) (Item, json.RawMessage, error) {
-	return c.itemWrite(ctx, http.MethodPost, "/api/v1/settings/openrouter-key/reveal"+collectionScope(project, ""), nil)
 }
 
 // --- Branding logo (PUT multipart / DELETE at /api/v1/branding/logo) ---

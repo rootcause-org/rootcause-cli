@@ -39,7 +39,6 @@ func newProjectSurfaceCmd(e *env, version string) *cobra.Command {
 		newMailboxCmd(e),
 		newTriageCmd(e),
 		newSpamCmd(e),
-		newModelKeyCmd(e),
 		newConnectionCmd(e),
 		newKnowledgeCmd(e, version),
 		newCorpusCmd(e),
@@ -61,12 +60,6 @@ func newProjectSettingsSurfaceCmd(e *env) *cobra.Command {
 	runtime := &cobra.Command{Use: "runtime", Short: "Manage flat runtime settings"}
 	runtime.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"))
 	cmd.AddCommand(runtime, newProjectHierarchySettingsCmd(e), newExplainCmd(e), newSchemaCmd(e))
-	return cmd
-}
-
-func newModelKeyCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "model-key", Short: "Manage model-provider credentials"}
-	cmd.AddCommand(newOpenRouterKeyCmd(e))
 	return cmd
 }
 

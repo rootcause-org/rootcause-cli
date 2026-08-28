@@ -488,11 +488,6 @@ help using `go test ./internal/cli -update`.
 | `rc project member ls` | List members |
 | `rc project member rm` | Delete a member |
 | `rc project member` | Manage project members |
-| `rc project model-key openrouter clear` | Remove the stored OpenRouter key |
-| `rc project model-key openrouter reveal` | Print the stored OpenRouter key (sensitive, shown once) |
-| `rc project model-key openrouter set` | Store the OpenRouter key (from STDIN by default; never echoed) |
-| `rc project model-key openrouter` | Manage the OpenRouter API key (set/clear/reveal) |
-| `rc project model-key` | Manage model-provider credentials |
 | `rc project rename` | Rename the active project slug and brain repo |
 | `rc project repo add` | Create a repo |
 | `rc project repo ls` | List repos |
