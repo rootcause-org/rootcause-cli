@@ -382,6 +382,12 @@ remove only Go binaries whose embedded metadata identifies rootcause-cli ([`inst
 `mise reshim`, then require PATH to resolve solely to Homebrew. Unknown binaries fail closed. Keep this the
 *only* command that reaches outside `/api/v1`.
 
+[`scripts/cloud-setup.sh`](scripts/cloud-setup.sh) is the single cloud bootstrap for `rc`, uv, and pnpm.
+The release workflow publishes the tagged script immutably and refreshes the mirror's no-cache
+`cloud-setup.sh`; the server's `/install/cloud.sh` route is only a stable redirect. Keep platform branches
+limited to necessary behavior (currently the log label), keep `rc` mandatory, and preserve the uv/pnpm
+opt-outs plus `RC_RELEASE_MIRROR` override. Consumers link the hosted one-liner instead of mirroring it.
+
 ## Scope guards (push back if asked)
 
 No MCP in v1 (a future layer over the same endpoints). Client-side analysis/rendering is fine, but **no

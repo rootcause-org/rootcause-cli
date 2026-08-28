@@ -3,10 +3,10 @@
 # release.sh — cut a rootcause-cli release, end to end, the same way every time.
 #
 # WHY THIS EXISTS: a release here is more than "git tag". For consumers and collaborators to see the
-# exact same tested code, four things must land together: (1) the tested HEAD on origin/main, (2) the
+# exact same tested code, six things must land together: (1) the tested HEAD on origin/main, (2) the
 # git tag, (3) the GitHub Release with prebuilt binaries (GoReleaser, via
 # .github/workflows/release.yml), (4) the Homebrew cask at that same version, and (5) the Go module
-# proxy ingesting the tag. Miss the main push and
+# proxy ingesting the tag, and (6) the tagged + latest cloud setup script in the release mirror. Miss the main push and
 # GitHub appears behind the published binary; miss the proxy warmup and consumers keep resolving a
 # stale pseudo-version. This script performs and verifies the whole transaction.
 #
@@ -30,6 +30,7 @@ GH_REPO="rootcause-org/rootcause-cli"
 HOMEBREW_CASK_PATH="repos/rootcause-org/homebrew-tap/contents/Casks/rc.rb"
 MAIN_BRANCH="main"
 GOPROXY_URL="https://proxy.golang.org"
+RELEASE_MIRROR_URL="https://kampkompas-eu-central-1.s3.eu-central-1.amazonaws.com/cloud-bootstrap/rc"
 EXPECTED_ASSETS=7 # 6 OS/arch archives + checksums.txt — keep in sync with .goreleaser.yaml
 RELEASE_TIMEOUT=600 # seconds to wait for the GitHub Release assets to appear
 
@@ -100,6 +101,9 @@ step "Releasing $MODULE $VERSION (latest tag: $(latest_tag || echo none))"
 step "Preconditions"
 command -v gh >/dev/null || die "gh (GitHub CLI) not found"
 command -v go >/dev/null || die "go not found"
+command -v shellcheck >/dev/null || die "shellcheck not found"
+command -v curl >/dev/null || die "curl not found"
+command -v cmp >/dev/null || die "cmp not found"
 gh auth status >/dev/null 2>&1 || die "gh not authenticated (run: gh auth login)"
 git rev-parse "refs/tags/$VERSION" >/dev/null 2>&1 && die "tag $VERSION already exists"
 
@@ -116,12 +120,13 @@ ok "clean, on $MAIN_BRANCH, not behind origin ($ahead_count commit(s) to publish
 
 # --- quality gates --------------------------------------------------------------------------------
 
-step "Quality gates (build / vet / test)"
+step "Quality gates (build / vet / test / shellcheck)"
 go mod tidy
 [ -z "$(git status --porcelain -- go.mod go.sum)" ] || die "go mod tidy changed go.mod/go.sum — commit the dependency metadata and rerun"
 go build ./... && ok "build"
 go vet ./...   && ok "vet"
 go test ./...  && ok "test"
+shellcheck scripts/cloud-setup.sh && ok "cloud setup shellcheck"
 # Lint is advisory: the repo has known, intentional errcheck findings in the render layer (writes to
 # an output buffer). Surface lint output but never block a release on it.
 if command -v golangci-lint >/dev/null; then
@@ -171,6 +176,17 @@ while :; do
   esac
   [ "$(date +%s)" -lt "$deadline" ] || die "timed out waiting for release workflow for $VERSION"
   sleep 10
+done
+
+# The release workflow owns the public cloud bootstrap. Verify both keys byte-for-byte so a green
+# workflow cannot silently leave the stable installer missing or stale.
+step "Verifying cloud setup mirror"
+for path in "$VERSION/cloud-setup.sh" cloud-setup.sh; do
+  if curl -fsSL --retry 3 --retry-delay 1 "$RELEASE_MIRROR_URL/$path" | cmp -s scripts/cloud-setup.sh -; then
+    ok "mirror $path"
+  else
+    die "mirror $path is missing or differs from scripts/cloud-setup.sh"
+  fi
 done
 
 # --- wait for the GitHub Release + Homebrew cask --------------------------------------------------

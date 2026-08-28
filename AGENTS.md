@@ -29,6 +29,12 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 - `internal/render/` — TTY-detect + JSON passthrough (`render.go`) + per-view table renderers (`table.go`).
 - `internal/dnsdetect/` + `internal/idutil/` — local, offline helpers behind `rc dev tools provider|id`.
 
+## Cloud setup
+`scripts/cloud-setup.sh` is the canonical hosted cloud bootstrap. Each release publishes immutable
+`<mirror>/<tag>/cloud-setup.sh` plus no-cache `<mirror>/cloud-setup.sh`; users run
+`curl -fsSL https://app.replypen.com/install/cloud.sh | bash`. It always installs `rc`; uv/pnpm have
+`RC_CLOUD_SKIP_UV=1` / `RC_CLOUD_SKIP_PNPM=1` opt-outs, and `RC_RELEASE_MIRROR` overrides the mirror.
+
 ## Working on it
 - **Toolchain:** Go 1.25 via `mise` (pinned in `mise.toml`); `cobra`+`pflag`, `BurntSushi/toml`. Run from the repo dir so mise selects go 1.25.
 - **Before finishing any change:** `go build ./... && go vet ./... && go test ./...`, and `gofmt -w`.

@@ -188,58 +188,21 @@ capability; omit it when production database reads are not needed. Add `runs:tri
 or other scopes only when the agent actually uses those planes. Verify a fresh session with
 `rc auth status -o json` and one narrow read.
 
-For an interactive install where no long-lived secret is present during setup, use the short canonical
-installer when the environment can reach GitHub's release API:
+### Cloud setup
+
+The hosted setup script installs or updates `rc`, uv, and pnpm from checksum-verified, cloud-reachable
+sources:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.sh | sh
+curl -fsSL https://app.replypen.com/install/cloud.sh | bash
 ```
 
-Some repo-scoped proxies (including Claude Code web) allow Git/release downloads but deny release API
-metadata for repositories outside the selected checkout. Resolve the tag over Git in that case:
-
-```bash
-set -euo pipefail
-RC_VERSION="$(git ls-remote --refs --tags https://github.com/rootcause-org/rootcause-cli.git \
-  | awk -F/ '{print $3}' \
-  | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
-  | sort -V \
-  | tail -1)"
-test -n "$RC_VERSION"
-curl -fsSL https://raw.githubusercontent.com/rootcause-org/rootcause-cli/main/scripts/install.sh \
-  | env RC_VERSION="$RC_VERSION" sh
-```
-
-Both paths install the latest release and verify its published checksum. The longer form is a proxy
-compatibility workaround, not a generally superior installer. Prefer failing setup visibly; use
-`|| true` only when a later startup hook explicitly verifies `command -v rc` and reports failure.
-
-For a cached cloud image whose setup process can already read long-lived secrets, pin the reviewed
-installer and CLI version. This avoids executing a mutable `main` branch with those secrets present:
-
-```bash
-set -euo pipefail
-RC_VERSION=v1.16.0
-RC_INSTALLER_SHA256=c5fcf883e78776382cb71b7cef199507c5ce03b57e006489fb0c15e97a62e340
-# Copy the matching linux_amd64 or linux_arm64 digest from that release's checksums.txt.
-RC_ASSET_SHA256='<reviewed 64-character archive digest>'
-installer="$(mktemp)"
-trap 'rm -f "$installer"' EXIT
-curl -fsSL "https://raw.githubusercontent.com/rootcause-org/rootcause-cli/${RC_VERSION}/scripts/install.sh" \
-  -o "$installer"
-test "$(sha256sum "$installer" | awk '{print $1}')" = "$RC_INSTALLER_SHA256"
-env RC_VERSION="$RC_VERSION" RC_ASSET_SHA256="$RC_ASSET_SHA256" sh "$installer"
-```
-
-The installer verifies the downloaded archive against the independently pinned digest instead of
-trusting a mutable release checksum file. Upgrade a cloud image deliberately by reviewing the release,
-then updating all three pinned values and rebuilding the snapshot. The example targets Linux cloud
-agents; canonical macOS installs stay on Homebrew.
-
-For Claude cloud network access, choose **Custom**, list only the RootCause API host
-`app.replypen.com`, and keep **Also include default list of common package managers** checked. Claude's
-default version-control list already includes the GitHub/raw/release-asset hosts used above; add them
-explicitly only when deliberately disabling that default list.
+Set `RC_CLOUD_SKIP_UV=1` or `RC_CLOUD_SKIP_PNPM=1` to omit an optional tool. `RC_RELEASE_MIRROR`
+overrides the rc release mirror. Platform detection affects only the log label: Claude cloud is detected
+from `CLAUDE_CODE_REMOTE=true`; set `RC_CLOUD_PLATFORM=codex` for Codex/ChatGPT cloud, or explicitly use
+`claude`/`generic`. Add `app.replypen.com` and `*.amazonaws.com` to the environment network allowlist;
+keep its common-package-manager hosts enabled for uv and pnpm. The redirect accepts `?v=vX.Y.Z` when a
+reviewed setup-script release must be pinned.
 
 Project-brain publishing is exact and OAuth-only: push the tested commit to GitHub, run `rc dev brain
 sync`, then `rc dev brain promote --channel stable|edge --sha <full-40-character-SHA>`. On a templated
@@ -710,7 +673,7 @@ Use the script — it does the whole cycle reliably and verifies each part:
 scripts/release.sh patch     # 0.1.0 -> 0.1.1  (also: minor | major | vX.Y.Z | --dry-run)
 ```
 
-A release is **four things that must land together**, which is why a bare `git tag` isn't enough:
+A release is **six things that must land together**, which is why a bare `git tag` isn't enough:
 
 1. the exact tested commit pushed and verified on **`origin/main`**;
 2. the **git tag** `vX.Y.Z` at that exact commit;
@@ -718,6 +681,8 @@ A release is **four things that must land together**, which is why a bare `git t
    builds every OS/arch via [GoReleaser](https://goreleaser.com) and attaches archives + checksums;
 4. the **Go module proxy** ingesting the tag, so consumers' `go get …@latest` resolves the new version
    instead of a stale pseudo-version (the step that's easy to forget by hand).
+5. the **Homebrew cask** at the same version;
+6. tagged + no-cache-latest copies of `scripts/cloud-setup.sh` in the public release mirror.
 
 The script gates on `go build/vet/test`, refuses a dirty/behind/diverged checkout, then explicitly
 pushes the tested SHA to `origin/main` and verifies the remote ref before it creates the tag. It waits

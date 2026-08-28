@@ -7,15 +7,16 @@ description: Cut a rootcause-cli release so consuming projects can pull the late
 
 ## Intent
 
-A release here is **five things landing together**, not just a git tag:
+A release here is **six things landing together**, not just a git tag:
 
 1. **The exact tested `HEAD` on `origin/main`**, pushed and read back before tagging so GitHub never trails a published binary.
 2. **The git tag** `vX.Y.Z` (annotated at that exact commit).
 3. **The GitHub Release** with prebuilt binaries — built by [GoReleaser](https://goreleaser.com) via [`.github/workflows/release.yml`](../../../.github/workflows/release.yml) when the tag is pushed. This is what lets people install `rc` without Go.
 4. **The Homebrew cask** in `rootcause-org/homebrew-tap` at that same version, so macOS upgrades agree with GitHub latest.
 5. **The Go module proxy** (`proxy.golang.org`) ingesting the tag — this is the step that's easy to forget. Until the proxy has it, a consuming project's `go get github.com/rootcause-org/rootcause-cli@latest` keeps resolving the **old pseudo-version**, so they silently *don't* get your release.
+6. **The cloud bootstrap mirror** — immutable `<mirror>/<tag>/cloud-setup.sh` plus the no-cache latest object used by `https://app.replypen.com/install/cloud.sh`.
 
-[`scripts/release.sh`](../../../scripts/release.sh) does and verifies all five. Always prefer it over
+[`scripts/release.sh`](../../../scripts/release.sh) triggers and verifies the workflow that lands all six. Always prefer it over
 running the steps by hand — the hand path is how the main push or proxy warmup gets skipped.
 
 ## How to release
