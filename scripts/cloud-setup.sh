@@ -7,11 +7,19 @@
 #   rc   -> S3 mirror (*.amazonaws.com)
 #   uv   -> PyPI wheel (files.pythonhosted.org)
 #   pnpm -> corepack / npm registry tarball (registry.npmjs.org)
-# uv and pnpm are pinned + checksum-verified: this script can already read the environment's
+# uv and pnpm follow a MINIMUM-version policy: a preinstalled build that already satisfies UV_MIN /
+# PNPM_MIN is kept as-is (cloud images ship their own, ahead of our bindir on PATH). Only when the
+# tool is missing or too old do we install our pinned + checksum-verified build -- and then into the
+# directory of the shadowing binary when that is writable, so the new one actually wins on PATH.
+# Every install is pinned + checksum-verified: this script can already read the environment's
 # long-lived secrets, so nothing unreviewed may execute here. rc follows the release checksums in
 # our HTTPS mirror. Re-runs are idempotent.
 set -euo pipefail
 
+# Minimum acceptable versions (preinstalled tools at or above these are kept untouched).
+UV_MIN=0.8
+PNPM_MIN=10
+# Versions we download when we do have to install.
 UV_VERSION=0.12.7
 PNPM_VERSION=11.24.0
 # arch-independent JS payload (dist/) that the platform launcher binary loads
@@ -69,6 +77,23 @@ fetch() { # url dest expected-sha256
   [ "$got" = "$3" ] || { echo "checksum mismatch for $1 (got $got, want $3)" >&2; return 1; }
 }
 
+version_ge() { # have want -> 0 when have >= want
+  [ -n "$1" ] || return 1
+  [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n 1)" = "$2" ]
+}
+
+# Where to install <cmd>: over the binary that currently shadows us when that directory is
+# writable, otherwise our own bindir.
+install_dir_for() { # cmd
+  local existing dir
+  existing="$(command -v "$1" 2>/dev/null || true)"
+  if [ -n "$existing" ]; then
+    dir="$(cd "$(dirname "$existing")" && pwd)"
+    if [ "$dir" != "$bindir" ] && [ -w "$dir" ]; then printf '%s\n' "$dir"; return; fi
+  fi
+  printf '%s\n' "$bindir"
+}
+
 # --- rc (RootCause CLI) — the only connection to production data --------------
 # The release workflow publishes the latest tag, archive, and checksums to this public mirror.
 latest_rc_tag() {
@@ -121,13 +146,27 @@ unzip_wheel() { # wheel destdir
   fi
 }
 
+uv_state=skipped
+uv_reported=""
 if [ "${RC_CLOUD_SKIP_UV:-0}" != 1 ]; then
-  if [ "$(uv --version 2>/dev/null | awk '{print $2}')" != "$UV_VERSION" ]; then
+  uv_reported="$(uv --version 2>/dev/null | awk '{print $2}' || true)"
+  if version_ge "$uv_reported" "$UV_MIN"; then
+    uv_state=preinstalled
+    printf 'uv %s (preinstalled, ok)\n' "$uv_reported"
+  else
+    uv_dir="$(install_dir_for uv)"
     fetch "https://files.pythonhosted.org/packages/${UV_WHEEL_PATH}/${UV_WHEEL}" "$tmp/uv.whl" "$UV_SHA256"
     unzip_wheel "$tmp/uv.whl" "$tmp/uvwhl"
     install -m 0755 "$tmp/uvwhl/uv-${UV_VERSION}.data/scripts/uv" \
-      "$tmp/uvwhl/uv-${UV_VERSION}.data/scripts/uvx" "$bindir/"
+      "$tmp/uvwhl/uv-${UV_VERSION}.data/scripts/uvx" "$uv_dir/"
     hash -r
+    uv_reported="$(uv --version 2>/dev/null | awk '{print $2}' || true)"
+    [ "$uv_reported" = "$UV_VERSION" ] || {
+      echo "uv ${UV_VERSION} installed into ${uv_dir} but 'uv' still resolves to '${uv_reported:-none}' ($(command -v uv 2>/dev/null || echo 'not on PATH'))" >&2
+      exit 1
+    }
+    uv_state=installed
+    printf 'uv %s (installed -> %s)\n' "$uv_reported" "$uv_dir"
   fi
 fi
 
@@ -135,15 +174,17 @@ fi
 # Preferred: corepack (ships with Node, which the Claude sandbox image provides) — a few-KB shim,
 # integrity-checked against registry.npmjs.org. Fallback for a Node-less image: the pinned
 # platform package tarball from the same registry (the GitHub release is proxy-blocked).
-install_pnpm_corepack() {
+install_pnpm_corepack() { # destdir
   command -v corepack >/dev/null 2>&1 || return 1
-  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable --install-directory "$bindir" >/dev/null 2>&1 || return 1
+  # --install-directory places the shim; corepack prepare --activate is what materialises the
+  # requested pnpm version behind it. Both are required.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable --install-directory "$1" >/dev/null 2>&1 || return 1
   COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare "pnpm@${PNPM_VERSION}" --activate >/dev/null 2>&1 || return 1
   hash -r
   [ "$(pnpm --version 2>/dev/null)" = "$PNPM_VERSION" ]
 }
 
-install_pnpm_registry() {
+install_pnpm_registry() { # destdir
   # Two registry tarballs, mirroring what `npm i -g pnpm` assembles: the main package carries
   # dist/pnpm.mjs, the platform package carries the self-contained Node launcher that loads it
   # from ../dist relative to itself. Neither needs a system Node.
@@ -155,7 +196,7 @@ install_pnpm_registry() {
   tar -xzf "$tmp/pnpm.tgz" -C "$libdir/pnpm-${PNPM_VERSION}" --strip-components=1
   tar -xzf "$tmp/pnpm-bin.tgz" -C "$libdir/pnpm-${PNPM_VERSION}" --strip-components=1 package/pnpm
   chmod 0755 "$libdir/pnpm-${PNPM_VERSION}/pnpm"
-  ln -sfn "$libdir/pnpm-${PNPM_VERSION}/pnpm" "$bindir/pnpm"
+  ln -sfn "$libdir/pnpm-${PNPM_VERSION}/pnpm" "$1/pnpm"
   hash -r
   # The bundled Node links against libatomic, which minimal Ubuntu images omit.
   if ! pnpm --version >/dev/null 2>&1; then
@@ -166,12 +207,29 @@ install_pnpm_registry() {
   [ "$(pnpm --version 2>/dev/null)" = "$PNPM_VERSION" ]
 }
 
+pnpm_state=skipped
+pnpm_reported=""
 if [ "${RC_CLOUD_SKIP_PNPM:-0}" != 1 ]; then
-  if [ "$(pnpm --version 2>/dev/null)" != "$PNPM_VERSION" ]; then
-    install_pnpm_corepack || install_pnpm_registry || {
-      rm -f "$bindir/pnpm"
+  pnpm_reported="$(pnpm --version 2>/dev/null || true)"
+  if version_ge "$pnpm_reported" "$PNPM_MIN"; then
+    pnpm_state=preinstalled
+    printf 'pnpm %s (preinstalled, ok)\n' "$pnpm_reported"
+  else
+    pnpm_dir="$(install_dir_for pnpm)"
+    if install_pnpm_corepack "$pnpm_dir" || install_pnpm_registry "$pnpm_dir"; then
+      pnpm_reported="$(pnpm --version 2>/dev/null || true)"
+      if [ "$pnpm_reported" = "$PNPM_VERSION" ]; then
+        pnpm_state=installed
+        printf 'pnpm %s (installed -> %s)\n' "$pnpm_reported" "$pnpm_dir"
+      else
+        pnpm_state=failed
+        echo "warning: pnpm ${PNPM_VERSION} installed into ${pnpm_dir} but 'pnpm' still resolves to '${pnpm_reported:-none}'" >&2
+      fi
+    else
+      pnpm_state=failed
+      rm -f "$pnpm_dir/pnpm"
       echo "warning: pnpm ${PNPM_VERSION} could not be installed; rc and uv are ready" >&2
-    }
+    fi
   fi
 fi
 
@@ -184,5 +242,12 @@ done
 
 hash -r
 rc --version
-if [ "${RC_CLOUD_SKIP_UV:-0}" = 1 ]; then echo "uv: skipped"; else uv --version; fi
-if [ "${RC_CLOUD_SKIP_PNPM:-0}" = 1 ]; then echo "pnpm: skipped"; else pnpm --version 2>/dev/null || echo "pnpm: not installed"; fi
+case "$uv_state" in
+  skipped) echo "uv: skipped" ;;
+  *) echo "uv ${uv_reported} (${uv_state})" ;;
+esac
+case "$pnpm_state" in
+  skipped) echo "pnpm: skipped" ;;
+  failed)  echo "pnpm: not installed" ;;
+  *) echo "pnpm ${pnpm_reported} (${pnpm_state})" ;;
+esac

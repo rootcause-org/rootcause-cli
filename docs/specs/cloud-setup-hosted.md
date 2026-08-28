@@ -17,7 +17,8 @@ only consumer → opinionated, minimal, changeable later. Not over-engineered: n
      where behaviour must differ (probably nowhere today besides the log line — keep it that way).
    - opt-outs: `RC_CLOUD_SKIP_UV=1`, `RC_CLOUD_SKIP_PNPM=1` (rc always installs). Default = install all.
    - `RC_RELEASE_MIRROR` override honoured (default = the S3 mirror URL).
-   - keep: sha256-pinned uv/pnpm, rc from mirror `latest` + checksums.txt, idempotent, PATH persistence,
+   - keep: sha256-pinned uv/pnpm downloads (installed only when missing/below `UV_MIN`/`PNPM_MIN`),
+     rc from mirror `latest` + checksums.txt, idempotent, PATH persistence,
      final version summary. Header comment: canonical path + how it's published + the one-liner.
 2. **Publish**: release workflow uploads `cloud-setup.sh` to `<mirror>/<tag>/cloud-setup.sh` and
    `<mirror>/cloud-setup.sh` (latest, `Cache-Control: no-cache`). Backfill for v1.20.0 (or cut v1.20.1 if the

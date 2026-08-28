@@ -387,6 +387,10 @@ The release workflow publishes the tagged script immutably and refreshes the mir
 `cloud-setup.sh`; the server's `/install/cloud.sh` route is only a stable redirect. Keep platform branches
 limited to necessary behavior (currently the log label), keep `rc` mandatory, and preserve the uv/pnpm
 opt-outs plus `RC_RELEASE_MIRROR` override. Consumers link the hosted one-liner instead of mirroring it.
+uv/pnpm are **minimum-version, not pinned-version**: cloud images ship their own ahead of our bindir on
+`PATH`, so re-installing a pin we don't need is churn we'd lose anyway. Only a missing/too-old tool is
+installed, and then into the shadowing binary's directory when writable (else the bindir) with a
+post-install `command -v` re-check that fails loudly. Keep the download pins + sha256 for that path.
 
 ## Scope guards (push back if asked)
 

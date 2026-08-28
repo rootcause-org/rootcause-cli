@@ -191,12 +191,16 @@ or other scopes only when the agent actually uses those planes. Verify a fresh s
 ### Cloud setup
 
 The hosted setup script installs or updates `rc`, uv, and pnpm from checksum-verified, cloud-reachable
-sources:
+sources. `rc` always tracks the mirror's latest release; uv and pnpm follow a **minimum-version** policy
+(`UV_MIN`/`PNPM_MIN` in the script — currently uv >= 0.8, pnpm >= 10): a preinstalled build that already
+satisfies the minimum is left alone, otherwise the pinned build is installed over the shadowing binary
+when its directory is writable, so it actually wins on `PATH`.
 
 ```bash
 curl -fsSL https://app.replypen.com/install/cloud.sh | bash
 ```
 
+The final summary marks each tool `(preinstalled)` or `(installed)`.
 Set `RC_CLOUD_SKIP_UV=1` or `RC_CLOUD_SKIP_PNPM=1` to omit an optional tool. `RC_RELEASE_MIRROR`
 overrides the rc release mirror. Platform detection affects only the log label: Claude cloud is detected
 from `CLAUDE_CODE_REMOTE=true`; set `RC_CLOUD_PLATFORM=codex` for Codex/ChatGPT cloud, or explicitly use

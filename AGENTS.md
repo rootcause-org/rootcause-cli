@@ -32,8 +32,10 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 ## Cloud setup
 `scripts/cloud-setup.sh` is the canonical hosted cloud bootstrap. Each release publishes immutable
 `<mirror>/<tag>/cloud-setup.sh` plus no-cache `<mirror>/cloud-setup.sh`; users run
-`curl -fsSL https://app.replypen.com/install/cloud.sh | bash`. It always installs `rc`; uv/pnpm have
-`RC_CLOUD_SKIP_UV=1` / `RC_CLOUD_SKIP_PNPM=1` opt-outs, and `RC_RELEASE_MIRROR` overrides the mirror.
+`curl -fsSL https://app.replypen.com/install/cloud.sh | bash`. It always installs `rc`; uv/pnpm use a
+minimum-version policy (`UV_MIN`/`PNPM_MIN`) that keeps a good-enough preinstalled build and otherwise
+installs the pinned one over the shadowing binary. `RC_CLOUD_SKIP_UV=1` / `RC_CLOUD_SKIP_PNPM=1` opt out;
+`RC_RELEASE_MIRROR` overrides the mirror.
 
 ## Working on it
 - **Toolchain:** Go 1.25 via `mise` (pinned in `mise.toml`); `cobra`+`pflag`, `BurntSushi/toml`. Run from the repo dir so mise selects go 1.25.
