@@ -45,6 +45,58 @@ type attachmentTrace struct {
 	DropReason string `json:"drop_reason"`
 }
 
+type linkTrace struct {
+	URL       string `json:"url"`
+	Status    int    `json:"status"`
+	MS        int64  `json:"ms"`
+	Verdict   string `json:"verdict"`
+	Validator string `json:"validator"`
+}
+
+func linkSummary(events []decEvent) (string, bool) {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].src.Tool != "reply" && events[i].src.Tool != "compose" {
+			continue
+		}
+		var envelope map[string]json.RawMessage
+		if json.Unmarshal(events[i].src.Args, &envelope) != nil {
+			continue
+		}
+		raw, ok := envelope["links"]
+		if !ok {
+			return "", false
+		}
+		var links []linkTrace
+		if json.Unmarshal(raw, &links) != nil {
+			return "", false
+		}
+		passed, removed := 0, 0
+		parts := make([]string, 0, len(links))
+		for _, link := range links {
+			switch link.Verdict {
+			case "pass":
+				passed++
+			case "fail":
+				removed++
+			}
+			status := "no HTTP status"
+			if link.Status > 0 {
+				status = fmt.Sprintf("HTTP %d", link.Status)
+			}
+			parts = append(parts, fmt.Sprintf("`%s` · %s · %s · %d ms",
+				strings.ReplaceAll(link.URL, "`", "\\`"), link.Verdict, status, link.MS))
+		}
+		checked := passed + removed
+		summary := fmt.Sprintf("%d checked · %d passed · %d removed · %d untouched",
+			checked, passed, removed, len(links)-checked)
+		if len(parts) > 0 {
+			summary += " — " + strings.Join(parts, "; ")
+		}
+		return summary, true
+	}
+	return "", false
+}
+
 func attachmentSummary(events []decEvent) (string, bool) {
 	for i := len(events) - 1; i >= 0; i-- {
 		if events[i].src.Tool != "reply" {

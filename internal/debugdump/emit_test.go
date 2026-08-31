@@ -64,6 +64,27 @@ func TestReplyAttachmentsRenderInDebugDump(t *testing.T) {
 	}
 }
 
+func TestReplyLinksRenderInDebugDump(t *testing.T) {
+	full := &client.FullResponse{
+		Run: client.RunHeader{RunID: "7ca34e0f-8a1e-418e-8818-c59543c735ff", Project: "kampadmin", Status: "done", Kind: "email"},
+		Events: []client.EventItem{{
+			Seq: 1, Tool: "reply", Status: "ok", Args: json.RawMessage(`{"has_draft":true,"links":[{"url":"https://ok.example/login","status":403,"ms":12,"verdict":"pass","validator":"liveness"},{"url":"https://bad.example/x","status":404,"ms":21,"verdict":"fail","validator":"liveness"},{"url":"https://skip.example","status":0,"ms":0,"verdict":"skipped_allowlist","validator":"liveness"}]}`),
+		}},
+	}
+
+	index := RenderIndex(full)
+	for _, want := range []string{
+		"**Links:** 2 checked · 1 passed · 1 removed · 1 untouched",
+		"`https://ok.example/login` · pass · HTTP 403 · 12 ms",
+		"`https://bad.example/x` · fail · HTTP 404 · 21 ms",
+		"`https://skip.example` · skipped_allowlist · no HTTP status · 0 ms",
+	} {
+		if !strings.Contains(index, want) {
+			t.Fatalf("index missing %q:\n%s", want, index)
+		}
+	}
+}
+
 func TestScopeSummaryRendersSplitKBCounts(t *testing.T) {
 	summary := scopeSummary(map[string]any{
 		"mode":            "tenant",

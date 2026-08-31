@@ -183,6 +183,9 @@ func RenderIndex(full *client.FullResponse) string {
 	if attachments, ok := attachmentSummary(events); ok {
 		add("- **Attachments:** " + attachments)
 	}
+	if links, ok := linkSummary(events); ok {
+		add("- **Links:** " + links)
+	}
 	add(fmt.Sprintf("- **Events (full, queryable):** `%s` — one JSON object per event; jq it (see Drill down).", jsonlName), "")
 
 	add(renderProjectionInputs(r)...)

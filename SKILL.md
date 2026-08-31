@@ -305,7 +305,9 @@ writes both files. Historical `/trace` snapshots are authoritative (`brain_resol
 visibility counts (`project_total`, `project_visible`, `project_hidden`, `tenant_total`,
 `total_visible`) so isolation checks remain visible in the thin Markdown index. A terminal reply adds
 an `Attachments` header line with declared/shipped/dropped counts and byte-free file metadata; the raw
-per-file records remain in that reply event's `args.attachments` in JSONL.
+per-file records remain in that reply event's `args.attachments` in JSONL. The same header renders the
+host's final-draft URL checks as a `Links` line (pass/removed/untouched plus per-URL status and latency);
+the structured records remain in the terminal reply/compose event's `args.links`.
 
 ### Withheld run detail (project-admin only)
 The server serves run *detail* only to project-level admins. A non-admin caller does NOT get an error on
