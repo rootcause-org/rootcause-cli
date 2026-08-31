@@ -36,6 +36,49 @@ type decEvent struct {
 	gist    string
 }
 
+type attachmentTrace struct {
+	Path       string `json:"path"`
+	Filename   string `json:"filename"`
+	SizeBytes  int64  `json:"size_bytes"`
+	MimeType   string `json:"mime_type"`
+	Status     string `json:"status"`
+	DropReason string `json:"drop_reason"`
+}
+
+func attachmentSummary(events []decEvent) (string, bool) {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].src.Tool != "reply" {
+			continue
+		}
+		var args struct {
+			Attachments []attachmentTrace `json:"attachments"`
+		}
+		_ = json.Unmarshal(events[i].src.Args, &args)
+		shipped := 0
+		parts := make([]string, 0, len(args.Attachments))
+		for _, a := range args.Attachments {
+			state := a.Status
+			if state == "shipped" {
+				shipped++
+			} else if a.DropReason != "" {
+				state += ": " + a.DropReason
+			}
+			mime := a.MimeType
+			if mime == "" {
+				mime = "unknown MIME"
+			}
+			parts = append(parts, fmt.Sprintf("`%s` · %d bytes · `%s` · `%s` · %s",
+				a.Filename, a.SizeBytes, mime, a.Path, state))
+		}
+		summary := fmt.Sprintf("%d declared · %d shipped · %d dropped", len(args.Attachments), shipped, len(args.Attachments)-shipped)
+		if len(parts) > 0 {
+			summary += " — " + strings.Join(parts, "; ")
+		}
+		return summary, true
+	}
+	return "", false
+}
+
 // polishSeqBase is the server's synthetic post-loop band (draft cleanup / deferral revise), above the
 // main loop (1..N), the engine-failure band (2M) and the hot-session band (3M).
 const polishSeqBase = 4_000_000
@@ -278,6 +321,8 @@ func summarizeArgs(raw json.RawMessage) string {
 				yn = "yes"
 			}
 			parts = append(parts, k+"="+yn)
+		case []any:
+			parts = append(parts, fmt.Sprintf("%s=%d", k, len(v)))
 		default:
 			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 		}

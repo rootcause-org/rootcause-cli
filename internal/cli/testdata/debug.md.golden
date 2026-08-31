@@ -6,6 +6,7 @@
 - **Thread / Session:** `thr_abc` / `sess_xyz`
 - **Created / Finished:** 2026-06-19T09:00:00Z / 2026-06-19T09:01:30Z
 - **Steps:** 2 main + 1 grounding · **Egress:** 2 (1 blocked)
+- **Attachments:** 0 declared · 0 shipped · 0 dropped
 - **Events (full, queryable):** `11111111-coca-cola.jsonl` — one JSON object per event; jq it (see Drill down).
 
 ## Projection inputs

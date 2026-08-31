@@ -43,6 +43,27 @@ func TestHTMLFallbackDraftRendersInDebugDump(t *testing.T) {
 	}
 }
 
+func TestReplyAttachmentsRenderInDebugDump(t *testing.T) {
+	full := &client.FullResponse{
+		Run: client.RunHeader{RunID: "7ca34e0f-8a1e-418e-8818-c59543c735ff", Project: "kampadmin", Status: "done", Kind: "email"},
+		Events: []client.EventItem{{
+			Seq: 1, Tool: "reply", Status: "ok", Args: json.RawMessage(`{"has_draft":true,"attachments":[{"path":"/tmp/outbox/report.pdf","filename":"report.pdf","size_bytes":439296,"mime_type":"application/pdf","status":"shipped"},{"path":"/tmp/outbox/unsafe.bin","filename":"unsafe.bin","size_bytes":12,"status":"dropped","drop_reason":"sniff_rejected"}]}`),
+		}},
+	}
+
+	index := RenderIndex(full)
+	for _, want := range []string{"**Attachments:** 2 declared · 1 shipped · 1 dropped", "`report.pdf` · 439296 bytes · `application/pdf` · `/tmp/outbox/report.pdf` · shipped", "unsafe.bin", "dropped: sniff_rejected"} {
+		if !strings.Contains(index, want) {
+			t.Fatalf("index missing %q:\n%s", want, index)
+		}
+	}
+
+	full.Events[0].Args = json.RawMessage(`{"has_draft":true}`)
+	if index := RenderIndex(full); !strings.Contains(index, "**Attachments:** 0 declared · 0 shipped · 0 dropped") {
+		t.Fatalf("zero attachments not visible:\n%s", index)
+	}
+}
+
 func TestScopeSummaryRendersSplitKBCounts(t *testing.T) {
 	summary := scopeSummary(map[string]any{
 		"mode":            "tenant",

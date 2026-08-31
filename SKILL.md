@@ -302,7 +302,9 @@ writes both files. Historical `/trace` snapshots are authoritative (`brain_resol
 `grounding_sources`); current state is only a drift annotation (`grounding_source_drift_count`,
 `tenant_settings_drift`). KB grounding scope summaries preserve the server's split project/tenant
 visibility counts (`project_total`, `project_visible`, `project_hidden`, `tenant_total`,
-`total_visible`) so isolation checks remain visible in the thin Markdown index.
+`total_visible`) so isolation checks remain visible in the thin Markdown index. A terminal reply adds
+an `Attachments` header line with declared/shipped/dropped counts and byte-free file metadata; the raw
+per-file records remain in that reply event's `args.attachments` in JSONL.
 
 ### Withheld run detail (project-admin only)
 The server serves run *detail* only to project-level admins. A non-admin caller does NOT get an error on
