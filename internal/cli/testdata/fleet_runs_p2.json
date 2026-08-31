@@ -2,6 +2,8 @@
   "runs": [
     {
       "run_id": "aaaaaaaa-0000-0000-0000-000000000003",
+      "thread_id": "thread-fleet-3",
+      "session_id": "session-fleet-3",
       "kind": "analysis",
       "source": "Prompt API",
       "status": "done",
@@ -35,6 +37,8 @@
     },
     {
       "run_id": "aaaaaaaa-0000-0000-0000-000000000004",
+      "thread_id": "thread-fleet-4",
+      "session_id": "session-fleet-4",
       "kind": "analysis",
       "source": "Prompt API",
       "status": "done",
@@ -68,6 +72,8 @@
     },
     {
       "run_id": "aaaaaaaa-0000-0000-0000-000000000005",
+      "thread_id": "thread-fleet-5",
+      "session_id": "session-fleet-5",
       "kind": "email",
       "source": "Email",
       "status": "done",

@@ -413,6 +413,10 @@ type ActionExecResponse struct {
 // for a baseline bearer, so the digest degrades to the safe columns rather than erroring.
 type RunSummary struct {
 	RunID          string     `json:"run_id"`
+	ThreadID       string     `json:"thread_id,omitempty"`
+	SessionID      string     `json:"session_id,omitempty"`
+	LocalThreadID  string     `json:"local_thread_id,omitempty"`
+	TurnKey        string     `json:"turn_key,omitempty"`
 	Kind           string     `json:"kind"`
 	Source         string     `json:"source"`
 	Status         string     `json:"status"`
@@ -625,6 +629,10 @@ type RunDebug struct {
 // duration_ms/turns/bash_total are the run_health triage scalars.
 type RunDetail struct {
 	RunID           string           `json:"run_id"`
+	ThreadID        string           `json:"thread_id,omitempty"`
+	SessionID       string           `json:"session_id,omitempty"`
+	LocalThreadID   string           `json:"local_thread_id,omitempty"`
+	TurnKey         string           `json:"turn_key,omitempty"`
 	Scenario        string           `json:"scenario,omitempty"`
 	Status          string           `json:"status"`
 	Kind            string           `json:"kind"`

@@ -1,4 +1,6 @@
 Run:          11111111-1111-1111-1111-111111111111
+Thread:       thread-abc123
+Session:      session-abc123
 Kind:         prompt
 Status:       done
 Category:     answered

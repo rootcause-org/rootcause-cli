@@ -3,6 +3,9 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -491,6 +494,27 @@ func TestThreadTraceTable(t *testing.T) {
 		t.Fatalf("thread: %v", err)
 	}
 	assertGolden(t, "thread_trace.golden", out.String())
+}
+
+func TestThreadTraceAcceptsRunID(t *testing.T) {
+	var tracedID string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(fixture(t, "run.json"))
+	})
+	mux.HandleFunc("GET /api/v1/threads/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
+		tracedID = r.PathValue("id")
+		_, _ = fmt.Fprintf(w, `{"id":%q,"resolved_by":"local_thread","threads":[],"runs":[]}`, tracedID)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "thread", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run thread by run id: %v", err)
+	}
+	if tracedID != "99999999-9999-9999-9999-999999999999" {
+		t.Fatalf("run id resolved trace %q, want exact local thread id; output:\n%s", tracedID, out.String())
+	}
 }
 
 // TestThreadTraceSessionTable pins the session-fallback path (resolved_by:"session") and the declined-run

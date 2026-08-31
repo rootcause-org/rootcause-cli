@@ -36,4 +36,4 @@ all runs (newest first):
   aaaaaaaa-0000-0000-0000-000000000004  analysis  done  3t  LRN:sent_delta/equivalent
   aaaaaaaa-0000-0000-0000-000000000005  email  done  2t  LRN:sent_delta/missed_content
 
-drill: rc run debug <id>
+drill: rc run thread <run-id> (lineage) · rc run debug <run-id> (trace)

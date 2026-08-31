@@ -33,6 +33,11 @@ func TestProjectScopeRidesAsQueryParam(t *testing.T) {
 		got["health"] = r.URL.Query().Get("project")
 		_, _ = w.Write([]byte(`{"rows":[]}`))
 	})
+	mux.HandleFunc("GET /api/v1/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
+		got["thread-run"] = r.URL.Query().Get("project")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"unknown run"}}`))
+	})
 	mux.HandleFunc("GET /api/v1/threads/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
 		got["thread"] = r.URL.Query().Get("project")
 		_, _ = w.Write([]byte(`{"id":"t1","resolved_by":"none","runs":[]}`))
@@ -59,6 +64,9 @@ func TestProjectScopeRidesAsQueryParam(t *testing.T) {
 		if got[tc.label] != scope {
 			t.Errorf("%v: server saw project=%q, want %q", tc.args, got[tc.label], scope)
 		}
+	}
+	if got["thread-run"] != scope {
+		t.Errorf("run thread resolver: server saw project=%q, want %q", got["thread-run"], scope)
 	}
 }
 
@@ -604,6 +612,9 @@ func TestFleetJSONPassthrough(t *testing.T) {
 	// No client-side digest leaked into JSON mode: the rows are the wire struct (run_id + health present).
 	if got.Runs[0]["run_id"] == nil || got.Runs[0]["health"] == nil {
 		t.Errorf("json rows reshaped — want verbatim wire rows, got %+v", got.Runs[0])
+	}
+	if got.Runs[0]["thread_id"] != "thread-fleet-1" || got.Runs[0]["session_id"] != "session-fleet-1" {
+		t.Errorf("json run identity lost — got %+v", got.Runs[0])
 	}
 	learning, ok := got.Runs[0]["learning"].(map[string]any)
 	if !ok || learning["feedback"] != true || learning["triage_corrected"] != true {

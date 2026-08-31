@@ -732,7 +732,7 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 		_, _ = fmt.Fprintf(w, "  %s  %s  %s  %dt  %s\n",
 			r.RunID, r.Kind, r.Status, turnsOf(r), flagStr(r, spikes))
 	}
-	_, _ = fmt.Fprintln(w, "\ndrill: rc run debug <id>")
+	_, _ = fmt.Fprintln(w, "\ndrill: rc run thread <run-id> (lineage) · rc run debug <run-id> (trace)")
 }
 
 func learningScope(learning string) string {

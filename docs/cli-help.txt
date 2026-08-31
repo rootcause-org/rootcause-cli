@@ -98,7 +98,7 @@ Available Commands:
   brain-diff     Show the brain commit written by a run
   egress         Show outbound gateway connections and HTTP attempts
   actions        Show the safe action lifecycle history
-  thread         Trace one provider/local thread or session through pipeline, run, and placement
+  thread         Trace one run, provider/local thread, or session through pipeline and placement
   feedback       Record score/comment feedback on a run's trace, or mark it processed
   retry          Re-run a run (optionally at a different tier); prints the new run id
   process-thread Process a triage-skipped or security-blocked inbox thread
@@ -259,7 +259,7 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc run thread --help
-Trace a provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, or session id. Shows the pre-agent channel outcome first, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error.
+Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, or session id. A run id is resolved through its safe run-status identity first. Shows the pre-agent channel outcome, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error.
 
 Usage:
   rc run thread <id> [flags]

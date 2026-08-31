@@ -135,6 +135,12 @@ func learningLabel(l client.Learning) string {
 func Run(w io.Writer, r *client.RunDetail) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintf(tw, "Run:\t%s\n", r.RunID)
+	if r.ThreadID != "" {
+		_, _ = fmt.Fprintf(tw, "Thread:\t%s\n", r.ThreadID)
+	}
+	if r.SessionID != "" {
+		_, _ = fmt.Fprintf(tw, "Session:\t%s\n", r.SessionID)
+	}
 	_, _ = fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
 	_, _ = fmt.Fprintf(tw, "Status:\t%s\n", r.Status)
 	if r.Category != "" {

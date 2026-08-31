@@ -1,5 +1,9 @@
 {
   "run_id": "11111111-1111-1111-1111-111111111111",
+  "thread_id": "thread-abc123",
+  "session_id": "session-abc123",
+  "local_thread_id": "99999999-9999-9999-9999-999999999999",
+  "turn_key": "turn-2026-06-19T09:00:00Z",
   "status": "done",
   "kind": "prompt",
   "category": "answered",

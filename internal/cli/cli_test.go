@@ -131,7 +131,8 @@ func stubServer(t *testing.T) *httptest.Server {
 
 	mux.HandleFunc("GET /api/v1/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
-		if r.PathValue("id") == "bad" {
+		switch r.PathValue("id") {
+		case "bad", "thread-abc123", "session-fallback", "215475391714527", "unknown":
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"unknown run"}}`))
 			return
