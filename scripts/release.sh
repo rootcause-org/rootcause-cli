@@ -30,7 +30,10 @@ GH_REPO="rootcause-org/rootcause-cli"
 HOMEBREW_CASK_PATH="repos/rootcause-org/homebrew-tap/contents/Casks/rc.rb"
 MAIN_BRANCH="main"
 GOPROXY_URL="https://proxy.golang.org"
-RELEASE_MIRROR_URL="https://kampkompas-eu-central-1.s3.eu-central-1.amazonaws.com/cloud-bootstrap/rc"
+# Same override knob as scripts/cloud-setup.sh, so the release verification and the installer can be
+# pointed at the same non-production mirror (used by internal/releasetest).
+RELEASE_MIRROR_URL="${RC_RELEASE_MIRROR:-https://kampkompas-eu-central-1.s3.eu-central-1.amazonaws.com/cloud-bootstrap/rc}"
+RELEASE_MIRROR_URL="${RELEASE_MIRROR_URL%/}"
 EXPECTED_ASSETS=7 # 6 OS/arch archives + checksums.txt — keep in sync with .goreleaser.yaml
 RELEASE_TIMEOUT=600 # seconds to wait for the GitHub Release assets to appear
 
@@ -123,10 +126,16 @@ ok "clean, on $MAIN_BRANCH, not behind origin ($ahead_count commit(s) to publish
 step "Quality gates (build / vet / test / shellcheck)"
 go mod tidy
 [ -z "$(git status --porcelain -- go.mod go.sum)" ] || die "go mod tidy changed go.mod/go.sum — commit the dependency metadata and rerun"
-go build ./... && ok "build"
-go vet ./...   && ok "vet"
-go test ./...  && ok "test"
-shellcheck scripts/cloud-setup.sh && ok "cloud setup shellcheck"
+# NOTE: these must NOT be written as `cmd && ok "..."` — under `set -e` a failing command in an
+# AND-list is exempt from the errexit trap, which would silently turn every gate below into a no-op.
+go build ./...
+ok "build"
+go vet ./...
+ok "vet"
+go test ./...
+ok "test"
+shellcheck scripts/cloud-setup.sh
+ok "cloud setup shellcheck"
 # Lint is advisory: the repo has known, intentional errcheck findings in the render layer (writes to
 # an output buffer). Surface lint output but never block a release on it.
 if command -v golangci-lint >/dev/null; then
