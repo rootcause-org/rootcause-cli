@@ -365,9 +365,14 @@ non-decodable body falls back to `error: HTTP <status>` — clean non-zero exit,
   `models.agent={"tier":"pro"}` — is parsed as JSON and passed through verbatim, empty → `{}` (clear),
   non-object rejected client-side). On a schema miss it falls back to a static
   known-key set. The server is always the final validator.
-- **Hierarchy settings coercion:** [`hierarchy_settings.go`](internal/cli/hierarchy_settings.go) validates
-  `persona.*` and `channel.*` keys locally before sending the nested patch. Keep its field/type map aligned
-  with `/meta/schema`, including numeric follow-up guardrails; the server remains the final validator.
+- **Hierarchy settings coercion:** [`hierarchy_settings.go`](internal/cli/hierarchy_settings.go) fetches
+  `/meta/schema` ONCE per `settings set` and builds its group→field index from the response's
+  `hierarchy_settings[group].field_schemas` (plus any resource field whose dotted key prefix is its own
+  group, e.g. `persona.*`). There is NO hardcoded key list — a knob the server gains is settable with no
+  CLI release. Coercion follows the declared type (bool/int/list); an `enum` is checked against the
+  declared values; a `key=`/`--unset` clear skips coercion but still needs the key to exist. A schema
+  fetch failure fails the command (a set needs the network anyway) rather than skipping validation. The
+  server remains the final validator, including per-level fences like `channel.chat_mode` at mailbox scope.
 
 ## Local installation plumbing: `rc self doctor` / `rc self update`
 

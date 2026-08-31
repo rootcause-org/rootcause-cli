@@ -14,23 +14,66 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-var hierarchyFields = map[string]map[string]valueKind{
-	"channel": {
-		"labeling_enabled":           kindBool,
-		"inbox_cleaning_enabled":     kindBool,
-		"draft_font_css":             kindString,
-		"note_from_address":          kindString,
-		"follow_up_enabled":          kindBool,
-		"follow_up_max_steps":        kindNumber,
-		"follow_up_max_horizon_days": kindNumber,
-	},
-	"persona": {
-		"signature": kindString,
-		"tone":      kindString,
-		"language":  kindString,
-		"formality": kindString,
-		"guidance":  kindString,
-	},
+// hierarchySchema is the nested settings surface as the SERVER describes it: group prefix → bare field
+// name → that field's schema. The CLI holds no key list of its own — discovery is the contract, so a
+// knob the server gained (e.g. channel.chat_mode) is settable the day it ships, with no CLI release.
+type hierarchySchema map[string]map[string]client.FieldSchema
+
+// newHierarchySchema folds /meta/schema into the group→field index. Two sources, same shape:
+// hierarchy_settings[group].field_schemas (authoritative — the JSONB-only channel.* keys live only
+// there), plus any resource field whose dotted key prefix IS its group (persona.*, which also rides the
+// flat settings bag). An older server that sends only the bare `fields` list still yields settable keys;
+// those carry no type, and coerceHierarchyValue then infers one from the literal.
+func newHierarchySchema(resp *client.SchemaResponse) hierarchySchema {
+	out := hierarchySchema{}
+	put := func(group, field string, f client.FieldSchema) {
+		if group == "" || field == "" {
+			return
+		}
+		if out[group] == nil {
+			out[group] = map[string]client.FieldSchema{}
+		}
+		if existing, ok := out[group][field]; ok && existing.Type != "" && f.Type == "" {
+			return
+		}
+		out[group][field] = f
+	}
+	for group, g := range resp.HierarchySettings {
+		for _, name := range g.Fields {
+			put(group, name, client.FieldSchema{Key: group + "." + name})
+		}
+		for _, f := range g.FieldSchemas {
+			if _, field, ok := strings.Cut(f.Key, "."); ok {
+				put(group, field, f)
+			}
+		}
+	}
+	for _, bag := range resp.Resources {
+		for _, f := range bag.Fields {
+			group, field, ok := strings.Cut(f.Key, ".")
+			if !ok || group != f.Group {
+				// Not a nested settings key (e.g. models.agent is group "model"): the hierarchy routes
+				// never carry it, so listing it here would only invite a 400.
+				continue
+			}
+			put(group, field, f)
+		}
+	}
+	return out
+}
+
+// groups lists the settable group prefixes, sorted. Empty schema ⇒ the two groups every server has, so
+// the "unknown group" message stays useful even against a server that describes nothing.
+func (h hierarchySchema) groups() []string {
+	if len(h) == 0 {
+		return []string{"channel", "persona"}
+	}
+	out := make([]string, 0, len(h))
+	for g := range h {
+		out = append(out, g)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func newProjectHierarchySettingsCmd(e *env) *cobra.Command {
@@ -140,7 +183,14 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 			if len(patchArgs) == 0 && len(unset) == 0 {
 				return fmt.Errorf("nothing to set: pass group.key=value pairs and/or --unset group.key")
 			}
-			patch, err := buildHierarchyPatch(patchArgs, unset)
+			// Validate against the server's self-describing registry, never a baked-in key list: one
+			// fetch, before the PATCH. A set needs the network anyway, so a discovery failure is a hard
+			// error — silently skipping validation would turn a typo into a confusing server 400.
+			schemaResp, err := c.GetSchema(e.ctx(), "", project)
+			if err != nil {
+				return err
+			}
+			patch, err := buildHierarchyPatch(patchArgs, unset, newHierarchySchema(schemaResp))
 			if err != nil {
 				return err
 			}
@@ -181,7 +231,7 @@ func hierarchyProject(e *env, c *client.Client) (string, error) {
 	return "", fmt.Errorf("--project <project> is required for hierarchy settings unless the active login is project-scoped")
 }
 
-func buildHierarchyPatch(args, unset []string) (map[string]any, error) {
+func buildHierarchyPatch(args, unset []string, schema hierarchySchema) (map[string]any, error) {
 	root := map[string]any{}
 	seen := map[string]bool{}
 	for _, arg := range args {
@@ -193,7 +243,7 @@ func buildHierarchyPatch(args, unset []string) (map[string]any, error) {
 			return nil, fmt.Errorf("key %q given more than once", key)
 		}
 		seen[key] = true
-		if err := putHierarchyValue(root, key, val, val == ""); err != nil {
+		if err := putHierarchyValue(root, schema, key, val, val == ""); err != nil {
 			return nil, err
 		}
 	}
@@ -205,53 +255,98 @@ func buildHierarchyPatch(args, unset []string) (map[string]any, error) {
 			return nil, fmt.Errorf("key %q both set and --unset", key)
 		}
 		seen[key] = true
-		if err := putHierarchyValue(root, key, "", true); err != nil {
+		if err := putHierarchyValue(root, schema, key, "", true); err != nil {
 			return nil, err
 		}
 	}
 	return root, nil
 }
 
-func putHierarchyValue(root map[string]any, dotted, val string, clear bool) error {
+func putHierarchyValue(root map[string]any, schema hierarchySchema, dotted, val string, clear bool) error {
 	group, field, ok := strings.Cut(dotted, ".")
 	if !ok || group == "" || field == "" {
-		return fmt.Errorf("%s: expected group.key (persona.* or channel.*)", dotted)
+		return fmt.Errorf("%s: expected group.key (%s)", dotted, strings.Join(schema.groups(), ".* or ")+".*")
 	}
-	fields, ok := hierarchyFields[group]
+	fields, ok := schema[group]
 	if !ok {
-		return fmt.Errorf("%s: unknown settings group %q (want persona or channel)", dotted, group)
+		return fmt.Errorf("%s: unknown settings group %q (want %s)", dotted, group, strings.Join(schema.groups(), " or "))
 	}
-	kind, ok := fields[field]
+	f, ok := fields[field]
 	if !ok {
-		return fmt.Errorf("%s: unknown %s setting", dotted, group)
+		return fmt.Errorf("%s: unknown %s setting (try `rc schema`)", dotted, group)
 	}
 	bag, _ := root[group].(map[string]any)
 	if bag == nil {
 		bag = map[string]any{}
 		root[group] = bag
 	}
+	// A clear (`key=` or --unset) drops the local override: no value, so no type or enum to check —
+	// only the key itself has to exist.
 	if clear {
 		bag[field] = nil
 		return nil
 	}
-	if kind == kindBool {
+	v, err := coerceHierarchyValue(f, dotted, val)
+	if err != nil {
+		return err
+	}
+	bag[field] = v
+	return nil
+}
+
+// coerceHierarchyValue turns the CLI string into the JSON value the field's DECLARED type wants. An
+// enum is checked here (the allowed set is right there in the schema, so a typo shouldn't cost a round
+// trip); every other constraint stays the server's. A field with no declared type (older /meta/schema)
+// falls back to inferring bool/int from the literal, so channel.labeling_enabled=true is still a JSON
+// boolean.
+func coerceHierarchyValue(f client.FieldSchema, dotted, val string) (any, error) {
+	if len(f.Enum) > 0 {
+		for _, allowed := range f.Enum {
+			if val == allowed {
+				return val, nil
+			}
+		}
+		return nil, fmt.Errorf("%s: %q is not one of %s", dotted, val, strings.Join(f.Enum, ", "))
+	}
+	if f.Type == "" {
+		return inferHierarchyValue(val), nil
+	}
+	switch normalizeType(f.Type) {
+	case kindBool:
 		b, err := strconv.ParseBool(val)
 		if err != nil {
-			return fmt.Errorf("%s: %q is not a boolean (use true/false)", dotted, val)
+			return nil, fmt.Errorf("%s: %q is not a boolean (use true/false)", dotted, val)
 		}
-		bag[field] = b
-		return nil
-	}
-	if kind == kindNumber {
-		n, err := strconv.ParseInt(val, 10, 64)
+		return b, nil
+	case kindNumber:
+		if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+			return n, nil
+		}
+		fl, err := strconv.ParseFloat(val, 64)
 		if err != nil {
-			return fmt.Errorf("%s: %q is not an integer", dotted, val)
+			return nil, fmt.Errorf("%s: %q is not a number", dotted, val)
 		}
-		bag[field] = n
-		return nil
+		return fl, nil
+	case kindList:
+		return splitList(val), nil
+	default:
+		return val, nil
 	}
-	bag[field] = val
-	return nil
+}
+
+// inferHierarchyValue is the typeless path: a bool/int literal becomes JSON of that kind, anything else
+// stays a string. Only reachable against a server whose /meta/schema names the key but not its type.
+func inferHierarchyValue(val string) any {
+	switch strings.ToLower(val) {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	if n, err := strconv.ParseInt(val, 10, 64); err == nil {
+		return n
+	}
+	return val
 }
 
 func renderHierarchySettings(e *env, hs *client.HierarchySettings) {

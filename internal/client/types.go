@@ -1557,6 +1557,18 @@ type Settings map[string]SettingField
 // resource name. The self-describing surface `rc schema`/`rc explain` render.
 type SchemaResponse struct {
 	Resources map[string]BagSchema `json:"resources"`
+	// HierarchySettings is the nested persona/channel/... surface (`rc project settings behavior set`,
+	// tenant/mailbox twins) keyed by group prefix. Separate from Resources because those groups live in
+	// the hierarchy JSONB, not in a flat project-row bag.
+	HierarchySettings map[string]HierarchyGroupSchema `json:"hierarchy_settings,omitempty"`
+}
+
+// HierarchyGroupSchema is one nested settings group (persona, channel, …): the levels it may be set at,
+// its bare field names, and — on a current server — the full per-field schema the CLI validates against.
+type HierarchyGroupSchema struct {
+	SettableAt   []string      `json:"settable_at,omitempty"`
+	Fields       []string      `json:"fields,omitempty"`
+	FieldSchemas []FieldSchema `json:"field_schemas,omitempty"`
 }
 
 // BagSchema is one resource's schema: its name + every field descriptor.

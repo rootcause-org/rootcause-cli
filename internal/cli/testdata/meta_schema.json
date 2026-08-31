@@ -32,11 +32,28 @@
   "hierarchy_settings": {
     "channel": {
       "settable_at": ["project", "tenant", "mailbox"],
-      "fields": ["labeling_enabled", "inbox_cleaning_enabled", "draft_font_css", "note_from_address"]
+      "fields": ["labeling_enabled", "inbox_cleaning_enabled", "draft_font_css", "note_from_address", "follow_up_enabled", "follow_up_max_steps", "follow_up_max_horizon_days", "chat_mode"],
+      "field_schemas": [
+        { "key": "channel.labeling_enabled", "scope": "project", "group": "channel", "type": "bool", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Apply triage labels to incoming mail." },
+        { "key": "channel.inbox_cleaning_enabled", "scope": "project", "group": "channel", "type": "bool", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Clean quoted history from the assembled thread." },
+        { "key": "channel.draft_font_css", "scope": "project", "group": "channel", "type": "string", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "CSS font declaration applied to placed drafts." },
+        { "key": "channel.note_from_address", "scope": "project", "group": "channel", "type": "string", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "From address used on processor notes." },
+        { "key": "channel.follow_up_enabled", "scope": "project", "group": "channel", "type": "bool", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Place a follow-up draft when a question goes unanswered." },
+        { "key": "channel.follow_up_max_steps", "scope": "project", "group": "channel", "type": "int", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Most follow-up nudges on one thread." },
+        { "key": "channel.follow_up_max_horizon_days", "scope": "project", "group": "channel", "type": "int", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Latest a follow-up may fire, in days." },
+        { "key": "channel.chat_mode", "scope": "project", "group": "channel", "type": "enum", "enum": ["consumer", "power"], "scopes": ["config:write"], "settable_at": ["project", "tenant"], "help": "How deep chat turns go." }
+      ]
     },
     "persona": {
       "settable_at": ["project", "tenant", "mailbox"],
-      "fields": ["signature", "tone", "language", "formality", "guidance"]
+      "fields": ["signature", "tone", "language", "formality", "guidance"],
+      "field_schemas": [
+        { "key": "persona.signature", "scope": "project", "group": "persona", "type": "text", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Sign-off the reply uses." },
+        { "key": "persona.tone", "scope": "project", "group": "persona", "type": "text", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Voice for replies." },
+        { "key": "persona.language", "scope": "project", "group": "persona", "type": "text", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Main language for customer-facing output." },
+        { "key": "persona.formality", "scope": "project", "group": "persona", "type": "text", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Formality register." },
+        { "key": "persona.guidance", "scope": "project", "group": "persona", "type": "text", "scopes": ["config:write"], "settable_at": ["project", "tenant", "mailbox"], "help": "Extra voice/wording guidance." }
+      ]
     }
   },
   "error_codes": ["INVALID_SETTINGS", "UNKNOWN_PROJECT"]

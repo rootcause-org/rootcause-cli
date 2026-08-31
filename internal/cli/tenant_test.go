@@ -223,12 +223,23 @@ func TestMailboxSettingsSetTable(t *testing.T) {
 	}
 }
 
+// testHierarchySchema is the group→field index the set path builds from /meta/schema, read from the
+// same fixture the stub server serves.
+func testHierarchySchema(t *testing.T) hierarchySchema {
+	t.Helper()
+	var resp client.SchemaResponse
+	if err := json.Unmarshal(fixture(t, "meta_schema.json"), &resp); err != nil {
+		t.Fatalf("decode meta_schema fixture: %v", err)
+	}
+	return newHierarchySchema(&resp)
+}
+
 func TestBuildHierarchyPatchAcceptsFollowUpSettings(t *testing.T) {
 	patch, err := buildHierarchyPatch([]string{
 		"channel.follow_up_enabled=true",
 		"channel.follow_up_max_steps=2",
 		"channel.follow_up_max_horizon_days=14",
-	}, nil)
+	}, nil, testHierarchySchema(t))
 	if err != nil {
 		t.Fatalf("build follow-up settings patch: %v", err)
 	}
@@ -243,6 +254,54 @@ func TestBuildHierarchyPatchAcceptsFollowUpSettings(t *testing.T) {
 			"follow_up_max_horizon_days": 14
 		}
 	}`), got)
+}
+
+// TestTenantSettingsSetSchemaDiscoveredKey is the anti-drift contract: a key the CLI never heard of is
+// settable the moment /meta/schema declares it (channel.chat_mode used to be rejected by a hardcoded
+// allowlist), and its enum is checked client-side from that same declaration.
+func TestTenantSettingsSetSchemaDiscoveredKey(t *testing.T) {
+	var gotBody string
+	srv := hierarchyBodyCaptureServer(t, &gotBody)
+	defer srv.Close()
+	e := newTestEnvAt(t, srv.URL, "table")
+	if err := run(t, e, "project", "tenant", "settings", "set", "de-kies", "channel.chat_mode=power"); err != nil {
+		t.Fatalf("set channel.chat_mode: %v", err)
+	}
+	if !strings.Contains(gotBody, `"chat_mode":"power"`) {
+		t.Fatalf("patch body missing schema-discovered key; body=%s", gotBody)
+	}
+}
+
+func TestTenantSettingsSetRejectsUnknownAndBadEnum(t *testing.T) {
+	cases := []struct {
+		name string
+		arg  string
+		want []string
+	}{
+		{"unknown field", "channel.chat_modee=power", []string{"unknown channel setting", "rc schema"}},
+		{"unknown group", "persoona.tone=x", []string{"unknown settings group", "channel or persona"}},
+		{"enum violation", "channel.chat_mode=turbo", []string{"consumer, power"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotBody string
+			srv := hierarchyBodyCaptureServer(t, &gotBody)
+			defer srv.Close()
+			e := newTestEnvAt(t, srv.URL, "table")
+			err := run(t, e, "project", "tenant", "settings", "set", "de-kies", tc.arg)
+			if err == nil {
+				t.Fatalf("%s: expected rejection", tc.arg)
+			}
+			for _, want := range tc.want {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q missing %q", err.Error(), want)
+				}
+			}
+			if gotBody != "" {
+				t.Errorf("rejection must not hit the server; body=%s", gotBody)
+			}
+		})
+	}
 }
 
 func TestRoutesTable(t *testing.T) {
@@ -336,6 +395,13 @@ func hierarchyBodyCaptureServer(t *testing.T, dst *string) *httptest.Server {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"project":{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha","slug":"alpha"}}`))
+	})
+	// A `settings set` validates its keys against the server's registry, so the capture server has to
+	// serve discovery too — the same fixture `rc schema` renders.
+	mux.HandleFunc("GET /api/v1/meta/schema", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "meta_schema.json"))
 	})
 	mux.HandleFunc("PATCH /api/v1/projects/{project}/tenants/{slug}/settings", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
