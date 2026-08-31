@@ -391,6 +391,23 @@ func TestFleetAgentTable(t *testing.T) {
 		t.Fatalf("fleet --format agent: %v", err)
 	}
 	assertGolden(t, "fleet_agent.golden", out.String())
+	got := out.String()
+	shortlist := strings.SplitN(got, "\nAggregate:", 2)[0]
+	for _, want := range []string{
+		"aaaaaaaa-0000-0000-0000-000000000005  LRN:sent_delta/missed_content",
+		"LRN:sent_delta/divergent_facts",
+		"LRN:sent_delta/unjudged",
+		"LRN:sent_delta/equivalent",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("shadow fleet digest missing %q:\n%s", want, got)
+		}
+	}
+	for _, positive := range []string{"aaaaaaaa-0000-0000-0000-000000000002", "aaaaaaaa-0000-0000-0000-000000000004"} {
+		if strings.Contains(shortlist, positive) {
+			t.Errorf("positive/unjudged shadow row %s entered look-here-first shortlist:\n%s", positive, shortlist)
+		}
+	}
 }
 
 // TestFleetBadFormat: an unknown --format is a clear client-side error (fleet runs + patterns).
@@ -466,8 +483,8 @@ func TestFleetAutoPipeWithoutFormatStaysJSON(t *testing.T) {
 		Runs []map[string]any `json:"runs"`
 	}
 	decodeJSON(t, out.Bytes(), &got)
-	if len(got.Runs) != 4 {
-		t.Fatalf("auto-piped fleet json runs = %d, want 4; body=%s", len(got.Runs), out.String())
+	if len(got.Runs) != 5 {
+		t.Fatalf("auto-piped fleet json runs = %d, want 5; body=%s", len(got.Runs), out.String())
 	}
 }
 
@@ -484,8 +501,8 @@ func TestFleetExplicitJSONWinsOverFormat(t *testing.T) {
 		Runs []map[string]any `json:"runs"`
 	}
 	decodeJSON(t, out.Bytes(), &got)
-	if len(got.Runs) != 4 {
-		t.Fatalf("-o json --format agent runs = %d, want 4 raw rows; body=%s", len(got.Runs), out.String())
+	if len(got.Runs) != 5 {
+		t.Fatalf("-o json --format agent runs = %d, want 5 raw rows; body=%s", len(got.Runs), out.String())
 	}
 }
 
@@ -581,8 +598,8 @@ func TestFleetJSONPassthrough(t *testing.T) {
 		Runs []map[string]any `json:"runs"`
 	}
 	decodeJSON(t, out.Bytes(), &got)
-	if len(got.Runs) != 4 {
-		t.Fatalf("fleet json runs = %d, want 4 (both pages); body=%s", len(got.Runs), out.String())
+	if len(got.Runs) != 5 {
+		t.Fatalf("fleet json runs = %d, want 5 (both pages); body=%s", len(got.Runs), out.String())
 	}
 	// No client-side digest leaked into JSON mode: the rows are the wire struct (run_id + health present).
 	if got.Runs[0]["run_id"] == nil || got.Runs[0]["health"] == nil {
@@ -591,6 +608,10 @@ func TestFleetJSONPassthrough(t *testing.T) {
 	learning, ok := got.Runs[0]["learning"].(map[string]any)
 	if !ok || learning["feedback"] != true || learning["triage_corrected"] != true {
 		t.Errorf("json learning fields lost — got %+v", got.Runs[0]["learning"])
+	}
+	shadowLearning, ok := got.Runs[2]["learning"].(map[string]any)
+	if !ok || shadowLearning["sent_delta_shadow"] != true || shadowLearning["sent_delta_verdict"] != "divergent_facts" {
+		t.Errorf("json shadow learning fields lost — got %+v", got.Runs[2]["learning"])
 	}
 }
 

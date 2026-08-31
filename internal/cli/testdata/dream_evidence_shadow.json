@@ -1,0 +1,17 @@
+{
+  "project": "acme",
+  "deltas": [
+    {
+      "id": "delta-shadow-001",
+      "related_run_id": "aaaaaaaa-0000-0000-0000-000000000005",
+      "shadow": true,
+      "shadow_verdict": "missed_content",
+      "served_score": 3,
+      "topic": "Question about a synthetic camp booking",
+      "question_excerpt": "Can the booking be moved to another synthetic date?",
+      "delta_category": "factual",
+      "delta_description": "The independent answer covered an additional booking constraint.",
+      "similarity": 0.42
+    }
+  ]
+}

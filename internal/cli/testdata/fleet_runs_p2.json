@@ -13,6 +13,14 @@
       "has_draft": true,
       "has_note": false,
       "topic": "cheap run a",
+      "learning": {
+        "feedback": false,
+        "sent_delta": true,
+        "sent_delta_shadow": true,
+        "sent_delta_verdict": "divergent_facts",
+        "triage_skipped": false,
+        "triage_corrected": false
+      },
       "health": {
         "turns": 4,
         "grounding_turns": 1,
@@ -38,6 +46,14 @@
       "has_draft": true,
       "has_note": false,
       "topic": "cheap run b",
+      "learning": {
+        "feedback": false,
+        "sent_delta": true,
+        "sent_delta_shadow": true,
+        "sent_delta_verdict": "equivalent",
+        "triage_skipped": false,
+        "triage_corrected": false
+      },
       "health": {
         "turns": 3,
         "grounding_turns": 1,
@@ -49,11 +65,44 @@
         "no_journal": false,
         "model": "anthropic/claude-sonnet-4"
       }
+    },
+    {
+      "run_id": "aaaaaaaa-0000-0000-0000-000000000005",
+      "kind": "email",
+      "source": "Email",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T05:00:00Z",
+      "finished_at": "2026-06-22T05:00:20Z",
+      "duration_ms": 20000,
+      "has_draft": true,
+      "has_note": true,
+      "topic": "question with omitted detail",
+      "learning": {
+        "feedback": false,
+        "sent_delta": true,
+        "sent_delta_shadow": true,
+        "sent_delta_verdict": "missed_content",
+        "triage_skipped": false,
+        "triage_corrected": false
+      },
+      "health": {
+        "turns": 2,
+        "grounding_turns": 1,
+        "bash_total": 1,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false,
+        "is_fallback": false
+      }
     }
   ],
   "summary": {
     "healthy": true,
-    "counts_by_source": { "Prompt API": { "total": 4, "errors": 0 } },
+    "counts_by_source": { "Prompt API": { "total": 4, "errors": 0 }, "Email": { "total": 1, "errors": 0 } },
     "last_success": null,
     "last_error": null,
     "attention": []

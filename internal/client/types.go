@@ -517,13 +517,41 @@ type RunHealth struct {
 	ErrorHead string `json:"error_head,omitempty"`
 }
 
-// Learning is the privacy-safe dream-cycle pointer attached to a run index row. It carries only
-// booleans; the evidence endpoint owns comments, bodies, deltas, and triage detail.
+// Learning is the privacy-safe dream-cycle pointer attached to a run index row. It carries booleans
+// plus the content-free shadow verdict; the evidence endpoint owns comments, bodies, and delta detail.
 type Learning struct {
-	Feedback        bool `json:"feedback"`
-	SentDelta       bool `json:"sent_delta"`
-	TriageSkipped   bool `json:"triage_skipped"`
-	TriageCorrected bool `json:"triage_corrected"`
+	Feedback         bool   `json:"feedback"`
+	SentDelta        bool   `json:"sent_delta"`
+	SentDeltaShadow  bool   `json:"sent_delta_shadow,omitempty"`
+	SentDeltaVerdict string `json:"sent_delta_verdict,omitempty"`
+	TriageSkipped    bool   `json:"triage_skipped"`
+	TriageCorrected  bool   `json:"triage_corrected"`
+}
+
+// DreamEvidenceResponse is the heterogeneous JSON-only consolidation corpus returned by
+// GET /api/v1/dream/evidence. Feedback and triage stay raw because each plane has its own shape; Deltas
+// carries the stable sent-delta projection used by shadow consumers.
+type DreamEvidenceResponse struct {
+	Project  string               `json:"project"`
+	Feedback []json.RawMessage    `json:"feedback,omitempty"`
+	Deltas   []DreamDeltaEvidence `json:"deltas,omitempty"`
+	Triage   []json.RawMessage    `json:"triage,omitempty"`
+}
+
+// DreamDeltaEvidence mirrors one deltas[] row. The shadow additions are optional for compatibility
+// with older hosts and live-edit rows. ServedScore is a pointer because absent/null means unjudged or
+// not_answerable, distinct from every valid 1..5 score.
+type DreamDeltaEvidence struct {
+	ID               string  `json:"id"`
+	RelatedRunID     string  `json:"related_run_id,omitempty"`
+	Shadow           bool    `json:"shadow,omitempty"`
+	ShadowVerdict    string  `json:"shadow_verdict,omitempty"`
+	ServedScore      *int    `json:"served_score,omitempty"`
+	Topic            string  `json:"topic,omitempty"`
+	QuestionExcerpt  string  `json:"question_excerpt,omitempty"`
+	DeltaCategory    string  `json:"delta_category,omitempty"`
+	DeltaDescription string  `json:"delta_description,omitempty"`
+	Similarity       float64 `json:"similarity,omitempty"`
 }
 
 // SourceCount is the per-source tally inside the health summary.
@@ -999,6 +1027,7 @@ type WatchedMailbox struct {
 	EmailAddress string `json:"email_address"`
 	// awaiting_credential = seeded without a password; the customer still has to open its password link.
 	Status                string `json:"status"` // active|paused|connected|needs_attention|awaiting_credential
+	Mode                  string `json:"mode"`   // off|watch|shadow|live
 	Tenant                string `json:"tenant,omitempty"`
 	ProcessingEnabled     bool   `json:"processing_enabled"` // false = silent onboarding: polled, not processed
 	HasSyncCursor         bool   `json:"has_sync_cursor"`

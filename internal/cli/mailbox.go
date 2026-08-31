@@ -245,7 +245,7 @@ func isTerminalExportStatus(s string) bool {
 func mailboxLsCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "ls",
-		Short: "List watched mailboxes (id, provider, email, status, tenant, expiry, error)",
+		Short: "List watched mailboxes (id, provider, email, status, mode, tenant, health)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			c, err := e.newClient()

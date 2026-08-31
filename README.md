@@ -24,6 +24,7 @@ $ rc run trace <id>          # GET /runs/{id}/trace bundle (header + trace; JSON
 $ rc fleet actions --days 14 --action create_appointment --action update_appointment
 $ rc dev learning evidence --plane triage --limit 50 -o json
 $ rc dev learning evidence --plane deltas --include-bodies -o json
+$ rc dev learning evidence --plane shadow --days 14 --verdict divergent_facts,missed_content -o json
 $ rc dev brain sync
 $ rc dev brain promote --channel stable --sha "$(git rev-parse HEAD)"
 $ rc dev brain status                 # verify stable/edge resolved SHAs before claiming success
@@ -301,15 +302,19 @@ contain customer values.
 Use bare **`--learning`** to keep runs with any dream-cycle signal, or select one with
 `--learning=feedback|sent_delta|triage_skipped|triage_corrected`; the same filter works on
 `rc run list`. Run-list tables show the matching safe boolean signals, and fleet tables/agent output
-carry them as `LRN:` flags. JSON keeps the server rows unchanged.
+carry them as `LRN:` flags. Shadow sent deltas render as `LRN:sent_delta/<verdict>` (or
+`LRN:sent_delta/unjudged`); equivalent and same-outcome rows stay out of the failure shortlist. JSON
+keeps the server rows unchanged, including `sent_delta_shadow` and `sent_delta_verdict`.
 
 Use **`--reviewed`** on `rc fleet runs` or `rc run list` for the human-audit corpus: every run with a
 1–5 review score, including held-out eval runs. Operator JSON includes `review.score` and the optional
 `review.comment`; this stays separate from `--learning=feedback`, which excludes held-outs.
 
 `rc dev learning evidence` is intentionally JSON-only because feedback, deltas, and triage evidence
-have different wire shapes. `--plane feedback|deltas|triage` narrows the corpus; delta bodies stay
-omitted unless `--include-bodies` is explicit.
+have different wire shapes. `--plane feedback|deltas|triage` narrows the corpus; `--plane shadow` is a
+convenience alias for `--plane deltas --shadow=true`. Use `--shadow=true|false`, `--verdict <csv>`, and
+`--days N` for a bounded comparison corpus. Delta and question bodies stay omitted unless
+`--include-bodies` is explicit; JSON is the unmodified server response.
 
 **`.rootcause.toml`** (committed, per brain) names the project + endpoint — no secret, safe to commit,
 ships the binding with a clone. Optional gitignored **`.rootcause/local.toml`** can still set a local
@@ -372,7 +377,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev console file` | Transfer files from a guarded workspace console |
 | `rc dev console` | Use guarded production consoles |
 | `rc dev context-export` | Render a project's full opening context offline (needs a rootcause host checkout) |
-| `rc dev learning evidence` | List feedback, sent-edit, and triage evidence for consolidation |
+| `rc dev learning evidence` | List feedback, sent-delta, shadow, and triage evidence |
 | `rc dev learning` | Inspect learning and consolidation inputs |
 | `rc dev mirror refresh` | Refresh mirrors and verify one repository at an exact commit |
 | `rc dev mirror` | Refresh project source mirrors |
@@ -441,7 +446,7 @@ help using `go test ./internal/cli -update`.
 | `rc project mailbox connect` | Print the dashboard Connections URL to start a provider's browser OAuth |
 | `rc project mailbox harvest` | Start a local-synthesis harvest of a mailbox (optionally wait for the export) |
 | `rc project mailbox imap-env` | Write an IMAP mailbox env file for local deep harvest (0600; values never printed) |
-| `rc project mailbox ls` | List watched mailboxes (id, provider, email, status, tenant, expiry, error) |
+| `rc project mailbox ls` | List watched mailboxes (id, provider, email, status, mode, tenant, health) |
 | `rc project mailbox mode` | Set the mailbox watch, processing, and delivery mode |
 | `rc project mailbox password-link` | Print the no-login password link for an IMAP mailbox (also used for rotation) |
 | `rc project mailbox seed-imap` | Store an IMAP mailbox's server settings without a password and print its no-login password link |

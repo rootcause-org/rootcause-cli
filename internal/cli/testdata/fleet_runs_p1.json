@@ -48,6 +48,13 @@
       "has_draft": true,
       "has_note": false,
       "topic": "ok run",
+      "learning": {
+        "feedback": false,
+        "sent_delta": true,
+        "sent_delta_shadow": true,
+        "triage_skipped": false,
+        "triage_corrected": false
+      },
       "health": {
         "turns": 5,
         "grounding_turns": 1,

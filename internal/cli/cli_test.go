@@ -834,7 +834,7 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 			t.Fatalf("mode = %q, want watch", body.Mode)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","processing_enabled":false,"has_sync_cursor":true}`))
+		_, _ = w.Write([]byte(`{"id":"` + r.PathValue("id") + `","provider":"google","email_address":"ops@momentum.test","status":"active","mode":"watch","processing_enabled":false,"has_sync_cursor":true}`))
 	})
 
 	// generic IMAP/SMTP connect (rc project mailbox connect-imap): assert the password rode in the BODY (never

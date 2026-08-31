@@ -1,23 +1,24 @@
-Fleet digest — last 7 days · fleet · 4 runs
+Fleet digest — last 7 days · fleet · 5 runs
 
 Flags: GD=grounding discarded · J0=analysis without journal · REV:n=human review score · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal
 
 RUN8      KIND      STATUS  DURATION  TURNS  FLAGS
 aaaaaaaa  analysis  error   3m20s     14     GD J0 ERR×3 (+12 explore) BIG×1 T! EGR×2 FB LRN:feedback+triage_corrected
-aaaaaaaa  analysis  done    40.0s     5      ERR×0 (+12 explore)
-aaaaaaaa  analysis  done    30.0s     4      ERR×2
-aaaaaaaa  analysis  done    25.0s     3      
+aaaaaaaa  analysis  done    40.0s     5      ERR×0 (+12 explore) LRN:sent_delta/unjudged
+aaaaaaaa  analysis  done    30.0s     4      ERR×2 LRN:sent_delta/divergent_facts
+aaaaaaaa  analysis  done    25.0s     3      LRN:sent_delta/equivalent
+aaaaaaaa  email     done    20.0s     2      LRN:sent_delta/missed_content
 
 Aggregate:
-  runs: 4 — done 3 · error 1
-  grounding discarded: 1/4 (25%)
+  runs: 5 — done 4 · error 1
+  grounding discarded: 1/5 (20%)
   journal coverage (analyses): 3/4 (75%)
   turns: median 4 · max 14
   blocked-egress: 1 run(s) with blocked attempts
 
 Daily timeline:
   DAY         RUNS  ERR  AVG_S
-  2026-06-22  4     1    74s
+  2026-06-22  5     1    63s
 
 Worst offenders (full ids — `rc run debug <id>`):
   Top turns:

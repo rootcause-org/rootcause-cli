@@ -10,7 +10,7 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
-// WatchedMailboxes renders the watched-mailbox set as a table: id, provider, email, status, tenant,
+// WatchedMailboxes renders the watched-mailbox set as a table: id, provider, email, status, mode, tenant,
 // subscription expiry, and any error message. Empty → "(none)". A pure function of the wire items so a
 // golden pins it.
 func WatchedMailboxes(w io.Writer, l *client.WatchedMailboxList) {
@@ -19,10 +19,10 @@ func WatchedMailboxes(w io.Writer, l *client.WatchedMailboxList) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "ID\tPROVIDER\tEMAIL\tSTATUS\tPROCESSING\tTENANT\tSUB-EXPIRES\tLAST-SYNC\tERROR")
+	_, _ = fmt.Fprintln(tw, "ID\tPROVIDER\tEMAIL\tSTATUS\tMODE\tPROCESSING\tTENANT\tSUB-EXPIRES\tLAST-SYNC\tERROR")
 	for _, m := range l.Mailboxes {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			m.ID, m.Provider, m.EmailAddress, m.Status, processingLabel(m.ProcessingEnabled),
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			m.ID, m.Provider, m.EmailAddress, m.Status, strOrBlank(m.Mode), processingLabel(m.ProcessingEnabled),
 			strOrBlank(m.Tenant), strOrBlank(m.SubscriptionExpiresAt), lastSyncLabel(m), strOrBlank(m.ErrorMessage))
 	}
 	_ = tw.Flush()
@@ -62,6 +62,9 @@ func WatchedMailbox(w io.Writer, m *client.WatchedMailbox) {
 	_, _ = fmt.Fprintf(tw, "provider:\t%s\n", m.Provider)
 	_, _ = fmt.Fprintf(tw, "email:\t%s\n", m.EmailAddress)
 	_, _ = fmt.Fprintf(tw, "status:\t%s\n", m.Status)
+	if m.Mode != "" {
+		_, _ = fmt.Fprintf(tw, "mode:\t%s\n", m.Mode)
+	}
 	_, _ = fmt.Fprintf(tw, "processing:\t%s\n", processingLabel(m.ProcessingEnabled))
 	if m.Tenant != "" {
 		_, _ = fmt.Fprintf(tw, "tenant:\t%s\n", m.Tenant)

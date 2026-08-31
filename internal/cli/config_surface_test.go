@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
 // Golden + contract tests for grouped project/dev surfaces (mailbox / env / database / model key /
@@ -754,6 +756,71 @@ func TestDreamEvidenceRejectsUnknownPlane(t *testing.T) {
 	err := run(t, e, "dev", "learning", "evidence", "--plane", "journal")
 	if err == nil || !strings.Contains(err.Error(), `invalid --plane "journal"`) {
 		t.Fatalf("dream evidence bad plane error = %v", err)
+	}
+}
+
+func TestDreamEvidenceShadowAliasAndFilters(t *testing.T) {
+	var queries []map[string]string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/dream/evidence", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		queries = append(queries, map[string]string{
+			"plane":          q.Get("plane"),
+			"shadow":         q.Get("shadow"),
+			"verdict":        q.Get("verdict"),
+			"days":           q.Get("days"),
+			"include_bodies": q.Get("include_bodies"),
+		})
+		_, _ = w.Write(fixture(t, "dream_evidence_shadow.json"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "learning", "evidence", "--plane", "shadow", "--verdict", "divergent_facts,missed_content", "--days", "14", "--include-bodies"); err != nil {
+		t.Fatalf("shadow evidence alias: %v", err)
+	}
+	assertJSONEqual(t, fixture(t, "dream_evidence_shadow.json"), out.Bytes())
+
+	var typed client.DreamEvidenceResponse
+	decodeJSON(t, out.Bytes(), &typed)
+	if len(typed.Deltas) != 1 || !typed.Deltas[0].Shadow || typed.Deltas[0].ShadowVerdict != "missed_content" || typed.Deltas[0].ServedScore == nil || *typed.Deltas[0].ServedScore != 3 || typed.Deltas[0].Topic == "" || typed.Deltas[0].QuestionExcerpt == "" {
+		t.Fatalf("typed shadow evidence lost contract fields: %+v", typed.Deltas)
+	}
+
+	e, _, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "learning", "evidence", "--plane", "deltas", "--shadow=false"); err != nil {
+		t.Fatalf("live evidence filter: %v", err)
+	}
+
+	if len(queries) != 2 {
+		t.Fatalf("evidence requests = %d, want 2", len(queries))
+	}
+	if got := queries[0]; got["plane"] != "deltas" || got["shadow"] != "true" || got["verdict"] != "divergent_facts,missed_content" || got["days"] != "14" || got["include_bodies"] != "true" {
+		t.Fatalf("shadow alias query = %#v", got)
+	}
+	if got := queries[1]; got["plane"] != "deltas" || got["shadow"] != "false" || got["verdict"] != "" || got["days"] != "" || got["include_bodies"] != "" {
+		t.Fatalf("explicit live query = %#v", got)
+	}
+}
+
+func TestDreamEvidenceRejectsInvalidShadowFlags(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, tc := range []struct {
+		args []string
+		want string
+	}{
+		{args: []string{"dev", "learning", "evidence", "--verdict", "close_enough"}, want: `invalid --verdict "close_enough"`},
+		{args: []string{"dev", "learning", "evidence", "--plane", "shadow", "--shadow=false"}, want: `--plane shadow conflicts with --shadow=false`},
+		{args: []string{"dev", "learning", "evidence", "--days", "0"}, want: `--days must be greater than zero`},
+		{args: []string{"dev", "learning", "evidence", "--days", "-1"}, want: `--days must be greater than zero`},
+	} {
+		e, _, _ := newTestEnv(t, srv, "json")
+		err := run(t, e, tc.args...)
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Fatalf("%v error = %v, want %q", tc.args, err, tc.want)
+		}
 	}
 }
 

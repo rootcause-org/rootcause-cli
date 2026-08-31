@@ -300,7 +300,7 @@ func flags(r client.RunSummary, spikes map[string]bool) []string {
 	if h != nil && h.IsFallback {
 		f = append(f, "FB")
 	}
-	if learning := learningLabel(r.Learning); learning != "-" {
+	if learning := fleetLearningLabel(r.Learning); learning != "-" {
 		f = append(f, "LRN:"+strings.ReplaceAll(learning, ",", "+"))
 	}
 	if r.Review != nil {
@@ -323,6 +323,7 @@ func severity(r client.RunSummary, spikes map[string]bool) int {
 	if r.Review != nil && r.Review.Score <= 3 {
 		s += (4 - r.Review.Score) * 25
 	}
+	s += shadowMissSeverity(r.Learning)
 	if spikes[r.RunID] {
 		s += 50
 	}
@@ -338,6 +339,52 @@ func severity(r client.RunSummary, spikes map[string]bool) int {
 		}
 	}
 	return s
+}
+
+// fleetLearningLabel decorates a sent-delta signal with its blind-comparison result. Live deltas retain
+// the original label; an unjudged shadow row remains explicit instead of looking like a live edit.
+func fleetLearningLabel(l client.Learning) string {
+	var signals []string
+	if l.Feedback {
+		signals = append(signals, "feedback")
+	}
+	if l.SentDelta {
+		delta := "sent_delta"
+		if l.SentDeltaShadow {
+			verdict := l.SentDeltaVerdict
+			if verdict == "" {
+				verdict = "unjudged"
+			}
+			delta += "/" + verdict
+		}
+		signals = append(signals, delta)
+	}
+	if l.TriageSkipped {
+		signals = append(signals, "triage_skipped")
+	}
+	if l.TriageCorrected {
+		signals = append(signals, "triage_corrected")
+	}
+	if len(signals) == 0 {
+		return "-"
+	}
+	return strings.Join(signals, ",")
+}
+
+// shadowMissSeverity routes real blind-comparison misses into the agent shortlist. Close outcomes,
+// not-answerable rows, and unjudged rows are evidence but not failures and therefore add no weight.
+func shadowMissSeverity(l client.Learning) int {
+	if !l.SentDelta || !l.SentDeltaShadow {
+		return 0
+	}
+	switch l.SentDeltaVerdict {
+	case "divergent_facts":
+		return 30
+	case "missed_content":
+		return 20
+	default:
+		return 0
+	}
 }
 
 // --- human digest ---

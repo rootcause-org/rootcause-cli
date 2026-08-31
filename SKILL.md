@@ -54,7 +54,8 @@ keep the raw rows reachable via `-o json`:
   `Exact linkage` block uses full stable IDs to map trigger → run lineage → draft → sent message and puts
   feedback only under its reviewed run; JSON preserves the server's `runs[].attribution`. A triage skip
   remains diagnosable when no run was enqueued.
-- `rc dev learning evidence` — heterogeneous dream-cycle evidence, **JSON-only** (`--plane`, `--include-bodies`).
+- `rc dev learning evidence` — heterogeneous dream-cycle evidence, **JSON-only** (`--plane`, `--shadow`,
+  `--verdict`, `--days`, `--include-bodies`); `--plane shadow` aliases delta evidence filtered to shadow rows.
 - `rc project knowledge content search|export` — progressive KB discovery over the guarded bash workspace
   (ranked metadata to stdout, full articles spilled to a local artifact folder).
 

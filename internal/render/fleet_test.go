@@ -66,6 +66,33 @@ func TestSeverityIgnoresExploreNoise(t *testing.T) {
 	}
 }
 
+func TestShadowLearningLabelsAndSeverity(t *testing.T) {
+	for _, tc := range []struct {
+		verdict string
+		label   string
+		severe  bool
+	}{
+		{"equivalent", "sent_delta/equivalent", false},
+		{"same_outcome_details_differ", "sent_delta/same_outcome_details_differ", false},
+		{"divergent_facts", "sent_delta/divergent_facts", true},
+		{"missed_content", "sent_delta/missed_content", true},
+		{"not_answerable", "sent_delta/not_answerable", false},
+		{"", "sent_delta/unjudged", false},
+	} {
+		learning := client.Learning{SentDelta: true, SentDeltaShadow: true, SentDeltaVerdict: tc.verdict}
+		if got := fleetLearningLabel(learning); got != tc.label {
+			t.Errorf("fleetLearningLabel(%q) = %q, want %q", tc.verdict, got, tc.label)
+		}
+		run := client.RunSummary{RunID: tc.verdict, Status: "done", Learning: learning}
+		if got := severity(run, nil); (got > 0) != tc.severe {
+			t.Errorf("severity(%q) = %d, severe=%t", tc.verdict, got, tc.severe)
+		}
+	}
+	if got := fleetLearningLabel(client.Learning{SentDelta: true}); got != "sent_delta" {
+		t.Errorf("live delta label = %q, want sent_delta", got)
+	}
+}
+
 // The per-project rollup's BASH_ERR column carries the same split.
 func TestFleetTotalBashErrColumnSplits(t *testing.T) {
 	var buf bytes.Buffer
