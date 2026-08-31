@@ -87,6 +87,33 @@ func TestAnalyzePathBinariesReportsRunningBinaryMissingOrDifferentFromPATH(t *te
 	}
 }
 
+// TestMarkCurrentActive: binary.active means "the binary running this invocation IS the PATH-selected
+// copy". It used to default to false, so a single healthy Homebrew install reported active:false plus a
+// "remove earlier stale PATH copies" fix while its own PATH scan listed exactly one active entry.
+func TestMarkCurrentActive(t *testing.T) {
+	brew := binaryInfo{Path: "/opt/homebrew/bin/rc", ResolvedPath: "/opt/homebrew/Caskroom/rc/1.2.3/rc", Version: "1.2.3", LDFlagsVersion: "1.2.3", Install: "homebrew"}
+
+	single := brew
+	single.Active = true
+	current := markCurrentActive(brew, []binaryInfo{single})
+	if !current.Active || current.Hint != "" {
+		t.Fatalf("single homebrew copy: active = %v, hint = %q, want true and no remediation", current.Active, current.Hint)
+	}
+	if findings := analyzePathBinaries([]binaryInfo{single}, brew, "darwin"); len(findings) != 0 {
+		t.Fatalf("single homebrew copy findings = %#v, want none", findings)
+	}
+
+	shadow := binaryInfo{Path: "/home/me/go/bin/rc", Version: "v1.2.2 (go install)", ModuleVersion: "v1.2.2", Install: "go-install", Active: true}
+	shadowed := markCurrentActive(brew, []binaryInfo{shadow, single})
+	if shadowed.Active || shadowed.Hint != "remove earlier stale PATH copies to activate this Homebrew install" {
+		t.Fatalf("shadowed homebrew: active = %v, hint = %q, want false plus the stale-copy remediation", shadowed.Active, shadowed.Hint)
+	}
+
+	if none := markCurrentActive(brew, nil); none.Active {
+		t.Fatalf("running rc not on PATH must not be active: %#v", none)
+	}
+}
+
 func TestRenderDoctorHuman(t *testing.T) {
 	report := doctorReport{
 		Binary:       binaryInfo{Path: "/usr/local/bin/rc", Version: "1.2.3", ModuleVersion: "v1.2.3", LDFlagsVersion: "1.2.3", Install: "release"},

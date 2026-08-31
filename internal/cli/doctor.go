@@ -120,6 +120,7 @@ func collectDoctorReport(e *env, version string) (doctorReport, error) {
 	}
 	pathCopies := scanPathBinaries(os.Getenv("PATH"), current, runtime.GOOS)
 	findings := analyzePathBinaries(pathCopies, current, runtime.GOOS)
+	current = markCurrentActive(current, pathCopies)
 
 	scope, err := e.resolveScope(false)
 	if err != nil {
@@ -193,8 +194,26 @@ func currentBinaryInfo(version string) (binaryInfo, error) {
 	}
 	info := binaryInfoFromBuildInfo(exe, resolved, bi)
 	info.Version = version
-	info.Hint = remediationHint(info)
+	// Active (and therefore the remediation hint) is unknowable before the PATH scan runs; see
+	// markCurrentActive. Computing a hint here would always assume "not active".
 	return info, nil
+}
+
+// markCurrentActive answers "is the binary handling this invocation the PATH-selected copy?" — the
+// only meaning binary.active has. It can only be answered against the PATH scan, so the flag and its
+// remediation hint are set here rather than in currentBinaryInfo, where Active would always be false
+// and a healthy single Homebrew install would be told to remove stale copies that do not exist.
+func markCurrentActive(current binaryInfo, copies []binaryInfo) binaryInfo {
+	current.Active = false
+	for _, copy := range copies {
+		if !copy.Active {
+			continue
+		}
+		current.Active = physicalBinaryKey(copy) == physicalBinaryKey(current)
+		break
+	}
+	current.Hint = remediationHint(current)
+	return current
 }
 
 func binaryInfoFromBuildInfo(path, resolved string, bi *debug.BuildInfo) binaryInfo {
