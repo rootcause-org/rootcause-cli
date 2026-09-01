@@ -246,9 +246,11 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 				status, code = "failed", bad
 				check = bad
 			}
-			// A passing check has no anchor in the integrator error index; only a real code links there.
+			// A passing check has no anchor in the integrator error index and no fix to suggest.
 			docs := ""
-			if !ok {
+			if ok {
+				hint = ""
+			} else {
 				docs = errorDocsBase + strings.ToLower(code)
 			}
 			b.Findings = append(b.Findings, chatDoctorFinding{Status: status, Check: check, Code: code, Hint: hint, Docs: docs})
