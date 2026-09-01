@@ -23,7 +23,31 @@ const errorDocsBase = "https://github.com/rootcause-org/rootcause-embassy/blob/m
 
 func newChatCmd(e *env, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "chat", Short: "Configure, diagnose, and smoke-test embedded chat"}
-	cmd.AddCommand(newBagGetCmd(e, "/api/v1/chat"), newBagSetCmd(e, "/api/v1/chat"), chatSecretCmd(e), chatTokenCmd(e), chatSendCmd(e), chatDoctorCmd(e, version))
+	cmd.AddCommand(newBagGetCmd(e, "/api/v1/chat"), newBagSetCmd(e, "/api/v1/chat"), chatSecretCmd(e), chatTokenCmd(e), chatSendCmd(e), chatDoctorCmd(e, version), chatBriefCmd(e))
+	return cmd
+}
+
+func chatBriefCmd(e *env) *cobra.Command {
+	var target, locale, scheme string
+	cmd := &cobra.Command{Use: "brief", Short: "Print the secret-free chat implementation brief", Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error {
+		if target != "bubble" && target != "page" {
+			return fmt.Errorf("--target must be bubble or page")
+		}
+		if !containsCLI([]string{"", "en", "nl", "fr"}, locale) {
+			return fmt.Errorf("--locale must be en, nl, or fr")
+		}
+		if !containsCLI([]string{"", "light", "dark"}, scheme) {
+			return fmt.Errorf("--color-scheme must be light or dark")
+		}
+		c, err := e.newClient()
+		if err != nil {
+			return err
+		}
+		return c.ChatBrief(e.ctx(), e.scopeProject(), e.scopeTenant(), target, locale, scheme, e.out)
+	}}
+	cmd.Flags().StringVar(&target, "target", "bubble", "widget presentation: bubble or page")
+	cmd.Flags().StringVar(&locale, "locale", "", "widget locale override: en, nl, or fr")
+	cmd.Flags().StringVar(&scheme, "color-scheme", "", "widget color scheme override: light or dark")
 	return cmd
 }
 
@@ -188,14 +212,15 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 			return err
 		}
 		decodeDoctor(raw, &b.Secret)
-		raw, err = c.Raw(e.ctx(), http.MethodGet, bagPath("/api/v1/branding", project), nil)
-		if err != nil {
-			return err
-		}
+		// Branding is a diagnostic input, not a precondition: a doctor that aborts on it reports nothing
+		// about the chat wiring the operator actually came to check.
+		raw, brandingErr := c.Raw(e.ctx(), http.MethodGet, bagPath("/api/v1/branding", project), nil)
 		var branding map[string]any
-		decodeDoctor(raw, &branding)
+		if brandingErr == nil {
+			decodeDoctor(raw, &branding)
+		}
 		b.Branding = map[string]any{
-			"reachable":                true,
+			"reachable":                brandingErr == nil,
 			"name_configured":          bagString(branding, "name") != "",
 			"primary_color_configured": bagString(branding, "primary_color") != "",
 		}
@@ -221,7 +246,12 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 				status, code = "failed", bad
 				check = bad
 			}
-			b.Findings = append(b.Findings, chatDoctorFinding{Status: status, Check: check, Code: code, Hint: hint, Docs: errorDocsBase + strings.ToLower(code)})
+			// A passing check has no anchor in the integrator error index; only a real code links there.
+			docs := ""
+			if !ok {
+				docs = errorDocsBase + strings.ToLower(code)
+			}
+			b.Findings = append(b.Findings, chatDoctorFinding{Status: status, Check: check, Code: code, Hint: hint, Docs: docs})
 		}
 		warn := func(code, hint string) {
 			b.Findings = append(b.Findings, chatDoctorFinding{Status: "warning", Check: code, Code: code, Hint: hint, Docs: errorDocsBase + strings.ToLower(code)})
@@ -248,7 +278,7 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 				warn("PRINCIPALS_DORMANT", "Declare principal kinds when chat must be user-scoped.")
 			}
 		}
-		add(len(b.Branding) > 0, "BRANDING_REACHABLE", "BRANDING_UNAVAILABLE", "Check the branding API and project scope.")
+		add(brandingErr == nil, "BRANDING_REACHABLE", "BRANDING_UNAVAILABLE", "Check the branding API and project scope.")
 		add(probeErr == nil && loaderStatus == http.StatusOK, "WIDGET_LOADER_REACHABLE", "WIDGET_SCRIPT_BLOCKED", "Allow the ReplyPen loader URL through network and CSP policy.")
 
 		if bundle || e.jsonOut() {
