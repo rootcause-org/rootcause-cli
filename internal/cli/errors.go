@@ -82,6 +82,8 @@ type jsonErrorBody struct {
 	Message string              `json:"message"`
 	Status  int                 `json:"status"`
 	Fields  []client.FieldError `json:"fields"`
+	Hint    string              `json:"hint,omitempty"`
+	Docs    string              `json:"docs,omitempty"`
 }
 
 func writeJSONError(w io.Writer, err error) error {
@@ -103,6 +105,8 @@ func writeJSONError(w io.Writer, err error) error {
 		}
 		body.Status = apiErr.Status
 		body.Fields = apiErr.Fields
+		body.Hint = apiErr.Hint
+		body.Docs = apiErr.Docs
 	case errors.As(err, &transport):
 		body.Code = "NETWORK_ERROR"
 	}

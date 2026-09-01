@@ -420,7 +420,11 @@ func printError(w io.Writer, err error) {
 			printNonEnvelopeHTTPError(w, apiErr)
 			return
 		}
-		_, _ = fmt.Fprintf(w, "%s: %s\n", apiErr.Code, apiErr.Message)
+		if apiErr.Hint != "" && apiErr.Docs != "" {
+			_, _ = fmt.Fprintf(w, "[ReplyPen] %s: %s — %s\n", apiErr.Code, apiErr.Hint, apiErr.Docs)
+		} else {
+			_, _ = fmt.Fprintf(w, "%s: %s\n", apiErr.Code, apiErr.Message)
+		}
 		// A rejected IMAP connect ships the whole stage checklist in details, so the user sees how far it
 		// got and which setting to change — not just the first thing that broke.
 		if apiErr.Code == "IMAP_PROBE_FAILED" && len(apiErr.Fields) > 0 {

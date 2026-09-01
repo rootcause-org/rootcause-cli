@@ -87,6 +87,8 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	case strings.HasPrefix(path, "project knowledge content "):
 		return projectTenant
+	case path == "project chat token":
+		return projectTenant
 	case path == "project egress":
 		return projectTenant
 	case strings.HasPrefix(path, "dev brain "):
@@ -120,7 +122,7 @@ func commandScope(path string) scopeSpec {
 		return projectOnly
 	case strings.HasPrefix(path, "project branding "), strings.HasPrefix(path, "project github "), strings.HasPrefix(path, "project action-settings "):
 		return projectOnly
-	case strings.HasPrefix(path, "project action draft "):
+	case strings.HasPrefix(path, "project action draft "), strings.HasPrefix(path, "project chat "), strings.HasPrefix(path, "project principals "):
 		return projectOnly
 	case path == "auth access":
 		return projectOnly

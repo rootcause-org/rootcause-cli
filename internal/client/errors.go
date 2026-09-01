@@ -35,6 +35,8 @@ type errorEnvelope struct {
 		Message string       `json:"message"`
 		Details []FieldError `json:"details"`
 		Fields  []FieldError `json:"fields"`
+		Hint    string       `json:"hint"`
+		Docs    string       `json:"docs"`
 	} `json:"error"`
 }
 
@@ -61,6 +63,8 @@ type APIError struct {
 	Method  string       // request method, for the no-envelope fallback (e.g. GET)
 	Path    string       // request path, for the no-envelope fallback (e.g. /api/v1/runs)
 	BaseURL string       // base URL the request went to, so the user can spot a wrong/default host
+	Hint    string
+	Docs    string
 }
 
 func (e *APIError) Error() string {
@@ -83,6 +87,8 @@ func decodeAPIError(status int, method, path, baseURL string, data []byte) *APIE
 	case json.Unmarshal(data, &env) == nil && env.Error.Code != "":
 		apiErr.Code = env.Error.Code
 		apiErr.Message = env.Error.Message
+		apiErr.Hint = env.Error.Hint
+		apiErr.Docs = env.Error.Docs
 		apiErr.Fields = normalizeFieldErrors(env.Error.Details)
 		if len(apiErr.Fields) == 0 {
 			apiErr.Fields = normalizeFieldErrors(env.Error.Fields)

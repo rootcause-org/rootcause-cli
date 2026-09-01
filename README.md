@@ -416,6 +416,15 @@ help using `go test ./internal/cli -update`.
 | `rc project branding logo` | Set or clear the white-label logo image |
 | `rc project branding set` | Change values (sparse, validate-then-apply server-side) |
 | `rc project branding` | Read or change white-label branding (colours/name/public_base_url) |
+| `rc project chat doctor` | Diagnose embedded-chat configuration and recent rejects |
+| `rc project chat get` | Show current values (value / effective / default) |
+| `rc project chat secret reveal` | Reveal the chat signing secret (printed once) |
+| `rc project chat secret rotate` | Rotate the chat signing secret (printed once) |
+| `rc project chat secret` | Manage the dedicated chat signing secret |
+| `rc project chat send` | Open an embed session and print one turn's SSE frames |
+| `rc project chat set` | Change values (sparse, validate-then-apply server-side) |
+| `rc project chat token` | Mint a five-minute server chat token |
+| `rc project chat` | Configure, diagnose, and smoke-test embedded chat |
 | `rc project connection add` | Create a connection |
 | `rc project connection ls` | List connections |
 | `rc project connection probe` | Probe an integration capability grant |
@@ -473,6 +482,9 @@ help using `go test ./internal/cli -update`.
 | `rc project member ls` | List members |
 | `rc project member rm` | Delete a member |
 | `rc project member` | Manage project members |
+| `rc project principals get` | Show the principal manifest |
+| `rc project principals set` | Replace the validated principal manifest |
+| `rc project principals` | Read or replace the project principal manifest |
 | `rc project rename` | Rename the active project slug and brain repo |
 | `rc project repo add` | Create a repo |
 | `rc project repo ls` | List repos |
