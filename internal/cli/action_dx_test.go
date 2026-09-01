@@ -47,7 +47,7 @@ func TestActionReverseSecretRotateStoresAndPrintsOnce(t *testing.T) {
 			t.Fatal(err)
 		}
 		gotSecret = body["action_reverse_secret"]
-		_, _ = w.Write([]byte(`{"action_reverse_secret":{"value":"[configured]","effective":"[configured]"}}`))
+		_, _ = w.Write([]byte(`{"action_reverse_secret":{"value":"[configured]","effective":"[configured]","rotated_by":"admin@example.com","rotated_at":"2026-09-01T10:00:00Z"}}`))
 	}))
 	defer srv.Close()
 	e, out, errOut := newTestEnv(t, srv, "table")
@@ -60,6 +60,9 @@ func TestActionReverseSecretRotateStoresAndPrintsOnce(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "shown once") {
 		t.Fatalf("stderr = %q", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "Rotated by admin@example.com at 2026-09-01T10:00:00Z") {
+		t.Fatalf("stderr attribution = %q", errOut.String())
 	}
 }
 

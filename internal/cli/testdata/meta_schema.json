@@ -24,8 +24,8 @@
     "action": {
       "name": "action",
       "fields": [
-        { "key": "actions_enabled", "scope": "project", "group": "action", "type": "bool", "scopes": ["admin:box"], "help": "Whether the action plane is enabled." },
-        { "key": "action_reverse_secret", "scope": "project", "group": "action", "type": "secret", "scopes": ["admin:box"], "sensitive": true, "help": "Reverse-channel HMAC secret (write-only)." }
+        { "key": "actions_enabled", "scope": "project", "group": "action", "type": "bool", "scopes": ["config:write"], "help": "Whether the action plane is enabled." },
+        { "key": "action_reverse_secret", "scope": "project", "group": "action", "type": "secret", "scopes": ["secrets:write"], "sensitive": true, "help": "Reverse-channel HMAC secret (write-only)." }
       ]
     }
   },

@@ -1,7 +1,7 @@
 action
-  KEY                    TYPE    ENUM  SCOPES     DEFAULT  HELP
-  actions_enabled        bool          admin:box           Whether the action plane is enabled.
-  action_reverse_secret  secret        admin:box           Reverse-channel HMAC secret (write-only).
+  KEY                    TYPE    ENUM  SCOPES         DEFAULT  HELP
+  actions_enabled        bool          config:write            Whether the action plane is enabled.
+  action_reverse_secret  secret        secrets:write           Reverse-channel HMAC secret (write-only).
 
 kb
   KEY       TYPE  ENUM                               SCOPES        DEFAULT  HELP

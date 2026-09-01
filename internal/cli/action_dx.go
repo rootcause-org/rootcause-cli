@@ -69,14 +69,19 @@ func actionReverseSecretCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if _, err := c.PatchBag(e.ctx(), "/api/v1/action", map[string]any{"action_reverse_secret": secret}, e.scopeProject()); err != nil {
+			settings, err := c.PatchBag(e.ctx(), "/api/v1/action", map[string]any{"action_reverse_secret": secret}, e.scopeProject())
+			if err != nil {
 				return err
 			}
+			field := (*settings)["action_reverse_secret"]
 			if e.jsonOut() {
-				raw, _ := json.Marshal(map[string]any{"action_reverse_secret": secret, "shown_once": true})
+				raw, _ := json.Marshal(map[string]any{"action_reverse_secret": secret, "shown_once": true, "rotated_by": field.RotatedBy, "rotated_at": field.RotatedAt})
 				return render.JSON(e.out, raw)
 			}
 			_, _ = fmt.Fprintln(e.err, "Sensitive value: shown once; store it in the Embassy environment now.")
+			if field.RotatedBy != "" && field.RotatedAt != "" {
+				_, _ = fmt.Fprintf(e.err, "Rotated by %s at %s\n", field.RotatedBy, field.RotatedAt)
+			}
 			_, _ = fmt.Fprintln(e.out, secret)
 			return nil
 		},

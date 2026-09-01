@@ -1568,6 +1568,8 @@ type SettingField struct {
 	Default   json.RawMessage `json:"default"`
 	Source    string          `json:"source"`
 	Schema    json.RawMessage `json:"schema,omitempty"`
+	RotatedBy string          `json:"rotated_by,omitempty"`
+	RotatedAt string          `json:"rotated_at,omitempty"`
 }
 
 // Settings is GET /api/v1/settings (PATCH returns the same shape): a generic key→field map, mirroring

@@ -69,12 +69,17 @@ func chatSecretCmd(e *env) *cobra.Command {
 				return render.JSON(e.out, raw)
 			}
 			var out struct {
-				Secret string `json:"secret"`
+				Secret    string `json:"secret"`
+				RotatedBy string `json:"rotated_by"`
+				RotatedAt string `json:"rotated_at"`
 			}
 			if err := json.Unmarshal(raw, &out); err != nil {
 				return err
 			}
 			_, _ = fmt.Fprintln(e.out, out.Secret)
+			if out.RotatedBy != "" && out.RotatedAt != "" {
+				_, _ = fmt.Fprintf(e.err, "Rotated by %s at %s\n", out.RotatedBy, out.RotatedAt)
+			}
 			return nil
 		}})
 	}
@@ -175,6 +180,7 @@ type doctorBundle struct {
 
 type doctorReject struct {
 	Code      string    `json:"code"`
+	Kind      string    `json:"kind,omitempty"`
 	Origin    string    `json:"origin,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
 }
@@ -282,8 +288,12 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 		}
 		// A run-time principal failure is invisible in CONFIG: the manifest validates, the token mints, and
 		// only the recent rejects show that the asserted identity never verified against the project's data.
-		if code, n := recentPrincipalRejects(b.Rejects); n > 0 {
-			warn(code, fmt.Sprintf("last %d turn(s) failed principal verification — check the asserted external ID against the manifest's verify query.", n))
+		if code, principalKind, n := recentPrincipalRejects(b.Rejects); n > 0 {
+			scope := ""
+			if principalKind != "" {
+				scope = " for principal kind " + principalKind
+			}
+			warn(code, fmt.Sprintf("last %d turn(s)%s failed principal verification — check the asserted external ID against the manifest's verify query.", n, scope))
 		}
 		add(brandingErr == nil, "BRANDING_REACHABLE", "BRANDING_UNAVAILABLE", "Check the branding API and project scope.")
 		add(probeErr == nil && loaderStatus == http.StatusOK, "WIDGET_LOADER_REACHABLE", "WIDGET_SCRIPT_BLOCKED", "Allow the ReplyPen loader URL through network and CSP policy.")
@@ -412,22 +422,22 @@ func bagString(b map[string]any, key string) string {
 // recentPrincipalRejects counts the run-time principal failures in the recent rejects window and returns
 // the dominant code, so the doctor names the ONE thing an integrator can act on rather than making them
 // read the list.
-func recentPrincipalRejects(rejects []doctorReject) (string, int) {
-	counts := map[string]int{}
+func recentPrincipalRejects(rejects []doctorReject) (string, string, int) {
+	type failure struct{ code, kind string }
+	counts := map[failure]int{}
 	for _, r := range rejects {
 		switch r.Code {
 		case "PRINCIPAL_UNVERIFIED", "PRINCIPAL_LOOKUP_FAILED":
-			counts[r.Code]++
+			counts[failure{code: r.Code, kind: r.Kind}]++
 		}
 	}
-	code, total := "", 0
-	for c, n := range counts {
-		total += n
-		if code == "" || n > counts[code] || (n == counts[code] && c < code) {
-			code = c
+	best, total := failure{}, 0
+	for f, n := range counts {
+		if total == 0 || n > total || (n == total && (f.code < best.code || (f.code == best.code && f.kind < best.kind))) {
+			best, total = f, n
 		}
 	}
-	return code, total
+	return best.code, best.kind, total
 }
 
 func principalKinds(p map[string]any) []string {

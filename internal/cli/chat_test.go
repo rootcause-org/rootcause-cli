@@ -178,19 +178,39 @@ func chatTestProjects(mux *http.ServeMux) {
 	})
 }
 
+func TestChatSecretRevealPrintsRotationAttribution(t *testing.T) {
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("POST /api/v1/projects/alpha/chat/secret/reveal", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"secret":"shown-once","rotated_by":"admin@example.com","rotated_at":"2026-09-01T10:00:00Z"}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, errOut := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "project", "chat", "secret", "reveal"); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(out.String()) != "shown-once" {
+		t.Fatalf("stdout = %q", out.String())
+	}
+	if !strings.Contains(errOut.String(), "Rotated by admin@example.com at 2026-09-01T10:00:00Z") {
+		t.Fatalf("stderr = %q", errOut.String())
+	}
+}
+
 // The doctor names the ONE run-time principal failure an integrator can act on: the dominant code, and
 // the TOTAL count across both, so "last N turns failed principal verification" is honest.
 func TestRecentPrincipalRejects(t *testing.T) {
-	code, n := recentPrincipalRejects([]doctorReject{
+	code, kind, n := recentPrincipalRejects([]doctorReject{
 		{Code: "ORIGIN_NOT_ALLOWED"},
-		{Code: "PRINCIPAL_LOOKUP_FAILED"},
-		{Code: "PRINCIPAL_UNVERIFIED"},
-		{Code: "PRINCIPAL_UNVERIFIED"},
+		{Code: "PRINCIPAL_LOOKUP_FAILED", Kind: "account"},
+		{Code: "PRINCIPAL_UNVERIFIED", Kind: "app_user"},
+		{Code: "PRINCIPAL_UNVERIFIED", Kind: "app_user"},
 	})
-	if code != "PRINCIPAL_UNVERIFIED" || n != 3 {
-		t.Fatalf("recentPrincipalRejects = %q/%d, want PRINCIPAL_UNVERIFIED/3", code, n)
+	if code != "PRINCIPAL_UNVERIFIED" || kind != "app_user" || n != 2 {
+		t.Fatalf("recentPrincipalRejects = %q/%q/%d, want PRINCIPAL_UNVERIFIED/app_user/2", code, kind, n)
 	}
-	if code, n := recentPrincipalRejects([]doctorReject{{Code: "BAD_TOKEN"}}); code != "" || n != 0 {
-		t.Fatalf("recentPrincipalRejects = %q/%d, want no finding", code, n)
+	if code, kind, n := recentPrincipalRejects([]doctorReject{{Code: "BAD_TOKEN"}}); code != "" || kind != "" || n != 0 {
+		t.Fatalf("recentPrincipalRejects = %q/%q/%d, want no finding", code, kind, n)
 	}
 }
