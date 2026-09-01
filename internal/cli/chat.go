@@ -280,6 +280,11 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 				warn("PRINCIPALS_DORMANT", "Declare principal kinds when chat must be user-scoped.")
 			}
 		}
+		// A run-time principal failure is invisible in CONFIG: the manifest validates, the token mints, and
+		// only the recent rejects show that the asserted identity never verified against the project's data.
+		if code, n := recentPrincipalRejects(b.Rejects); n > 0 {
+			warn(code, fmt.Sprintf("last %d turn(s) failed principal verification — check the asserted external ID against the manifest's verify query.", n))
+		}
 		add(brandingErr == nil, "BRANDING_REACHABLE", "BRANDING_UNAVAILABLE", "Check the branding API and project scope.")
 		add(probeErr == nil && loaderStatus == http.StatusOK, "WIDGET_LOADER_REACHABLE", "WIDGET_SCRIPT_BLOCKED", "Allow the ReplyPen loader URL through network and CSP policy.")
 
@@ -403,6 +408,28 @@ func bagString(b map[string]any, key string) string {
 	v, _ := f["effective"].(string)
 	return v
 }
+
+// recentPrincipalRejects counts the run-time principal failures in the recent rejects window and returns
+// the dominant code, so the doctor names the ONE thing an integrator can act on rather than making them
+// read the list.
+func recentPrincipalRejects(rejects []doctorReject) (string, int) {
+	counts := map[string]int{}
+	for _, r := range rejects {
+		switch r.Code {
+		case "PRINCIPAL_UNVERIFIED", "PRINCIPAL_LOOKUP_FAILED":
+			counts[r.Code]++
+		}
+	}
+	code, total := "", 0
+	for c, n := range counts {
+		total += n
+		if code == "" || n > counts[code] || (n == counts[code] && c < code) {
+			code = c
+		}
+	}
+	return code, total
+}
+
 func principalKinds(p map[string]any) []string {
 	kinds, _ := p["kinds"].(map[string]any)
 	out := make([]string, 0, len(kinds))

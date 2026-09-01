@@ -177,3 +177,20 @@ func chatTestProjects(mux *http.ServeMux) {
 		_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"alpha"}]}`))
 	})
 }
+
+// The doctor names the ONE run-time principal failure an integrator can act on: the dominant code, and
+// the TOTAL count across both, so "last N turns failed principal verification" is honest.
+func TestRecentPrincipalRejects(t *testing.T) {
+	code, n := recentPrincipalRejects([]doctorReject{
+		{Code: "ORIGIN_NOT_ALLOWED"},
+		{Code: "PRINCIPAL_LOOKUP_FAILED"},
+		{Code: "PRINCIPAL_UNVERIFIED"},
+		{Code: "PRINCIPAL_UNVERIFIED"},
+	})
+	if code != "PRINCIPAL_UNVERIFIED" || n != 3 {
+		t.Fatalf("recentPrincipalRejects = %q/%d, want PRINCIPAL_UNVERIFIED/3", code, n)
+	}
+	if code, n := recentPrincipalRejects([]doctorReject{{Code: "BAD_TOKEN"}}); code != "" || n != 0 {
+		t.Fatalf("recentPrincipalRejects = %q/%d, want no finding", code, n)
+	}
+}
