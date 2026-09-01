@@ -2748,6 +2748,7 @@ Available Commands:
   token       Mint a five-minute server chat token
   send        Open an embed session and print one turn's SSE frames
   doctor      Diagnose embedded-chat configuration and recent rejects
+  brief       Print the secret-free chat implementation brief
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2899,6 +2900,27 @@ Flags:
       --bundle                  print a redacted JSON escalation bundle
       --origin string           origin to check against the allowlist
       --principal-kind string   principal kind to check
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project chat brief --help
+Print the secret-free chat implementation brief
+
+Usage:
+  rc project chat brief [flags]
+
+Flags:
+      --color-scheme string   widget color scheme override: light or dark
+      --locale string         widget locale override: en, nl, or fr
+      --target string         widget presentation: bubble or page (default "bubble")
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

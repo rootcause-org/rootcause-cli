@@ -28,6 +28,28 @@ func (c *Client) ChatRaw(ctx context.Context, method, project, suffix string, bo
 	return c.Raw(ctx, method, chatProjectPath(project, suffix), body)
 }
 
+// ChatBrief streams the server-owned secret-free Markdown handoff.
+func (c *Client) ChatBrief(ctx context.Context, project, tenant, target, locale, scheme string, out io.Writer) error {
+	q := url.Values{}
+	if tenant != "" {
+		q.Set("tenant", tenant)
+	}
+	if target != "" {
+		q.Set("target", target)
+	}
+	if locale != "" {
+		q.Set("locale", locale)
+	}
+	if scheme != "" {
+		q.Set("scheme", scheme)
+	}
+	path := chatProjectPath(project, "/brief")
+	if encoded := q.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	return c.Download(ctx, path, out)
+}
+
 func (c *Client) PrincipalsRaw(ctx context.Context, method, project string, body map[string]any) (json.RawMessage, error) {
 	return c.Raw(ctx, method, principalsPath(project), body)
 }

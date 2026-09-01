@@ -41,6 +41,29 @@ func TestChatSecretRotatePrintsSecretOnce(t *testing.T) {
 	}
 }
 
+func TestChatBriefPrintsServerMarkdownAndCarriesTenant(t *testing.T) {
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat/brief", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("tenant"); got != "north" {
+			t.Fatalf("tenant = %q", got)
+		}
+		if got := r.URL.Query().Get("target"); got != "page" {
+			t.Fatalf("target = %q", got)
+		}
+		_, _ = w.Write([]byte("# Brief\n\n```yaml\nreplypen_brief: v1\n```\n"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "--tenant", "north", "project", "chat", "brief", "--target", "page"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "replypen_brief: v1") {
+		t.Fatalf("output = %q", out.String())
+	}
+}
+
 func TestPrincipalsSetAcceptsYAML(t *testing.T) {
 	mux := http.NewServeMux()
 	chatTestProjects(mux)
