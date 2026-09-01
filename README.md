@@ -346,6 +346,8 @@ help using `go test ./internal/cli -update`.
 | `rc auth logout` | Revoke and clear this profile's stored tokens |
 | `rc auth status` | Show the resolved profile/project/login tenant + sign-in status |
 | `rc auth` | Manage local authentication and inspect access |
+| `rc dev action doctor` | Diagnose action resolution, Embassy health, and preflight |
+| `rc dev action` | Diagnose project actions |
 | `rc dev api openapi` | Dump the canonical OpenAPI document |
 | `rc dev api routes` | Show the canonical API route manifest |
 | `rc dev api` | Inspect the public API contract |
@@ -394,9 +396,20 @@ help using `go test ./internal/cli -update`.
 | `rc fleet patterns` | Cluster recent failures and outbound endpoint patterns |
 | `rc fleet runs` | Fleet digest of recent runs (flags, rates, worst offenders) |
 | `rc fleet` | Operate and inspect project health |
+| `rc project action draft approve` | Approve an action draft |
+| `rc project action draft new` | Scaffold a new action draft |
+| `rc project action draft show` | Show an action draft |
+| `rc project action draft submit` | Submit an action draft |
+| `rc project action draft test` | Mint a human-confirmed test run for an action draft |
+| `rc project action draft validate` | Validate an action draft |
+| `rc project action draft` | Create, inspect, test, and promote action drafts |
 | `rc project action-settings get` | Show current values (value / effective / default) |
+| `rc project action-settings probe` | Probe the configured Embassy from ReplyPen |
+| `rc project action-settings reverse-secret rotate` | Generate, store, and print a new reverse-channel secret once |
+| `rc project action-settings reverse-secret` | Manage the Embassy reverse-channel secret |
 | `rc project action-settings set` | Change values (sparse, validate-then-apply server-side) |
-| `rc project action-settings` | Read or change action-plane config (operator-tier) |
+| `rc project action-settings` | Read, change, and probe action-plane configuration |
+| `rc project action` | Author action drafts |
 | `rc project branding get` | Show current values (value / effective / default) |
 | `rc project branding logo clear` | Remove the stored logo |
 | `rc project branding logo set` | Upload a logo image (PNG/SVG/JPEG) |

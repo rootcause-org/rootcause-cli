@@ -407,6 +407,26 @@ type ActionExecResponse struct {
 	DurationMs int64           `json:"duration_ms"`
 }
 
+// ActionProbeResponse is the secret-free result of the host-originated Embassy mount and health probe.
+type ActionProbeResponse struct {
+	Reachable   bool                 `json:"reachable"`
+	Status      int                  `json:"status"`
+	AllowHeader string               `json:"allow_header,omitempty"`
+	Health      *ActionEmbassyHealth `json:"health"`
+	LatencyMs   int64                `json:"latency_ms"`
+	Code        string               `json:"code,omitempty"`
+	Hint        string               `json:"hint,omitempty"`
+	Docs        string               `json:"docs,omitempty"`
+}
+
+type ActionEmbassyHealth struct {
+	OK           bool     `json:"ok"`
+	Embassy      string   `json:"embassy"`
+	Version      string   `json:"version"`
+	Protocol     int      `json:"protocol"`
+	Capabilities []string `json:"capabilities"`
+}
+
 // RunSummary is one row of GET /api/v1/runs. FinishedAt/DurationMs are absent on an unfinished run.
 // Topic/DeclinedReason and the Health block are operator-tier extras the server attaches for a
 // developer/admin bearer — `rc fleet runs` reads them for the digest's flags. They're absent (zero/nil)

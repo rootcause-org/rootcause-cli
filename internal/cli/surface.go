@@ -16,7 +16,7 @@ func newTopLevelCommands(e *env, root *cobra.Command, version string) []*cobra.C
 	run.GroupID = "start"
 	project := newProjectSurfaceCmd(e, version)
 	project.GroupID = "manage"
-	dev := newDevCmd(e)
+	dev := newDevCmd(e, version)
 	dev.GroupID = "develop"
 	fleet := newFleetSurfaceCmd(e)
 	fleet.GroupID = "operate"
@@ -50,6 +50,7 @@ func newProjectSurfaceCmd(e *env, version string) *cobra.Command {
 		newEnvCmd(e),
 		newGitHubCmd(e),
 		newActionConfigCmd(e),
+		newProjectActionCmd(e),
 		newProjectEgressCmd(e),
 	)
 	return cmd
@@ -73,7 +74,7 @@ func newKnowledgeCmd(e *env, version string) *cobra.Command {
 	return cmd
 }
 
-func newDevCmd(e *env) *cobra.Command {
+func newDevCmd(e *env, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "dev", Short: "Develop and inspect project behavior"}
 	console := &cobra.Command{Use: "console", Short: "Use guarded production consoles"}
 	console.AddCommand(newConsoleDatabaseCmd(e), newBashCmd(e), newConsoleFileCmd(e), newActionCmd(e), newCapabilitiesCmd(e))
@@ -83,7 +84,9 @@ func newDevCmd(e *env) *cobra.Command {
 	api.AddCommand(newRoutesCmd(e), newOpenAPICmd(e))
 	tools := &cobra.Command{Use: "tools", Short: "Use local provider and identifier utilities"}
 	tools.AddCommand(newIDCmd(e), newProviderCmd(e))
-	cmd.AddCommand(newBrainCmd(e), newMirrorCmd(e), console, learning, api, tools, newContextExportCmd(e))
+	action := &cobra.Command{Use: "action", Short: "Diagnose project actions"}
+	action.AddCommand(newActionDoctorCmd(e, version))
+	cmd.AddCommand(newBrainCmd(e), newMirrorCmd(e), console, action, learning, api, tools, newContextExportCmd(e))
 	return cmd
 }
 

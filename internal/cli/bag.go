@@ -181,10 +181,9 @@ func logoContentType(path string, data []byte) string {
 	}
 }
 
-// newActionConfigCmd builds `rc project action-settings get|set` over GET/PATCH /api/v1/action — the
-// operator-tier action-plane wiring (enabled/mode/runner_url/result_url + the write-only reverse secret).
+// newActionConfigCmd builds the self-serve action-plane wiring surface over /api/v1/action.
 func newActionConfigCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "action-settings", Short: "Read or change action-plane config (operator-tier)"}
-	cmd.AddCommand(newBagGetCmd(e, "/api/v1/action"), newBagSetCmd(e, "/api/v1/action"))
+	cmd := &cobra.Command{Use: "action-settings", Short: "Read, change, and probe action-plane configuration"}
+	cmd.AddCommand(newBagGetCmd(e, "/api/v1/action"), newBagSetCmd(e, "/api/v1/action"), actionProbeCmd(e), actionReverseSecretCmd(e))
 	return cmd
 }

@@ -97,6 +97,10 @@ func commandScope(path string) scopeSpec {
 	// console action routes read ?tenant= and a tenant-scoped action is refused without it.
 	case strings.HasPrefix(path, "dev console action "):
 		return projectTenant
+	case path == "dev action doctor":
+		return projectTenant
+	case path == "project action draft test":
+		return projectTenant
 	case path == "dev learning evidence", path == "auth status", path == "self doctor":
 		return projectTenant
 	}
@@ -115,6 +119,8 @@ func commandScope(path string) scopeSpec {
 	case strings.HasPrefix(path, "project database "), strings.HasPrefix(path, "project token "):
 		return projectOnly
 	case strings.HasPrefix(path, "project branding "), strings.HasPrefix(path, "project github "), strings.HasPrefix(path, "project action-settings "):
+		return projectOnly
+	case strings.HasPrefix(path, "project action draft "):
 		return projectOnly
 	case path == "auth access":
 		return projectOnly

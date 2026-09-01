@@ -225,3 +225,15 @@ func (c *Client) ActionRun(ctx context.Context, id string, req ActionExecRequest
 	err := c.do(ctx, http.MethodPost, "/api/v1/console/action/"+url.PathEscape(id)+"/run"+consoleScope(project, tenant), req, &out)
 	return &out, err
 }
+
+func (c *Client) ActionProbe(ctx context.Context, project string) (*ActionProbeResponse, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, bagURL("/api/v1/action/probe", project), map[string]any{}, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out ActionProbeResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, err
+	}
+	return &out, raw, nil
+}
