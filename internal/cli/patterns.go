@@ -66,7 +66,7 @@ func newPatternsCmd(e *env) *cobra.Command {
 	}
 	cmd.Flags().IntVar(&days, "days", 14, "window in days")
 	cmd.Flags().IntVar(&top, "top", 15, "max patterns per section")
-	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis")
+	cmd.Flags().StringVar(&kind, "kind", "", "filter by kind: email|prompt|mcp|analysis|console|chat")
 	cmd.Flags().StringVar(&format, "format", "human", "output style: human|agent (same clustered view; explicit --format forces it over a pipe)")
 	cmd.Flags().BoolVar(&all, "all", false, "fan out across every project (requires an all-projects token)")
 	return cmd

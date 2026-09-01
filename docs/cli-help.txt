@@ -124,11 +124,12 @@ Usage:
 Flags:
       --before string             cursor: run_id to page to the next (older) page
       --category string           filter by category (e.g. ok, timeout, cost_cap)
-      --kind string               filter by kind: email|prompt|mcp|analysis|console
+      --kind string               filter by kind: email|prompt|mcp|analysis|console|chat
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
       --limit int                 max runs to return (1..100, server default 50)
       --outcome string            filter by outcome: answered|declined|failed|error|stuck|running|interrupted
       --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
+      --session string            list every run in this chat session
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2746,7 +2747,7 @@ Available Commands:
   set         Change values (sparse, validate-then-apply server-side)
   secret      Manage the dedicated chat signing secret
   token       Mint a five-minute server chat token
-  send        Open an embed session and print one turn's SSE frames
+  send        Send one chat turn and print its SSE frames and run ID
   doctor      Diagnose embedded-chat configuration and recent rejects
   brief       Print the secret-free chat implementation brief
 
@@ -2871,14 +2872,16 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc project chat send --help
-Open an embed session and print one turn's SSE frames
+Send one chat turn and print its SSE frames and run ID
 
 Usage:
-  rc project chat send <message> [flags]
+  rc project chat send [message] [flags]
 
 Flags:
-      --origin string   embedding-page origin (default: token origin claim)
-      --token string    embed chat token (default: RC_CHAT_TOKEN)
+      --answer stringArray   answer the latest data question as key=value (repeat for multiple answers)
+      --origin string        embedding-page origin (default: token origin claim)
+      --session string       existing chat session ID (opens a new session when omitted)
+      --token string         embed chat token (default: RC_CHAT_TOKEN)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2900,6 +2903,7 @@ Flags:
       --bundle                  print a redacted JSON escalation bundle
       --origin string           origin to check against the allowlist
       --principal-kind string   principal kind to check
+      --since string            reject warning window: 30m, 1h, or 24h (default "24h")
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2942,6 +2946,7 @@ Usage:
 Available Commands:
   get         Show the principal manifest
   set         Replace the validated principal manifest
+  resolve     Resolve an email or pass through an external principal ID
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -2976,6 +2981,27 @@ Replace the validated principal manifest
 
 Usage:
   rc project principals set <json-or-yaml-file> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project principals resolve --help
+Resolve an email or pass through an external principal ID
+
+Usage:
+  rc project principals resolve [flags]
+
+Flags:
+      --email string         authenticated user's email
+      --external-id string   already-canonical principal external ID
+      --kind string          declared principal kind
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3941,8 +3967,9 @@ Flags:
       --all                       fan out across every project (requires an all-projects token)
       --days int                  window label for the digest header (days) (default 7)
       --format string             output style: human|agent (default "human")
-      --kind string               filter by kind: email|prompt|mcp|analysis
+      --kind string               filter by kind: email|prompt|mcp|analysis|console|chat
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
+      --limit int                 max runs to include (1..100, uncapped by default)
       --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
       --timeline                  add the per-day runs/errors/latency timeline
 
@@ -4028,7 +4055,7 @@ Flags:
       --all             fan out across every project (requires an all-projects token)
       --days int        window in days (default 14)
       --format string   output style: human|agent (same clustered view; explicit --format forces it over a pipe) (default "human")
-      --kind string     filter by kind: email|prompt|mcp|analysis
+      --kind string     filter by kind: email|prompt|mcp|analysis|console|chat
       --top int         max patterns per section (default 15)
 
 Global Flags:

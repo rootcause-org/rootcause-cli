@@ -87,7 +87,7 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	case strings.HasPrefix(path, "project knowledge content "):
 		return projectTenant
-	case path == "project chat token", path == "project chat brief":
+	case path == "project chat token", path == "project chat brief", path == "project principals resolve":
 		return projectTenant
 	case path == "project egress":
 		return projectTenant

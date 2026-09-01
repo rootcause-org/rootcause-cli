@@ -20,6 +20,7 @@ type runsFlags struct {
 	learning string
 	reviewed bool
 	before   string
+	session  string
 }
 
 // newRunListCmd builds `rc run list`: the filterable list view of GET /api/v1/runs, leading with the run
@@ -39,7 +40,7 @@ func newRunListCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Reviewed: f.reviewed, Before: f.before, Project: e.scopeProject(), Tenant: e.scopeTenant()}
+			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Reviewed: f.reviewed, Before: f.before, Session: f.session, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 			if render.IsJSON(e.mode(), e.out) {
 				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs"+queryString(params), nil)
 				if err != nil {
@@ -56,13 +57,14 @@ func newRunListCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "max runs to return (1..100, server default 50)")
-	cmd.Flags().StringVar(&f.kind, "kind", "", "filter by kind: email|prompt|mcp|analysis|console")
+	cmd.Flags().StringVar(&f.kind, "kind", "", "filter by kind: email|prompt|mcp|analysis|console|chat")
 	cmd.Flags().StringVar(&f.category, "category", "", "filter by category (e.g. ok, timeout, cost_cap)")
 	cmd.Flags().StringVar(&f.outcome, "outcome", "", "filter by outcome: answered|declined|failed|error|stuck|running|interrupted")
 	cmd.Flags().StringVar(&f.learning, "learning", "", "filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected")
 	cmd.Flags().Lookup("learning").NoOptDefVal = "any"
 	cmd.Flags().BoolVar(&f.reviewed, "reviewed", false, "only runs with a 1–5 human review score (includes held-out eval runs)")
 	cmd.Flags().StringVar(&f.before, "before", "", "cursor: run_id to page to the next (older) page")
+	cmd.Flags().StringVar(&f.session, "session", "", "list every run in this chat session")
 	return cmd
 }
 
@@ -108,6 +110,9 @@ func queryString(p client.RunsParams) string {
 	}
 	if p.Before != "" {
 		q.Set("before", p.Before)
+	}
+	if p.Session != "" {
+		q.Set("session", p.Session)
 	}
 	if p.Project != "" {
 		q.Set("project", p.Project)

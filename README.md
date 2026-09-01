@@ -422,7 +422,7 @@ help using `go test ./internal/cli -update`.
 | `rc project chat secret reveal` | Reveal the chat signing secret (printed once) |
 | `rc project chat secret rotate` | Rotate the chat signing secret (printed once) |
 | `rc project chat secret` | Manage the dedicated chat signing secret |
-| `rc project chat send` | Open an embed session and print one turn's SSE frames |
+| `rc project chat send` | Send one chat turn and print its SSE frames and run ID |
 | `rc project chat set` | Change values (sparse, validate-then-apply server-side) |
 | `rc project chat token` | Mint a five-minute server chat token |
 | `rc project chat` | Configure, diagnose, and smoke-test embedded chat |
@@ -484,6 +484,7 @@ help using `go test ./internal/cli -update`.
 | `rc project member rm` | Delete a member |
 | `rc project member` | Manage project members |
 | `rc project principals get` | Show the principal manifest |
+| `rc project principals resolve` | Resolve an email or pass through an external principal ID |
 | `rc project principals set` | Replace the validated principal manifest |
 | `rc project principals` | Read or replace the project principal manifest |
 | `rc project rename` | Rename the active project slug and brain repo |

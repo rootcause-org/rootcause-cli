@@ -3,12 +3,14 @@ package cli
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -95,6 +97,30 @@ func TestPrincipalsSetAcceptsYAML(t *testing.T) {
 	}
 }
 
+func TestPrincipalsResolvePrintsExternalID(t *testing.T) {
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("POST /api/v1/projects/alpha/principals/resolve", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["kind"] != "app_user" || body["email"] != "person@example.com" || body["tenant"] != "north" {
+			t.Fatalf("resolve body = %#v", body)
+		}
+		_, _ = w.Write([]byte(`{"kind":"app_user","external_id":"user-42","source":"email_lookup"}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "--tenant", "north", "project", "principals", "resolve", "--kind", "app_user", "--email", "person@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if out.String() != "Scope: alpha / north\nuser-42\n" {
+		t.Fatalf("output = %q", out.String())
+	}
+}
+
 func TestChatDoctorBundleIsRedacted(t *testing.T) {
 	mux := http.NewServeMux()
 	chatTestProjects(mux)
@@ -159,7 +185,7 @@ func TestChatSendPrintsSSE(t *testing.T) {
 			t.Fatal(err)
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
-		_, _ = w.Write([]byte("data: {\"type\":\"text-delta\"}\n\ndata: [DONE]\n\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"start\",\"messageId\":\"run-123\"}\n\ndata: {\"type\":\"text-delta\"}\n\ndata: [DONE]\n\n"))
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -168,6 +194,73 @@ func TestChatSendPrintsSSE(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "[DONE]") {
+		t.Fatalf("output = %q", out.String())
+	}
+	if !strings.HasSuffix(out.String(), "run_id: run-123\n") {
+		t.Fatalf("missing final run ID: %q", out.String())
+	}
+}
+
+func TestChatSendAnswersLatestQuestionInExistingSession(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"alpha","origin":"https://app.example"}`))
+	token := "e30." + payload + ".sig"
+	const sessionID = "11111111-1111-1111-1111-111111111111"
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /chat/v1/session/"+sessionID, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"messages":[{"role":"assistant","parts":[{"type":"data-questions","data":{"question_set_id":"qs-1","questions":[{"id":"area","kind":"single_select"},{"id":"detail","kind":"free_text"}]}}]}]}`))
+	})
+	mux.HandleFunc("POST /chat/v1/message", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Message struct {
+				Parts []map[string]any `json:"parts"`
+			} `json:"message"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if len(body.Message.Parts) != 1 || body.Message.Parts[0]["type"] != "data-answers" {
+			t.Fatalf("parts = %#v", body.Message.Parts)
+		}
+		data := body.Message.Parts[0]["data"].(map[string]any)
+		answers := data["answers"].(map[string]any)
+		if answers["area"].(map[string]any)["value"] != "billing" || answers["detail"].(map[string]any)["text"] != "nightly" {
+			t.Fatalf("answers = %#v", answers)
+		}
+		_, _ = w.Write([]byte("data: {\"type\":\"start\",\"messageId\":\"run-answer\"}\n\ndata: [DONE]\n\n"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "chat", "send", "--token", token, "--session", sessionID, "--answer", "area=billing", "--answer", "detail=nightly"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(out.String(), "run_id: run-answer\n") {
+		t.Fatalf("output = %q", out.String())
+	}
+}
+
+func TestChatAnswerPartDoesNotRepeatAnsweredQuestionSet(t *testing.T) {
+	raw := json.RawMessage(`{"messages":[{"parts":[{"type":"data-questions","data":{"question_set_id":"qs-1","questions":[{"id":"area","kind":"single_select"}]}}]},{"parts":[{"type":"data-answers","data":{"question_set_id":"qs-1","answers":{"area":{"value":"billing"}}}}]}]}`)
+	if _, err := chatAnswerPart(raw, []string{"area=billing"}); err == nil || !strings.Contains(err.Error(), "no unanswered") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestChatSendSSEErrorIsNonZeroAndKeepsRunID(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"alpha","origin":"https://app.example"}`))
+	token := "e30." + payload + ".sig"
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /chat/v1/message", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("data: {\"type\":\"start\",\"messageId\":\"run-error\"}\n\ndata: {\"type\":\"error\",\"errorText\":\"grounding failed\"}\n\ndata: [DONE]\n\n"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "project", "chat", "send", "hello", "--token", token, "--session", "11111111-1111-1111-1111-111111111111")
+	if err == nil || !strings.Contains(err.Error(), "grounding failed") {
+		t.Fatalf("error = %v", err)
+	}
+	if !strings.HasSuffix(out.String(), "run_id: run-error\n") {
 		t.Fatalf("output = %q", out.String())
 	}
 }
@@ -205,6 +298,7 @@ func TestRecentPrincipalRejects(t *testing.T) {
 		{Code: "ORIGIN_NOT_ALLOWED"},
 		{Code: "PRINCIPAL_LOOKUP_FAILED", Kind: "account"},
 		{Code: "PRINCIPAL_UNVERIFIED", Kind: "app_user"},
+		{Code: "PRINCIPAL_UNVERIFIED", Kind: "ignored", Stale: true},
 		{Code: "PRINCIPAL_UNVERIFIED", Kind: "app_user"},
 	})
 	if code != "PRINCIPAL_UNVERIFIED" || kind != "app_user" || n != 2 {
@@ -212,5 +306,32 @@ func TestRecentPrincipalRejects(t *testing.T) {
 	}
 	if code, kind, n := recentPrincipalRejects([]doctorReject{{Code: "BAD_TOKEN"}}); code != "" || kind != "" || n != 0 {
 		t.Fatalf("recentPrincipalRejects = %q/%q/%d, want no finding", code, kind, n)
+	}
+}
+
+func TestChatDoctorSinceMarksOldRejectStale(t *testing.T) {
+	now := time.Now().UTC()
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"chat_enabled":{"effective":true},"chat_origins":{"effective":["https://app.example"]}}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/principals", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"kinds":{}}`)) })
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat/secret", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"source":"dedicated"}`)) })
+	mux.HandleFunc("GET /api/v1/branding", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"name":{"effective":"Example"}}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat/rejects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = fmt.Fprintf(w, `{"rejects":[{"code":"BAD_TOKEN","timestamp":%q},{"code":"PRINCIPAL_UNVERIFIED","timestamp":%q}]}`, now.Add(-2*time.Hour).Format(time.RFC3339), now.Format(time.RFC3339))
+	})
+	mux.HandleFunc("GET /chat/widget/v1/loader.js", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "project", "chat", "doctor", "--since", "1h"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "stale   BAD_TOKEN") || !strings.Contains(out.String(), "recent  PRINCIPAL_UNVERIFIED") {
+		t.Fatalf("output = %q", out.String())
 	}
 }

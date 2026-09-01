@@ -186,6 +186,9 @@ func (c *Client) AllRuns(ctx context.Context, p RunsParams) (runs []RunSummary, 
 			return nil, false, e
 		}
 		runs = append(runs, resp.Runs...)
+		if p.Limit > 0 && len(runs) >= p.Limit {
+			return runs[:p.Limit], false, nil
+		}
 		if resp.NextBefore == "" {
 			return runs, false, nil
 		}

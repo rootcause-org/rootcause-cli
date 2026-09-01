@@ -34,9 +34,12 @@ The spine is one endpoint per rung, so an agent verifies against real runs befor
 | bundle | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` (header + per-event trace; JSONL in `-o json`) |
 | decompose | `rc run debug <id>` | `/trace` → local jq-able JSONL + thin markdown index ([see below](#the-rc-run-debug-decomposer)) |
 
-`run list` filters (`--limit`/`--kind`/`--category`/`--outcome`/`--learning[=signal]`/`--reviewed`/`--before`) are
+`run list` filters (`--limit`/`--kind`/`--category`/`--outcome`/`--learning[=signal]`/`--reviewed`/`--before`/`--session`) are
 server-side so cursor pagination stays correct. Bare `--learning` means `any`; explicit values are
 `feedback`, `sent_delta`, `triage_skipped`, `triage_corrected`.
+`--session` turns a chat continuity ID into its ordered run list; drill into one returned run ID with
+the normal show/events/trace/debug ladder. `rc fleet runs --limit N` deliberately stops after N rows
+(per project under `--all`) instead of treating that boundary as a paging-cap warning.
 `--reviewed` is the human-audit lane: every 1–5 scored run plus its operator-tier score/comment,
 including held-out eval threads. It must remain separate from `--learning=feedback`, whose held-out
 exclusion prevents training leakage.
@@ -59,6 +62,13 @@ keep the raw rows reachable via `-o json`:
   `--verdict`, `--days`, `--include-bodies`); `--plane shadow` aliases delta evidence filtered to shadow rows.
 - `rc project knowledge content search|export` — progressive KB discovery over the guarded bash workspace
   (ranked metadata to stdout, full articles spilled to a local artifact folder).
+
+Chat integrator commands stay thin over the public host contract. `project principals resolve` sends a
+declared kind plus exactly one of email/external ID and prints the returned canonical ID. `project chat
+send` may open or resume (`--session`) a session; repeated `--answer key=value` flags are encoded against
+the latest persisted `data-questions` part, HTTP/SSE failures return non-zero, and a started stream ends
+with its run ID. `project chat doctor --since 30m|1h|24h` excludes stale rejects from runtime warnings
+while retaining and labeling them in diagnostic output.
 
 ### Server writes
 The invariant is not a fixed list of write commands — it is that **every write goes through an endpoint the

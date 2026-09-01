@@ -151,6 +151,29 @@ func TestRunLearningFiltersRideAsQueryParams(t *testing.T) {
 	}
 }
 
+func TestRunSessionAndFleetLimitRideAsQueryParams(t *testing.T) {
+	var queries []map[string]string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, map[string]string{"session": r.URL.Query().Get("session"), "limit": r.URL.Query().Get("limit")})
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "list", "--session", "session-42"); err != nil {
+		t.Fatal(err)
+	}
+	e, _, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "fleet", "runs", "--limit", "7"); err != nil {
+		t.Fatal(err)
+	}
+	if len(queries) != 2 || queries[0]["session"] != "session-42" || queries[1]["limit"] != "7" {
+		t.Fatalf("queries = %#v", queries)
+	}
+}
+
 func TestFleetReviewedFilterCarriesReviewAndLabelsDigest(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {

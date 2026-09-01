@@ -121,8 +121,9 @@ func chatTokenCmd(e *env) *cobra.Command {
 }
 
 func chatSendCmd(e *env) *cobra.Command {
-	var token, origin string
-	cmd := &cobra.Command{Use: "send <message>", Short: "Open an embed session and print one turn's SSE frames", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error {
+	var token, origin, sessionID string
+	var answerFlags []string
+	cmd := &cobra.Command{Use: "send [message]", Short: "Send one chat turn and print its SSE frames and run ID", Args: cobra.MaximumNArgs(1), RunE: func(_ *cobra.Command, args []string) error {
 		if token == "" {
 			token = os.Getenv("RC_CHAT_TOKEN")
 		}
@@ -146,15 +147,136 @@ func chatSendCmd(e *env) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		sessionID, err := c.ChatOpen(e.ctx(), project, origin, token)
-		if err != nil {
-			return err
+		if len(args) == 0 && len(answerFlags) == 0 {
+			return fmt.Errorf("a message or at least one --answer key=value is required")
 		}
-		return c.ChatSend(e.ctx(), project, origin, token, sessionID, randomMessageID(), args[0], e.out)
+		if sessionID == "" {
+			if len(answerFlags) > 0 {
+				return fmt.Errorf("--session is required with --answer")
+			}
+			sessionID, err = c.ChatOpen(e.ctx(), project, origin, token)
+			if err != nil {
+				return err
+			}
+		}
+		parts := make([]map[string]any, 0, 2)
+		if len(args) == 1 && strings.TrimSpace(args[0]) != "" {
+			parts = append(parts, map[string]any{"type": "text", "text": args[0]})
+		}
+		if len(answerFlags) > 0 {
+			raw, err := c.ChatSession(e.ctx(), project, origin, token, sessionID)
+			if err != nil {
+				return err
+			}
+			answerPart, err := chatAnswerPart(raw, answerFlags)
+			if err != nil {
+				return err
+			}
+			parts = append(parts, answerPart)
+		}
+		if len(parts) == 0 {
+			return fmt.Errorf("message must not be empty")
+		}
+		runID, sendErr := c.ChatSend(e.ctx(), project, origin, token, sessionID, randomMessageID(), parts, e.out)
+		if runID != "" {
+			_, _ = fmt.Fprintf(e.out, "run_id: %s\n", runID)
+		}
+		return sendErr
 	}}
 	cmd.Flags().StringVar(&token, "token", "", "embed chat token (default: RC_CHAT_TOKEN)")
 	cmd.Flags().StringVar(&origin, "origin", "", "embedding-page origin (default: token origin claim)")
+	cmd.Flags().StringVar(&sessionID, "session", "", "existing chat session ID (opens a new session when omitted)")
+	cmd.Flags().StringArrayVar(&answerFlags, "answer", nil, "answer the latest data question as key=value (repeat for multiple answers)")
 	return cmd
+}
+
+type chatQuestion struct {
+	ID   string `json:"id"`
+	Kind string `json:"kind"`
+}
+
+func chatAnswerPart(raw json.RawMessage, flags []string) (map[string]any, error) {
+	var session struct {
+		Messages []struct {
+			Parts []json.RawMessage `json:"parts"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(raw, &session); err != nil {
+		return nil, fmt.Errorf("decode chat session: %w", err)
+	}
+	answered := map[string]bool{}
+	for _, message := range session.Messages {
+		for _, rawPart := range message.Parts {
+			var part struct {
+				Type string `json:"type"`
+				Data struct {
+					QuestionSetID string `json:"question_set_id"`
+				} `json:"data"`
+			}
+			if json.Unmarshal(rawPart, &part) == nil && part.Type == "data-answers" && part.Data.QuestionSetID != "" {
+				answered[part.Data.QuestionSetID] = true
+			}
+		}
+	}
+	var questionSetID string
+	var questions []chatQuestion
+	for mi := len(session.Messages) - 1; mi >= 0 && questionSetID == ""; mi-- {
+		parts := session.Messages[mi].Parts
+		for pi := len(parts) - 1; pi >= 0; pi-- {
+			var part struct {
+				Type string `json:"type"`
+				Data struct {
+					QuestionSetID string         `json:"question_set_id"`
+					Questions     []chatQuestion `json:"questions"`
+				} `json:"data"`
+			}
+			if json.Unmarshal(parts[pi], &part) == nil && part.Type == "data-questions" && part.Data.QuestionSetID != "" && !answered[part.Data.QuestionSetID] {
+				questionSetID, questions = part.Data.QuestionSetID, part.Data.Questions
+				break
+			}
+		}
+	}
+	if questionSetID == "" {
+		return nil, fmt.Errorf("session has no unanswered data question")
+	}
+
+	values := map[string][]string{}
+	for _, flag := range flags {
+		key, value, ok := strings.Cut(flag, "=")
+		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
+		if !ok || key == "" || value == "" {
+			return nil, fmt.Errorf("--answer must be key=value")
+		}
+		values[key] = append(values[key], value)
+	}
+	byID := make(map[string]chatQuestion, len(questions))
+	for _, q := range questions {
+		byID[q.ID] = q
+	}
+	answers := map[string]any{}
+	for id, selections := range values {
+		q, ok := byID[id]
+		if !ok {
+			return nil, fmt.Errorf("unknown answer key %q", id)
+		}
+		switch q.Kind {
+		case "single_select":
+			if len(selections) != 1 {
+				return nil, fmt.Errorf("answer %q accepts one value", id)
+			}
+			answers[id] = map[string]any{"value": selections[0]}
+		case "multi_select":
+			answers[id] = map[string]any{"values": selections}
+		case "free_text":
+			if len(selections) != 1 {
+				return nil, fmt.Errorf("answer %q accepts one value", id)
+			}
+			answers[id] = map[string]any{"text": selections[0]}
+		default:
+			return nil, fmt.Errorf("question %q has unsupported kind %q", id, q.Kind)
+		}
+	}
+	return map[string]any{"type": "data-answers", "data": map[string]any{"question_set_id": questionSetID, "answers": answers}}, nil
 }
 
 type chatDoctorFinding struct {
@@ -169,6 +291,7 @@ type doctorBundle struct {
 	Project    string              `json:"project"`
 	RCVersion  string              `json:"rc_version"`
 	Timestamp  time.Time           `json:"timestamp"`
+	Since      string              `json:"since"`
 	Config     map[string]any      `json:"config"`
 	Principals map[string]any      `json:"principals"`
 	Secret     map[string]any      `json:"secret"`
@@ -183,18 +306,23 @@ type doctorReject struct {
 	Kind      string    `json:"kind,omitempty"`
 	Origin    string    `json:"origin,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
+	Stale     bool      `json:"stale,omitempty"`
 }
 
 func chatDoctorCmd(e *env, version string) *cobra.Command {
-	var origin, kind string
+	var origin, kind, since string
 	var bundle bool
 	cmd := &cobra.Command{Use: "doctor", Short: "Diagnose embedded-chat configuration and recent rejects", Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error {
+		if !containsCLI([]string{"30m", "1h", "24h"}, since) {
+			return fmt.Errorf("--since must be 30m, 1h, or 24h")
+		}
+		sinceDuration, _ := time.ParseDuration(since)
 		c, err := e.newClient()
 		if err != nil {
 			return err
 		}
 		project := e.scopeProject()
-		b := doctorBundle{Project: project, RCVersion: version, Timestamp: time.Now().UTC(), Config: map[string]any{}, Principals: map[string]any{}, Secret: map[string]any{}, Branding: map[string]any{}, Probes: map[string]any{}}
+		b := doctorBundle{Project: project, RCVersion: version, Timestamp: time.Now().UTC(), Since: since, Config: map[string]any{}, Principals: map[string]any{}, Secret: map[string]any{}, Branding: map[string]any{}, Probes: map[string]any{}}
 		decodeDoctor := func(raw json.RawMessage, dst any) { _ = json.Unmarshal(raw, dst) }
 		raw, err := c.ChatRaw(e.ctx(), http.MethodGet, project, "", nil)
 		if err != nil {
@@ -230,7 +358,7 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 			"name_configured":          bagString(branding, "name") != "",
 			"primary_color_configured": bagString(branding, "primary_color") != "",
 		}
-		raw, err = c.ChatRaw(e.ctx(), http.MethodGet, project, "/rejects?limit=20", nil)
+		raw, err = c.ChatRaw(e.ctx(), http.MethodGet, project, "/rejects?limit=100", nil)
 		if err != nil {
 			return err
 		}
@@ -238,6 +366,10 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 			Rejects []doctorReject `json:"rejects"`
 		}
 		decodeDoctor(raw, &rejects)
+		cutoff := b.Timestamp.Add(-sinceDuration)
+		for i := range rejects.Rejects {
+			rejects.Rejects[i].Stale = rejects.Rejects[i].Timestamp.Before(cutoff)
+		}
 		b.Rejects = rejects.Rejects
 		loaderStatus, probeErr := c.ProbeWidgetLoader(e.ctx())
 		b.Probes["widget_loader_status"] = loaderStatus
@@ -309,6 +441,13 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 				failed = true
 			}
 		}
+		for _, reject := range b.Rejects {
+			state := "recent"
+			if reject.Stale {
+				state = "stale"
+			}
+			_, _ = fmt.Fprintf(e.out, "%-7s %-28s %s\n", state, reject.Code, reject.Timestamp.Format(time.RFC3339))
+		}
 		if failed {
 			return &commandError{code: exitUsage, name: "CHAT_DOCTOR_FAILED", silent: true, message: "chat doctor found failures"}
 		}
@@ -317,6 +456,7 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 	cmd.Flags().StringVar(&origin, "origin", "", "origin to check against the allowlist")
 	cmd.Flags().StringVar(&kind, "principal-kind", "", "principal kind to check")
 	cmd.Flags().BoolVar(&bundle, "bundle", false, "print a redacted JSON escalation bundle")
+	cmd.Flags().StringVar(&since, "since", "24h", "reject warning window: 30m, 1h, or 24h")
 	return cmd
 }
 
@@ -354,6 +494,47 @@ func newPrincipalsCmd(e *env) *cobra.Command {
 		}
 		return render.JSON(e.out, raw)
 	}})
+	var kind, email, externalID string
+	resolve := &cobra.Command{Use: "resolve", Short: "Resolve an email or pass through an external principal ID", Args: cobra.NoArgs, RunE: func(_ *cobra.Command, _ []string) error {
+		if strings.TrimSpace(kind) == "" {
+			return fmt.Errorf("--kind is required")
+		}
+		if (strings.TrimSpace(email) == "") == (strings.TrimSpace(externalID) == "") {
+			return fmt.Errorf("exactly one of --email or --external-id is required")
+		}
+		body := map[string]any{"kind": kind}
+		if email != "" {
+			body["email"] = email
+		} else {
+			body["external_id"] = externalID
+		}
+		if tenant := e.scopeTenant(); tenant != "" {
+			body["tenant"] = tenant
+		}
+		c, err := e.newClient()
+		if err != nil {
+			return err
+		}
+		raw, err := c.PrincipalResolveRaw(e.ctx(), e.scopeProject(), body)
+		if err != nil {
+			return err
+		}
+		if e.jsonOut() {
+			return render.JSON(e.out, raw)
+		}
+		var out struct {
+			ExternalID string `json:"external_id"`
+		}
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintln(e.out, out.ExternalID)
+		return nil
+	}}
+	resolve.Flags().StringVar(&kind, "kind", "", "declared principal kind")
+	resolve.Flags().StringVar(&email, "email", "", "authenticated user's email")
+	resolve.Flags().StringVar(&externalID, "external-id", "", "already-canonical principal external ID")
+	cmd.AddCommand(resolve)
 	return cmd
 }
 
@@ -427,6 +608,9 @@ func recentPrincipalRejects(rejects []doctorReject) (string, string, int) {
 	type failure struct{ code, kind string }
 	counts := map[failure]int{}
 	for _, r := range rejects {
+		if r.Stale {
+			continue
+		}
 		switch r.Code {
 		case "PRINCIPAL_UNVERIFIED", "PRINCIPAL_LOOKUP_FAILED":
 			counts[failure{code: r.Code, kind: r.Kind}]++
