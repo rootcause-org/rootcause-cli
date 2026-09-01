@@ -419,9 +419,10 @@ func bagString(b map[string]any, key string) string {
 	return v
 }
 
-// recentPrincipalRejects counts the run-time principal failures in the recent rejects window and returns
-// the dominant code, so the doctor names the ONE thing an integrator can act on rather than making them
-// read the list.
+// recentPrincipalRejects returns the DOMINANT (code, principal kind) pair in the recent rejects window
+// and its own count — not the total across codes — so the doctor names the ONE failure an integrator can
+// act on, with the kind whose verify query to check. Ties break on code then kind for determinism (map
+// iteration order is random).
 func recentPrincipalRejects(rejects []doctorReject) (string, string, int) {
 	type failure struct{ code, kind string }
 	counts := map[failure]int{}
