@@ -5,6 +5,7 @@
     "sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
     "ok": false,
     "templated": true,
+    "consumers": 3,
     "checked": 3,
     "skipped": 1,
     "tenants": [

@@ -158,7 +158,10 @@ type BrainCanary struct {
 	OK      bool   `json:"ok"`
 	// Templated is false when the candidate carries no projection.yaml (nothing to break).
 	Templated bool `json:"templated"`
-	Checked   int  `json:"checked"`
+	// Consumers is the active tenant pin count. Checked may be zero for an untemplated brain even when
+	// consumers is positive, because there is no projection to compile.
+	Consumers int `json:"consumers"`
+	Checked   int `json:"checked"`
 	// Skipped counts tenants excluded from this channel's set: on the other channel, frozen at an exact
 	// SHA, or not active.
 	Skipped int                 `json:"skipped"`

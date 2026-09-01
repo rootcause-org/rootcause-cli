@@ -317,7 +317,7 @@ func BrainPreflight(w io.Writer, r *client.BrainPreflightResponse) {
 	_, _ = fmt.Fprintf(w, "Channel: %s\n", c.Channel)
 	_, _ = fmt.Fprintf(w, "Commit:  %s\n", dash(shortGit(c.SHA)))
 	_, _ = fmt.Fprintf(w, "Verdict: %s\n", verdict)
-	_, _ = fmt.Fprintf(w, "Tenants: %d checked, %d skipped\n", c.Checked, c.Skipped)
+	_, _ = fmt.Fprintf(w, "Tenants: %d consumers, %d checked, %d skipped\n", c.Consumers, c.Checked, c.Skipped)
 	if c.Error != "" {
 		_, _ = fmt.Fprintf(w, "Error:   %s\n", c.Error)
 	}

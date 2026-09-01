@@ -258,6 +258,11 @@ carries the per-tenant detail). The server enforces the same check on `promote` 
 promotion comes back `409 BRAIN_CANARY_FAILED` with one detail row per offending tenant — so preflight is
 for *seeing* the answer early, never the thing that makes promotion safe.
 
+The verdict's `consumers` is the authoritative count of active tenant pins to that channel. Do not infer
+channel use from `checked`: an untemplated brain has consumers but compiles none. The server refuses an
+edge promote with `BRAIN_EDGE_UNUSED` when `consumers=0`; project `brain sync` also garbage-collects an
+unused local/origin edge ref. Stable is unaffected.
+
 `render` is the projection eyeball: the server compiles ONE named tenant's `{{ }}` placeholders and
 `rc:branch` regions in memory (nothing written to the brain cache) and returns the files verbatim, so a
 brain author sees exactly what `/brain` would mount. Tenant rides in the request body — it is a
