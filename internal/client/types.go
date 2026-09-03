@@ -91,6 +91,18 @@ type BrainStatus struct {
 	SyncedAt  string               `json:"synced_at,omitempty"`
 	Message   string               `json:"message,omitempty"`
 	Channels  []BrainChannelStatus `json:"channels,omitempty"`
+	// BootCheck is the server's last brain boot check (run-view symlinks + projection spec/compile) for
+	// this brain. Nil when no candidate commit has been checked yet — a failing check keeps the box's
+	// local main at the last-good commit instead of advancing it.
+	BootCheck *BrainBootCheck `json:"boot_check,omitempty"`
+}
+
+// BrainBootCheck is one brain boot-check verdict. Reason is populated only when OK is false.
+type BrainBootCheck struct {
+	SHA       string `json:"sha"`
+	OK        bool   `json:"ok"`
+	Reason    string `json:"reason,omitempty"`
+	CheckedAt string `json:"checked_at"`
 }
 
 type BrainChannelStatus struct {
@@ -116,7 +128,10 @@ type BrainSyncResult struct {
 	FastForwarded       bool        `json:"fast_forwarded"`
 	ManualReconcile     bool        `json:"manual_reconcile"`
 	RefreshedWorkspaces int         `json:"refreshed_workspaces,omitempty"`
-	Message             string      `json:"message,omitempty"`
+	// Refused is set when the server rejected the sync because the candidate commit failed its boot
+	// check; local main stays on the last-good commit and Message carries the reason.
+	Refused bool   `json:"refused,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 type BrainSyncResponse struct {
@@ -1460,10 +1475,21 @@ type HealthDeadLetter struct {
 	FinishedAt string `json:"finished_at,omitempty"`
 }
 
+// HealthBrainBoot is the latest brain boot check for ONE brain in GET /api/v1/health — the project
+// brain (Tenant empty) or a tenant brain overlay. Reason is populated only when OK is false.
+type HealthBrainBoot struct {
+	Tenant    string `json:"tenant,omitempty"`
+	SHA       string `json:"sha"`
+	OK        bool   `json:"ok"`
+	Reason    string `json:"reason,omitempty"`
+	CheckedAt string `json:"checked_at,omitempty"`
+}
+
 // HealthResponse is GET /api/v1/health — the RAW health inputs; the CLI decides healthy/unhealthy.
 type HealthResponse struct {
 	WindowHours  int                `json:"window_hours"`
 	Mirrors      []HealthMirror     `json:"mirrors"`
+	BrainBoot    []HealthBrainBoot  `json:"brain_boot"`
 	Mailboxes    []HealthMailbox    `json:"mailboxes"`
 	DeadLettered []HealthDeadLetter `json:"dead_lettered"`
 }

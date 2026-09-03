@@ -31,6 +31,11 @@ func HealthVerdict(h *client.HealthResponse) bool {
 			return false
 		}
 	}
+	for _, b := range h.BrainBoot {
+		if !b.OK {
+			return false
+		}
+	}
 	for _, m := range h.Mailboxes {
 		if mailboxNeedsAttention(m) {
 			return false
@@ -63,7 +68,28 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 		_, _ = fmt.Fprintln(w, "  ok — all mirrors synced recently")
 	}
 
-	// 2. watched mailboxes — raw rows; error/needs_attention or active expired watches need attention.
+	// 2. brain boot checks — a failed check means that brain's newest commit never went live (the box
+	// kept the last-good one), so the fleet is running knowingly stale knowledge. No checks yet is fine.
+	var badBoot []client.HealthBrainBoot
+	for _, b := range h.BrainBoot {
+		if !b.OK {
+			badBoot = append(badBoot, b)
+		}
+	}
+	_, _ = fmt.Fprintf(w, "\nBrain boot — %d/%d ok\n", len(h.BrainBoot)-len(badBoot), len(h.BrainBoot))
+	switch {
+	case len(badBoot) > 0:
+		unhealthy = true
+		for _, b := range badBoot {
+			_, _ = fmt.Fprintf(w, "  ! %s: FAILED @ %s — %s\n", brainBootName(b.Tenant), shortGit(b.SHA), firstLine120(b.Reason))
+		}
+	case len(h.BrainBoot) == 0:
+		_, _ = fmt.Fprintln(w, "  (no checks yet)")
+	default:
+		_, _ = fmt.Fprintln(w, "  ok — every brain commit boots")
+	}
+
+	// 3. watched mailboxes — raw rows; error/needs_attention or active expired watches need attention.
 	var badMailboxes []client.HealthMailbox
 	for _, m := range h.Mailboxes {
 		if mailboxNeedsAttention(m) {
@@ -87,7 +113,7 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 		_, _ = fmt.Fprintln(w, "  ok — no watched mailboxes parked or expired")
 	}
 
-	// 3. dead-lettered runs — any in the window is unhealthy (the customer never got the draft).
+	// 4. dead-lettered runs — any in the window is unhealthy (the customer never got the draft).
 	_, _ = fmt.Fprintf(w, "\nDead-lettered runs (last %dh) — %d total\n", h.WindowHours, len(h.DeadLettered))
 	if len(h.DeadLettered) > 0 {
 		unhealthy = true
@@ -115,6 +141,14 @@ func ageOrNever(hoursSinceOK *float64) string {
 		return "never"
 	}
 	return fmt.Sprintf("%.1fh", *hoursSinceOK)
+}
+
+// brainBootName labels a boot-check row: the project brain has no tenant slug.
+func brainBootName(tenant string) string {
+	if tenant == "" {
+		return "project brain"
+	}
+	return "tenant " + tenant
 }
 
 func mailboxTenant(tenant string) string {

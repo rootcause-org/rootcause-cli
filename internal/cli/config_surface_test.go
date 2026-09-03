@@ -309,6 +309,36 @@ func TestBrainSyncTable(t *testing.T) {
 	assertGolden(t, "brain_sync.golden", out.String())
 }
 
+// A 409 BRAIN_BOOT_CHECK_FAILED is terminal, not a transient sync failure: `rc dev brain sync` must
+// exit non-zero and say the box kept its last-good commit rather than parroting the raw API error.
+func TestBrainSyncBootCheckRefusal(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"email":"dev@example.test","project":{"id":"aaaaaaaa-0000-0000-0000-000000000001","name":"alpha","slug":"alpha"}}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/brain/sync", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":{"code":"BRAIN_BOOT_CHECK_FAILED","message":"run-view symlink target missing: skills/shared"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, _ := newTestEnv(t, srv, "table")
+	err := run(t, e, "dev", "brain", "sync")
+	if err == nil {
+		t.Fatal("brain sync on a failed boot check should error")
+	}
+	if code := exitCodeFor(err); code == exitOK {
+		t.Errorf("exit code = %d, want non-zero", code)
+	}
+	want := "brain sync refused: boot check failed — run-view symlink target missing: skills/shared; local main kept at last-good"
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+}
+
 func TestBrainPromoteTable(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

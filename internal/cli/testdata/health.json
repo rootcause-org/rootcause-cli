@@ -17,6 +17,20 @@
       "hours_since_ok": 144.5
     }
   ],
+  "brain_boot": [
+    {
+      "sha": "aaaaaaaaaaaa1111111111111111111111111111",
+      "ok": true,
+      "checked_at": "2026-06-22T09:31:00Z"
+    },
+    {
+      "tenant": "de-kies",
+      "sha": "bbbbbbbbbbbb2222222222222222222222222222",
+      "ok": false,
+      "reason": "run-view symlink target missing: skills/shared",
+      "checked_at": "2026-06-22T09:32:00Z"
+    }
+  ],
   "mailboxes": [
     {
       "id": "cccccccc-0000-0000-0000-000000000001",

@@ -138,3 +138,35 @@ func TestTurnSpikesFlagOutliers(t *testing.T) {
 		t.Fatalf("expected only heavy to spike, got %v", s)
 	}
 }
+
+// A failed brain boot check is unhealthy on its own: everything else can be green while the box serves
+// a knowingly stale brain. An EMPTY list is healthy — a fresh box has simply never checked.
+func TestBrainBootCheckDrivesHealthVerdict(t *testing.T) {
+	base := func(boot []client.HealthBrainBoot) *client.HealthResponse {
+		return &client.HealthResponse{WindowHours: 24, BrainBoot: boot}
+	}
+	failing := base([]client.HealthBrainBoot{
+		{Tenant: "de-kies", SHA: "abcdef0123456789abcdef0123456789abcdef01", OK: false, Reason: "projection compile failed"},
+	})
+
+	if HealthVerdict(base(nil)) != true {
+		t.Error("no boot checks yet should be healthy")
+	}
+	if HealthVerdict(failing) {
+		t.Error("a failed boot check must make the verdict unhealthy")
+	}
+
+	var buf bytes.Buffer
+	if Health(&buf, failing) {
+		t.Error("Health() returned healthy on a failed boot check")
+	}
+	if want := "  ! tenant de-kies: FAILED @ abcdef012345 — projection compile failed"; !strings.Contains(buf.String(), want) {
+		t.Errorf("missing %q in:\n%s", want, buf.String())
+	}
+
+	buf.Reset()
+	_ = Health(&buf, base(nil))
+	if !strings.Contains(buf.String(), "Brain boot — 0/0 ok\n  (no checks yet)") {
+		t.Errorf("missing no-checks-yet line in:\n%s", buf.String())
+	}
+}

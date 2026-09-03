@@ -3941,7 +3941,7 @@ Usage:
 Available Commands:
   runs         Fleet digest of recent runs (flags, rates, worst offenders)
   actions      Find actions across recent runs with exact params and run URLs
-  health       Roll up project health (mirrors + dead-letters); exits non-zero when unhealthy
+  health       Roll up project health (mirrors, brain boot checks, dead-letters); exits non-zero when unhealthy
   deploy-state Show the live host, brain, and mirror SHAs with their history
   patterns     Cluster recent failures and outbound endpoint patterns
 
@@ -4006,7 +4006,7 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc fleet health --help
-Fetch GET /api/v1/health and render the healthy/unhealthy sections (stale/failing mirrors, dead-lettered runs). Exits non-zero when unhealthy, so it's usable in CI/cron. --all fans out across every project (all-projects token) and exits non-zero if ANY project is unhealthy; an all-projects token with no --project falls back to the fan-out automatically. -o json passes the raw server rows through; the exit code still reflects the verdict.
+Fetch GET /api/v1/health and render the healthy/unhealthy sections (stale/failing mirrors, failed brain boot checks, dead-lettered runs). Exits non-zero when unhealthy, so it's usable in CI/cron. --all fans out across every project (all-projects token) and exits non-zero if ANY project is unhealthy; an all-projects token with no --project falls back to the fan-out automatically. -o json passes the raw server rows through; the exit code still reflects the verdict.
 
 Usage:
   rc fleet health [flags]

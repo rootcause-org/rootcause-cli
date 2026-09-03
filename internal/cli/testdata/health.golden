@@ -1,6 +1,9 @@
 Mirrors — 1/2 healthy
   ! acme/private: state=access_lost fails=9 last_ok=144.5h ago — 401 Unauthorized cloning git@github.com:acme/private
 
+Brain boot — 1/2 ok
+  ! tenant de-kies: FAILED @ bbbbbbbbbbbb — run-view symlink target missing: skills/shared
+
 Watched mailboxes — 2/5 healthy
   ! microsoft support@dentai.test (de-kies) status=active expires=2026-06-21T09:30:00Z synced=never
   ! google help@acme.test (project) status=error expires=- synced=never — watch renewal failed: invalid_grant

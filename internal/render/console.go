@@ -258,6 +258,15 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 	if st.SyncedAt != "" {
 		_, _ = fmt.Fprintf(w, "Synced:  %s\n", st.SyncedAt)
 	}
+	// A FAILED boot check is why local main can be behind origin: the box kept the last-good commit.
+	switch {
+	case st.BootCheck == nil:
+		_, _ = fmt.Fprintln(w, "Boot:    unchecked")
+	case st.BootCheck.OK:
+		_, _ = fmt.Fprintf(w, "Boot:    ok @ %s (%s)\n", shortGit(st.BootCheck.SHA), st.BootCheck.CheckedAt)
+	default:
+		_, _ = fmt.Fprintf(w, "Boot:    FAILED @ %s: %s\n", shortGit(st.BootCheck.SHA), st.BootCheck.Reason)
+	}
 	if st.Message != "" {
 		_, _ = fmt.Fprintf(w, "Note:    %s\n", st.Message)
 	}

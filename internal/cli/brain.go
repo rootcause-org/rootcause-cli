@@ -125,6 +125,18 @@ func brainStatusCmd(e *env) *cobra.Command {
 	}
 }
 
+// brainBootCheckError translates the server's 409 BRAIN_BOOT_CHECK_FAILED into the operator sentence:
+// nothing is broken on the box, the candidate commit simply never booted and main stayed last-good.
+// Returned as a plain error (not the APIError) so the terse reason isn't all the user sees; retrying
+// is pointless — the fix is a new brain commit.
+func brainBootCheckError(err error) error {
+	var apiErr *client.APIError
+	if asAPIError(err, &apiErr) && apiErr.Code == "BRAIN_BOOT_CHECK_FAILED" {
+		return fmt.Errorf("brain sync refused: boot check failed — %s; local main kept at last-good", apiErr.Message)
+	}
+	return err
+}
+
 func brainSyncCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
@@ -140,7 +152,7 @@ func brainSyncCmd(e *env) *cobra.Command {
 			}
 			resp, raw, err := c.BrainSync(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
-				return err
+				return brainBootCheckError(err)
 			}
 			if e.jsonOut() {
 				return render.JSON(e.out, raw)
@@ -333,7 +345,7 @@ func brainPublishCmd(e *env) *cobra.Command {
 
 			syncResp, _, err := c.BrainSync(e.ctx(), project, "")
 			if err != nil {
-				return err
+				return brainBootCheckError(err)
 			}
 			if syncResp.Sync.ManualReconcile {
 				return fmt.Errorf("brain box clone is %q and needs manual reconcile — reconcile the box clone, see `rc dev brain status`", syncResp.Sync.After.State)
