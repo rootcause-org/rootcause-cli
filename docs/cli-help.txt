@@ -98,6 +98,7 @@ Available Commands:
   brain-diff     Show the brain commit written by a run
   egress         Show outbound gateway connections and HTTP attempts
   actions        Show the safe action lifecycle history
+  guards         Show every security-checkpoint verdict for one run
   thread         Trace one run, provider/local thread, or session through pipeline and placement
   feedback       Record score/comment feedback on a run's trace, or mark it processed
   retry          Re-run a run (optionally at a different tier); prints the new run id
@@ -248,6 +249,22 @@ Show the safe action lifecycle history
 
 Usage:
   rc run actions <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc run guards --help
+Show every security-checkpoint verdict for one run
+
+Usage:
+  rc run guards <id> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

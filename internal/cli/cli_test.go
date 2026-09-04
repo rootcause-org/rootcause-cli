@@ -218,6 +218,12 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "full_redacted.json"))
 			return
 		}
+		// id "guarded": a chat run whose header carries the additive `guards` roll-up — the input to
+		// `rc run guards`. Blocks/violations/fail-open are all populated so the readback is exercised.
+		if r.PathValue("id") == "guarded" {
+			_, _ = w.Write(fixture(t, "full_guarded.json"))
+			return
+		}
 		_, _ = w.Write(fixture(t, "full.json"))
 	})
 	mux.HandleFunc("GET /api/v1/runs/{id}/brain-diff", func(w http.ResponseWriter, r *http.Request) {

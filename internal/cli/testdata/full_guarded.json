@@ -1,0 +1,63 @@
+{
+  "run": {
+    "run_id": "guarded",
+    "project": "coca-cola",
+    "tenant": "de-kies",
+    "status": "done",
+    "kind": "channel",
+    "trigger": "inbound_email",
+    "created_at": "2026-06-19T09:00:00Z",
+    "finished_at": "2026-06-19T09:01:30Z",
+    "guards": {
+      "principal_scope": {
+        "kind": "email",
+        "external_id": "patient@example.com",
+        "asserted_by": "channel",
+        "assurance": "verified",
+        "resolution": "resolved",
+        "claims": { "patient_id": "pt_123" },
+        "table_grants": ["invoices", "appointments"]
+      },
+      "injection_scan": {
+        "ran": true,
+        "category": "instruction_override",
+        "confidence": 0.82,
+        "blocked": true,
+        "rationale": "inbound body tried to override the system prompt"
+      },
+      "egress": {
+        "allowed": 3,
+        "blocked": 1,
+        "hosts": [
+          { "host": "api.internal.example.com", "decision": "allow", "count": 3 },
+          { "host": "evil.example.net", "decision": "block", "count": 1 }
+        ]
+      },
+      "output_guard": {
+        "evaluated": true,
+        "surface_guarded": true,
+        "violated": true,
+        "rules": ["no_pii_leak", "no_external_link"],
+        "source_hits": 2,
+        "source_score": 7
+      },
+      "output_judge": {
+        "fired": true,
+        "reasons": ["leaked another patient's balance"],
+        "violation": true,
+        "blocked": true,
+        "category": "data_exfiltration",
+        "confidence": 0.91,
+        "error": ""
+      },
+      "final": {
+        "outcome": "declined",
+        "has_draft": false,
+        "has_note": true,
+        "decline_reason": "output judge blocked the turn",
+        "guardrail": "output_judge"
+      }
+    }
+  },
+  "events": []
+}

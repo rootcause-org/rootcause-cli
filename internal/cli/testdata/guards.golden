@@ -1,0 +1,7 @@
+CHECKPOINT       VERDICT                        DETAIL
+injection_scan   BLOCKED                        category=instruction_override · confidence=0.82 · inbound body tried to override the system prompt
+principal_scope  resolved                       kind=email · assurance=verified
+egress           BLOCKED 3 allowed / 1 blocked  api.internal.example.com allow×3, evil.example.net block×1
+output_guard     VIOLATED                       surface_guarded=true · rules=[no_pii_leak,no_external_link] · source_hits=2 · source_score=7
+output_judge     BLOCKED                        category=data_exfiltration · confidence=0.91 · reasons=[leaked another patient's balance]
+final            declined                       draft=no · note=yes · guardrail=output_judge · output judge blocked the turn

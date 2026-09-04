@@ -102,6 +102,71 @@ func TestRunDeclinedFullTable(t *testing.T) {
 	assertGolden(t, "full_declined.golden", out.String())
 }
 
+// TestRunGuardsTable pins the security-checkpoint readback: one row per checkpoint in evaluation
+// order, with blocks/violations/fail-open surfaced loudly.
+func TestRunGuardsTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "guards", "guarded"); err != nil {
+		t.Fatalf("run guards: %v", err)
+	}
+	assertGolden(t, "guards.golden", out.String())
+}
+
+// TestRunGuardsJSON confirms -o json emits the raw guards OBJECT (not the whole trace bundle),
+// byte-faithful to the server's run.guards.
+func TestRunGuardsJSON(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "run", "guards", "guarded"); err != nil {
+		t.Fatalf("run guards -o json: %v", err)
+	}
+	var bundle struct {
+		Run struct {
+			Guards json.RawMessage `json:"guards"`
+		} `json:"run"`
+	}
+	if err := json.Unmarshal(fixture(t, "full_guarded.json"), &bundle); err != nil {
+		t.Fatalf("decode fixture: %v", err)
+	}
+	assertJSONEqual(t, bundle.Run.Guards, out.Bytes())
+}
+
+// TestRunGuardsAbsent covers the nil-guards case (older server / a trace with no guards on the
+// header): exit 0, nothing on stdout, a clear pointer on stderr.
+func TestRunGuardsAbsent(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "guards", "11111111-1111-1111-1111-111111111111"); err != nil {
+		t.Fatalf("run guards (no guards): %v", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("expected no stdout, got %q", out.String())
+	}
+	if !strings.Contains(errb.String(), "no guards on this trace") {
+		t.Fatalf("expected guards-absent notice on stderr, got %q", errb.String())
+	}
+}
+
+// TestRunGuardsRedacted covers the non-project-admin trace: guards are withheld, same clean exit + note.
+func TestRunGuardsRedacted(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, errb := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "guards", "redacted"); err != nil {
+		t.Fatalf("run guards (redacted): %v", err)
+	}
+	if out.Len() != 0 {
+		t.Fatalf("expected no stdout on a redacted trace, got %q", out.String())
+	}
+	if !strings.Contains(errb.String(), "no guards on this trace") {
+		t.Fatalf("expected guards-absent notice on stderr, got %q", errb.String())
+	}
+}
+
 // TestRunDeclinedJSONPassthrough confirms the new debug fields ride through -o json verbatim (the CLI
 // reshapes nothing): the raw server body round-trips unchanged.
 func TestRunDeclinedJSONPassthrough(t *testing.T) {

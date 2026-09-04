@@ -25,6 +25,7 @@ const (
 	runViewBrainDiff
 	runViewEgress
 	runViewActions
+	runViewGuards
 )
 
 // newRunCmd owns the explicit run lifecycle verbs. The group itself accepts no positional shorthand;
@@ -44,6 +45,7 @@ func newRunCmd(e *env) *cobra.Command {
 		newRunViewCmd(e, "brain-diff <id>", "Show the brain commit written by a run", runViewBrainDiff),
 		newRunViewCmd(e, "egress <id>", "Show outbound gateway connections and HTTP attempts", runViewEgress),
 		newRunViewCmd(e, "actions <id>", "Show the safe action lifecycle history", runViewActions),
+		newRunViewCmd(e, "guards <id>", "Show every security-checkpoint verdict for one run", runViewGuards),
 		newThreadCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),
@@ -141,6 +143,29 @@ func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
 					return e.renderJSON("run-egress-"+id, raw)
 				}
 				render.RunEgress(e.out, resp)
+				return nil
+			}
+
+			if view == runViewGuards {
+				// One read-only /trace fetch; the guards roll-up rides on the run header. It is
+				// detail/project-admin tier only, so a redacted trace or an older server has no guards —
+				// say so on stderr and exit 0 so a script can branch cleanly.
+				resp, err := c.Full(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+				if err != nil {
+					return err
+				}
+				if resp.Redacted() || resp.Run.Guards == nil {
+					_, _ = fmt.Fprintf(e.err, "run %s: no guards on this trace — they need a project-level admin token and a server that exposes them.\nSanity-check the trace itself with: rc run trace %s\n", id, id)
+					return nil
+				}
+				if jsonMode {
+					raw, err := json.Marshal(resp.Run.Guards)
+					if err != nil {
+						return err
+					}
+					return e.renderJSON("run-guards-"+id, raw)
+				}
+				render.Guards(e.out, resp.Run.Guards)
 				return nil
 			}
 
