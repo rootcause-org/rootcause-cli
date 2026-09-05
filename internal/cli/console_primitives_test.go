@@ -298,40 +298,14 @@ func TestConsoleFileGetUnauthorizedPreservesServerError(t *testing.T) {
 	}
 }
 
-func TestBashRunJSONPreservesUnknownServerFields(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST /api/v1/console/bash/run", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"project":"alpha","run_id":"aaaaaaaa-bbbb","seq":1,"command":"echo hi","exit_code":0,"stdout":"hi\n","stderr":"","duration_ms":12,"server_extra":{"kept":true}}`))
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "dev", "console", "bash", "run", "echo hi"); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(out.String(), `"server_extra": {`) || !strings.Contains(out.String(), `"kept": true`) {
-		t.Fatalf("json passthrough dropped unknown field:\n%s", out.String())
-	}
-}
-
-func TestJSONErrorEnvelopeAndExitClassification(t *testing.T) {
-	err := truncationError("too many rows")
-	var out bytes.Buffer
-	if writeErr := writeJSONError(&out, err); writeErr != nil {
-		t.Fatal(writeErr)
-	}
-	if exitCodeFor(err) != 3 || out.String() != "{\"error\":{\"code\":\"TRUNCATED\",\"message\":\"too many rows\",\"status\":0,\"fields\":[]}}\n" {
-		t.Fatalf("exit/envelope = %d/%s", exitCodeFor(err), out.String())
-	}
-}
-
 func TestAutoOutputUsesJSONErrorEnvelopeWhenPiped(t *testing.T) {
 	var out, errOut bytes.Buffer
 	e := &env{out: &out, err: &errOut}
 	if got := reportCommandError(e, truncationError("too many rows")); got != exitTruncated {
 		t.Fatalf("exit = %d", got)
 	}
-	if !strings.Contains(out.String(), `"code":"TRUNCATED"`) || errOut.Len() != 0 {
+	// Byte-exact: the machine envelope's shape is the contract, not just its code field.
+	if out.String() != "{\"error\":{\"code\":\"TRUNCATED\",\"message\":\"too many rows\",\"status\":0,\"fields\":[]}}\n" || errOut.Len() != 0 {
 		t.Fatalf("stdout/stderr = %q/%q", out.String(), errOut.String())
 	}
 }

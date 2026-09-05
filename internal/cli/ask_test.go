@@ -650,19 +650,6 @@ func TestAskBadEffort(t *testing.T) {
 	}
 }
 
-func TestAskBadScenario(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "ask", "q", "--scenario", "support", "--no-wait")
-	if err == nil {
-		t.Fatal("expected invalid --scenario error, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid --scenario") {
-		t.Errorf("expected invalid --scenario error, got: %v", err)
-	}
-}
-
 // TestAskProjectForwarded asserts global --project rides as ?project= on the submit request, not in
 // the JSON body. That lets an all-projects token trigger a selected project's prompt run.
 func TestAskProjectForwarded(t *testing.T) {

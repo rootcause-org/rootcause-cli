@@ -11,5 +11,6 @@
   "stderr_truncated": false,
   "timed_out": false,
   "duration_ms": 42,
-  "egress_blocked": false
+  "egress_blocked": false,
+  "server_extra": { "kept": true }
 }
