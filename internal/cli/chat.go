@@ -16,10 +16,9 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
-
-const errorDocsBase = "https://github.com/rootcause-org/rootcause-embassy/blob/main/docs/integrator/errors.md#"
 
 func newChatCmd(e *env, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "chat", Short: "Configure, diagnose, and smoke-test embedded chat"}
@@ -324,11 +323,15 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 		project := e.scopeProject()
 		b := doctorBundle{Project: project, RCVersion: version, Timestamp: time.Now().UTC(), Since: since, Config: map[string]any{}, Principals: map[string]any{}, Secret: map[string]any{}, Branding: map[string]any{}, Probes: map[string]any{}}
 		decodeDoctor := func(raw json.RawMessage, dst any) { _ = json.Unmarshal(raw, dst) }
+		// The bundle carries the bag verbatim (raw passthrough); the checks read the SAME bytes through
+		// the typed settings shape, so a field's Effective-then-Value ladder is decoded in one place.
 		raw, err := c.ChatRaw(e.ctx(), http.MethodGet, project, "", nil)
 		if err != nil {
 			return err
 		}
 		decodeDoctor(raw, &b.Config)
+		var config client.Settings
+		decodeDoctor(raw, &config)
 		raw, err = c.PrincipalsRaw(e.ctx(), http.MethodGet, project, nil)
 		if err != nil {
 			return err
@@ -349,14 +352,14 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 		// Branding is a diagnostic input, not a precondition: a doctor that aborts on it reports nothing
 		// about the chat wiring the operator actually came to check.
 		raw, brandingErr := c.Raw(e.ctx(), http.MethodGet, bagPath("/api/v1/branding", project), nil)
-		var branding map[string]any
+		var branding client.Settings
 		if brandingErr == nil {
 			decodeDoctor(raw, &branding)
 		}
 		b.Branding = map[string]any{
 			"reachable":                brandingErr == nil,
-			"name_configured":          bagString(branding, "name") != "",
-			"primary_color_configured": bagString(branding, "primary_color") != "",
+			"name_configured":          settingString(branding, "name") != "",
+			"primary_color_configured": settingString(branding, "primary_color") != "",
 		}
 		raw, err = c.ChatRaw(e.ctx(), http.MethodGet, project, "/rejects?limit=100", nil)
 		if err != nil {
@@ -389,15 +392,15 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 			if ok {
 				hint = ""
 			} else {
-				docs = errorDocsBase + strings.ToLower(code)
+				docs = embassyDocsFor(code)
 			}
 			b.Findings = append(b.Findings, chatDoctorFinding{Status: status, Check: check, Code: code, Hint: hint, Docs: docs})
 		}
 		warn := func(code, hint string) {
-			b.Findings = append(b.Findings, chatDoctorFinding{Status: "warning", Check: code, Code: code, Hint: hint, Docs: errorDocsBase + strings.ToLower(code)})
+			b.Findings = append(b.Findings, chatDoctorFinding{Status: "warning", Check: code, Code: code, Hint: hint, Docs: embassyDocsFor(code)})
 		}
-		add(bagBool(b.Config, "chat_enabled"), "CHAT_ENABLED", "CHAT_DISABLED", "Enable chat for this project.")
-		origins := bagStrings(b.Config, "chat_origins")
+		add(settingBool(config, "chat_enabled"), "CHAT_ENABLED", "CHAT_DISABLED", "Enable chat for this project.")
+		origins := settingStrings(config, "chat_origins")
 		if origin != "" {
 			add(containsCLI(origins, origin), "ORIGIN_ALLOWED", "ORIGIN_NOT_ALLOWED", "Add this exact origin to chat_origins.")
 		} else {
@@ -588,27 +591,6 @@ func containsCLI(values []string, want string) bool {
 		}
 	}
 	return false
-}
-func bagBool(b map[string]any, key string) bool {
-	f, _ := b[key].(map[string]any)
-	v, _ := f["effective"].(bool)
-	return v
-}
-func bagStrings(b map[string]any, key string) []string {
-	f, _ := b[key].(map[string]any)
-	raw, _ := f["effective"].([]any)
-	out := make([]string, 0, len(raw))
-	for _, v := range raw {
-		if s, ok := v.(string); ok {
-			out = append(out, s)
-		}
-	}
-	return out
-}
-func bagString(b map[string]any, key string) string {
-	f, _ := b[key].(map[string]any)
-	v, _ := f["effective"].(string)
-	return v
 }
 
 // recentPrincipalRejects returns the DOMINANT (code, principal kind) pair in the recent rejects window

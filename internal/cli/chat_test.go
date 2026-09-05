@@ -18,8 +18,8 @@ import (
 
 func TestChatAPIErrorPrintsSharedDiagnosticLine(t *testing.T) {
 	var out strings.Builder
-	printError(&out, &client.APIError{Code: "ORIGIN_NOT_ALLOWED", Message: "origin rejected", Hint: "Add this exact origin.", Docs: errorDocsBase + "origin_not_allowed"})
-	want := "[ReplyPen] ORIGIN_NOT_ALLOWED: Add this exact origin. — " + errorDocsBase + "origin_not_allowed\n"
+	printError(&out, &client.APIError{Code: "ORIGIN_NOT_ALLOWED", Message: "origin rejected", Hint: "Add this exact origin.", Docs: embassyDocsFor("ORIGIN_NOT_ALLOWED")})
+	want := "[ReplyPen] ORIGIN_NOT_ALLOWED: Add this exact origin. — " + embassyErrorsBase + "origin_not_allowed\n"
 	if out.String() != want {
 		t.Fatalf("stderr = %q, want %q", out.String(), want)
 	}

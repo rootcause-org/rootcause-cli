@@ -17,8 +17,6 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-const embassyErrorsBase = "https://github.com/rootcause-org/rootcause-embassy/blob/main/docs/integrator/errors.md#"
-
 func actionProbeCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "probe",
@@ -345,20 +343,16 @@ func actionPreflightFailure(resp *client.ActionExecResponse) (actionDiagnostic, 
 	}
 	status := strings.ToLower(strings.TrimSpace(resp.Status))
 	failed := status == "failed" || status == "uncertain" || status == "preflight_failed"
-	type resultError struct {
-		Code string `json:"code"`
-		Hint string `json:"hint"`
-		Docs string `json:"docs"`
-	}
+	// The Embassy error shape (code/hint/docs) IS actionDiagnostic — decode straight into it.
 	type resultEnvelope struct {
-		OK    *bool        `json:"ok"`
-		Error *resultError `json:"error"`
+		OK    *bool             `json:"ok"`
+		Error *actionDiagnostic `json:"error"`
 	}
 	var envelope resultEnvelope
 	if len(resp.Result) > 0 && json.Unmarshal(resp.Result, &envelope) == nil && envelope.OK != nil && !*envelope.OK {
 		failed = true
 	}
-	var topError resultError
+	var topError actionDiagnostic
 	if len(resp.Error) > 0 {
 		_ = json.Unmarshal(resp.Error, &topError)
 	}
@@ -369,13 +363,13 @@ func actionPreflightFailure(resp *client.ActionExecResponse) (actionDiagnostic, 
 		return actionDiagnostic{}, false
 	}
 	if topError.Code != "" && topError.Hint != "" && topError.Docs != "" {
-		return actionDiagnostic{Code: topError.Code, Hint: topError.Hint, Docs: topError.Docs}, true
+		return topError, true
 	}
 	return actionDiagnosticForCode("ACTION_FAILED", "The action preflight failed; fix its manifest, parameters, or preflight checks before retrying."), true
 }
 
 func actionDiagnosticForCode(code, hint string) actionDiagnostic {
-	return actionDiagnostic{Code: code, Hint: hint, Docs: embassyErrorsBase + strings.ToLower(code)}
+	return actionDiagnostic{Code: code, Hint: hint, Docs: embassyDocsFor(code)}
 }
 
 func actionHint(code, fallback string) string {
@@ -422,6 +416,12 @@ func settingBool(settings client.Settings, key string) bool {
 
 func settingString(settings client.Settings, key string) string {
 	var value string
+	_ = json.Unmarshal(settingValue(settings[key]), &value)
+	return value
+}
+
+func settingStrings(settings client.Settings, key string) []string {
+	value := []string{}
 	_ = json.Unmarshal(settingValue(settings[key]), &value)
 	return value
 }
