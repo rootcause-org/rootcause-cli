@@ -8,6 +8,8 @@ Method: `loc.py`/`deps.py`/`excess.py`/`hotspots.py`/`test_stats.py`/`lint_rules
 
 **Headline.** Graph still clean (0 cycles, 0 layer violations, `client` and `render` still leaves modulo F10). But **none of the 2026-08-25 proposals landed** (0/8 lint rules, 0/6 simplifications, 0/2 timing seams, F1 only partially), and the ~3,000 new LOC re-introduced the same three patterns: the `Raw`-vs-typed double path (+3 sites, plus a new generic `ChatRaw(method, suffix)`), view/diagnosis logic in `internal/cli` (two 100–145 LOC doctor closures), and `types.go` growth (+253 lines). The one structural regression is a **third transport path** in `internal/client` (chat SSE bypasses refresh/backoff). The one correctness bug is F1 below.
 
+**Status after the same-day implementation pass (2026-09-05, 24 commits `6ef69b1..5782015`):** everything below marked ⟶ **landed** is on `main`; the ranked list is kept as the audit record. Still open: F6 and S7 (blocked on PJ's doctor-JSON decision), F13 (needs the server repo), the `RC_HTTP_TIMEOUT` env read in `client/client.go` (L7 note), and `Client.Download`/`fetchBoth` naming polish. See "Landed 2026-09-05" at the end for the per-item mapping and the new numbers.
+
 ## Boundary map
 
 | package | intent (source) | status |
@@ -25,25 +27,25 @@ Method: `loc.py`/`deps.py`/`excess.py`/`hotspots.py`/`test_stats.py`/`lint_rules
 
 ## Findings (ranked)
 
-### F1. `chat doctor` exit code depends on output mode — piped/`-o json` always exits 0 (correctness)
+### F1. `chat doctor` exit code depends on output mode — piped/`-o json` always exits 0 (correctness) ⟶ **landed**
 Evidence `internal/cli/chat.go:433-452`: `if bundle || e.jsonOut() { …; return render.JSON(…) }` returns **before** the `failed` fold at `:437-442`, so `CHAT_DOCTOR_FAILED` (`:452`) can only fire on a TTY. Pipe-first default means any script (`rc project chat doctor | jq`) gets exit 0 on broken chat wiring. `action_dx.go:147,214-226` does it right (`failed` accumulated in the step loop, checked after the JSON branch). No test covers the JSON+failed case (`chat_test.go:124` asserts the bundle only).
 Why it hurts: violates `composable-cli-primitives.md` typed exit codes; exactly the "false clean bill of health" class SKILL.md warns about. Seam: hoist the fold above the mode branch (mirror action_dx). Blast radius: ~10 LOC + 1 test.
 
-### F2. The `if jsonMode { Raw } else { Typed }` double-path grew to 29 sites / 17 files; new code added a worse variant
+### F2. The `if jsonMode { Raw } else { Typed }` double-path grew to 29 sites / 17 files; new code added a worse variant ⟶ **landed**
 Evidence sites: `thread.go:39` `tenant.go:150` `action_dx.go:316` `run.go:85,116,195` `bag.go:43,77` `console.go:28,58,91,290,324,436,464,506` `ask.go:116` `health.go:140` `dream.go:77` `triage.go:167` `deploystate.go:45` `chat.go:351` `runs.go:45` `projects.go:31` `routes.go:35,68` `schema.go:33,97` `status.go:27`. ~20 are genuine double-fetch (two different HTTP requests for one user command); `dream.go:77`, `action_dx.go:316`, `triage.go:167`, `chat.go:351` are single-path and fine.
 New variant: `internal/client/chat.go:29 ChatRaw(ctx, method, project, suffix string, body map[string]any)` + `PrincipalsRaw:55`/`PrincipalResolveRaw:59` — the **path, verb, query and body shape** of 8 chat endpoints now live in `internal/cli` (`cli/chat.go:64 "/secret/"+action`, `:100 "/token"`, `:361 "/rejects?limit=100"`). `client/chat.go` declares zero wire types.
 Client method census (117 methods): 58 typed-only · 37 typed+raw · 22 raw-only — the intended `(typed, json.RawMessage, error)` seam is a 32 % minority and drifting down.
 Why it hurts: SKILL.md "one method per endpoint; types.go is the wire contract" is false for ~30 endpoints; F1-class bugs (dual encoding) hide here. Seam: finish the `(typed, raw, error)` return on every method, one named method per chat endpoint, delete `Raw/RawScoped/ChatRaw` from the command layer; then lint L9 becomes enforceable. Blast radius: ~20 cli sites + ~25 client methods, net −120 LOC.
 
-### F3. Dual-encoded write body on the guarded action-exec plane (old F1, narrowed)
+### F3. Dual-encoded write body on the guarded action-exec plane (old F1, narrowed) ⟶ **landed**
 Evidence `internal/cli/console.go:503` `body := map[string]any{"params": p}` (JSON path, `:506 c.Raw(POST)`) vs `:512 client.ActionExecRequest{Params: p}` (table path). Fixed since 08-25: DB query (`console.go:148`, one `client.DBQueryRequest`), bash run (`:320-324`, one `Raw` call — but it hand-builds `{"command","timeout_s"}` while `kb_content.go:288` uses the typed `client.BashRun`; `client/console.go:187` exists and is bypassed).
 Why it hurts: the two encodings agree today only because `ActionExecRequest` (`types.go:413`) has one field. Seam: `ActionRun/ActionPreflight` return `(typed, raw, error)`; `console.go:324` calls `c.BashRun`. Blast radius: ~15 LOC + 3 client methods. Lint L9 pins it (2 true hits today).
 
-### F4. `-o json` for `run guards|egress|actions` re-marshals a closed typed struct, not the server body
+### F4. `-o json` for `run guards|egress|actions` re-marshals a closed typed struct, not the server body ⟶ **landed**
 Evidence `internal/cli/run.go:161` `raw, err := json.Marshal(resp.Run.Guards)`; same at `:135` (egress) and `:180` (actions). `client.GuardsView` (`types.go:949-1013`) is closed (typed sub-objects, no catch-all). Contrast `run.go:85,116` (trace, brain-diff) which use `Raw` "so no server field is dropped on the cross-repo seam".
 Why it hurts: SKILL.md "the CLI cannot invent or drop a field" — a new server guard field disappears from `-o json` until the CLI is rebuilt; `client/types_test.go:9` (unknown fields survive) does not cover this projection. Seam: guards ride on `/trace`; fetch raw once and project `.run.guards` as `json.RawMessage`, or add a raw carrier. Blast radius: `run.go` ~30 LOC, 1 golden.
 
-### F5. Three transport paths in `internal/client`; chat SSE bypasses refresh and backoff
+### F5. Three transport paths in `internal/client`; chat SSE bypasses refresh and backoff ⟶ **landed**
 Evidence `client.go:626 do` (buffered; refresh-on-401 + backoff), `client.go:491 openStream` (re-implements the refresh loop `:509-527` and retry loop `:529-541` inline, ~50 LOC parallel to `do`), `client/chat.go:68,121,180` raw `c.http.Do(req)` with no refresh, no 429/5xx backoff, no shared error path; the repo's only `errcheck` hits are here (`chat.go:72,125,184`). `console.go:97 DBQueryStream` correctly reuses `openStream`.
 Why it hurts: SKILL.md promises "the ONE http wrapper (refresh-on-401 retry)"; policy now lives in two places and is absent in a third; `retry_test.go` covers neither stream. The embed-JWT credential justifies skipping *OAuth refresh*, not skipping backoff/headers/error decoding. Seam: one `send(ctx, req, opts{buffer bool, cred})` loop; `do` = `openStream` + read-all; chat passes an `embedTokenSource`. Blast radius: `client.go` ~120 LOC restructured, `chat.go` ~60 LOC, tests in `retry_test.go`.
 
@@ -51,41 +53,41 @@ Why it hurts: SKILL.md promises "the ONE http wrapper (refresh-on-401 retry)"; p
 Evidence `chat.go:312-461 chatDoctorCmd` (143 LOC in one `RunE`: 5 fetches, staleness fold `:369-373`, dominant-reject pick `:607-626`, findings builder `:380-398`, human table `:437-450`, `time.Now()` at `:325`); `action_dx.go:126-232 newActionDoctorCmd` (104 LOC, same anatomy, `time.Now()` `:144`). `-o json` is a CLI-invented envelope (`chat.go:290-310 doctorBundle`, `action_dx.go:112-124`) and the only JSON output; `doctorReject` drops server reject fields (`ip_prefix`, `session_id` per `chat_test.go:140`) silently. `--bundle` is a redundant alias for `-o json` on both, described as "redacted" though no redaction step exists (`chat.go:458`, `action_dx.go:230`).
 Why it hurts: AGENTS.md "every such command MUST still expose the raw rows via `-o json`"; precedent for exactly this shape is `render/health.go`+`fleet.go` (pure, golden-covered). No golden possible while `now` is baked in. Same open question as `kbCommandSummary` (F13), now three commands deep. Seam: pure `buildChatDoctor(inputs, now) doctorBundle` + `render.ChatDoctor(w, b)`; decide once (SKILL.md) whether doctor-family JSON is a documented carve-out or must carry raw rows. Blast radius: 2 files, ~250 LOC moved, unlocks 2 goldens.
 
-### F7. `newRunViewCmd` is now an 8-way enum dispatch (old F6, worse)
+### F7. `newRunViewCmd` is now an 8-way enum dispatch (old F6, worse) ⟶ **landed**
 Evidence `internal/cli/run.go:18-30` enum (`runViewGuards` added `:29`), dispatch `:57-213` = 145 LOC of `if view == …` blocks (`:73 :81 :99 :111 :130 :149 :172`, fallthrough `:193`), flag re-gate `:209`. Shared body ~6 lines. Seam: 8 × `newRunXCmd(e)` + `withRunID(e, fn)`; paths/flags unchanged ⇒ `docs/cli-help.txt` byte-identical. Blast radius: `run.go` ~145 LOC.
 
-### F8. Formatter sprawl, now cross-package (old F11, grown)
+### F8. Formatter sprawl, now cross-package (old F11, grown) ⟶ **landed**
 Evidence ID clippers: `render/fleet.go:785 short8` ≡ `render/thread.go:17 shortID`; `render/table.go:476 shortSHA` ≡ `render/console.go:555 shortGit`; `render/deploystate.go:108 short12`; `cli/run.go:542 shortID` (`""→"unknown"`); **new** `cli/console_io.go:161 shortRunID` (dash-strip) vs `cli/console.go:566 bashRunLabel` (inline, no dash-strip → `bash run`'s spill label and `--out auto` filename clip the same ID differently). Empty sentinels: `egress.go:210 blank`, `deploystate.go:118 orDash`, `actions.go:97 blankDash`, `console.go:490 dash` (em-dash), `cli/auth.go:416`, `cli/brain.go:405`. Durations ×5 (`table.go:1117,1136,502`, `actions.go:112,126`). New `guards.go:150 joinNonEmpty`/`:160 kv`/`:188 boolMark` twin `debugdump/emit.go:617` (args reversed!), `:603`, `:416`/`table.go:509 yesNo`. Two doc-URL constants byte-identical: `chat.go:22 errorDocsBase`, `action_dx.go:20 embassyErrorsBase`. Two settings-bag decoders: `chat.go:581-601 bagBool/bagStrings/bagString` (untyped, unmarshal error discarded at `:326`) vs `action_dx.go:417-452` via typed `c.GetBag`.
 Seam: `render/format.go` (`clipID`, `orDash`, `duration`, `clip`), `bashRunLabel→shortRunID`, chat doctor uses `c.GetBag`. Blast radius: ~10 files, ~110 LOC removed, some golden churn (keep intentional output differences as explicit args).
 
-### F9. `internal/client/types.go` — god module, #1 hotspot, still growing (old F4)
+### F9. `internal/client/types.go` — god module, #1 hotspot, still growing (old F4) ⟶ **landed**
 Evidence 1,793 lines / 145 type decls (08-25: 1,540 / 124); +287/−34 over 14 commits since; 78 commits/12 mo (`hotspots.py` score 2023 vs next file 603). Families: console `:12-33,287-450`, brain `:80-275`, run/trace `:452-1145`, guards `:949-1038`, mailbox `:1147`, exports `:1200`, project `:1228`, feeds `:1276-1518`, health `:1520`, deploy `:1578`, settings/tenant `:1657-1800`. Siblings already own their types (`connection_probe.go`, `projection.go`, `spam.go`, `actions.go`, `console.go`, …) — one-file is residue, not policy. Seam: `<endpoint>_types.go` next to each method file; zero import churn. Blast radius: ~1,500 LOC moved, `go build` verifies.
 
-### F10. `internal/render/table.go` — 1,216 lines, 15 views + the shared formatters everyone needs (old F8)
+### F10. `internal/render/table.go` — 1,216 lines, 15 views + the shared formatters everyone needs (old F8) ⟶ **landed**
 Evidence `Projects:23 … SpamRules:1020`; trapped helpers `truncate:557 duration:1117 runDuration:1136 yesNo:509 shortSHA:476 num:1163 joinOrDash:1107`. Seam: split by family + `format.go`; 81 goldens verify byte-for-byte. Package-internal.
 
-### F11. Analysis in `internal/client/projection.go` (old F7, unchanged)
+### F11. Analysis in `internal/client/projection.go` (old F7, unchanged) ⟶ **landed**
 Evidence `:148 SortGroundingSources` ("ordered for human triage"), `:50 BranchSelectorValues` (hard-coded key heuristics), `:77 TenantSettingsDrift`, `:120/:133` counters, `:195 displaySettingValue` ("(unset)"). Callers 100 % presentation: `render/table.go:643,746,749,768,880,897`, `debugdump/emit.go:58-499` (11 sites), `cli/run.go:560`. Seam: `internal/digest` importable by render+debugdump; client keeps `ParsePromptSections`/`ParseManifestBlocks`/`ContextCaptured`/`ParseTenantSettingsSnapshot`. Blast radius: 3 packages, 18 call sites, `projection_test.go` moves.
 
-### F12. `time.Now()` in two renderers blocks goldens (old F9, unchanged)
+### F12. `time.Now()` in two renderers blocks goldens (old F9, unchanged) ⟶ **landed**
 Evidence `render/fleet.go:487` (`fleetStuck`; `isStuck(r, now)` at `:229` already takes `now` — seam one frame late), `render/health.go:210` (`expiredTime`). Seam: `now` on `FleetOptions`/`HealthOptions`, defaulted in cli. Unlocks 2 goldens; lint L5 then enforces.
 
 ### F13. `kb_content.go` ships ~200 lines of Python as Go strings (old F3, untouched)
 Evidence `kb_content.go:748 kbPython` heredoc, programs `:544 :579 :666 :708 :730`, `-o json` = `kbCommandSummary :82`. Seam unchanged: server `/api/v1/kb/*` (other repo) or `//go:embed *.py` half-step. 710 LOC.
 
-### F14. Eleven `render*` functions + the only `tabwriter` outside `internal/render` (old F5, unchanged count)
+### F14. Eleven `render*` functions + the only `tabwriter` outside `internal/render` (old F5, unchanged count) ⟶ **landed**
 Evidence `doctor.go:471` (+`tabwriter` `:13,:472`; also `interface{ Write([]byte) (int, error) }` instead of `io.Writer`), `tenant.go:416`, `hierarchy_settings.go:352,390,399`, `env.go:315`, `export.go:257`, `kb_content.go:375,392,418`, `upgrade.go:129`. New code did not add `render*` funcs — it writes bare `fmt.Fprintf(e.out, …)` inside `RunE` instead (F6), which is worse. Seam: `func(w io.Writer, typed…)` in `internal/render`. ~350 LOC, 8 files.
 
-### F15. `render → outputspill` layer inversion (old F10, unchanged)
+### F15. `render → outputspill` layer inversion (old F10, unchanged) ⟶ **landed**
 Evidence `render/console.go:12` import; `:164 BashRun(…, artifacts map[string]outputspill.Artifact)`, `:198 renderBashStream`. Only non-`client` internal import in render. Seam: render-owned `spillArtifact`, mapped in `internal/cli/outputspill.go`. 1 render file + 1 cli site.
 
-### F16. Release-mirror URL hard-coded in four places, asset name pattern in five
+### F16. Release-mirror URL hard-coded in four places, asset name pattern in five ⟶ **landed**
 Evidence `.goreleaser.yaml:18` (ldflag `defaultMirror`), `scripts/cloud-setup.sh:28`, `scripts/release.sh:35`, `.github/workflows/release.yml:49` (`s3://` dialect); asset name `upgrade.go:494`, `.goreleaser.yaml:30`, `cloud-setup.sh:126`, `install.sh:79`, `release.yml:60-70`. Intent `cloud-mirror-self-update.md` §1-2 (one mirror, one knob). Why it hurts: the fallback path used only when GitHub is down needs 4–5 coordinated edits. Seam: at minimum a test asserting the three defaults are equal (~10 LOC); better, one generated source. Blast radius: 4 files, 0 behaviour.
 
-### F17. `release.sh` verifies the mirror's `cloud-setup.sh` but not `latest` or archives
+### F17. `release.sh` verifies the mirror's `cloud-setup.sh` but not `latest` or archives ⟶ **landed**
 Evidence `scripts/release.sh:193` loop covers `$VERSION/cloud-setup.sh` + `cloud-setup.sh` only; `release.yml:89-93` writes `latest` last. `cloud-setup.sh:99` and `upgrade.go:416` both read `<mirror>/latest`. Intent: spec "Verification" list (`curl <mirror>/latest → tag`). Why it hurts: green release, every cloud sandbox silently installs the previous rc. Seam: extend the loop (`latest == $VERSION`, HEAD `checksums.txt`); the `file://` sandbox in `release_script_test.go:44-49` already supports it. ~6 LOC.
 
-### F18. Two forked PATH inventories in the self-update/doctor plane (old F11b, deepened)
+### F18. Two forked PATH inventories in the self-update/doctor plane (old F11b, deepened) ⟶ **landed**
 Evidence `install.go:44 inspectRCInstallations`/`:128 classifyInstallPath`/`:141 isMiseShim` vs `doctor.go:272 scanPathBinaries`/`:234 classifyInstall`/`:344 isMiseDispatcher`/`:352 isMiseInstalledRC`; commit `e005f19` added `markCurrentActive :206` + `physicalBinaryKey :421` to doctor's copy instead of consolidating. `upgrade.go:96` sends users to `rc self doctor` when update refuses — the two can disagree. Seam: `rcInstallInventory` is the one producer; doctor maps it to its JSON shape. ~200 LOC, 2 files + 2 test files.
 
 ### Confirmed OK — do not "clean up"
@@ -101,13 +103,13 @@ Evidence `install.go:44 inspectRCInstallations`/`:128 classifyInstallPath`/`:141
 
 ## Simplification proposals
 
-### S1. Split `debugdump/emit.go` (938 lines) into its documented seams
+### S1. Split `debugdump/emit.go` (938 lines) into its documented seams ⟶ **landed**
 Intent `dump.go:1-10` + SKILL.md decomposer section · Exists: JSONL `EmitJSONL:18-123` + shapers `:807-853`; index `RenderIndex:124-308` + sub-renderers `:309-682`; **anomaly policy** `flags:683-762` (flailing `:721-738`, 4× median `:740-756`, `EGRESS_BLOCKED :713`, >20 KB stdout `:716`), `benignGrepMiss:766`, `filesRead:783`, `median:927`; formatters `:869-926`. Simpler: `jsonl.go`/`index.go`/`analysis.go`, pure moves · 0 net LOC · Risk none (`emit_test.go` 7 tests + goldens).
 
-### S2. `dump.go` is no longer "decorate only"
+### S2. `dump.go` is no longer "decorate only" ⟶ **landed**
 `dump.go:56 linkSummary`, `:100 attachmentSummary` build rendered Markdown (`:89,:92`) consumed by the index. ~100 LOC → `index.go` half of S1; decoders stay. Guarded by `emit_test.go` link/attachment tests.
 
-### S3. Dead / redundant code, verified by grep (~44 LOC, `go build` catches every site)
+### S3. Dead / redundant code, verified by grep (~44 LOC, `go build` catches every site) ⟶ **landed**
 - `oauth/oauth.go:81 now func() time.Time` never assigned (0 `now:` hits); `clock() :99-103` always falls to `time.Now()`. ~9 LOC.
 - `oauth/oauth.go:92-97 httpClient()` nil fallback unreachable (`NewClient :86` always sets `HTTP`); would silently drop the 30 s timeout. ~6 LOC.
 - `outputspill/outputspill.go:81 WithRaw` — definition only. 4 LOC.
@@ -118,13 +120,13 @@ Intent `dump.go:1-10` + SKILL.md decomposer section · Exists: JSONL `EmitJSONL:
 - `outputspill.go:247 ShellQuote` one-line alias of `shellQuote` (3 callers `cli/run.go:440-442`). 3 LOC.
 - `action_dx.go:372` staticcheck S1016: `resultError`/`actionDiagnostic` field-identical → conversion.
 
-### S4. `token → config` edge is one function wide (old S5, unchanged)
+### S4. `token → config` edge is one function wide (old S5, unchanged) ⟶ **landed**
 `token/store.go:65` is the sole caller of `config.ConfigDir()` (`profiles.go:271-282`, "exported for internal/token"). Move it; −1 package edge, 0 net LOC; `store_test.go:15` already isolates via `XDG_CONFIG_HOME`.
 
-### S5. `tokenOvr` test seam skips the credential ladder (old S6, unchanged)
+### S5. `tokenOvr` test seam skips the credential ladder (old S6, unchanged) ⟶ **landed**
 `cli/root.go:203-212` returns before `loadResolvedToken :214`, brain→default fallback `:220-232`, `/whoami` machine-token check `:238`. Scope enforcement **is** now run on this branch (`:205-211`), so the untested part is credential resolution only. Seam: `tokenSourceFactory`. ~40 LOC + stub routes.
 
-### S6. `upgrade.go` (718 lines) repeats brew discovery
+### S6. `upgrade.go` (718 lines) repeats brew discovery ⟶ **landed**
 `migrateToHomebrew :181` re-runs `exec.LookPath("brew")`, `brew --prefix`, `canonicalLink` that `verifyHomebrewLatest :224` computed at `:184`. Return them. ~15 LOC.
 
 ### S7. `--bundle` flag on both doctors
@@ -229,7 +231,38 @@ L2/L3/L9 have no clean forbidigo form → `scripts/lint-contracts.sh` (grep) run
 - Nothing else from the 08-25 list landed: F2–F11, S1–S6, both timing seams, all 8 lint rules, the depguard contract, and the 6 zero-coverage console renderers are all still open (renumbered above).
 
 ## Deliberately not done
-- No code/test changes (audit only). Every item above is ≤ ~250 LOC and golden- or build-guarded.
-- F13 server-side KB endpoint needs the rootcause server repo.
-- `.golangci.yml` not added: it would fail today on S3's 5 default-linter hits + L1/L2/L5/L8 — land S3 first (one small commit), then wire with `//nolint` ratchets on F12/F15.
-- Open decision for PJ (blocks F6/F13 direction): is a CLI-invented `-o json` envelope for the *doctor* family (`chat doctor`, `action doctor`, `knowledge content search`) a sanctioned carve-out to document in SKILL.md next to `--format`, or must each carry the raw rows? Three commands now depend on the answer.
+- **F6 / S7** (doctor closures → pure builders; `--bundle` alias) — blocked on PJ's decision: is a CLI-invented `-o json` envelope for the doctor family (`chat doctor`, `action doctor`, `knowledge content search`) a sanctioned carve-out to document in SKILL.md, or must each carry the raw rows? The F1 bug fix did not need the answer.
+- **F13** (KB Python in Go strings) — needs a server-side `/api/v1/kb/*`; `scripts/lint-contracts.sh` carries the rule `cli-no-embedded-interpreter` disabled by default (`RULES=all` shows the one hit).
+- **L7 for `internal/client`** — `client.go httpTimeout()` still reads `RC_HTTP_TIMEOUT` in the leaf; rule shipped for `internal/render` only. Proper fix: `client.New(..., WithTimeout)` resolved in cli/config.
+- Not re-audited after the pass: the new `internal/client/transport.go` (202 LOC) and `fetchBoth[T]` deserve a fresh read next time; `Client.raw`/`rawScoped` survive unexported inside client (25 internal callers) and could still shrink.
+
+## Landed 2026-09-05 (same-day implementation pass)
+| audit item | commit | note |
+|---|---|---|
+| F1 chat doctor exit code independent of output mode (+ failing-before test) | `0fa6c7d` | bug fix |
+| F2 every endpoint method returns `(typed, raw, error)`, one fetch per command; named chat/triage/dream/meta methods; `Raw`/`RawScoped`/`ChatRaw` gone from cli, `raw`/`rawScoped` unexported | `b0e114f`, `85fc268`, `33b013b` | 0 `.Raw(` in `internal/cli` |
+| F3 single-encoded action-exec + typed `BashRun` | `b0e114f` | |
+| F4 `run guards|egress -o json` = server body projection, unknown-field tests | `85fc268`, `3208a02` | actions rows already carried raw bytes |
+| F5 one transport loop (`client/transport.go`): do = openStream + read-all; chat/multipart/export-download on the same loop; errcheck ×3 gone; stream-path retry tests | `6ef69b1` | five forked paths found, not three |
+| F7 `newRunViewCmd` → 8 per-view constructors over `runIDCommand` | `85fc268` | help text byte-identical |
+| F8 `render/format.go` (`clipID`, `orDash`, durations, `truncate`, `yesNo`); `bashRunLabel→shortRunID`; one embassy docs constant; chat doctor typed bag decode | `91c0989`, `131b5da`, `b0e114f` | zero golden churn |
+| F9 `types.go` → 13 `*_types.go` (pure move, 149 types) | `c08b883` | `types.go` now 26 lines |
+| F10 `render/table.go` split by family | `91c0989` | |
+| F11 `internal/digest` — analysis leaves `internal/client` | `c342866` | render/debugdump → {client, digest} |
+| F12 `now` threaded into fleet/health; `fleet_stuck` + `health_expiry` goldens | `109fceb` | 0 `time.Now()` in render code |
+| F14 eleven `render*` funcs → `internal/render` (`io.Writer`, typed views), six render goldens; `tabwriter` out of cli | `6444bec` | |
+| F15 render-owned `SpillArtifact` | `6898c85` | render imports client+digest only |
+| F16 mirror URL + asset pattern pinned by test across goreleaser/scripts/workflow | `b93a5bb` | |
+| F17 `release.sh` verifies `<mirror>/latest == VERSION` + `checksums.txt` | `b93a5bb` | |
+| F18 one PATH walk (`scanPathRC`), doctor + update as thin views, shared-inventory test | `b46f2fa` | two classifiers kept: path-shape vs build-info |
+| S1/S2 debugdump → `jsonl.go`/`index.go`/`analysis.go`; dump.go decorate-only | `125fe2d` | anomaly thresholds documented in analysis.go |
+| S3 dead code (oauth clock/httpClient, `WithRaw`, `fetchReleaseBinary`, `BaseURLFromDefault`, `Brain.BaseURL`, `ShellQuote` alias, `max` shadow, S1016) | `930e268`, `125fe2d`, `131b5da` | golangci default linters: 0 issues |
+| S4 `token → config` edge cut | `930e268` | |
+| S5 `tokenOvr` → `tokenSourceFactory`, one credential path in `newClient`, brain-fallback test | `5e1dbec` | |
+| S6 brew discovery computed once | `b46f2fa` | |
+| Test economy: 4 hard cuts + 125 identical-body tests → 4 table tests (`internal/cli/table_test.go`) | `e66a5f3`, `5782015` | coverage 74.1 % → 74.1 %; 540 → 415 top-level tests; −1,140 test LOC |
+| Coverage: 6 console renderers + `renderNoteActions` golden-covered | `9099b4d` | render coverage via cli goldens 81.5 % → 85.2 % |
+| Speed: `PollWait` + `exportPollInterval` seams; release test shims shellcheck/golangci-lint, `-short` skip | `183b023`, `b93a5bb` | suite wall **11.6 s → 4.8 s** (`-short`: 2.3 s); `TestLoginDeviceStoresToken` 2.0 → 0.02 s |
+| Guardrails L1, L4–L8 in `.golangci.yml` (standard + depguard + forbidigo, incl. token-leaf) — **blocking** in CI and `release.sh`; L2/L9 (+L3 off by default) in `scripts/lint-contracts.sh`, run from CI and the release gates | `f1768fe`, `b13418f`, `33b013b` | all green; the "advisory lint" premise removed |
+
+Behaviour deltas accepted during the pass (all called out by the implementing agent): chat/multipart/export-download requests now surface `TransportError`/`APIError` like every other call and gain safe-method backoff; chat error bodies are no longer capped at 1 MiB; `embedRequest` GETs send `Accept: application/json`. Everything else is golden-identical.
