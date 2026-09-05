@@ -17,6 +17,10 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
-      - run: shellcheck scripts/cloud-setup.sh
+      - run: shellcheck scripts/cloud-setup.sh scripts/release.sh
+      - name: golangci-lint (standard linters + the dependency/purity contracts in .golangci.yml)
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.11
       - name: gofmt
         run: test -z "$(gofmt -l .)" || { gofmt -l .; echo "run gofmt -w ."; exit 1; }

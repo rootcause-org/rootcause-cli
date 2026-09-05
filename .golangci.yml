@@ -1,0 +1,42 @@
+version: "2"
+linters:
+  default: standard
+  enable: [depguard, forbidigo]
+  settings:
+    depguard:
+      rules:
+        cli-no-tabwriter:
+          files: ["**/internal/cli/**", "!**/*_test.go"]
+          deny:
+            - pkg: text/tabwriter
+              desc: table formatting belongs in internal/render (audit F14)
+        render-pure:
+          files: ["**/internal/render/**", "!**/internal/render/render.go", "!**/*_test.go"]
+          deny:
+            - pkg: os
+              desc: renderers are pure functions of rows
+            - pkg: net/http
+              desc: renderers are pure functions of rows
+            - pkg: os/exec
+              desc: renderers are pure functions of rows
+            - pkg: github.com/rootcause-org/rootcause-cli/internal/outputspill
+              desc: map the artifact into a render-owned type (audit F15)
+        client-leaf:
+          files: ["**/internal/client/**"]
+          deny:
+            - pkg: github.com/rootcause-org/rootcause-cli/internal
+              desc: internal/client imports no sibling package
+        token-leaf:
+          files: ["**/internal/token/**"]
+          deny:
+            - pkg: github.com/rootcause-org/rootcause-cli/internal/config
+              desc: the token store does not depend on config resolution (audit S4)
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: '^time\.Now$'
+          pkg: '^github.com/rootcause-org/rootcause-cli/internal/render$'
+          msg: thread `now` in from internal/cli (audit F12)
+        - pattern: '^os\.Getenv$'
+          pkg: '^github.com/rootcause-org/rootcause-cli/internal/render$'
+          msg: renderers read no environment

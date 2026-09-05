@@ -105,6 +105,7 @@ step "Preconditions"
 command -v gh >/dev/null || die "gh (GitHub CLI) not found"
 command -v go >/dev/null || die "go not found"
 command -v shellcheck >/dev/null || die "shellcheck not found"
+command -v golangci-lint >/dev/null || die "golangci-lint not found (brew install golangci-lint)"
 command -v curl >/dev/null || die "curl not found"
 command -v cmp >/dev/null || die "cmp not found"
 gh auth status >/dev/null 2>&1 || die "gh not authenticated (run: gh auth login)"
@@ -123,7 +124,7 @@ ok "clean, on $MAIN_BRANCH, not behind origin ($ahead_count commit(s) to publish
 
 # --- quality gates --------------------------------------------------------------------------------
 
-step "Quality gates (build / vet / test / shellcheck)"
+step "Quality gates (build / vet / test / shellcheck / lint)"
 go mod tidy
 [ -z "$(git status --porcelain -- go.mod go.sum)" ] || die "go mod tidy changed go.mod/go.sum — commit the dependency metadata and rerun"
 # NOTE: these must NOT be written as `cmd && ok "..."` — under `set -e` a failing command in an
@@ -136,11 +137,10 @@ go test ./...
 ok "test"
 shellcheck scripts/cloud-setup.sh
 ok "cloud setup shellcheck"
-# Lint is advisory: the repo has known, intentional errcheck findings in the render layer (writes to
-# an output buffer). Surface lint output but never block a release on it.
-if command -v golangci-lint >/dev/null; then
-  golangci-lint run >/dev/null 2>&1 && ok "lint (clean)" || printf '\033[33m  ! lint reported findings (advisory, not blocking) — run: golangci-lint run\033[0m\n'
-fi
+# Lint is blocking: .golangci.yml carries the repo's dependency/purity contracts (depguard/forbidigo) on top of
+# the standard linters, and CI runs the same config. golangci-lint is a declared precondition above.
+golangci-lint run
+ok "lint"
 
 # The gates above covered RELEASE_SHA. Refuse to publish a moving target if another process changed
 # HEAD or the worktree while they ran.

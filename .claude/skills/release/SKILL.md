@@ -27,9 +27,9 @@ published tag, or a HEAD that moved during the gates.
 
 ## Gotchas
 
-- **Lint is advisory, not a gate.** The render layer intentionally ignores write-to-buffer errors, so
-  `golangci-lint` reports known `errcheck` findings. The script prints them and continues — don't "fix"
-  them as part of a release.
+- **Lint is a blocking gate** (`golangci-lint run` with the repo `.golangci.yml`: standard linters plus the
+  depguard/forbidigo layer contracts). CI runs the same config, so a red lint means the commit was never
+  green — fix it, don't bypass it.
 - **`@latest` lags `@vX.Y.Z`.** The proxy's `@latest`/version-list endpoints are cached for a few minutes
   after the explicit version already resolves. Normal — don't re-cut.
 - **Homebrew is a cask, not a formula, on purpose.** Never re-add a `brews:` formula: a formula named `rc`
