@@ -15,19 +15,6 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
-type runView int
-
-const (
-	runViewShow runView = iota
-	runViewEvents
-	runViewTrace
-	runViewDebug
-	runViewBrainDiff
-	runViewEgress
-	runViewActions
-	runViewGuards
-)
-
 // newRunCmd owns the explicit run lifecycle verbs. The group itself accepts no positional shorthand;
 // scripts use one stable view command (`show`, `events`, `trace`, `debug`, or `brain-diff`).
 func newRunCmd(e *env) *cobra.Command {
@@ -38,14 +25,14 @@ func newRunCmd(e *env) *cobra.Command {
 	}
 	cmd.AddCommand(
 		newRunListCmd(e),
-		newRunViewCmd(e, "show <id>", "Show one run", runViewShow),
-		newRunViewCmd(e, "events <id>", "Show the full per-event trace", runViewEvents),
-		newRunViewCmd(e, "trace <id>", "Show the whole run bundle", runViewTrace),
-		newRunViewCmd(e, "debug <id>", "Decompose a run into local debug artifacts", runViewDebug),
-		newRunViewCmd(e, "brain-diff <id>", "Show the brain commit written by a run", runViewBrainDiff),
-		newRunViewCmd(e, "egress <id>", "Show outbound gateway connections and HTTP attempts", runViewEgress),
-		newRunViewCmd(e, "actions <id>", "Show the safe action lifecycle history", runViewActions),
-		newRunViewCmd(e, "guards <id>", "Show every security-checkpoint verdict for one run", runViewGuards),
+		newRunShowCmd(e),
+		newRunEventsCmd(e),
+		newRunTraceCmd(e),
+		newRunDebugCmd(e),
+		newRunBrainDiffCmd(e),
+		newRunEgressCmd(e),
+		newRunActionsCmd(e),
+		newRunGuardsCmd(e),
 		newThreadCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),
@@ -54,162 +41,189 @@ func newRunCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-func newRunViewCmd(e *env, use, short string, view runView) *cobra.Command {
-	var stream bool
-	cmd := &cobra.Command{
+// runIDCommand is the shared skeleton of every `rc run <view> <id>` command: one positional run id, one
+// client, one output-mode decision. Each view supplies only its own fetch+render.
+func runIDCommand(e *env, use, short string, run func(c *client.Client, id string, jsonMode bool) error) *cobra.Command {
+	return &cobra.Command{
 		Use:   use,
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			id := args[0]
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			jsonMode := render.IsJSON(e.mode(), e.out)
+			return run(c, args[0], render.IsJSON(e.mode(), e.out))
+		},
+	}
+}
 
-			// Debug view: decompose the /trace bundle into a jq-able JSONL + a thin markdown index on disk, then
-			// print the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
-			if view == runViewDebug {
-				outDir := e.outDir
-				if outDir == "" {
-					outDir = defaultDebugDir
-				}
-				return runDebug(e, c, id, outDir)
-			}
+// newRunShowCmd: the run header. JSON mode passes the server body through verbatim.
+func newRunShowCmd(e *env) *cobra.Command {
+	return runIDCommand(e, "show <id>", "Show one run", func(c *client.Client, id string, jsonMode bool) error {
+		detail, raw, err := c.RunWithRaw(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+		if err != nil {
+			return err
+		}
+		if jsonMode {
+			return e.renderJSON("run-"+id, raw)
+		}
+		render.Run(e.out, detail)
+		return nil
+	})
+}
 
-			if view == runViewTrace {
-				// JSON mode is the renderer's input contract: emit the bundle as JSONL from the raw bytes so
-				// no server field is dropped on the cross-repo seam. Table mode decodes into the typed bundle.
-				if jsonMode {
-					raw, err := c.Raw(e.ctx(), "GET", client.RunTracePath(id, e.scopeProject(), e.scopeTenant()), nil)
-					if err != nil {
-						return err
-					}
-					return emitFullJSONL(e, id, raw, stream)
-				}
-				resp, err := c.Full(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-				if err != nil {
-					return err
-				}
-				render.Full(e.out, resp)
-				return nil
-			}
+// newRunEventsCmd: the per-event trace. JSON mode is NDJSON (one event per line).
+func newRunEventsCmd(e *env) *cobra.Command {
+	var stream bool
+	cmd := runIDCommand(e, "events <id>", "Show the full per-event trace", func(c *client.Client, id string, jsonMode bool) error {
+		resp, err := c.Events(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+		if err != nil {
+			return err
+		}
+		if jsonMode {
+			return emitNDJSON(e, id, resp.Events, stream)
+		}
+		render.Events(e.out, resp)
+		return nil
+	})
+	addStreamFlag(cmd, &stream)
+	return cmd
+}
 
-			if view == runViewEvents {
-				resp, err := c.Events(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-				if err != nil {
-					return err
-				}
-				if jsonMode {
-					return emitNDJSON(e, id, resp.Events, stream)
-				}
-				render.Events(e.out, resp)
-				return nil
-			}
+// newRunTraceCmd: the whole /trace bundle. One fetch gives the typed bundle for the table view and the
+// RAW bytes for the JSONL seam, so no server field is dropped on the cross-repo boundary.
+func newRunTraceCmd(e *env) *cobra.Command {
+	var stream bool
+	cmd := runIDCommand(e, "trace <id>", "Show the whole run bundle", func(c *client.Client, id string, jsonMode bool) error {
+		resp, raw, err := c.FullWithRaw(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+		if err != nil {
+			return err
+		}
+		if jsonMode {
+			return emitFullJSONL(e, id, raw, stream)
+		}
+		render.Full(e.out, resp)
+		return nil
+	})
+	addStreamFlag(cmd, &stream)
+	return cmd
+}
 
-			if view == runViewBrainDiff {
-				// JSON mode is a byte-faithful passthrough (render, don't reshape); table mode decodes the
-				// typed BrainDiff and renders the commit + files + diff.
-				if jsonMode {
-					path := client.RunBrainDiffPath(id, e.scopeProject(), e.scopeTenant())
-					raw, err := c.Raw(e.ctx(), "GET", path, nil)
-					if err != nil {
-						return err
-					}
-					return e.renderJSON("run-brain-diff-"+id, raw)
-				}
-				resp, err := c.BrainDiff(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-				if err != nil {
-					return err
-				}
-				render.BrainDiff(e.out, resp)
-				return nil
-			}
+// newRunDebugCmd decomposes the /trace bundle into a jq-able JSONL + a thin markdown index on disk,
+// then prints the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
+func newRunDebugCmd(e *env) *cobra.Command {
+	return runIDCommand(e, "debug <id>", "Decompose a run into local debug artifacts", func(c *client.Client, id string, _ bool) error {
+		outDir := e.outDir
+		if outDir == "" {
+			outDir = defaultDebugDir
+		}
+		return runDebug(e, c, id, outDir)
+	})
+}
 
-			if view == runViewEgress {
-				resp, err := c.RunEgress(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-				if err != nil {
-					return err
-				}
-				if resp.HTTPTruncated {
-					warnCapped(e, "run egress: hit the HTTP page cap — older attempts omitted")
-				}
-				if jsonMode {
-					raw, err := json.Marshal(resp)
-					if err != nil {
-						return err
-					}
-					return e.renderJSON("run-egress-"+id, raw)
-				}
-				render.RunEgress(e.out, resp)
-				return nil
-			}
+// newRunBrainDiffCmd: the brain commit a run wrote. JSON mode is a byte-faithful passthrough (render,
+// don't reshape); table mode renders the commit + files + diff.
+func newRunBrainDiffCmd(e *env) *cobra.Command {
+	return runIDCommand(e, "brain-diff <id>", "Show the brain commit written by a run", func(c *client.Client, id string, jsonMode bool) error {
+		resp, raw, err := c.BrainDiffWithRaw(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+		if err != nil {
+			return err
+		}
+		if jsonMode {
+			return e.renderJSON("run-brain-diff-"+id, raw)
+		}
+		render.BrainDiff(e.out, resp)
+		return nil
+	})
+}
 
-			if view == runViewGuards {
-				// One read-only /trace fetch; the guards roll-up rides on the run header. It is
-				// detail/project-admin tier only, so a redacted trace or an older server has no guards —
-				// say so on stderr and exit 0 so a script can branch cleanly.
-				resp, err := c.Full(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-				if err != nil {
-					return err
-				}
-				if resp.Redacted() || resp.Run.Guards == nil {
-					_, _ = fmt.Fprintf(e.err, "run %s: no guards on this trace — they need a project-level admin token and a server that exposes them.\nSanity-check the trace itself with: rc run trace %s\n", id, id)
-					return nil
-				}
-				if jsonMode {
-					raw, err := json.Marshal(resp.Run.Guards)
-					if err != nil {
-						return err
-					}
-					return e.renderJSON("run-guards-"+id, raw)
-				}
-				render.Guards(e.out, resp.Run.Guards)
-				return nil
-			}
+// newRunEgressCmd: outbound connections + HTTP attempts for one run. JSON mode emits the server body
+// (with the paged HTTP rows spliced in when the endpoint truncated its embedded slice).
+func newRunEgressCmd(e *env) *cobra.Command {
+	return runIDCommand(e, "egress <id>", "Show outbound gateway connections and HTTP attempts", func(c *client.Client, id string, jsonMode bool) error {
+		resp, raw, err := c.RunEgressWithRaw(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+		if err != nil {
+			return err
+		}
+		if resp.HTTPTruncated {
+			warnCapped(e, "run egress: hit the HTTP page cap — older attempts omitted")
+		}
+		if jsonMode {
+			return e.renderJSON("run-egress-"+id, raw)
+		}
+		render.RunEgress(e.out, resp)
+		return nil
+	})
+}
 
-			if view == runViewActions {
-				rows, meta, err := c.AllActionHistory(e.ctx(), id, client.HTTPAuditParams{
-					Project: e.scopeProject(), Tenant: e.scopeTenant(),
-				})
-				if err != nil {
-					return err
-				}
-				if meta.Capped {
-					warnCapped(e, "run actions: hit the page cap — older rows omitted")
-				}
-				resp := &client.ActionHistoryResponse{Items: rows}
-				if jsonMode {
-					raw, err := json.Marshal(resp)
-					if err != nil {
-						return err
-					}
-					return e.renderJSON("run-actions-"+id, raw)
-				}
-				render.ActionHistory(e.out, resp.Items)
-				return nil
-			}
-
-			if jsonMode {
-				raw, err := c.Raw(e.ctx(), "GET", client.RunPath(id, e.scopeProject(), e.scopeTenant()), nil)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("run-"+id, raw)
-			}
-			detail, err := c.Run(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+// newRunActionsCmd: the safe action lifecycle history, paged to completion. The JSON envelope is ours
+// (the rows span pages), but each row carries the server's bytes verbatim.
+func newRunActionsCmd(e *env) *cobra.Command {
+	return runIDCommand(e, "actions <id>", "Show the safe action lifecycle history", func(c *client.Client, id string, jsonMode bool) error {
+		rows, meta, err := c.AllActionHistory(e.ctx(), id, client.HTTPAuditParams{
+			Project: e.scopeProject(), Tenant: e.scopeTenant(),
+		})
+		if err != nil {
+			return err
+		}
+		if meta.Capped {
+			warnCapped(e, "run actions: hit the page cap — older rows omitted")
+		}
+		if jsonMode {
+			raw, err := json.Marshal(&client.ActionHistoryResponse{Items: rows})
 			if err != nil {
 				return err
 			}
-			render.Run(e.out, detail)
+			return e.renderJSON("run-actions-"+id, raw)
+		}
+		render.ActionHistory(e.out, rows)
+		return nil
+	})
+}
+
+// newRunGuardsCmd: one read-only /trace fetch; the guards roll-up rides on the run header. It is
+// detail/project-admin tier only, so a redacted trace or an older server has no guards — say so on
+// stderr and exit 0 so a script can branch cleanly. JSON mode projects `.run.guards` out of the RAW
+// bundle, so a guard field the CLI does not model yet still reaches jq.
+func newRunGuardsCmd(e *env) *cobra.Command {
+	return runIDCommand(e, "guards <id>", "Show every security-checkpoint verdict for one run", func(c *client.Client, id string, jsonMode bool) error {
+		resp, raw, err := c.FullWithRaw(e.ctx(), id, e.scopeProject(), e.scopeTenant())
+		if err != nil {
+			return err
+		}
+		if resp.Redacted() || resp.Run.Guards == nil {
+			_, _ = fmt.Fprintf(e.err, "run %s: no guards on this trace — they need a project-level admin token and a server that exposes them.\nSanity-check the trace itself with: rc run trace %s\n", id, id)
 			return nil
-		},
+		}
+		if jsonMode {
+			guards, err := rawRunGuards(raw)
+			if err != nil {
+				return err
+			}
+			return e.renderJSON("run-guards-"+id, guards)
+		}
+		render.Guards(e.out, resp.Run.Guards)
+		return nil
+	})
+}
+
+// rawRunGuards projects `.run.guards` out of the verbatim /trace body, so `-o json` carries every
+// guard field the server sent (not just the ones GuardsView models).
+func rawRunGuards(raw json.RawMessage) (json.RawMessage, error) {
+	var bundle struct {
+		Run struct {
+			Guards json.RawMessage `json:"guards"`
+		} `json:"run"`
 	}
-	if view == runViewEvents || view == runViewTrace {
-		cmd.Flags().BoolVar(&stream, "stream", false, "stream JSONL to stdout even when it is large")
+	if err := json.Unmarshal(raw, &bundle); err != nil {
+		return nil, fmt.Errorf("decode trace bundle: %w", err)
 	}
-	return cmd
+	return bundle.Run.Guards, nil
+}
+
+func addStreamFlag(cmd *cobra.Command, stream *bool) {
+	cmd.Flags().BoolVar(stream, "stream", false, "stream JSONL to stdout even when it is large")
 }
 
 // runFeedbackCmd: `rc run feedback <id>` over the run's feedback sub-resource. Two planes on one verb:
@@ -471,7 +485,7 @@ func emitNDJSON(e *env, id string, events []client.Event, stream bool) error {
 			return err
 		}
 	}
-	return emitMaybeSpilledJSONL(e, "run-"+shortID(id), "events.jsonl", buf.Bytes(), stream)
+	return emitMaybeSpilledJSONL(e, "run-"+shortRunID(id), "events.jsonl", buf.Bytes(), stream)
 }
 
 // emitFullJSONL turns the /trace bundle into the brain-renderer's input contract: a `{"type":"run",…}`
@@ -498,7 +512,7 @@ func emitFullJSONL(e *env, id string, raw json.RawMessage, stream bool) error {
 			return err
 		}
 	}
-	return emitMaybeSpilledJSONL(e, "run-"+shortID(id), "trace.jsonl", buf.Bytes(), stream)
+	return emitMaybeSpilledJSONL(e, "run-"+shortRunID(id), "trace.jsonl", buf.Bytes(), stream)
 }
 
 func emitMaybeSpilledJSONL(e *env, label, name string, b []byte, stream bool) error {
@@ -537,16 +551,6 @@ func emitTyped(w interface{ Write([]byte) (int, error) }, obj json.RawMessage, t
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	return enc.Encode(fields)
-}
-
-func shortID(id string) string {
-	if len(id) > 8 {
-		return id[:8]
-	}
-	if id == "" {
-		return "unknown"
-	}
-	return id
 }
 
 func groundingSourceDriftCount(raw json.RawMessage) (int, bool) {
