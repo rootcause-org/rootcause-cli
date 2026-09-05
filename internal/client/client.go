@@ -175,13 +175,6 @@ func (c *Client) Run(ctx context.Context, id, project, tenant string) (*RunDetai
 	return &out, nil
 }
 
-// RunWithRaw is Run plus the verbatim body — `rc ask` echoes exactly the bytes it rendered from, so a
-// script and the human read one answer. (Fold Run into this once internal/cli/run.go's callers move to
-// the (typed, raw, error) seam — F2/F7.)
-func (c *Client) RunWithRaw(ctx context.Context, id, project, tenant string) (*RunDetail, json.RawMessage, error) {
-	return fetchBoth[RunDetail](ctx, c, http.MethodGet, RunPath(id, project, tenant), nil)
-}
-
 func RunPath(id, project, tenant string) string {
 	return collectionScopePath("/api/v1/runs/"+url.PathEscape(id), project, tenant)
 }
