@@ -172,7 +172,7 @@ func TestMutatingPostDoesNotRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := New(srv.URL, StaticToken("test"))
-	_, err := c.BashRun(context.Background(), BashRunRequest{Command: "touch /tmp/x"}, "", "")
+	_, _, err := c.BashRun(context.Background(), BashRunRequest{Command: "touch /tmp/x"}, "", "")
 	if err == nil || calls != 1 {
 		t.Fatalf("err/calls = %v/%d, want failure/1", err, calls)
 	}

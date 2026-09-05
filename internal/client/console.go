@@ -23,19 +23,15 @@ func consoleScope(project, tenant string) string {
 	return ""
 }
 
-func (c *Client) Capabilities(ctx context.Context, project, tenant string) (*CapabilitiesResponse, error) {
-	var out CapabilitiesResponse
-	err := c.do(ctx, http.MethodGet, "/api/v1/console/capabilities"+consoleScope(project, tenant), nil, &out)
-	return &out, err
+func (c *Client) Capabilities(ctx context.Context, project, tenant string) (*CapabilitiesResponse, json.RawMessage, error) {
+	return fetchBoth[CapabilitiesResponse](ctx, c, http.MethodGet, "/api/v1/console/capabilities"+consoleScope(project, tenant), nil)
 }
 
-func (c *Client) DBList(ctx context.Context, project, tenant string) (*DBListResponse, error) {
-	var out DBListResponse
-	err := c.do(ctx, http.MethodGet, "/api/v1/console/db"+consoleScope(project, tenant), nil, &out)
-	return &out, err
+func (c *Client) DBList(ctx context.Context, project, tenant string) (*DBListResponse, json.RawMessage, error) {
+	return fetchBoth[DBListResponse](ctx, c, http.MethodGet, "/api/v1/console/db"+consoleScope(project, tenant), nil)
 }
 
-func (c *Client) DBSchema(ctx context.Context, db, table, project, tenant string) (*DBSchemaResponse, error) {
+func (c *Client) DBSchema(ctx context.Context, db, table, project, tenant string) (*DBSchemaResponse, json.RawMessage, error) {
 	q := url.Values{}
 	if project != "" {
 		q.Set("project", project)
@@ -50,9 +46,7 @@ func (c *Client) DBSchema(ctx context.Context, db, table, project, tenant string
 	if enc := q.Encode(); enc != "" {
 		path += "?" + enc
 	}
-	var out DBSchemaResponse
-	err := c.do(ctx, http.MethodGet, path, nil, &out)
-	return &out, err
+	return fetchBoth[DBSchemaResponse](ctx, c, http.MethodGet, path, nil)
 }
 
 func (c *Client) DBQuery(ctx context.Context, db string, req DBQueryRequest, project, tenant string) (*DBQueryResponse, error) {
@@ -178,16 +172,12 @@ func (c *Client) DBQueryStream(
 	}
 }
 
-func (c *Client) BashList(ctx context.Context, project, tenant string) (*BashListResponse, error) {
-	var out BashListResponse
-	err := c.do(ctx, http.MethodGet, "/api/v1/console/bash"+consoleScope(project, tenant), nil, &out)
-	return &out, err
+func (c *Client) BashList(ctx context.Context, project, tenant string) (*BashListResponse, json.RawMessage, error) {
+	return fetchBoth[BashListResponse](ctx, c, http.MethodGet, "/api/v1/console/bash"+consoleScope(project, tenant), nil)
 }
 
-func (c *Client) BashRun(ctx context.Context, req BashRunRequest, project, tenant string) (*BashRunResponse, error) {
-	var out BashRunResponse
-	err := c.do(ctx, http.MethodPost, "/api/v1/console/bash/run"+consoleScope(project, tenant), req, &out)
-	return &out, err
+func (c *Client) BashRun(ctx context.Context, req BashRunRequest, project, tenant string) (*BashRunResponse, json.RawMessage, error) {
+	return fetchBoth[BashRunResponse](ctx, c, http.MethodPost, "/api/v1/console/bash/run"+consoleScope(project, tenant), req)
 }
 
 func (c *Client) FileGet(ctx context.Context, remote, project, tenant string, w io.Writer) error {
@@ -202,38 +192,22 @@ func (c *Client) FileGet(ctx context.Context, remote, project, tenant string, w 
 	return c.Download(ctx, "/api/v1/console/file?"+q.Encode(), w)
 }
 
-func (c *Client) ActionList(ctx context.Context, project, tenant string) (*ActionListResponse, error) {
-	var out ActionListResponse
-	err := c.do(ctx, http.MethodGet, "/api/v1/console/action"+consoleScope(project, tenant), nil, &out)
-	return &out, err
+func (c *Client) ActionList(ctx context.Context, project, tenant string) (*ActionListResponse, json.RawMessage, error) {
+	return fetchBoth[ActionListResponse](ctx, c, http.MethodGet, "/api/v1/console/action"+consoleScope(project, tenant), nil)
 }
 
-func (c *Client) ActionShow(ctx context.Context, id, project, tenant string) (*ActionShowResponse, error) {
-	var out ActionShowResponse
-	err := c.do(ctx, http.MethodGet, "/api/v1/console/action/"+url.PathEscape(id)+consoleScope(project, tenant), nil, &out)
-	return &out, err
+func (c *Client) ActionShow(ctx context.Context, id, project, tenant string) (*ActionShowResponse, json.RawMessage, error) {
+	return fetchBoth[ActionShowResponse](ctx, c, http.MethodGet, "/api/v1/console/action/"+url.PathEscape(id)+consoleScope(project, tenant), nil)
 }
 
-func (c *Client) ActionPreflight(ctx context.Context, id string, req ActionExecRequest, project, tenant string) (*ActionExecResponse, error) {
-	var out ActionExecResponse
-	err := c.do(ctx, http.MethodPost, "/api/v1/console/action/"+url.PathEscape(id)+"/preflight"+consoleScope(project, tenant), req, &out)
-	return &out, err
+func (c *Client) ActionPreflight(ctx context.Context, id string, req ActionExecRequest, project, tenant string) (*ActionExecResponse, json.RawMessage, error) {
+	return fetchBoth[ActionExecResponse](ctx, c, http.MethodPost, "/api/v1/console/action/"+url.PathEscape(id)+"/preflight"+consoleScope(project, tenant), req)
 }
 
-func (c *Client) ActionRun(ctx context.Context, id string, req ActionExecRequest, project, tenant string) (*ActionExecResponse, error) {
-	var out ActionExecResponse
-	err := c.do(ctx, http.MethodPost, "/api/v1/console/action/"+url.PathEscape(id)+"/run"+consoleScope(project, tenant), req, &out)
-	return &out, err
+func (c *Client) ActionRun(ctx context.Context, id string, req ActionExecRequest, project, tenant string) (*ActionExecResponse, json.RawMessage, error) {
+	return fetchBoth[ActionExecResponse](ctx, c, http.MethodPost, "/api/v1/console/action/"+url.PathEscape(id)+"/run"+consoleScope(project, tenant), req)
 }
 
 func (c *Client) ActionProbe(ctx context.Context, project string) (*ActionProbeResponse, json.RawMessage, error) {
-	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, bagURL("/api/v1/action/probe", project), map[string]any{}, &raw); err != nil {
-		return nil, nil, err
-	}
-	var out ActionProbeResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, nil, err
-	}
-	return &out, raw, nil
+	return fetchBoth[ActionProbeResponse](ctx, c, http.MethodPost, bagURL("/api/v1/action/probe", project), map[string]any{})
 }

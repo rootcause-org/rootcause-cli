@@ -271,6 +271,39 @@ func (c *Client) ProcessInboxThread(ctx context.Context, id, project, tenant str
 	return c.Raw(ctx, http.MethodPost, path, map[string]any{})
 }
 
+// --- Action drafts (the authoring plane behind `rc project action draft …`) ---
+
+// actionDraftPath is the draft resource, optionally with a lifecycle verb (validate/submit/approve/test).
+func actionDraftPath(id, verb string) string {
+	path := "/api/v1/actions/drafts"
+	if id != "" {
+		path += "/" + url.PathEscape(id)
+	}
+	if verb != "" {
+		path += "/" + verb
+	}
+	return path
+}
+
+// CreateActionDraft scaffolds a new draft. The draft body is server-validated and freeform, so these
+// methods carry bytes both ways — the command layer only labels the JSON it passes through.
+func (c *Client) CreateActionDraft(ctx context.Context, project string, body map[string]any) (json.RawMessage, error) {
+	return c.RawScoped(ctx, http.MethodPost, actionDraftPath("", ""), body, project, "")
+}
+
+// ActionDraft fetches one draft (verb "") or runs one of its lifecycle verbs (validate/submit/approve).
+func (c *Client) ActionDraft(ctx context.Context, project, id, verb string) (json.RawMessage, error) {
+	if verb == "" {
+		return c.RawScoped(ctx, http.MethodGet, actionDraftPath(id, ""), nil, project, "")
+	}
+	return c.RawScoped(ctx, http.MethodPost, actionDraftPath(id, verb), map[string]any{}, project, "")
+}
+
+// TestActionDraft mints a human-confirmed test run for a draft.
+func (c *Client) TestActionDraft(ctx context.Context, project, id string, body map[string]any) (json.RawMessage, error) {
+	return c.RawScoped(ctx, http.MethodPost, actionDraftPath(id, "test"), body, project, "")
+}
+
 // --- Database controls (GET/PATCH /api/v1/databases/{dsn}/controls) ---
 
 // DatabaseControls fetches a database's controls sub-resource.

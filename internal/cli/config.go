@@ -57,7 +57,7 @@ func newValueCoercer(e *env, c *client.Client) coercer {
 	return func(key string) valueKind {
 		if !loaded {
 			loaded = true
-			if resp, err := c.GetSchema(e.ctx(), "", e.scopeProject()); err == nil {
+			if resp, _, err := c.GetSchema(e.ctx(), "", e.scopeProject()); err == nil {
 				types = make(map[string]string)
 				for _, bag := range resp.Resources {
 					for _, f := range bag.Fields {

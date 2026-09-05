@@ -27,16 +27,12 @@ func newProjectListCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if e.jsonOut() {
-				raw, rerr := c.Raw(e.ctx(), "GET", "/api/v1/projects", nil)
-				if rerr != nil {
-					return rerr
-				}
-				return render.JSON(e.out, raw)
-			}
-			resp, err := c.Projects(e.ctx())
+			resp, raw, err := c.Projects(e.ctx())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
 			}
 			render.Projects(e.out, resp)
 			return nil
@@ -85,7 +81,7 @@ func projectForRename(e *env, c *client.Client) (string, error) {
 	if e.project != "" {
 		return e.project, nil
 	}
-	resp, err := c.Projects(e.ctx())
+	resp, _, err := c.Projects(e.ctx())
 	if err != nil {
 		return "", err
 	}

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -181,7 +182,7 @@ func (c *Client) AllEgress(ctx context.Context, p FeedParams) (rows []EgressRow,
 func (c *Client) AllRuns(ctx context.Context, p RunsParams) (runs []RunSummary, capped bool, err error) {
 	p.Before = ""
 	for page := 0; page < maxFeedPages; page++ {
-		resp, e := c.Runs(ctx, p)
+		resp, _, e := c.Runs(ctx, p)
 		if e != nil {
 			return nil, false, e
 		}
@@ -207,22 +208,20 @@ func ThreadTracePath(id, project, tenant string) string {
 }
 
 // ThreadTrace fetches GET /api/v1/threads/{id}/trace — every run for one thread (or session) id. Used by
-// the table view of `rc run thread`; the JSON path goes through Raw (ThreadTracePath) to keep the passthrough
-// byte-faithful (render, don't reshape). project is the optional --project scope (see ThreadTracePath).
-func (c *Client) ThreadTrace(ctx context.Context, id, project, tenant string) (*ThreadTrace, error) {
-	var out ThreadTrace
-	if err := c.do(ctx, http.MethodGet, ThreadTracePath(id, project, tenant), nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+// both the table view of `rc run thread` and its `-o json` passthrough: ONE fetch, the verbatim bytes
+// returned alongside the typed view (render, don't reshape). project is the optional --project scope.
+func (c *Client) ThreadTrace(ctx context.Context, id, project, tenant string) (*ThreadTrace, json.RawMessage, error) {
+	return fetchBoth[ThreadTrace](ctx, c, http.MethodGet, ThreadTracePath(id, project, tenant), nil)
 }
 
 // Health fetches GET /api/v1/health?hours=&project= — the raw health inputs the CLI rolls up. project is
 // the explicit scope an all-projects admin token names (the `--all` fan-out); "" is a pinned token's own.
-func (c *Client) Health(ctx context.Context, hours int, project, tenant string) (*HealthResponse, error) {
-	var out HealthResponse
-	if err := c.do(ctx, http.MethodGet, HealthPath(hours, project, tenant), nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+func (c *Client) Health(ctx context.Context, hours int, project, tenant string) (*HealthResponse, json.RawMessage, error) {
+	return fetchBoth[HealthResponse](ctx, c, http.MethodGet, HealthPath(hours, project, tenant), nil)
+}
+
+// DeployState fetches GET /api/v1/deploy-state — what is LIVE per plane (host release, brain channel
+// pointers, mirror commits) plus the stored timelines.
+func (c *Client) DeployState(ctx context.Context, history int, project, tenant string) (*DeployStateResponse, json.RawMessage, error) {
+	return fetchBoth[DeployStateResponse](ctx, c, http.MethodGet, DeployStatePath(history, project, tenant), nil)
 }

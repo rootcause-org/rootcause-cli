@@ -33,19 +33,14 @@ func newThreadCmd(e *env) *cobra.Command {
 				return err
 			}
 
-			if render.IsJSON(e.mode(), e.out) {
-				// Raw passthrough: emit exactly what the server sent (render, don't reshape) so jq sees the
-				// true shape.
-				raw, err := c.Raw(e.ctx(), "GET", client.ThreadTracePath(lookupID, e.scopeProject(), e.scopeTenant()), nil)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-
-			tr, err := c.ThreadTrace(e.ctx(), lookupID, e.scopeProject(), e.scopeTenant())
+			tr, raw, err := c.ThreadTrace(e.ctx(), lookupID, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
+			}
+			if render.IsJSON(e.mode(), e.out) {
+				// Raw passthrough: emit exactly what the server sent (render, don't reshape) so jq sees
+				// the true shape.
+				return render.JSON(e.out, raw)
 			}
 			render.ThreadTrace(e.out, tr)
 			return nil

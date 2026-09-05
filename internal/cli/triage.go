@@ -1,14 +1,14 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -36,7 +36,9 @@ func triagePolicyGetCmd(e *env) *cobra.Command {
 		Short: "Show triage policy guidance",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			raw, err := triageRaw(e, http.MethodGet, "/api/v1/triage/policy", nil)
+			raw, err := triageCall(e, func(c *client.Client) (json.RawMessage, error) {
+				return c.TriagePolicy(e.ctx(), e.scopeProject(), e.scopeTenant())
+			})
 			if err != nil {
 				return err
 			}
@@ -51,7 +53,9 @@ func triagePolicySetCmd(e *env) *cobra.Command {
 		Short: "Replace triage policy guidance",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			raw, err := triageRaw(e, http.MethodPatch, "/api/v1/triage/policy", map[string]any{"guidance": args[0]})
+			raw, err := triageCall(e, func(c *client.Client) (json.RawMessage, error) {
+				return c.SetTriagePolicy(e.ctx(), e.scopeProject(), e.scopeTenant(), args[0])
+			})
 			if err != nil {
 				return err
 			}
@@ -77,7 +81,9 @@ func triageRulesListCmd(e *env) *cobra.Command {
 		Short: "List triage hard rules",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			raw, err := triageRaw(e, http.MethodGet, "/api/v1/triage/rules", nil)
+			raw, err := triageCall(e, func(c *client.Client) (json.RawMessage, error) {
+				return c.TriageRules(e.ctx(), e.scopeProject(), e.scopeTenant())
+			})
 			if err != nil {
 				return err
 			}
@@ -96,7 +102,9 @@ func triageRuleAddCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := triageRaw(e, http.MethodPost, "/api/v1/triage/rules", body)
+			raw, err := triageCall(e, func(c *client.Client) (json.RawMessage, error) {
+				return c.CreateTriageRule(e.ctx(), e.scopeProject(), e.scopeTenant(), body)
+			})
 			if err != nil {
 				return err
 			}
@@ -115,7 +123,9 @@ func triageRuleSetCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := triageRaw(e, http.MethodPatch, "/api/v1/triage/rules/"+url.PathEscape(args[0]), body)
+			raw, err := triageCall(e, func(c *client.Client) (json.RawMessage, error) {
+				return c.PatchTriageRule(e.ctx(), e.scopeProject(), e.scopeTenant(), args[0], body)
+			})
 			if err != nil {
 				return err
 			}
@@ -130,7 +140,9 @@ func triageRuleRmCmd(e *env) *cobra.Command {
 		Short: "Delete a triage hard rule",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			raw, err := triageRaw(e, http.MethodDelete, "/api/v1/triage/rules/"+url.PathEscape(args[0]), nil)
+			raw, err := triageCall(e, func(c *client.Client) (json.RawMessage, error) {
+				return c.DeleteTriageRule(e.ctx(), e.scopeProject(), e.scopeTenant(), args[0])
+			})
 			if err != nil {
 				return err
 			}
@@ -146,25 +158,14 @@ func triageRuleRmCmd(e *env) *cobra.Command {
 	}
 }
 
-func triageRaw(e *env, method, path string, body map[string]any) ([]byte, error) {
+// triageCall is the one client hop every triage subcommand shares: build the client, then let the
+// caller name the endpoint. Path, verb and the project/tenant scoping rule live in internal/client.
+func triageCall(e *env, call func(*client.Client) (json.RawMessage, error)) (json.RawMessage, error) {
 	c, err := e.newClient()
 	if err != nil {
 		return nil, err
 	}
-	project := e.scopeProject()
-	tenant := e.scopeTenant()
-	if tenant != "" && project == "" {
-		return nil, fmt.Errorf("--project <project> is required with --tenant for triage")
-	}
-	if project != "" {
-		suffix := strings.TrimPrefix(path, "/api/v1/triage")
-		path = "/api/v1/projects/" + url.PathEscape(project)
-		if tenant != "" {
-			path += "/tenants/" + url.PathEscape(tenant)
-		}
-		path += "/triage" + suffix
-	}
-	return c.Raw(e.ctx(), method, path, body)
+	return call(c)
 }
 
 func parseTriageRuleArgs(args []string) (map[string]any, error) {

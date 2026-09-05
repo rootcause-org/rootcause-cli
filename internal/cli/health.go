@@ -44,7 +44,7 @@ func newHealthCmd(e *env) *cobra.Command {
 
 			// Fetch once: the typed view drives the verdict while the same response bytes remain the JSON
 			// passthrough. Two independent reads could print one health snapshot and exit on another.
-			resp, raw, err := fetchHealth(e, c, hours, e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.Health(e.ctx(), hours, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				// An all-projects token names no single project, so the flat route can't serve it — the
 				// only health it can mean is the fleet's. Fan out instead of parroting the server error;
@@ -96,7 +96,7 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 	entries := make([]entry, 0, len(projects))
 	allHealthy := true
 	for _, proj := range projects {
-		resp, raw, ferr := fetchHealth(e, c, hours, proj.ID, "")
+		resp, raw, ferr := c.Health(e.ctx(), hours, proj.ID, "")
 		if ferr != nil {
 			return fmt.Errorf("health --all: project %s: %w", proj.Name, ferr)
 		}
@@ -140,18 +140,6 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 func isNoProjectScope(err error) bool {
 	var apiErr *client.APIError
 	return asAPIError(err, &apiErr) && apiErr.Code == "NO_PROJECT_SCOPE"
-}
-
-func fetchHealth(e *env, c *client.Client, hours int, project, tenant string) (*client.HealthResponse, json.RawMessage, error) {
-	raw, err := c.Raw(e.ctx(), "GET", healthPath(hours, project, tenant), nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	var resp client.HealthResponse
-	if err := json.Unmarshal(raw, &resp); err != nil {
-		return nil, nil, fmt.Errorf("decode health response: %w", err)
-	}
-	return &resp, raw, nil
 }
 
 // errUnhealthy is the sentinel `rc fleet health` returns to force a non-zero exit when a section is unhealthy.

@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -67,7 +65,7 @@ func actionReverseSecretCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			settings, err := c.PatchBag(e.ctx(), "/api/v1/action", map[string]any{"action_reverse_secret": secret}, e.scopeProject())
+			settings, _, err := c.PatchBag(e.ctx(), "/api/v1/action", map[string]any{"action_reverse_secret": secret}, e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -143,7 +141,7 @@ func newActionDoctorCmd(e *env, version string) *cobra.Command {
 			}
 			human := !bundle && !e.jsonOut()
 			failed := false
-			show, showErr := c.ActionShow(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
+			show, _, showErr := c.ActionShow(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
 			if showErr != nil {
 				d := actionDiagnosticForError(showErr)
 				out.Steps = append(out.Steps, actionDoctorStep{Name: "resolve", Diagnostic: d})
@@ -184,7 +182,7 @@ func newActionDoctorCmd(e *env, version string) *cobra.Command {
 			}
 
 			if showErr == nil {
-				preflight, preflightErr := c.ActionPreflight(e.ctx(), args[0], client.ActionExecRequest{Params: params}, e.scopeProject(), e.scopeTenant())
+				preflight, _, preflightErr := c.ActionPreflight(e.ctx(), args[0], client.ActionExecRequest{Params: params}, e.scopeProject(), e.scopeTenant())
 				if preflightErr != nil {
 					d := actionDiagnosticForError(preflightErr)
 					out.Steps = append(out.Steps, actionDoctorStep{Name: "preflight", Diagnostic: d})
@@ -206,7 +204,7 @@ func newActionDoctorCmd(e *env, version string) *cobra.Command {
 				writeActionDiagnostic(e, d)
 			}
 
-			if settings, settingsErr := c.GetBag(e.ctx(), "/api/v1/action", e.scopeProject()); settingsErr == nil {
+			if settings, _, settingsErr := c.GetBag(e.ctx(), "/api/v1/action", e.scopeProject()); settingsErr == nil {
 				out.Config = doctorActionConfig(*settings)
 			}
 			if bundle || e.jsonOut() {
@@ -232,7 +230,7 @@ func newActionDoctorCmd(e *env, version string) *cobra.Command {
 func newProjectActionCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "action", Short: "Author action drafts"}
 	draft := &cobra.Command{Use: "draft", Short: "Create, inspect, test, and promote action drafts"}
-	draft.AddCommand(actionDraftNewCmd(e), actionDraftSimpleCmd(e, "show", http.MethodGet), actionDraftSimpleCmd(e, "validate", http.MethodPost), actionDraftTestCmd(e), actionDraftSimpleCmd(e, "submit", http.MethodPost), actionDraftSimpleCmd(e, "approve", http.MethodPost))
+	draft.AddCommand(actionDraftNewCmd(e), actionDraftSimpleCmd(e, "show"), actionDraftSimpleCmd(e, "validate"), actionDraftTestCmd(e), actionDraftSimpleCmd(e, "submit"), actionDraftSimpleCmd(e, "approve"))
 	cmd.AddCommand(draft)
 	return cmd
 }
@@ -255,7 +253,9 @@ func actionDraftNewCmd(e *env) *cobra.Command {
 				parsedParams = append(parsedParams, p)
 			}
 			body := map[string]any{"id": args[0], "mode": mode, "runtime": runtime, "display_name": displayName, "description": description, "customer_description": customerDescription, "risk": risk, "params": parsedParams, "connections": connections}
-			return runActionDraftRequest(e, http.MethodPost, "/api/v1/actions/drafts", body, "action-draft-new-"+args[0])
+			return runActionDraftRequest(e, "action-draft-new-"+args[0], func(c *client.Client) (json.RawMessage, error) {
+				return c.CreateActionDraft(e.ctx(), e.scopeProject(), body)
+			})
 		},
 	}
 	cmd.Flags().StringVar(&mode, "mode", "", "action mode: hosted|embassy")
@@ -269,17 +269,21 @@ func actionDraftNewCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-func actionDraftSimpleCmd(e *env, verb, method string) *cobra.Command {
+// actionDraftSimpleCmd builds the draft subcommands that take no body: `show` reads the draft, every
+// other verb posts the matching lifecycle step.
+func actionDraftSimpleCmd(e *env, verb string) *cobra.Command {
+	draftVerb := verb
+	if verb == "show" {
+		draftVerb = ""
+	}
 	return &cobra.Command{
 		Use:   verb + " <id>",
 		Short: strings.ToUpper(verb[:1]) + verb[1:] + " an action draft",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			path := "/api/v1/actions/drafts/" + url.PathEscape(args[0])
-			if verb != "show" {
-				path += "/" + verb
-			}
-			return runActionDraftRequest(e, method, path, map[string]any{}, "action-draft-"+verb+"-"+args[0])
+			return runActionDraftRequest(e, "action-draft-"+verb+"-"+args[0], func(c *client.Client) (json.RawMessage, error) {
+				return c.ActionDraft(e.ctx(), e.scopeProject(), args[0], draftVerb)
+			})
 		},
 	}
 }
@@ -299,19 +303,23 @@ func actionDraftTestCmd(e *env) *cobra.Command {
 			if tenant := e.scopeTenant(); tenant != "" {
 				body["tenant"] = tenant
 			}
-			return runActionDraftRequest(e, http.MethodPost, "/api/v1/actions/drafts/"+url.PathEscape(args[0])+"/test", body, "action-draft-test-"+args[0])
+			return runActionDraftRequest(e, "action-draft-test-"+args[0], func(c *client.Client) (json.RawMessage, error) {
+				return c.TestActionDraft(e.ctx(), e.scopeProject(), args[0], body)
+			})
 		},
 	}
 	cmd.Flags().StringVar(&paramsJSON, "params", "", "JSON object of action params")
 	return cmd
 }
 
-func runActionDraftRequest(e *env, method, path string, body map[string]any, label string) error {
+// runActionDraftRequest is the one client hop the draft subcommands share: build the client, let the
+// caller name the endpoint (path/verb live in internal/client), then pass the server bytes through.
+func runActionDraftRequest(e *env, label string, call func(*client.Client) (json.RawMessage, error)) error {
 	c, err := e.newClient()
 	if err != nil {
 		return err
 	}
-	raw, err := c.RawScoped(e.ctx(), method, path, body, e.scopeProject(), "")
+	raw, err := call(c)
 	if err != nil {
 		return err
 	}

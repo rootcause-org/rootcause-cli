@@ -5,6 +5,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -46,6 +47,24 @@ func New(baseURL string, tokens TokenSource) *Client {
 	}
 }
 
+// fetchBoth issues ONE request and returns BOTH the typed view and the verbatim body bytes — the
+// seam every endpoint method uses, so a command fetches once and picks the shape by output mode
+// (`-o json` emits the server's bytes untouched; the table view renders the struct). Decoding runs
+// with UseNumber so a passthrough `any` field keeps the server's exact number literal.
+func fetchBoth[T any](ctx context.Context, c *Client, method, path string, body any) (*T, json.RawMessage, error) {
+	var raw json.RawMessage
+	if err := c.do(ctx, method, path, body, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out T
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	if err := dec.Decode(&out); err != nil {
+		return nil, nil, fmt.Errorf("decode response: %w", err)
+	}
+	return &out, raw, nil
+}
+
 const defaultHTTPTimeout = 10 * time.Minute
 
 func httpTimeout() time.Duration {
@@ -83,7 +102,7 @@ type RunsParams struct {
 }
 
 // Runs fetches GET /api/v1/runs — the shared endpoint behind both `rc status` and `rc run list`.
-func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) {
+func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, json.RawMessage, error) {
 	q := url.Values{}
 	if p.Limit > 0 {
 		q.Set("limit", fmt.Sprintf("%d", p.Limit))
@@ -122,36 +141,20 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, error) 
 	if enc := q.Encode(); enc != "" {
 		path += "?" + enc
 	}
-	var out RunsResponse
-	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return fetchBoth[RunsResponse](ctx, c, http.MethodGet, path, nil)
 }
 
 // Projects fetches GET /api/v1/projects — the fleet handles an all-projects admin token may see. Used by
 // `rc project list` and the seed of every `--all` fan-out.
-func (c *Client) Projects(ctx context.Context) (*ProjectsResponse, error) {
-	var out ProjectsResponse
-	if err := c.do(ctx, http.MethodGet, "/api/v1/projects", nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+func (c *Client) Projects(ctx context.Context) (*ProjectsResponse, json.RawMessage, error) {
+	return fetchBoth[ProjectsResponse](ctx, c, http.MethodGet, "/api/v1/projects", nil)
 }
 
 // RenameProject patches PATCH /api/v1/projects/{project}/rename with {"name":"new-slug"}, returning
 // both the typed result for table output and raw bytes for JSON passthrough.
 func (c *Client) RenameProject(ctx context.Context, project, name string) (*ProjectRenameResponse, json.RawMessage, error) {
-	var raw json.RawMessage
 	path := "/api/v1/projects/" + url.PathEscape(project) + "/rename"
-	if err := c.do(ctx, http.MethodPatch, path, ProjectRenameRequest{Name: name}, &raw); err != nil {
-		return nil, nil, err
-	}
-	var out ProjectRenameResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, nil, fmt.Errorf("decode project rename response: %w", err)
-	}
-	return &out, raw, nil
+	return fetchBoth[ProjectRenameResponse](ctx, c, http.MethodPatch, path, ProjectRenameRequest{Name: name})
 }
 
 // Whoami fetches GET /api/v1/whoami — the OAuth token's bound project/tenant scope.
@@ -170,6 +173,13 @@ func (c *Client) Run(ctx context.Context, id, project, tenant string) (*RunDetai
 		return nil, err
 	}
 	return &out, nil
+}
+
+// RunWithRaw is Run plus the verbatim body — `rc ask` echoes exactly the bytes it rendered from, so a
+// script and the human read one answer. (Fold Run into this once internal/cli/run.go's callers move to
+// the (typed, raw, error) seam — F2/F7.)
+func (c *Client) RunWithRaw(ctx context.Context, id, project, tenant string) (*RunDetail, json.RawMessage, error) {
+	return fetchBoth[RunDetail](ctx, c, http.MethodGet, RunPath(id, project, tenant), nil)
 }
 
 func RunPath(id, project, tenant string) string {
@@ -312,23 +322,15 @@ func (c *Client) Env(ctx context.Context, tenant, project string) (*EnvResponse,
 
 // GetBag fetches GET on a config bag at base (e.g. "/api/v1/kb"). The response is the generic
 // {key:{value,effective,default,source}} map shared by every bag (settings/kb/branding/action).
-func (c *Client) GetBag(ctx context.Context, base, project string) (*Settings, error) {
-	var out Settings
-	if err := c.do(ctx, http.MethodGet, bagURL(base, project), nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+func (c *Client) GetBag(ctx context.Context, base, project string) (*Settings, json.RawMessage, error) {
+	return fetchBoth[Settings](ctx, c, http.MethodGet, bagURL(base, project), nil)
 }
 
 // PatchBag sends a sparse PATCH on a config bag at base (only the changed keys) and returns the new full
 // bag. The body is an opaque key→value map: the server owns the whitelist and validation, so the CLI
 // passes keys through verbatim and lets the server reject unknown/forbidden/invalid ones.
-func (c *Client) PatchBag(ctx context.Context, base string, patch map[string]any, project string) (*Settings, error) {
-	var out Settings
-	if err := c.do(ctx, http.MethodPatch, bagURL(base, project), patch, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+func (c *Client) PatchBag(ctx context.Context, base string, patch map[string]any, project string) (*Settings, json.RawMessage, error) {
+	return fetchBoth[Settings](ctx, c, http.MethodPatch, bagURL(base, project), patch)
 }
 
 // bagURL appends ?project= when scoping an all-projects token onto a target project.
@@ -339,19 +341,9 @@ func bagURL(base, project string) string {
 	return base
 }
 
-// GetSettings fetches GET /api/v1/settings (the everyday bag).
-func (c *Client) GetSettings(ctx context.Context, project string) (*Settings, error) {
-	return c.GetBag(ctx, "/api/v1/settings", project)
-}
-
-// PatchSettings sends a sparse PATCH /api/v1/settings and returns the new full settings.
-func (c *Client) PatchSettings(ctx context.Context, patch map[string]any, project string) (*Settings, error) {
-	return c.PatchBag(ctx, "/api/v1/settings", patch, project)
-}
-
 // GetSchema fetches GET /api/v1/meta/schema[?resource=] — the declarative config registry. resource
 // empty returns every resource; a name filters to one (404 if unknown).
-func (c *Client) GetSchema(ctx context.Context, resource, project string) (*SchemaResponse, error) {
+func (c *Client) GetSchema(ctx context.Context, resource, project string) (*SchemaResponse, json.RawMessage, error) {
 	q := url.Values{}
 	if resource != "" {
 		q.Set("resource", resource)
@@ -363,25 +355,17 @@ func (c *Client) GetSchema(ctx context.Context, resource, project string) (*Sche
 	if e := q.Encode(); e != "" {
 		path += "?" + e
 	}
-	var out SchemaResponse
-	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return fetchBoth[SchemaResponse](ctx, c, http.MethodGet, path, nil)
 }
 
 // GetAccess fetches GET /api/v1/meta/capabilities — what this token may do, optionally scoped to a
 // project (an all-projects token must pass project to learn its per-project reach).
-func (c *Client) GetAccess(ctx context.Context, project string) (*Access, error) {
+func (c *Client) GetAccess(ctx context.Context, project string) (*Access, json.RawMessage, error) {
 	path := "/api/v1/meta/capabilities"
 	if project != "" {
 		path += "?project=" + url.QueryEscape(project)
 	}
-	var out Access
-	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return fetchBoth[Access](ctx, c, http.MethodGet, path, nil)
 }
 
 func hierarchySettingsPath(scope, project, id string, resolved bool) string {
@@ -432,16 +416,8 @@ func tenantProfileScope(project string) string {
 // projection/profile record (settings + version + applied_at). slug is path-escaped; project is the
 // optional all-projects-token selector. Raw bytes preserve future server fields for JSON output.
 func (c *Client) GetTenantSettings(ctx context.Context, slug, project string) (*TenantSettings, json.RawMessage, error) {
-	var raw json.RawMessage
 	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/profile" + tenantProfileScope(project)
-	if err := c.do(ctx, http.MethodGet, path, nil, &raw); err != nil {
-		return nil, nil, err
-	}
-	var out TenantSettings
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, nil, err
-	}
-	return &out, raw, nil
+	return fetchBoth[TenantSettings](ctx, c, http.MethodGet, path, nil)
 }
 
 // PatchTenantSettings sends a sparse PATCH /api/v1/tenants/{slug}/profile (only the keys in
@@ -449,16 +425,8 @@ func (c *Client) GetTenantSettings(ctx context.Context, slug, project string) (*
 // record. The server owns the schema/merge/validation; a bad merged value comes back as a 400
 // validation_failed the command layer surfaces verbatim.
 func (c *Client) PatchTenantSettings(ctx context.Context, slug, project string, req TenantSettingsPatchRequest) (*TenantSettings, json.RawMessage, error) {
-	var raw json.RawMessage
 	path := "/api/v1/tenants/" + url.PathEscape(slug) + "/profile" + tenantProfileScope(project)
-	if err := c.do(ctx, http.MethodPatch, path, req, &raw); err != nil {
-		return nil, nil, err
-	}
-	var out TenantSettings
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, nil, err
-	}
-	return &out, raw, nil
+	return fetchBoth[TenantSettings](ctx, c, http.MethodPatch, path, req)
 }
 
 // GetTenantSettingsSchema fetches GET /api/v1/tenant-profiles/schema — the enriched profile JSON
@@ -471,6 +439,16 @@ func (c *Client) GetTenantSettingsSchema(ctx context.Context, project string) (j
 		return nil, err
 	}
 	return raw, nil
+}
+
+// Routes fetches GET /api/v1/meta/routes — the canonical route manifest (`rc dev routes`).
+func (c *Client) Routes(ctx context.Context) (*RouteManifest, json.RawMessage, error) {
+	return fetchBoth[RouteManifest](ctx, c, http.MethodGet, "/api/v1/meta/routes", nil)
+}
+
+// OpenAPI fetches GET /api/v1/meta/openapi.json — dumped verbatim, never reshaped.
+func (c *Client) OpenAPI(ctx context.Context) (json.RawMessage, error) {
+	return c.Raw(ctx, http.MethodGet, "/api/v1/meta/openapi.json", nil)
 }
 
 // RawRuns / RawRun / RawEvents / RawSettings return the response BODY bytes for JSON passthrough, so

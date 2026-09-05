@@ -2,12 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -45,36 +43,11 @@ func dreamEvidenceCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			q := url.Values{}
-			if project := e.scopeProject(); project != "" {
-				q.Set("project", project)
-			}
-			if tenant := e.scopeTenant(); tenant != "" {
-				q.Set("tenant", tenant)
-			}
-			if limit > 0 {
-				q.Set("limit", fmt.Sprintf("%d", limit))
-			}
-			if days > 0 {
-				q.Set("days", fmt.Sprintf("%d", days))
-			}
-			if plane != "" {
-				q.Set("plane", plane)
-			}
-			if shadowSet {
-				q.Set("shadow", fmt.Sprintf("%t", shadow))
-			}
-			if len(verdicts) > 0 {
-				q.Set("verdict", strings.Join(verdicts, ","))
-			}
-			if includeBodies {
-				q.Set("include_bodies", "true")
-			}
-			path := "/api/v1/dream/evidence"
-			if enc := q.Encode(); enc != "" {
-				path += "?" + enc
-			}
-			raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
+			raw, err := c.DreamEvidence(e.ctx(), client.DreamEvidenceParams{
+				Project: e.scopeProject(), Tenant: e.scopeTenant(), Limit: limit, Days: days,
+				Plane: plane, Shadow: shadow, ShadowSet: shadowSet, Verdicts: verdicts,
+				IncludeBodies: includeBodies,
+			})
 			if err != nil {
 				return err
 			}

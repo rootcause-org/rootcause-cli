@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"sort"
 	"strings"
 	"time"
 
@@ -60,20 +59,12 @@ func chatSecretCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.ChatRaw(e.ctx(), http.MethodPost, e.scopeProject(), "/secret/"+action, map[string]any{})
+			out, raw, err := c.ChatSecretAction(e.ctx(), e.scopeProject(), action)
 			if err != nil {
 				return err
 			}
 			if e.jsonOut() {
 				return render.JSON(e.out, raw)
-			}
-			var out struct {
-				Secret    string `json:"secret"`
-				RotatedBy string `json:"rotated_by"`
-				RotatedAt string `json:"rotated_at"`
-			}
-			if err := json.Unmarshal(raw, &out); err != nil {
-				return err
 			}
 			_, _ = fmt.Fprintln(e.out, out.Secret)
 			if out.RotatedBy != "" && out.RotatedAt != "" {
@@ -92,22 +83,14 @@ func chatTokenCmd(e *env) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		body := map[string]any{"origin": origin, "principal_kind": kind, "external_id": principalID}
-		if tenant := e.scopeTenant(); tenant != "" {
-			body["tenant"] = tenant
-		}
-		raw, err := c.ChatRaw(e.ctx(), http.MethodPost, e.scopeProject(), "/token", body)
+		out, raw, err := c.ChatToken(e.ctx(), e.scopeProject(), client.ChatTokenRequest{
+			Origin: origin, PrincipalKind: kind, ExternalID: principalID, Tenant: e.scopeTenant(),
+		})
 		if err != nil {
 			return err
 		}
 		if e.jsonOut() {
 			return render.JSON(e.out, raw)
-		}
-		var out struct {
-			Token string `json:"token"`
-		}
-		if err := json.Unmarshal(raw, &out); err != nil {
-			return err
 		}
 		_, _ = fmt.Fprintln(e.out, out.Token)
 		return nil
@@ -278,6 +261,10 @@ func chatAnswerPart(raw json.RawMessage, flags []string) (map[string]any, error)
 	return map[string]any{"type": "data-answers", "data": map[string]any{"question_set_id": questionSetID, "answers": answers}}, nil
 }
 
+// doctorRejectLimit is how many recent rejects the doctor pulls — enough to see a pattern in the
+// window, small enough to stay one page.
+const doctorRejectLimit = 100
+
 type chatDoctorFinding struct {
 	Status string `json:"status"`
 	Check  string `json:"check"`
@@ -325,43 +312,40 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 		decodeDoctor := func(raw json.RawMessage, dst any) { _ = json.Unmarshal(raw, dst) }
 		// The bundle carries the bag verbatim (raw passthrough); the checks read the SAME bytes through
 		// the typed settings shape, so a field's Effective-then-Value ladder is decoded in one place.
-		raw, err := c.ChatRaw(e.ctx(), http.MethodGet, project, "", nil)
+		settings, raw, err := c.ChatSettings(e.ctx(), project)
 		if err != nil {
 			return err
 		}
 		decodeDoctor(raw, &b.Config)
-		var config client.Settings
-		decodeDoctor(raw, &config)
-		raw, err = c.PrincipalsRaw(e.ctx(), http.MethodGet, project, nil)
+		config := *settings
+		manifest, _, err := c.Principals(e.ctx(), project)
 		if err != nil {
 			return err
 		}
-		var principalManifest map[string]any
-		decodeDoctor(raw, &principalManifest)
-		kinds := principalKinds(principalManifest)
+		kinds := manifest.KindNames()
 		b.Principals = map[string]any{
 			"configured":              len(kinds) > 0,
 			"kinds":                   kinds,
-			"email_lookup_configured": principalManifest["email_lookup"] != nil,
+			"email_lookup_configured": manifest.HasEmailLookup(),
 		}
-		raw, err = c.ChatRaw(e.ctx(), http.MethodGet, project, "/secret", nil)
+		raw, err = c.ChatSecretStatus(e.ctx(), project)
 		if err != nil {
 			return err
 		}
 		decodeDoctor(raw, &b.Secret)
 		// Branding is a diagnostic input, not a precondition: a doctor that aborts on it reports nothing
 		// about the chat wiring the operator actually came to check.
-		raw, brandingErr := c.Raw(e.ctx(), http.MethodGet, bagPath("/api/v1/branding", project), nil)
+		brandingBag, _, brandingErr := c.GetBag(e.ctx(), "/api/v1/branding", project)
 		var branding client.Settings
 		if brandingErr == nil {
-			decodeDoctor(raw, &branding)
+			branding = *brandingBag
 		}
 		b.Branding = map[string]any{
 			"reachable":                brandingErr == nil,
 			"name_configured":          settingString(branding, "name") != "",
 			"primary_color_configured": settingString(branding, "primary_color") != "",
 		}
-		raw, err = c.ChatRaw(e.ctx(), http.MethodGet, project, "/rejects?limit=100", nil)
+		raw, err = c.ChatRejects(e.ctx(), project, doctorRejectLimit)
 		if err != nil {
 			return err
 		}
@@ -481,7 +465,7 @@ func newPrincipalsCmd(e *env) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		raw, err := c.PrincipalsRaw(e.ctx(), http.MethodGet, e.scopeProject(), nil)
+		_, raw, err := c.Principals(e.ctx(), e.scopeProject())
 		if err != nil {
 			return err
 		}
@@ -502,7 +486,7 @@ func newPrincipalsCmd(e *env) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		raw, err := c.PrincipalsRaw(e.ctx(), http.MethodPatch, e.scopeProject(), body)
+		raw, err := c.SetPrincipals(e.ctx(), e.scopeProject(), body)
 		if err != nil {
 			return err
 		}
@@ -516,31 +500,18 @@ func newPrincipalsCmd(e *env) *cobra.Command {
 		if (strings.TrimSpace(email) == "") == (strings.TrimSpace(externalID) == "") {
 			return fmt.Errorf("exactly one of --email or --external-id is required")
 		}
-		body := map[string]any{"kind": kind}
-		if email != "" {
-			body["email"] = email
-		} else {
-			body["external_id"] = externalID
-		}
-		if tenant := e.scopeTenant(); tenant != "" {
-			body["tenant"] = tenant
-		}
 		c, err := e.newClient()
 		if err != nil {
 			return err
 		}
-		raw, err := c.PrincipalResolveRaw(e.ctx(), e.scopeProject(), body)
+		out, raw, err := c.ResolvePrincipal(e.ctx(), e.scopeProject(), client.PrincipalResolveRequest{
+			Kind: kind, Email: email, ExternalID: externalID, Tenant: e.scopeTenant(),
+		})
 		if err != nil {
 			return err
 		}
 		if e.jsonOut() {
 			return render.JSON(e.out, raw)
-		}
-		var out struct {
-			ExternalID string `json:"external_id"`
-		}
-		if err := json.Unmarshal(raw, &out); err != nil {
-			return err
 		}
 		_, _ = fmt.Fprintln(e.out, out.ExternalID)
 		return nil
@@ -616,14 +587,4 @@ func recentPrincipalRejects(rejects []doctorReject) (string, string, int) {
 		}
 	}
 	return best.code, best.kind, total
-}
-
-func principalKinds(p map[string]any) []string {
-	kinds, _ := p["kinds"].(map[string]any)
-	out := make([]string, 0, len(kinds))
-	for k := range kinds {
-		out = append(out, k)
-	}
-	sort.Strings(out)
-	return out
 }

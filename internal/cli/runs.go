@@ -2,8 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"net/url"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -41,16 +39,12 @@ func newRunListCmd(e *env) *cobra.Command {
 				return err
 			}
 			params := client.RunsParams{Limit: f.limit, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Reviewed: f.reviewed, Before: f.before, Session: f.session, Project: e.scopeProject(), Tenant: e.scopeTenant()}
-			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "GET", "/api/v1/runs"+queryString(params), nil)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			resp, err := c.Runs(e.ctx(), params)
+			resp, raw, err := c.Runs(e.ctx(), params)
 			if err != nil {
 				return err
+			}
+			if render.IsJSON(e.mode(), e.out) {
+				return render.JSON(e.out, raw)
 			}
 			render.Runs(e.out, resp)
 			return nil
@@ -80,48 +74,4 @@ func validateRunFilters(outcome, learning string) error {
 		return fmt.Errorf("invalid --learning %q (want any, feedback, sent_delta, triage_skipped, or triage_corrected)", learning)
 	}
 	return nil
-}
-
-// queryString builds the /api/v1/runs query for the raw passthrough path, mirroring client.Runs so
-// JSON and table modes hit the identical URL. Kept here (not in client) because it's only the
-// passthrough path that needs a pre-built string.
-func queryString(p client.RunsParams) string {
-	q := url.Values{}
-	if p.Limit > 0 {
-		q.Set("limit", strconv.Itoa(p.Limit))
-	}
-	if p.Days > 0 {
-		q.Set("days", strconv.Itoa(p.Days))
-	}
-	if p.Kind != "" {
-		q.Set("kind", p.Kind)
-	}
-	if p.Category != "" {
-		q.Set("category", p.Category)
-	}
-	if p.Outcome != "" {
-		q.Set("outcome", p.Outcome)
-	}
-	if p.Learning != "" {
-		q.Set("learning", p.Learning)
-	}
-	if p.Reviewed {
-		q.Set("reviewed", "true")
-	}
-	if p.Before != "" {
-		q.Set("before", p.Before)
-	}
-	if p.Session != "" {
-		q.Set("session", p.Session)
-	}
-	if p.Project != "" {
-		q.Set("project", p.Project)
-	}
-	if p.Tenant != "" {
-		q.Set("tenant", p.Tenant)
-	}
-	if enc := q.Encode(); enc != "" {
-		return "?" + enc
-	}
-	return ""
 }

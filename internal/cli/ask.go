@@ -141,7 +141,7 @@ func newAskCmd(e *env) *cobra.Command {
 			// JSON remains a verbatim passthrough of /runs/{id}. Table mode is scenario-aware: email tries
 			// the richer /trace bundle for draft/note bodies, raw stays the lean single-answer view.
 			if jsonMode {
-				raw, err := c.Raw(e.ctx(), "GET", client.RunPath(detail.RunID, e.scopeProject(), e.scopeTenant()), nil)
+				_, raw, err := c.RunWithRaw(e.ctx(), detail.RunID, e.scopeProject(), e.scopeTenant())
 				if err != nil {
 					return err
 				}

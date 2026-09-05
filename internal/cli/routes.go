@@ -1,26 +1,8 @@
 package cli
 
 import (
-	"encoding/json"
-	"net/http"
-
 	"github.com/spf13/cobra"
 )
-
-type routeManifest struct {
-	Routes []apiRoute `json:"routes"`
-}
-
-type apiRoute struct {
-	Method     string   `json:"method"`
-	Path       string   `json:"path"`
-	Summary    string   `json:"summary"`
-	Auth       string   `json:"auth"`
-	Scopes     []string `json:"scopes,omitempty"`
-	Request    string   `json:"request,omitempty"`
-	Response   string   `json:"response,omitempty"`
-	Deprecated bool     `json:"deprecated,omitempty"`
-}
 
 func newRoutesCmd(e *env) *cobra.Command {
 	return &cobra.Command{
@@ -32,16 +14,12 @@ func newRoutesCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Raw(e.ctx(), http.MethodGet, "/api/v1/meta/routes", nil)
+			manifest, raw, err := c.Routes(e.ctx())
 			if err != nil {
 				return err
 			}
 			if e.jsonOut() {
 				return e.renderJSON("routes", raw)
-			}
-			var manifest routeManifest
-			if err := json.Unmarshal(raw, &manifest); err != nil {
-				return err
 			}
 			for _, r := range manifest.Routes {
 				dep := ""
@@ -65,7 +43,7 @@ func newOpenAPICmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Raw(e.ctx(), http.MethodGet, "/api/v1/meta/openapi.json", nil)
+			raw, err := c.OpenAPI(e.ctx())
 			if err != nil {
 				return err
 			}

@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,15 +18,6 @@ import (
 // bag's base path — serves them all. The server owns the whitelist + validation; the CLI shapes the
 // sparse PATCH (schema-aware value coercion) and renders the result, JSON passthrough included.
 
-// bagPath builds the request path for a bag GET/PATCH, appending ?project= when an all-projects token is
-// targeting a specific project (mirrors client.bagURL for the raw JSON-passthrough path).
-func bagPath(base, project string) string {
-	if project == "" {
-		return base
-	}
-	return base + "?project=" + url.QueryEscape(project)
-}
-
 // newBagGetCmd builds the `get` subcommand for the bag at base (e.g. "/api/v1/kb").
 func newBagGetCmd(e *env, base string) *cobra.Command {
 	return &cobra.Command{
@@ -39,16 +29,12 @@ func newBagGetCmd(e *env, base string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "GET", bagPath(base, e.scopeProject()), nil)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			s, err := c.GetBag(e.ctx(), base, e.scopeProject())
+			s, raw, err := c.GetBag(e.ctx(), base, e.scopeProject())
 			if err != nil {
 				return err
+			}
+			if render.IsJSON(e.mode(), e.out) {
+				return render.JSON(e.out, raw)
 			}
 			render.Settings(e.out, s)
 			return nil
@@ -73,16 +59,12 @@ func newBagSetCmd(e *env, base string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if render.IsJSON(e.mode(), e.out) {
-				raw, err := c.Raw(e.ctx(), "PATCH", bagPath(base, e.scopeProject()), patch)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			s, err := c.PatchBag(e.ctx(), base, patch, e.scopeProject())
+			s, raw, err := c.PatchBag(e.ctx(), base, patch, e.scopeProject())
 			if err != nil {
 				return err
+			}
+			if render.IsJSON(e.mode(), e.out) {
+				return render.JSON(e.out, raw)
 			}
 			render.Settings(e.out, s)
 			return nil

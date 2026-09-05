@@ -147,7 +147,7 @@ func newTenantSettingsSchemaCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Raw(e.ctx(), "GET", "/api/v1/meta/schema", nil)
+			_, raw, err := c.GetSchema(e.ctx(), "", "")
 			if err != nil {
 				return err
 			}

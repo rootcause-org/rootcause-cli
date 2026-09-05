@@ -78,6 +78,12 @@ map. The rules that make the layering real:
   The client is OAuth-oblivious — it takes a `TokenSource`, all refresh policy lives in
   `internal/cli/tokensource.go`. Wire decoding only: client-side analysis over those raw rows
   (triage ordering, drift/attention counts, selector heuristics) lives in `internal/digest`.
+- Every endpoint method returns `(typed, json.RawMessage, error)` — the typed view AND the verbatim
+  body from **one** request. A command fetches once and picks the shape by output mode
+  (`if jsonMode { renderJSON(label, raw) } else { render.X(out, typed) }`); it never re-requests the
+  same endpoint to get the other shape, and it never builds a path/verb/body of its own. Endpoints with
+  no typed view (triage rules, dream evidence, the action-draft plane) still get a **named** method that
+  returns raw, so the path stays in `internal/client`.
 - `internal/render` holds no transport and no auth; renderers are pure functions of server rows, which is
   what makes them golden-testable. Every renderer is `func X(w io.Writer, typed …)` — no `*env`, no
   host lookups (PATH, `runtime.GOOS`, `time.Now`). When a view needs CLI-private state, `internal/cli`
@@ -177,7 +183,7 @@ redirect traffic. `.rootcause/local.toml` overlays `tenant` only.
 ## Adding a command
 
 1. Wire struct in the endpoint's `internal/client/<endpoint>_types.go` — field names match the server JSON exactly.
-2. Client method in `internal/client` (one method per endpoint).
+2. Client method in `internal/client` (one method per endpoint), returning `(typed, raw, error)`.
 3. Render function + golden fixture/test in `internal/render`.
 4. Cobra command in `surface.go`, plus a `commandScope` entry if it accepts any selector (without one it
    rejects all of them).

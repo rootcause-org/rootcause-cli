@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -25,8 +26,39 @@ func principalsPath(project string) string {
 	return "/api/v1/projects/" + url.PathEscape(project) + "/principals"
 }
 
-func (c *Client) ChatRaw(ctx context.Context, method, project, suffix string, body map[string]any) (json.RawMessage, error) {
-	return c.Raw(ctx, method, chatProjectPath(project, suffix), body)
+// One named method per chat control-plane endpoint: the path, verb and body shape stay in this
+// package, and each returns the verbatim body (plus a typed view where there is one) so a command
+// fetches ONCE and picks the shape by output mode.
+
+// ChatSettings fetches the project's chat config bag (GET /chat).
+func (c *Client) ChatSettings(ctx context.Context, project string) (*Settings, json.RawMessage, error) {
+	return fetchBoth[Settings](ctx, c, http.MethodGet, chatProjectPath(project, ""), nil)
+}
+
+// ChatSecretAction runs POST /chat/secret/{rotate|reveal} — the secret is returned once, in the clear.
+func (c *Client) ChatSecretAction(ctx context.Context, project, action string) (*ChatSecretResponse, json.RawMessage, error) {
+	return fetchBoth[ChatSecretResponse](ctx, c, http.MethodPost, chatProjectPath(project, "/secret/"+url.PathEscape(action)), map[string]any{})
+}
+
+// ChatSecretStatus fetches GET /chat/secret — where the signing secret comes from (dedicated vs the
+// webhook fallback), never the secret itself. Raw only: the diagnostic bundle carries it verbatim.
+func (c *Client) ChatSecretStatus(ctx context.Context, project string) (json.RawMessage, error) {
+	return c.Raw(ctx, http.MethodGet, chatProjectPath(project, "/secret"), nil)
+}
+
+// ChatToken mints a five-minute embed token (POST /chat/token).
+func (c *Client) ChatToken(ctx context.Context, project string, req ChatTokenRequest) (*ChatTokenResponse, json.RawMessage, error) {
+	return fetchBoth[ChatTokenResponse](ctx, c, http.MethodPost, chatProjectPath(project, "/token"), req)
+}
+
+// ChatRejects fetches GET /chat/rejects?limit= — why recent turns were refused. Raw only: the reject
+// rows are server-owned and the doctor bundle passes them through untouched.
+func (c *Client) ChatRejects(ctx context.Context, project string, limit int) (json.RawMessage, error) {
+	suffix := "/rejects"
+	if limit > 0 {
+		suffix += "?limit=" + strconv.Itoa(limit)
+	}
+	return c.Raw(ctx, http.MethodGet, chatProjectPath(project, suffix), nil)
 }
 
 // ChatBrief streams the server-owned secret-free Markdown handoff.
@@ -51,12 +83,21 @@ func (c *Client) ChatBrief(ctx context.Context, project, tenant, target, locale,
 	return c.Download(ctx, path, out)
 }
 
-func (c *Client) PrincipalsRaw(ctx context.Context, method, project string, body map[string]any) (json.RawMessage, error) {
-	return c.Raw(ctx, method, principalsPath(project), body)
+// Principals fetches GET /principals — the project's principal manifest.
+func (c *Client) Principals(ctx context.Context, project string) (*PrincipalManifest, json.RawMessage, error) {
+	return fetchBoth[PrincipalManifest](ctx, c, http.MethodGet, principalsPath(project), nil)
 }
 
-func (c *Client) PrincipalResolveRaw(ctx context.Context, project string, body map[string]any) (json.RawMessage, error) {
-	return c.Raw(ctx, http.MethodPost, principalsPath(project)+"/resolve", body)
+// SetPrincipals replaces the manifest (PATCH /principals). The body is server-validated and freeform,
+// so it rides through as given and the verbatim response comes back.
+func (c *Client) SetPrincipals(ctx context.Context, project string, body map[string]any) (json.RawMessage, error) {
+	return c.Raw(ctx, http.MethodPatch, principalsPath(project), body)
+}
+
+// ResolvePrincipal posts POST /principals/resolve — email (or pass-through external id) → the
+// canonical principal external id.
+func (c *Client) ResolvePrincipal(ctx context.Context, project string, req PrincipalResolveRequest) (*PrincipalResolveResponse, json.RawMessage, error) {
+	return fetchBoth[PrincipalResolveResponse](ctx, c, http.MethodPost, principalsPath(project)+"/resolve", req)
 }
 
 func (c *Client) ProbeWidgetLoader(ctx context.Context) (int, error) {

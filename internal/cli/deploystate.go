@@ -17,7 +17,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
@@ -42,13 +41,9 @@ func newDeployStateCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			raw, err := c.Raw(e.ctx(), "GET", client.DeployStatePath(history, e.scopeProject(), e.scopeTenant()), nil)
+			resp, raw, err := c.DeployState(e.ctx(), history, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
-			}
-			var resp client.DeployStateResponse
-			if uerr := json.Unmarshal(raw, &resp); uerr != nil {
-				return fmt.Errorf("decode deploy-state response: %w", uerr)
 			}
 
 			var unpromoted *render.HostUnpromoted
@@ -59,7 +54,7 @@ func newDeployStateCmd(e *env) *cobra.Command {
 			if e.jsonOut() {
 				return e.renderJSON("deploy-state", withUnpromoted(raw, unpromoted))
 			}
-			render.DeployState(e.out, &resp, unpromoted)
+			render.DeployState(e.out, resp, unpromoted)
 			return nil
 		},
 	}

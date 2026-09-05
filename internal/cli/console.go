@@ -3,8 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 
 	"github.com/spf13/cobra"
 
@@ -23,17 +21,12 @@ func newCapabilitiesCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/console/capabilities" + consoleScope(e.scopeProject(), e.scopeTenant())
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-capabilities", raw)
-			}
-			resp, err := c.Capabilities(e.ctx(), e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.Capabilities(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("console-capabilities", raw)
 			}
 			render.Capabilities(e.out, resp)
 			return nil
@@ -53,17 +46,12 @@ func newConsoleDatabaseCmd(e *env) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				path := "/api/v1/console/db" + consoleScope(e.scopeProject(), e.scopeTenant())
-				if e.jsonOut() {
-					raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
-					if err != nil {
-						return err
-					}
-					return e.renderJSON("console-db-list", raw)
-				}
-				resp, err := c.DBList(e.ctx(), e.scopeProject(), e.scopeTenant())
+				resp, raw, err := c.DBList(e.ctx(), e.scopeProject(), e.scopeTenant())
 				if err != nil {
 					return err
+				}
+				if e.jsonOut() {
+					return e.renderJSON("console-db-list", raw)
 				}
 				render.DBList(e.out, resp)
 				return nil
@@ -86,17 +74,12 @@ func newDBSchemaCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/console/db/" + url.PathEscape(args[0]) + "/schema" + consoleScopeWithTable(e.scopeProject(), e.scopeTenant(), table)
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-db-schema", raw)
-			}
-			resp, err := c.DBSchema(e.ctx(), args[0], table, e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.DBSchema(e.ctx(), args[0], table, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("console-db-schema", raw)
 			}
 			render.DBSchema(e.out, resp)
 			return nil
@@ -285,17 +268,12 @@ func newBashCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/console/bash" + consoleScope(e.scopeProject(), e.scopeTenant())
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-bash-list", raw)
-			}
-			resp, err := c.BashList(e.ctx(), e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.BashList(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("console-bash-list", raw)
 			}
 			render.BashList(e.out, resp)
 			return nil
@@ -316,30 +294,21 @@ func newBashCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/console/bash/run" + consoleScope(e.scopeProject(), e.scopeTenant())
-			body := map[string]any{"command": command}
-			if timeout > 0 {
-				body["timeout_s"] = timeout
-			}
-			raw, err := c.Raw(e.ctx(), http.MethodPost, path, body)
+			resp, raw, err := c.BashRun(e.ctx(), client.BashRunRequest{Command: command, TimeoutS: timeout}, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
-			var resp client.BashRunResponse
-			if err := json.Unmarshal(raw, &resp); err != nil {
-				return fmt.Errorf("decode bash run response: %w", err)
-			}
 			if out == "" {
 				if e.jsonOut() {
-					if err := e.renderJSON(bashRunLabel(&resp), raw); err != nil {
+					if err := e.renderJSON(bashRunLabel(resp), raw); err != nil {
 						return err
 					}
 				} else {
-					manifest, err := outputspill.MaybeSpillJSON(e.spillConfig(), bashRunLabel(&resp), raw)
+					manifest, err := outputspill.MaybeSpillJSON(e.spillConfig(), bashRunLabel(resp), raw)
 					if err != nil {
 						return err
 					}
-					render.BashRun(e.out, &resp, bashArtifacts(manifest))
+					render.BashRun(e.out, resp, bashArtifacts(manifest))
 				}
 			} else {
 				format := "text"
@@ -431,17 +400,12 @@ func actionListCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/console/action" + consoleScope(e.scopeProject(), e.scopeTenant())
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-action-list", raw)
-			}
-			resp, err := c.ActionList(e.ctx(), e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.ActionList(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("console-action-list", raw)
 			}
 			render.ActionList(e.out, resp)
 			return nil
@@ -459,17 +423,12 @@ func actionShowCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := "/api/v1/console/action/" + url.PathEscape(args[0]) + consoleScope(e.scopeProject(), e.scopeTenant())
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, path, nil)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-action-show-"+args[0], raw)
-			}
-			resp, err := c.ActionShow(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.ActionShow(e.ctx(), args[0], e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("console-action-show-"+args[0], raw)
 			}
 			render.ActionShow(e.out, resp)
 			return nil
@@ -500,24 +459,19 @@ func actionExecCmd(e *env, dry bool) *cobra.Command {
 					return fmt.Errorf("parse --params JSON: %w", err)
 				}
 			}
-			body := map[string]any{"params": p}
-			path := "/api/v1/console/action/" + url.PathEscape(args[0]) + "/" + verb + consoleScope(e.scopeProject(), e.scopeTenant())
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodPost, path, body)
-				if err != nil {
-					return err
-				}
-				return e.renderJSON("console-action-"+verb+"-"+args[0], raw)
-			}
 			req := client.ActionExecRequest{Params: p}
 			var resp *client.ActionExecResponse
+			var raw json.RawMessage
 			if dry {
-				resp, err = c.ActionPreflight(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
+				resp, raw, err = c.ActionPreflight(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
 			} else {
-				resp, err = c.ActionRun(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
+				resp, raw, err = c.ActionRun(e.ctx(), args[0], req, e.scopeProject(), e.scopeTenant())
 			}
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return e.renderJSON("console-action-"+verb+"-"+args[0], raw)
 			}
 			render.ActionExec(e.out, resp)
 			return nil
@@ -527,46 +481,8 @@ func actionExecCmd(e *env, dry bool) *cobra.Command {
 	return cmd
 }
 
-func consoleScope(project, tenant string) string {
-	q := url.Values{}
-	if project != "" {
-		q.Set("project", project)
-	}
-	if tenant != "" {
-		q.Set("tenant", tenant)
-	}
-	if enc := q.Encode(); enc != "" {
-		return "?" + enc
-	}
-	return ""
-}
-
-func consoleScopeWithTable(project, tenant, table string) string {
-	q := url.Values{}
-	if project != "" {
-		q.Set("project", project)
-	}
-	if tenant != "" {
-		q.Set("tenant", tenant)
-	}
-	if table != "" {
-		q.Set("table", table)
-	}
-	if enc := q.Encode(); enc != "" {
-		return "?" + enc
-	}
-	return ""
-}
-
 func bashRunLabel(r *client.BashRunResponse) string {
-	id := r.RunID
-	if len(id) > 8 {
-		id = id[:8]
-	}
-	if id == "" {
-		id = "unknown"
-	}
-	return fmt.Sprintf("bash-run-%s-seq-%d", id, r.Seq)
+	return fmt.Sprintf("bash-run-%s-seq-%d", shortRunID(r.RunID), r.Seq)
 }
 
 // bashArtifacts maps the spill manifest's stdout/stderr entries into render's own artifact type, so

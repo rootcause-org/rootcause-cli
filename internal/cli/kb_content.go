@@ -286,7 +286,7 @@ func runKBAll(e *env, c *client.Client, provider string) (*kbSearchResponse, err
 }
 
 func runKBScript(e *env, c *client.Client, script string, timeout int) (*client.BashRunResponse, error) {
-	resp, err := c.BashRun(e.ctx(), client.BashRunRequest{Command: script, TimeoutS: timeout}, e.scopeProject(), e.scopeTenant())
+	resp, _, err := c.BashRun(e.ctx(), client.BashRunRequest{Command: script, TimeoutS: timeout}, e.scopeProject(), e.scopeTenant())
 	if err != nil {
 		return nil, err
 	}

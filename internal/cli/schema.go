@@ -3,8 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 
 	"github.com/spf13/cobra"
 
@@ -29,16 +27,12 @@ func newSchemaCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, schemaPath(resource, e.scopeProject()), nil)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			resp, err := c.GetSchema(e.ctx(), resource, e.scopeProject())
+			resp, raw, err := c.GetSchema(e.ctx(), resource, e.scopeProject())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
 			}
 			render.Schema(e.out, resp)
 			return nil
@@ -59,7 +53,7 @@ func newExplainCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, err := c.GetSchema(e.ctx(), "", e.scopeProject())
+			resp, _, err := c.GetSchema(e.ctx(), "", e.scopeProject())
 			if err != nil {
 				return err
 			}
@@ -93,16 +87,12 @@ func newAccessCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if e.jsonOut() {
-				raw, err := c.Raw(e.ctx(), http.MethodGet, accessPath(e.scopeProject()), nil)
-				if err != nil {
-					return err
-				}
-				return render.JSON(e.out, raw)
-			}
-			resp, err := c.GetAccess(e.ctx(), e.scopeProject())
+			resp, raw, err := c.GetAccess(e.ctx(), e.scopeProject())
 			if err != nil {
 				return err
+			}
+			if e.jsonOut() {
+				return render.JSON(e.out, raw)
 			}
 			render.Access(e.out, resp)
 			return nil
@@ -120,25 +110,4 @@ func findField(resp *client.SchemaResponse, key string) (string, client.FieldSch
 		}
 	}
 	return "", client.FieldSchema{}, false
-}
-
-func schemaPath(resource, project string) string {
-	q := url.Values{}
-	if resource != "" {
-		q.Set("resource", resource)
-	}
-	if project != "" {
-		q.Set("project", project)
-	}
-	if e := q.Encode(); e != "" {
-		return "/api/v1/meta/schema?" + e
-	}
-	return "/api/v1/meta/schema"
-}
-
-func accessPath(project string) string {
-	if project == "" {
-		return "/api/v1/meta/capabilities"
-	}
-	return "/api/v1/meta/capabilities?project=" + url.QueryEscape(project)
 }

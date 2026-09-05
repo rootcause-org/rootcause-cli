@@ -185,7 +185,7 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 			// Validate against the server's self-describing registry, never a baked-in key list: one
 			// fetch, before the PATCH. A set needs the network anyway, so a discovery failure is a hard
 			// error — silently skipping validation would turn a typo into a confusing server 400.
-			schemaResp, err := c.GetSchema(e.ctx(), "", project)
+			schemaResp, _, err := c.GetSchema(e.ctx(), "", project)
 			if err != nil {
 				return err
 			}

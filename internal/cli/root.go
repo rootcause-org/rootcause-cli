@@ -396,7 +396,7 @@ func (e *env) validateProjectScope(c *client.Client) error {
 	if project == "" {
 		return nil
 	}
-	resp, err := c.Projects(e.ctx())
+	resp, _, err := c.Projects(e.ctx())
 	if err != nil {
 		return err
 	}

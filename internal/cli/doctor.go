@@ -170,7 +170,7 @@ func serverHarvestCorpusFormat(e *env) (format, note string) {
 	}
 	ctx, cancel := context.WithTimeout(e.ctx(), 5*time.Second)
 	defer cancel()
-	access, err := c.GetAccess(ctx, e.scopeProject())
+	access, _, err := c.GetAccess(ctx, e.scopeProject())
 	if err != nil {
 		return "", "server capability check skipped: " + err.Error()
 	}
