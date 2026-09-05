@@ -98,7 +98,7 @@ func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
 		if err := updateHomebrew(e); err != nil {
 			return err
 		}
-		canonical, gotVersion, err := verifyHomebrewLatest(e.ctx(), latest)
+		_, canonical, gotVersion, err := verifyHomebrewLatest(e.ctx(), latest)
 		if err != nil {
 			return err
 		}
@@ -182,20 +182,10 @@ func migrateToHomebrew(e *env, latest string, inv rcInstallInventory) error {
 	if err := updateHomebrew(e); err != nil {
 		return err
 	}
-	canonical, gotVersion, err := verifyHomebrewLatest(e.ctx(), latest)
+	canonicalLink, canonical, gotVersion, err := verifyHomebrewLatest(e.ctx(), latest)
 	if err != nil {
 		return err
 	}
-	brew, err := exec.LookPath("brew")
-	if err != nil {
-		return err
-	}
-	prefixCmd := exec.CommandContext(e.ctx(), brew, "--prefix")
-	prefix, err := prefixCmd.Output()
-	if err != nil {
-		return fmt.Errorf("brew --prefix: %w", err)
-	}
-	canonicalLink := filepath.Join(strings.TrimSpace(string(prefix)), "bin", binaryName(runtime.GOOS))
 
 	removed, err := removeVerifiedLegacyGoBinaries(legacyGoBinaryCandidates(inv), canonical, isRootcauseGoBinary, os.Remove)
 	if err != nil {
@@ -221,26 +211,29 @@ func migrateToHomebrew(e *env, latest string, inv rcInstallInventory) error {
 	return nil
 }
 
-func verifyHomebrewLatest(ctx context.Context, latest string) (string, string, error) {
+// verifyHomebrewLatest locates the Homebrew rc (<brew --prefix>/bin/rc), checks it really is the
+// published latest, and returns the brew link, its resolved target and the version it reported — the
+// caller needs all three and must not re-run brew discovery.
+func verifyHomebrewLatest(ctx context.Context, latest string) (canonicalLink, canonical, gotVersion string, err error) {
 	brew, err := exec.LookPath("brew")
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	prefixCmd := exec.CommandContext(ctx, brew, "--prefix")
 	prefix, err := prefixCmd.Output()
 	if err != nil {
-		return "", "", fmt.Errorf("brew --prefix: %w", err)
+		return "", "", "", fmt.Errorf("brew --prefix: %w", err)
 	}
-	canonicalLink := filepath.Join(strings.TrimSpace(string(prefix)), "bin", binaryName(runtime.GOOS))
-	canonical := resolvePath(canonicalLink)
-	gotVersion, err := installedBinaryVersion(ctx, canonicalLink)
+	canonicalLink = filepath.Join(strings.TrimSpace(string(prefix)), "bin", binaryName(runtime.GOOS))
+	canonical = resolvePath(canonicalLink)
+	gotVersion, err = installedBinaryVersion(ctx, canonicalLink)
 	if err != nil {
-		return "", "", fmt.Errorf("verifying Homebrew rc at %s: %w", canonicalLink, err)
+		return "", "", "", fmt.Errorf("verifying Homebrew rc at %s: %w", canonicalLink, err)
 	}
 	if compareVersions(gotVersion, latest) != 0 {
-		return "", "", fmt.Errorf("homebrew rc is %s after upgrade, but published latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest))
+		return "", "", "", fmt.Errorf("homebrew rc is %s after upgrade, but published latest is %s; refusing to continue", normVersion(gotVersion), normVersion(latest))
 	}
-	return canonical, gotVersion, nil
+	return canonicalLink, canonical, gotVersion, nil
 }
 
 func installedBinaryVersion(ctx context.Context, path string) (string, error) {

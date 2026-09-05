@@ -45,34 +45,20 @@ func inspectRCInstallations(runningPath, pathValue, goos string) rcInstallInvent
 	runningPath = absoluteClean(runningPath)
 	runningResolved := resolvePath(runningPath)
 	inv := rcInstallInventory{RunningPath: runningResolved}
-	name := "rc"
-	if goos == "windows" {
-		name = "rc.exe"
-	}
 
-	seenPath := make(map[string]bool)
-	for _, dir := range filepath.SplitList(pathValue) {
-		if dir == "" {
-			dir = "."
-		}
-		candidate := absoluteClean(filepath.Join(dir, name))
-		if seenPath[candidate] || !isExecutableFile(candidate, goos) {
-			continue
-		}
-		seenPath[candidate] = true
-		resolved := resolvePath(candidate)
-		kind := classifyInstallPath(candidate, resolved)
+	for _, cand := range scanPathRC(pathValue, goos) {
+		kind := classifyInstallPath(cand.Path, cand.Resolved)
 		entry := rcInstallPath{
-			Path:         candidate,
-			ResolvedPath: resolved,
+			Path:         cand.Path,
+			ResolvedPath: cand.Resolved,
 			Kind:         kind,
-			Selected:     len(inv.Paths) == 0,
-			Shadowed:     len(inv.Paths) > 0,
+			Selected:     cand.Selected,
+			Shadowed:     !cand.Selected,
 			Shim:         kind == installMiseShim,
 		}
-		entry.Running = samePath(candidate, runningPath) || samePath(resolved, runningResolved)
+		entry.Running = samePath(cand.Path, runningPath) || samePath(cand.Resolved, runningResolved)
 		if entry.Selected {
-			inv.SelectedPath = candidate
+			inv.SelectedPath = cand.Path
 		}
 		inv.Paths = append(inv.Paths, entry)
 	}
@@ -101,6 +87,43 @@ func inspectRCInstallations(runningPath, pathValue, goos string) rcInstallInvent
 	inv.CanonicalPath = chooseCanonicalInstall(inv.Paths, goos)
 	inv.RunningShadowed = runningIsShadowed(inv, runningResolved)
 	return inv
+}
+
+// pathRCCandidate is one executable named rc (rc.exe on Windows) reachable from PATH, in PATH order.
+// Selected marks the first one — the copy a bare `rc` would run.
+type pathRCCandidate struct {
+	Path     string
+	Resolved string
+	Selected bool
+}
+
+// scanPathRC is the ONE PATH inventory in the self-update/doctor plane: it walks pathValue in order,
+// keeps every executable rc, dedupes by absolute path and resolves symlinks. Deliberately it does not
+// classify — the two consumers ask different questions of the same list. `rc self update`
+// (inspectRCInstallations) classifies by path SHAPE (classifyInstallPath: homebrew/go/mise-shim/
+// standalone) to decide what shadows what, without reading any binary. `rc self doctor`
+// (scanPathBinaries) reads each binary's embedded build info to report PROVENANCE (classifyInstall:
+// release/go-install/source/homebrew). Keep the walk shared; keep the two classifications apart.
+func scanPathRC(pathValue, goos string) []pathRCCandidate {
+	name := binaryName(goos)
+	seen := make(map[string]bool)
+	out := make([]pathRCCandidate, 0)
+	for _, dir := range filepath.SplitList(pathValue) {
+		if dir == "" {
+			dir = "."
+		}
+		candidate := absoluteClean(filepath.Join(dir, name))
+		if seen[candidate] || !isExecutableFile(candidate, goos) {
+			continue
+		}
+		seen[candidate] = true
+		out = append(out, pathRCCandidate{
+			Path:     candidate,
+			Resolved: resolvePath(candidate),
+			Selected: len(out) == 0,
+		})
+	}
+	return out
 }
 
 func absoluteClean(path string) string {

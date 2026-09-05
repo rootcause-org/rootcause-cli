@@ -330,11 +330,11 @@ func TestVerifyHomebrewLatestChecksCanonicalVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", filepath.Dir(brew))
-	canonical, version, err := verifyHomebrewLatest(context.Background(), "v1.1.4")
-	if err != nil || version != "1.1.4" || canonical != resolvePath(rc) {
-		t.Fatalf("verify = %q, %q, %v", canonical, version, err)
+	link, canonical, version, err := verifyHomebrewLatest(context.Background(), "v1.1.4")
+	if err != nil || version != "1.1.4" || canonical != resolvePath(rc) || link != rc {
+		t.Fatalf("verify = %q, %q, %q, %v", link, canonical, version, err)
 	}
-	if _, _, err := verifyHomebrewLatest(context.Background(), "v1.1.5"); err == nil {
+	if _, _, _, err := verifyHomebrewLatest(context.Background(), "v1.1.5"); err == nil {
 		t.Fatal("expected stale Homebrew version to fail verification")
 	}
 }

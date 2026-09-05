@@ -3,6 +3,8 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -100,6 +102,33 @@ func TestInspectRCInstallationsTreatsSelectedMiseShimAsShadowingAbsoluteHomebrew
 	}
 }
 
+// TestPathInventoryIsSharedByUpdateAndDoctor: `rc self update` refuses and points at `rc self doctor`,
+// so the two must never disagree about WHICH rc copies are on PATH. They share scanPathRC; only the
+// classification differs (path shape vs build-info provenance).
+func TestPathInventoryIsSharedByUpdateAndDoctor(t *testing.T) {
+	root := t.TempDir()
+	first := executableFile(t, filepath.Join(root, "a", "rc"))
+	second := executableFile(t, filepath.Join(root, "b", "rc"))
+	pathValue := strings.Join([]string{
+		filepath.Dir(first), filepath.Dir(second), filepath.Dir(first), // duplicate dir must dedupe
+	}, string(os.PathListSeparator))
+
+	var update []string
+	for _, p := range inspectRCInstallations(first, pathValue, runtime.GOOS).Paths {
+		update = append(update, p.Path)
+	}
+	var doctor []string
+	for _, b := range scanPathBinaries(pathValue, binaryInfo{Path: first}, runtime.GOOS) {
+		doctor = append(doctor, b.Path)
+	}
+	want := []string{first, second}
+	if !slices.Equal(update, want) || !slices.Equal(doctor, want) {
+		t.Fatalf("update=%v doctor=%v, want both %v", update, doctor, want)
+	}
+}
+
+// TestClassifyInstallPath pins the path-SHAPE classifier `rc self update` uses (no binary is read).
+// Doctor's build-info provenance classifier is a different question; see TestClassifyInstall.
 func TestClassifyInstallPath(t *testing.T) {
 	cases := []struct {
 		path, resolved string

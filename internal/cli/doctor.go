@@ -269,32 +269,16 @@ func ldflagsVersion(bi *debug.BuildInfo) string {
 	return ""
 }
 
+// scanPathBinaries is doctor's view of the shared PATH walk (scanPathRC, install.go): it reads each
+// candidate's embedded build info to report provenance and version. `rc self update` reads the same
+// walk through inspectRCInstallations, which classifies by path shape instead.
 func scanPathBinaries(pathEnv string, current binaryInfo, goos string) []binaryInfo {
-	name := binaryName(goos)
-	seen := make(map[string]bool)
 	copies := make([]binaryInfo, 0)
-	for _, dir := range filepath.SplitList(pathEnv) {
-		if dir == "" {
-			dir = "."
-		}
-		candidate := filepath.Clean(filepath.Join(dir, name))
-		if abs, err := filepath.Abs(candidate); err == nil {
-			candidate = abs
-		}
-		if seen[candidate] {
-			continue
-		}
-		seen[candidate] = true
-		stat, err := os.Stat(candidate)
-		if err != nil || stat.IsDir() || (goos != "windows" && stat.Mode().Perm()&0o111 == 0) {
-			continue
-		}
-
-		active := len(copies) == 0
-		if active && isMiseDispatcher(candidate) {
+	for _, cand := range scanPathRC(pathEnv, goos) {
+		if cand.Selected && isMiseDispatcher(cand.Path, cand.Resolved) {
 			if isMiseInstalledRC(current.Path) {
 				info := current
-				info.Path = candidate
+				info.Path = cand.Path
 				info.ResolvedPath = current.Path
 				info.Active = true
 				info.Dispatcher = true
@@ -303,7 +287,7 @@ func scanPathBinaries(pathEnv string, current binaryInfo, goos string) []binaryI
 				copies = append(copies, info)
 				continue
 			}
-			info := readPathBinary(candidate)
+			info := readPathBinary(cand.Path, cand.Resolved)
 			info.Active = true
 			info.Dispatcher = true
 			info.Note = "mise dispatcher; selected rc cannot be resolved safely from this invocation"
@@ -311,19 +295,15 @@ func scanPathBinaries(pathEnv string, current binaryInfo, goos string) []binaryI
 			continue
 		}
 
-		info := readPathBinary(candidate)
-		info.Active = active
+		info := readPathBinary(cand.Path, cand.Resolved)
+		info.Active = cand.Selected
 		info.Hint = remediationHint(info)
 		copies = append(copies, info)
 	}
 	return copies
 }
 
-func readPathBinary(path string) binaryInfo {
-	resolved := path
-	if real, err := filepath.EvalSymlinks(path); err == nil {
-		resolved = real
-	}
+func readPathBinary(path, resolved string) binaryInfo {
 	bi, err := debugbuildinfo.ReadFile(path)
 	if err != nil {
 		return binaryInfo{Path: path, ResolvedPath: differentPath(path, resolved), Version: "unknown", Install: "unknown", ReadError: err.Error()}
@@ -341,12 +321,11 @@ func differentPath(path, resolved string) string {
 	return ""
 }
 
-func isMiseDispatcher(path string) bool {
-	if !strings.Contains(filepath.ToSlash(path), "/mise/shims/") {
-		return false
-	}
-	resolved, err := filepath.EvalSymlinks(path)
-	return err == nil && filepath.Base(resolved) == "mise"
+// isMiseDispatcher is narrower than install.go's isMiseShim on purpose: doctor only substitutes the
+// running binary's info for a shim it can PROVE dispatches through mise (shims dir AND resolves to the
+// mise executable), where install.go treats either signal as "this is a selector, not an install".
+func isMiseDispatcher(path, resolved string) bool {
+	return strings.Contains(filepath.ToSlash(path), "/mise/shims/") && filepath.Base(resolved) == "mise"
 }
 
 func isMiseInstalledRC(path string) bool {

@@ -182,6 +182,9 @@ func TestLDFlagsVersion(t *testing.T) {
 	}
 }
 
+// TestClassifyInstall pins doctor's build-info PROVENANCE classifier. The sibling path-shape
+// classifier `rc self update` uses is pinned by TestClassifyInstallPath; they share the PATH walk
+// (scanPathRC), not the taxonomy.
 func TestClassifyInstall(t *testing.T) {
 	goInstall := &debug.BuildInfo{Main: debug.Module{Version: "v1.2.3"}}
 	source := &debug.BuildInfo{Main: debug.Module{Version: "(devel)"}}
