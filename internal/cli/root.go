@@ -37,7 +37,6 @@ type env struct {
 	noPreview  bool   // --no-preview: suppress head/tail previews in spill manifests
 	rawOutput  bool   // --raw-output: exact full stdout, disabling spill manifests
 	baseURLOvr string // test-only override of the resolved base URL; empty in normal use
-	tokenOvr   string // test-only static bearer; bypasses the token store + refresh
 
 	out io.Writer
 	err io.Writer
@@ -49,6 +48,11 @@ type env struct {
 
 	// latestRelease is the self-doctor test seam; nil uses the GitHub releases API.
 	latestRelease func(context.Context) (string, error)
+
+	// tokenSource is the credential seam: nil uses the production ladder (storedTokenSource — token
+	// store, machine-token seeding, brain→default fallback). Tests inject a static source so ONLY the
+	// credential lookup is stubbed; everything newClient does after it runs exactly as in production.
+	tokenSource tokenSourceFactory
 
 	// resolved is the config resolved by the last newClient call, so a command can read local overrides
 	// and the resolved profile without re-loading.
@@ -181,8 +185,11 @@ func (e *env) mode() render.Mode {
 // newClient resolves config for the selected profile and builds an OAuth-authenticated client. The
 // bearer comes from the token store (refreshed transparently); it errors clearly with a "run `rc auth login`"
 // prompt when there's no stored token. --project is NOT resolved here — it's a server-side scope the
-// commands thread into each read request (see scopeProject). The base URL and token can be overridden in
-// tests.
+// commands thread into each read request (see scopeProject).
+//
+// One path only: the credential comes from e.tokenSource (nil → storedTokenSource), and everything after
+// it — machine-token check, tenant→project resolution, scope header, project validation, selector
+// enforcement — runs identically in tests and production. Tests replace the credential, never the order.
 func (e *env) newClient() (*client.Client, error) {
 	res, err := config.Load(e.profile)
 	if err != nil {
@@ -198,42 +205,17 @@ func (e *env) newClient() (*client.Client, error) {
 		e.resolved = res
 	}
 
-	// Test seam: a fixed bearer bypasses the token store + refresh entirely.
-	if e.tokenOvr != "" {
-		c := client.New(baseURL, client.StaticToken(e.tokenOvr))
-		e.resolveScopeHeader(c)
-		if err := e.validateProjectScope(c); err != nil {
-			return nil, err
-		}
-		if err := e.enforceScopeSelector(c); err != nil {
-			return nil, err
-		}
-		return c, nil
+	newSource := e.tokenSource
+	if newSource == nil {
+		newSource = e.storedTokenSource
 	}
-
-	_, ok, err := loadResolvedToken(res, baseURL)
+	src, err := newSource(&res, baseURL)
 	if err != nil {
-		if res.Brain != nil && res.Brain.MachineTokenEnv != "" {
-			return nil, authenticationError(err.Error())
-		}
 		return nil, err
 	}
-	if !ok {
-		if e.profile == "" && res.Brain != nil {
-			if _, fallbackOK, ferr := token.Load(config.DefaultProfile); ferr != nil {
-				return nil, ferr
-			} else if fallbackOK {
-				res.Profile = config.DefaultProfile
-				e.autoProject = res.Brain.Project
-				e.resolved = res
-				ok = true
-			}
-		}
-	}
-	if !ok {
-		return nil, notLoggedIn(res)
-	}
-	c := client.New(baseURL, newLiveSource(res.Profile, baseURL))
+	e.resolved = res // the factory may re-point the profile (brain → default fallback)
+
+	c := client.New(baseURL, src)
 	if machineTokenEnvActive(res) {
 		scope, scopeErr := c.Whoami(e.ctx())
 		if scopeErr != nil {
@@ -254,6 +236,36 @@ func (e *env) newClient() (*client.Client, error) {
 		return nil, err
 	}
 	return c, nil
+}
+
+// tokenSourceFactory yields the bearer source for a resolved profile. It may mutate res (the brain→default
+// profile fallback re-points res.Profile) — newClient re-publishes it as e.resolved afterwards.
+type tokenSourceFactory func(res *config.Resolved, baseURL string) (client.TokenSource, error)
+
+// storedTokenSource is the production credential ladder: the profile's stored token (seeded from a
+// machine-token env var when the brain declares one), else — inside a brain, with no explicit --profile —
+// the default profile, keeping the checkout's project as the scope.
+func (e *env) storedTokenSource(res *config.Resolved, baseURL string) (client.TokenSource, error) {
+	_, ok, err := loadResolvedToken(*res, baseURL)
+	if err != nil {
+		if res.Brain != nil && res.Brain.MachineTokenEnv != "" {
+			return nil, authenticationError(err.Error())
+		}
+		return nil, err
+	}
+	if !ok && e.profile == "" && res.Brain != nil {
+		if _, fallbackOK, ferr := token.Load(config.DefaultProfile); ferr != nil {
+			return nil, ferr
+		} else if fallbackOK {
+			res.Profile = config.DefaultProfile
+			e.autoProject = res.Brain.Project
+			ok = true
+		}
+	}
+	if !ok {
+		return nil, notLoggedIn(*res)
+	}
+	return newLiveSource(res.Profile, baseURL), nil
 }
 
 // enforceScopeSelector fails closed when --scope tenant is set but no tenant is resolvable. It runs

@@ -454,7 +454,7 @@ func TestMirrorRefreshRejectsInvalidSHAAndTenantSelector(t *testing.T) {
 		{"tenant selector", []string{"--tenant", "de-kies", "dev", "mirror", "refresh", "--repo", "common", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "--tenant is not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenOvr: "test", baseURLOvr: "http://127.0.0.1:1", output: "table"}
+			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenSource: testTokenSource("test"), baseURLOvr: "http://127.0.0.1:1", output: "table"}
 			err := run(t, e, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
@@ -474,7 +474,7 @@ func TestBrainPromoteRejectsInvalidInputsAndTenantSelector(t *testing.T) {
 		{"tenant selector", []string{"--tenant", "de-kies", "dev", "brain", "promote", "--channel", "stable", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "--tenant is not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenOvr: "test", baseURLOvr: "http://127.0.0.1:1", output: "table"}
+			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenSource: testTokenSource("test"), baseURLOvr: "http://127.0.0.1:1", output: "table"}
 			err := run(t, e, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
@@ -634,7 +634,7 @@ func TestBrainPublishRejectsInvalidInputsAndTenantSelectors(t *testing.T) {
 		{"scope tenant", []string{"--scope", "tenant", "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA}, "--scope tenant is not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenOvr: "test", baseURLOvr: "http://127.0.0.1:1", output: "table"}
+			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenSource: testTokenSource("test"), baseURLOvr: "http://127.0.0.1:1", output: "table"}
 			err := run(t, e, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)

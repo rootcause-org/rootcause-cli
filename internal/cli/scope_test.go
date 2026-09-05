@@ -3,14 +3,18 @@ package cli
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/config"
+	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
 func TestEveryExecutableCommandDeclaresScope(t *testing.T) {
@@ -81,7 +85,7 @@ func TestUnsupportedSelectorsFailBeforeRequest(t *testing.T) {
 		{name: "tenant record ambient", args: []string{"--tenant", "acme", "project", "tenant", "profile", "get", "acme"}, want: "--tenant is not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+			e := &env{baseURLOvr: "http://127.0.0.1:1", tokenSource: testTokenSource("test"), out: &strings.Builder{}, err: &strings.Builder{}}
 			err := run(t, e, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)
@@ -92,7 +96,7 @@ func TestUnsupportedSelectorsFailBeforeRequest(t *testing.T) {
 
 func TestAllRejectsNarrowerScope(t *testing.T) {
 	for _, flag := range []string{"--project", "--tenant"} {
-		e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+		e := &env{baseURLOvr: "http://127.0.0.1:1", tokenSource: testTokenSource("test"), out: &strings.Builder{}, err: &strings.Builder{}}
 		err := run(t, e, flag, "alpha", "fleet", "runs", "--all")
 		if err == nil || !strings.Contains(err.Error(), "--all cannot be combined") {
 			t.Fatalf("%s error = %v", flag, err)
@@ -104,7 +108,7 @@ func TestAllAcceptsImplicitScopeContext(t *testing.T) {
 	// Project/tenant context resolved from a brain checkout or the login tenant is populated after
 	// scope validation (in newClient), so only explicit --project/--tenant flags may conflict with
 	// --all. Regression guard: no flags ⇒ validation passes (any error here is transport, not scope).
-	e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+	e := &env{baseURLOvr: "http://127.0.0.1:1", tokenSource: testTokenSource("test"), out: &strings.Builder{}, err: &strings.Builder{}}
 	err := run(t, e, "fleet", "runs", "--all")
 	if err != nil && strings.Contains(err.Error(), "--all cannot be combined") {
 		t.Fatalf("implicit scope context must not conflict with --all, got %v", err)
@@ -112,9 +116,18 @@ func TestAllAcceptsImplicitScopeContext(t *testing.T) {
 }
 
 func TestCanonicalTenantTreeRequiresProjectOutsideBrain(t *testing.T) {
-	e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+	// Outside a brain, --tenant with no --project makes newClient ask the login for its project; an
+	// all-projects token can't supply one, so the command stops before it builds a tenant path.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/whoami" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"all_projects":true}`))
+	}))
+	defer srv.Close()
+	e := &env{baseURLOvr: srv.URL, tokenSource: testTokenSource("test"), out: &strings.Builder{}, err: &strings.Builder{}}
 	err := run(t, e, "--tenant", "acme", "project", "repo", "ls")
-	if err == nil || !strings.Contains(err.Error(), "--project <project> is required with --tenant") {
+	if err == nil || !strings.Contains(err.Error(), "--project <project> is required for an all-projects login") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -247,7 +260,7 @@ func TestTenantTableOutputStartsWithScope(t *testing.T) {
 	defer srv.Close()
 
 	var out, errOut strings.Builder
-	e := &env{output: "table", baseURLOvr: srv.URL, tokenOvr: "test-key", out: &out, err: &errOut}
+	e := &env{output: "table", baseURLOvr: srv.URL, tokenSource: testTokenSource("test-key"), out: &out, err: &errOut}
 	if err := run(t, e, "--project", "alpha", "--tenant", "acme", "status"); err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +287,7 @@ func TestPinnedTenantTableOutputStartsWithScope(t *testing.T) {
 	defer srv.Close()
 
 	var out, errOut strings.Builder
-	e := &env{output: "table", baseURLOvr: srv.URL, tokenOvr: "test-key", out: &out, err: &errOut}
+	e := &env{output: "table", baseURLOvr: srv.URL, tokenSource: testTokenSource("test-key"), out: &out, err: &errOut}
 	if err := run(t, e, "status"); err != nil {
 		t.Fatal(err)
 	}
@@ -316,7 +329,7 @@ func TestScopeTenantRequiresResolvableTenant(t *testing.T) {
 			})
 			srv := httptest.NewServer(mux)
 			defer srv.Close()
-			e := &env{output: "json", baseURLOvr: srv.URL, tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+			e := &env{output: "json", baseURLOvr: srv.URL, tokenSource: testTokenSource("test"), out: &strings.Builder{}, err: &strings.Builder{}}
 			err := run(t, e, "--scope", "tenant", "dev", "brain", "status")
 			if tc.wantErr {
 				if err == nil || !strings.Contains(err.Error(), "--scope tenant requires a resolvable tenant") {
@@ -362,5 +375,47 @@ func TestResolveProjectForTenantFromLogin(t *testing.T) {
 				t.Fatalf("project=%q err=%v, want %q", e.scopeProject(), err, tc.want)
 			}
 		})
+	}
+}
+
+// TestNewClientBrainFallbackKeepsProjectScope pins the production credential ordering the old tokenOvr
+// short-circuit hid: with no token for the brain-named profile, newClient falls back to the default
+// profile's STORED token, keeps the checkout's project as the scope, validates it against the fleet and
+// routes the request under it — with --scope project clearing the checkout's tenant.
+func TestNewClientBrainFallbackKeepsProjectScope(t *testing.T) {
+	isolatedConfig(t)
+	var gotAuth string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p-1","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/brain/status", func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		_, _ = w.Write([]byte(`{"project":"alpha","status":{"available":true}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	t.Setenv("ROOTCAUSE_BASE_URL", srv.URL)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, ".rootcause.toml"),
+		[]byte("project = \"alpha\"\ntenant = \"acme\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedToken(t, "default", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
+	})
+
+	// No token seam here: this is the real credential ladder.
+	e := &env{output: "json", out: &strings.Builder{}, err: &strings.Builder{}}
+	if err := run(t, e, "--scope", "project", "dev", "brain", "status"); err != nil {
+		t.Fatalf("brain status: %v", err)
+	}
+	if gotAuth != "Bearer rcoa_x" {
+		t.Fatalf("authorization = %q, want the stored default-profile token", gotAuth)
+	}
+	if e.autoProject != "alpha" {
+		t.Fatalf("autoProject = %q, want alpha", e.autoProject)
 	}
 }

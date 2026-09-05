@@ -113,7 +113,7 @@ func TestFleetActionsRejectsInvalidFiltersBeforeRequest(t *testing.T) {
 		{name: "format", args: []string{"fleet", "actions", "--format", "yaml"}, want: `invalid --format "yaml"`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			e := &env{baseURLOvr: "http://127.0.0.1:1", tokenOvr: "test", out: &strings.Builder{}, err: &strings.Builder{}}
+			e := &env{baseURLOvr: "http://127.0.0.1:1", tokenSource: testTokenSource("test"), out: &strings.Builder{}, err: &strings.Builder{}}
 			err := run(t, e, tc.args...)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want %q", err, tc.want)

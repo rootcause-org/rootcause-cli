@@ -110,7 +110,10 @@ opener runs and opener failure is non-fatal, so an agent can hand the URL to a h
 Tokens: `~/.config/rootcause/tokens.json`, 0600, per profile ([`internal/token`](internal/token/store.go)).
 Its stored `base_url` is diagnostic metadata only and never overrides transport.
 `liveSource` refreshes pre-emptively and once on a 401, persists the rotated pair, and turns a dead
-refresh into a "run `rc auth login`" prompt. Tests bypass the store with `client.StaticToken`.
+refresh into a "run `rc auth login`" prompt. The store lookup is the ONE seam `newClient` allows: tests
+swap `env.tokenSource` (a `tokenSourceFactory`) for a `client.StaticToken` source, and everything after it
+— machine-token check, tenant→project resolution, scope header, project validation, selector enforcement —
+runs in the same order as in production.
 
 **Headless machine token:** a committed brain marker may *name* (never contain) a secret env var via
 `machine_token_env`. `rc` seeds that profile, then requires `/whoami` to match the marker project before

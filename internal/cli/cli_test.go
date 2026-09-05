@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/config"
 )
 
 // update regenerates the golden files instead of comparing. Run: go test ./internal/cli -update
@@ -1439,20 +1440,27 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 }
 
 // newTestEnv builds an env wired to the stub server with a fixed output mode, capturing stdout/stderr.
-// It sets a static bearer (tokenOvr) so newClient resolves auth without the OAuth token store, and
-// isolates XDG_CONFIG_HOME so a real ~/.config/rootcause is never read or written.
+// It injects a static credential source so newClient skips the OAuth token store while still running
+// the real post-credential pipeline, and isolates XDG_CONFIG_HOME so a real ~/.config/rootcause is
+// never read or written.
+// testTokenSource is the credential seam for tests: it replaces ONLY the bearer lookup, so newClient's
+// scope header, project validation, selector enforcement and tenant resolution run as they do in prod.
+func testTokenSource(tok string) tokenSourceFactory {
+	return func(*config.Resolved, string) (client.TokenSource, error) { return client.StaticToken(tok), nil }
+}
+
 func newTestEnv(t *testing.T, srv *httptest.Server, output string) (*env, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the token store + config
 	t.Setenv("ROOTCAUSE_BASE_URL", "")       // a stray env must not override the test base URL
 	var out, errb bytes.Buffer
 	e := &env{
-		profile:    "default",
-		output:     output,
-		baseURLOvr: srv.URL,
-		tokenOvr:   "test-key",
-		out:        &out,
-		err:        &errb,
+		profile:     "default",
+		output:      output,
+		baseURLOvr:  srv.URL,
+		tokenSource: testTokenSource("test-key"),
+		out:         &out,
+		err:         &errb,
 	}
 	return e, &out, &errb
 }

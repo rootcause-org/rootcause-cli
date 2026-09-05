@@ -380,7 +380,7 @@ func newTestEnvAt(t *testing.T, baseURL, output string) *env {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("ROOTCAUSE_BASE_URL", "")
 	var out, errb bytes.Buffer
-	return &env{profile: "default", output: output, baseURLOvr: baseURL, tokenOvr: "test-key", out: &out, err: &errb}
+	return &env{profile: "default", output: output, baseURLOvr: baseURL, tokenSource: testTokenSource("test-key"), out: &out, err: &errb}
 }
 
 func hierarchyBodyCaptureServer(t *testing.T, dst *string) *httptest.Server {
