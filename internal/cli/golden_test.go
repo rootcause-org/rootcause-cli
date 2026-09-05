@@ -606,6 +606,18 @@ func TestThreadTraceProviderTable(t *testing.T) {
 	assertGolden(t, "thread_trace_provider.golden", out.String())
 }
 
+// TestThreadTraceSecurityBlockTable pins the pre-agent injection block: the thread went terminal with no
+// run row, so the loud SECURITY-BLOCK line (stage/category) is the only place the verdict surfaces.
+func TestThreadTraceSecurityBlockTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "thread", "blocked-thread-xyz"); err != nil {
+		t.Fatalf("run thread blocked id: %v", err)
+	}
+	assertGolden(t, "thread_trace_blocked.golden", out.String())
+}
+
 // TestThreadTraceUnknownTable pins the explicit-empty case: an unknown id is a clean "no runs" answer
 // (resolved_by:"none"), not an error.
 func TestThreadTraceUnknownTable(t *testing.T) {

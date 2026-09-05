@@ -1,0 +1,26 @@
+{
+  "id": "blocked-thread-xyz",
+  "resolved_by": "external_thread",
+  "threads": [
+    {
+      "local_thread_id": "aa11bb22-cc33-4d44-8e55-66ff77aa88bb",
+      "external_thread_id": "blocked-thread-xyz",
+      "provider": "intercom",
+      "feedback_level": "runs",
+      "tenant": "yes_events",
+      "status": "injection_blocked",
+      "outcome": "blocked",
+      "message_count": 1,
+      "draft_count": 0,
+      "note_count": 0,
+      "security_block": {
+        "stage": "injection_scan",
+        "category": "instruction_override",
+        "confidence": 0.92
+      },
+      "created_at": "2026-08-07T05:34:35Z",
+      "updated_at": "2026-08-07T07:19:40Z"
+    }
+  ],
+  "runs": []
+}

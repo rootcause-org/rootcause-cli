@@ -132,7 +132,7 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		switch r.PathValue("id") {
-		case "bad", "thread-abc123", "session-fallback", "215475391714527", "unknown":
+		case "bad", "thread-abc123", "session-fallback", "215475391714527", "blocked-thread-xyz", "unknown":
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"unknown run"}}`))
 			return
@@ -249,6 +249,8 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "thread_trace_session.json"))
 		case "215475391714527": // provider conversation resolved before any run exists
 			_, _ = w.Write(fixture(t, "thread_trace_provider.json"))
+		case "blocked-thread-xyz": // pre-agent injection block — security_block enum, no run row
+			_, _ = w.Write(fixture(t, "thread_trace_blocked.json"))
 		case "unknown": // an id matching nothing → clean empty (resolved_by:"none")
 			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","threads":[],"runs":[]}`))
 		default:

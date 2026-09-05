@@ -1129,6 +1129,18 @@ type ThreadTraceThread struct {
 	NoteCount         int             `json:"note_count"`
 	CreatedAt         time.Time       `json:"created_at"`
 	UpdatedAt         time.Time       `json:"updated_at"`
+	// SecurityBlock is the pre-agent security-block verdict — non-null only when this thread was blocked
+	// before any agent run (status injection_blocked), so no run row exists. Content-free enum, mirrors
+	// the server's threadSecurityBlock; the corpus-runner asserts on it via `-o json`.
+	SecurityBlock *ThreadSecurityBlock `json:"security_block,omitempty"`
+}
+
+// ThreadSecurityBlock mirrors the server's content-free security-block enum (stage names the checkpoint,
+// category is the injectionscan enum). No rationale text by design.
+type ThreadSecurityBlock struct {
+	Stage      string  `json:"stage"`
+	Category   string  `json:"category,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
 }
 
 // ThreadTrace is GET /api/v1/threads/{id}/trace — the channel-pipeline outcome plus every run for one

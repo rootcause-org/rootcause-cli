@@ -38,6 +38,13 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 		}
 		_ = tw.Flush()
 		for _, th := range t.Threads {
+			if sb := th.SecurityBlock; sb != nil {
+				loc := sb.Stage
+				if sb.Category != "" {
+					loc += "/" + sb.Category
+				}
+				_, _ = fmt.Fprintf(w, "\nSECURITY-BLOCK (%s): %s\n", th.LocalThreadID, loc)
+			}
 			if hint := channelThreadHint(th); hint != "" {
 				_, _ = fmt.Fprintf(w, "\nPipeline (%s): %s\n", th.LocalThreadID, hint)
 			}

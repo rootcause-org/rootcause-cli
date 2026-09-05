@@ -1,0 +1,12 @@
+Thread: blocked-thread-xyz
+Resolved by: provider conversation id
+
+1 channel thread(s):
+LOCAL     PROVIDER  TENANT      STATUS             OUTCOME  MSG  DRAFT  NOTE  UPDATED
+aa11bb22  intercom  yes_events  injection_blocked  blocked  1    0      0     2026-08-07T07:19:40Z
+
+SECURITY-BLOCK (aa11bb22-cc33-4d44-8e55-66ff77aa88bb): injection_scan/instruction_override
+
+Pipeline (aa11bb22-cc33-4d44-8e55-66ff77aa88bb): prompt-injection screening blocked the thread before run enqueue
+
+No run was enqueued for this channel thread.
