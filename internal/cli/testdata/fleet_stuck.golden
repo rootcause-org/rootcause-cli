@@ -1,0 +1,23 @@
+Fleet digest — last 7 days · stuck · 3 runs
+
+Flags: GD=grounding discarded · J0=analysis without journal · REV:n=human review score · ERR×n=real failing bash (+n explore=benign no-match/probe noise) · BIG×n=huge stdout (>15KB) · T!=turns > 3× same-kind median · EGR×n=blocked egress · FB=fallback (the loop swapped rungs mid-run) · LRN=dream-cycle learning signal
+
+RUN8      KIND   STATUS   DURATION  TURNS  FLAGS
+dddddddd  email  running  -         3      
+dddddddd  email  running  -         1      
+dddddddd  email  done     1m0s      4      
+
+Aggregate:
+  runs: 3 — done 1 · error 0 · other 2
+  grounding discarded: 0/3 (0%)
+  turns: median 3 · max 4
+  blocked-egress runs: none
+
+Stuck/running (no finish past 30m0s):
+  dddddddd-0000-0000-0000-000000000001 120m0s old (email)
+
+Worst offenders (full ids — `rc run debug <id>`):
+  Top turns:
+    dddddddd-0000-0000-0000-000000000003 4t — email, done · 60s · 4t
+    dddddddd-0000-0000-0000-000000000001 3t — email, running · 3t
+    dddddddd-0000-0000-0000-000000000002 1t — email, running · 1t

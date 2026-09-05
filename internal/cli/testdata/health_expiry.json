@@ -1,0 +1,44 @@
+{
+  "window_hours": 24,
+  "mirrors": [
+    {
+      "repo": "acme/app",
+      "state": "ok",
+      "consecutive_failures": 0,
+      "last_ok_at": "2026-06-22T10:30:00Z",
+      "hours_since_ok": 0.5
+    }
+  ],
+  "brain_boot": [],
+  "mailboxes": [
+    {
+      "id": "eeeeeeee-0000-0000-0000-000000000001",
+      "provider": "microsoft",
+      "email_address": "just-expired@acme.test",
+      "status": "active",
+      "subscription_expires_at": "2026-06-22T10:00:00Z",
+      "updated_at": "2026-06-22T10:00:00Z",
+      "hours_since_sync": 1.0
+    },
+    {
+      "id": "eeeeeeee-0000-0000-0000-000000000002",
+      "provider": "microsoft",
+      "email_address": "expires-soon@acme.test",
+      "status": "active",
+      "subscription_expires_at": "2026-06-22T12:00:00Z",
+      "updated_at": "2026-06-22T10:00:00Z",
+      "hours_since_sync": 1.0
+    },
+    {
+      "id": "eeeeeeee-0000-0000-0000-000000000003",
+      "provider": "google",
+      "email_address": "spam-expired@acme.test",
+      "status": "active",
+      "subscription_expires_at": "2026-06-22T12:00:00Z",
+      "spam_subscription_expires_at": "2026-06-22T10:00:00Z",
+      "updated_at": "2026-06-22T10:00:00Z",
+      "hours_since_sync": 1.0
+    }
+  ],
+  "dead_lettered": []
+}

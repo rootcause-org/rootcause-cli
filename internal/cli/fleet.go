@@ -50,7 +50,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, Format: format, Timeline: timeline}
+			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, Format: format, Timeline: timeline, Now: nowFunc()}
 			rawJSON := rawRowsJSON(e, cmd)
 
 			if all {

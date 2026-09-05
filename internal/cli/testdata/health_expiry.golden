@@ -1,0 +1,16 @@
+Mirrors — 1/1 healthy
+  ok — all mirrors synced recently
+
+Brain boot — 0/0 ok
+  (no checks yet)
+
+Watched mailboxes — 1/3 healthy
+  ! microsoft just-expired@acme.test (project) status=active expires=2026-06-22T10:00:00Z synced=1.0h
+  ! google spam-expired@acme.test (project) status=active expires=spam 2026-06-22T10:00:00Z synced=1.0h
+
+Dead-lettered runs (last 24h) — 0 total
+  ok — no runs dead-lettered in window
+
+note: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.
+
+UNHEALTHY

@@ -31,6 +31,9 @@ type FleetOptions struct {
 	// Timeline gates the per-day runs/errors/latency histogram out of the default human digest so it
 	// stays scannable; -o json always carries the rows it is derived from.
 	Timeline bool
+	// Now is the wall clock the stuck-run list measures against. The caller passes time.Now(); render
+	// itself never reads the clock, so a golden can pin a canned "now".
+	Now time.Time
 }
 
 // stuckRunAfter is the wall-clock age past which a still-running run (finished_at NULL) is called STUCK
@@ -417,7 +420,7 @@ func fleetHuman(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	if opt.Timeline {
 		fleetTimeline(w, runs)
 	}
-	fleetStuck(w, runs)
+	fleetStuck(w, runs, opt.Now)
 	fleetOffenders(w, runs)
 }
 
@@ -483,8 +486,7 @@ func runDate(r client.RunSummary) string {
 // fleetStuck surfaces runs that are still 'running' with no finished_at past the stuck clock — runs that
 // never produced a callback, which operators otherwise drop to db.py for. Rendered only when there ARE
 // stuck runs (a clean fleet stays quiet). Full ids so a stuck run is one paste from `rc run show <id>`.
-func fleetStuck(w io.Writer, runs []client.RunSummary) {
-	now := time.Now()
+func fleetStuck(w io.Writer, runs []client.RunSummary, now time.Time) {
 	var stuck []client.RunSummary
 	for _, r := range runs {
 		if isStuck(r, now) {
@@ -724,7 +726,7 @@ func fleetAgent(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 
 	fleetAggregate(w, runs)
 	fleetTimeline(w, runs)
-	fleetStuck(w, runs)
+	fleetStuck(w, runs, opt.Now)
 	fleetOffenders(w, runs)
 
 	_, _ = fmt.Fprintln(w, "\nall runs (newest first):")

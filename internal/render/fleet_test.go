@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -141,6 +142,10 @@ func TestTurnSpikesFlagOutliers(t *testing.T) {
 
 // A failed brain boot check is unhealthy on its own: everything else can be green while the box serves
 // a knowingly stale brain. An EMPTY list is healthy — a fresh box has simply never checked.
+// testNow is a canned wall clock: render takes `now` as an argument (never time.Now) so these
+// assertions can't drift with the calendar.
+var testNow = time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
 func TestBrainBootCheckDrivesHealthVerdict(t *testing.T) {
 	base := func(boot []client.HealthBrainBoot) *client.HealthResponse {
 		return &client.HealthResponse{WindowHours: 24, BrainBoot: boot}
@@ -149,15 +154,15 @@ func TestBrainBootCheckDrivesHealthVerdict(t *testing.T) {
 		{Tenant: "de-kies", SHA: "abcdef0123456789abcdef0123456789abcdef01", OK: false, Reason: "projection compile failed"},
 	})
 
-	if HealthVerdict(base(nil)) != true {
+	if HealthVerdict(base(nil), testNow) != true {
 		t.Error("no boot checks yet should be healthy")
 	}
-	if HealthVerdict(failing) {
+	if HealthVerdict(failing, testNow) {
 		t.Error("a failed boot check must make the verdict unhealthy")
 	}
 
 	var buf bytes.Buffer
-	if Health(&buf, failing) {
+	if Health(&buf, failing, testNow) {
 		t.Error("Health() returned healthy on a failed boot check")
 	}
 	if want := "  ! tenant de-kies: FAILED @ abcdef012345 — projection compile failed"; !strings.Contains(buf.String(), want) {
@@ -165,7 +170,7 @@ func TestBrainBootCheckDrivesHealthVerdict(t *testing.T) {
 	}
 
 	buf.Reset()
-	_ = Health(&buf, base(nil))
+	_ = Health(&buf, base(nil), testNow)
 	if !strings.Contains(buf.String(), "Brain boot — 0/0 ok\n  (no checks yet)") {
 		t.Errorf("missing no-checks-yet line in:\n%s", buf.String())
 	}

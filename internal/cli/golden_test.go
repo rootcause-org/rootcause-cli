@@ -1222,3 +1222,31 @@ func TestRunDetailForbiddenIsActionable(t *testing.T) {
 		}
 	}
 }
+
+// TestFleetStuckTable pins the digest's stuck-run list: a run still 'running' past the 30-minute stuck
+// clock is named with its age, while a younger running run stays out of it. Only assertable because
+// render takes `now` as an argument (F12) and the test pins it.
+func TestFleetStuckTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	pinNow(t, "2026-06-22T11:00:00Z")
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "runs", "--kind", "stuck"); err != nil {
+		t.Fatalf("fleet stuck: %v", err)
+	}
+	assertGolden(t, "fleet_stuck.golden", out.String())
+}
+
+// TestHealthMailboxExpiryTable pins the mailbox-expiry verdict against a pinned `now`: a subscription
+// that lapsed an hour ago (and a spam subscription that did) needs attention, one expiring an hour from
+// now does not. The lapsed rows make the whole report unhealthy, so the command exits non-zero.
+func TestHealthMailboxExpiryTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	pinNow(t, "2026-06-22T11:00:00Z")
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "fleet", "health", "--hours", "777"); err == nil {
+		t.Fatal("lapsed mailbox subscriptions must exit non-zero")
+	}
+	assertGolden(t, "health_expiry.golden", out.String())
+}

@@ -3,12 +3,18 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
+
+// nowFunc is the wall clock the two time-aware views read (fleet's stuck-run list, health's mailbox
+// expiry). internal/render takes `now` as an argument and never calls time.Now itself; this is the one
+// place the CLI supplies it, and a golden test overrides it to pin a canned "now".
+var nowFunc = time.Now
 
 // newHealthCmd builds `rc fleet health`: the health roll-up over the THIN /api/v1/health raw rows (mirror
 // staleness + dead-lettered runs), porting health.py's healthy/unhealthy sections. It EXITS NON-ZERO when
@@ -60,7 +66,7 @@ func newHealthCmd(e *env) *cobra.Command {
 				return nil
 			}
 
-			healthy := render.Health(e.out, resp)
+			healthy := render.Health(e.out, resp, nowFunc())
 			if !healthy {
 				silenceUsage(cmd)
 				return errUnhealthy
@@ -100,7 +106,7 @@ func runHealthAll(e *env, cmd *cobra.Command, c *client.Client, hours int) error
 		}
 		if !e.jsonOut() {
 			_, _ = fmt.Fprintf(e.out, "════ %s ════\n", proj.Name)
-			render.Health(e.out, resp)
+			render.Health(e.out, resp, nowFunc())
 			_, _ = fmt.Fprintln(e.out)
 		}
 	}

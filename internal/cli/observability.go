@@ -67,7 +67,7 @@ func fanOutProjects(e *env, c *client.Client) ([]client.Project, error) {
 
 // healthVerdict is the render package's pure verdict, re-exported through the command layer so health.go
 // reads it in JSON mode without importing render twice for one symbol.
-func healthVerdict(h *client.HealthResponse) bool { return render.HealthVerdict(h) }
+func healthVerdict(h *client.HealthResponse) bool { return render.HealthVerdict(h, nowFunc()) }
 
 // silenceUsage marks a command so Cobra doesn't dump its help on the returned error — `rc fleet health`'s
 // non-zero exit is a verdict, not a usage mistake. (The root already sets SilenceUsage, but a child that

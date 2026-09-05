@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -40,6 +41,12 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		if r.URL.Query().Get("kind") == "fleet" { // `rc fleet runs` test path: drive the operator-tier digest fixtures
 			_, _ = w.Write(fixture(t, "fleet_runs_p1.json"))
+			return
+		}
+		// kind=stuck: two still-running rows straddling the 30-minute stuck clock, so the digest's stuck
+		// list is only assertable against a pinned `now` (see pinNow).
+		if r.URL.Query().Get("kind") == "stuck" {
+			_, _ = w.Write(fixture(t, "fleet_runs_stuck.json"))
 			return
 		}
 		_, _ = w.Write(fixture(t, "runs.json"))
@@ -117,6 +124,12 @@ func stubServer(t *testing.T) *httptest.Server {
 		// hours=999 simulates a clean (healthy) fleet; the default returns the unhealthy fixture.
 		if r.URL.Query().Get("hours") == "999" {
 			_, _ = w.Write(fixture(t, "health_clean.json"))
+			return
+		}
+		// hours=777: mailbox subscriptions straddling the pinned `now` — one already lapsed, one still
+		// valid — the expiry contract that only becomes assertable with an injected clock.
+		if r.URL.Query().Get("hours") == "777" {
+			_, _ = w.Write(fixture(t, "health_expiry.json"))
 			return
 		}
 		// hours=888 simulates an all-projects token: the flat route (no ?project=) is rejected with
@@ -1529,4 +1542,18 @@ func requireSpillManifest(t *testing.T, body []byte) testSpillManifest {
 		t.Fatalf("not a spill manifest: %s", body)
 	}
 	return m
+}
+
+// pinNow freezes the CLI's wall clock, the only clock the two time-aware views read (the fleet digest's
+// stuck list and health's mailbox expiry — internal/render itself takes `now` as an argument). Without
+// it those two branches cannot have a golden at all: their output would move with the calendar.
+func pinNow(t *testing.T, rfc3339 string) {
+	t.Helper()
+	at, err := time.Parse(time.RFC3339, rfc3339)
+	if err != nil {
+		t.Fatalf("pinNow %q: %v", rfc3339, err)
+	}
+	prev := nowFunc
+	nowFunc = func() time.Time { return at }
+	t.Cleanup(func() { nowFunc = prev })
 }

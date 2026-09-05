@@ -25,7 +25,7 @@ const staleHours = 6.0
 // verdict the -o json path needs (which renders no report but still must set the exit code) and the same
 // rule Health renders. A mirror is bad when non-ok OR stale (last_ok older than staleHours / never);
 // any mailbox in an attention state or dead-lettered run is unhealthy.
-func HealthVerdict(h *client.HealthResponse) bool {
+func HealthVerdict(h *client.HealthResponse, now time.Time) bool {
 	for _, m := range h.Mirrors {
 		if m.State != "ok" || m.HoursSinceOK == nil || *m.HoursSinceOK > staleHours {
 			return false
@@ -37,7 +37,7 @@ func HealthVerdict(h *client.HealthResponse) bool {
 		}
 	}
 	for _, m := range h.Mailboxes {
-		if mailboxNeedsAttention(m) {
+		if mailboxNeedsAttention(m, now) {
 			return false
 		}
 	}
@@ -47,7 +47,7 @@ func HealthVerdict(h *client.HealthResponse) bool {
 // Health renders the rolled-up health report and returns healthy=false when ANY section is unhealthy
 // (a non-ok/stale mirror, watched mailbox, or any dead-lettered run) — the caller maps that to a
 // non-zero exit.
-func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
+func Health(w io.Writer, h *client.HealthResponse, now time.Time) (healthy bool) {
 	unhealthy := false
 
 	// 1. mirrors — non-ok state OR stale (last_ok older than staleHours / never synced).
@@ -92,7 +92,7 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 	// 3. watched mailboxes — raw rows; error/needs_attention or active expired watches need attention.
 	var badMailboxes []client.HealthMailbox
 	for _, m := range h.Mailboxes {
-		if mailboxNeedsAttention(m) {
+		if mailboxNeedsAttention(m, now) {
 			badMailboxes = append(badMailboxes, m)
 		}
 	}
@@ -100,7 +100,7 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 	if len(badMailboxes) > 0 {
 		unhealthy = true
 		for _, m := range badMailboxes {
-			line := fmt.Sprintf("  ! %s %s (%s) status=%s expires=%s synced=%s", m.Provider, m.EmailAddress, mailboxTenant(m.Tenant), m.Status, mailboxExpiry(m), ageOrNever(m.HoursSinceSync))
+			line := fmt.Sprintf("  ! %s %s (%s) status=%s expires=%s synced=%s", m.Provider, m.EmailAddress, mailboxTenant(m.Tenant), m.Status, mailboxExpiry(m, now), ageOrNever(m.HoursSinceSync))
 			if m.ConsecutiveSyncFailures > 0 {
 				line += fmt.Sprintf(" fails=%d", m.ConsecutiveSyncFailures)
 			}
@@ -164,12 +164,12 @@ func mailboxTenant(tenant string) string {
 // completing, not mail arriving.
 const staleSyncHours = 24
 
-func mailboxNeedsAttention(m client.HealthMailbox) bool {
+func mailboxNeedsAttention(m client.HealthMailbox, now time.Time) bool {
 	switch m.Status {
 	case "error", "needs_attention":
 		return true
 	case "active":
-		return expiredTime(m.SubscriptionExpiresAt) || expiredTime(m.SpamSubscriptionExpiresAt) || syncStalled(m)
+		return expiredTime(m.SubscriptionExpiresAt, now) || expiredTime(m.SpamSubscriptionExpiresAt, now) || syncStalled(m)
 	default:
 		return false
 	}
@@ -185,9 +185,9 @@ func syncStalled(m client.HealthMailbox) bool {
 	return m.HoursSinceSync != nil && *m.HoursSinceSync > staleSyncHours
 }
 
-func mailboxExpiry(m client.HealthMailbox) string {
-	mainExpired := expiredTime(m.SubscriptionExpiresAt)
-	spamExpired := expiredTime(m.SpamSubscriptionExpiresAt)
+func mailboxExpiry(m client.HealthMailbox, now time.Time) string {
+	mainExpired := expiredTime(m.SubscriptionExpiresAt, now)
+	spamExpired := expiredTime(m.SpamSubscriptionExpiresAt, now)
 	switch {
 	case mainExpired && m.SubscriptionExpiresAt != "":
 		return m.SubscriptionExpiresAt
@@ -202,12 +202,14 @@ func mailboxExpiry(m client.HealthMailbox) string {
 	}
 }
 
-func expiredTime(s string) bool {
+// expiredTime reports whether an RFC3339 subscription deadline is already past `now`. `now` is passed
+// in (never time.Now) so the health view stays a pure function and a golden can pin an expiry.
+func expiredTime(s string, now time.Time) bool {
 	if s == "" {
 		return false
 	}
 	t, err := time.Parse(time.RFC3339, s)
-	return err == nil && t.Before(time.Now())
+	return err == nil && t.Before(now)
 }
 
 func firstLine80(s string) string  { return clipStr(patternsFirstLine(s), 80) }

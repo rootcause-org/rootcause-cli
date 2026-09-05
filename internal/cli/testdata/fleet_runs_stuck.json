@@ -1,0 +1,46 @@
+{
+  "runs": [
+    {
+      "run_id": "dddddddd-0000-0000-0000-000000000001",
+      "kind": "email",
+      "source": "Mailbox",
+      "status": "running",
+      "created_at": "2026-06-22T09:00:00Z",
+      "has_draft": false,
+      "has_note": false,
+      "health": {
+        "turns": 3,
+        "bash_total": 2
+      }
+    },
+    {
+      "run_id": "dddddddd-0000-0000-0000-000000000002",
+      "kind": "email",
+      "source": "Mailbox",
+      "status": "running",
+      "created_at": "2026-06-22T10:50:00Z",
+      "has_draft": false,
+      "has_note": false,
+      "health": {
+        "turns": 1,
+        "bash_total": 0
+      }
+    },
+    {
+      "run_id": "dddddddd-0000-0000-0000-000000000003",
+      "kind": "email",
+      "source": "Mailbox",
+      "status": "done",
+      "outcome": "draft_placed",
+      "created_at": "2026-06-22T08:00:00Z",
+      "finished_at": "2026-06-22T08:01:00Z",
+      "duration_ms": 60000,
+      "has_draft": true,
+      "has_note": false,
+      "health": {
+        "turns": 4,
+        "bash_total": 3
+      }
+    }
+  ]
+}
