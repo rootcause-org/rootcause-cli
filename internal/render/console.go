@@ -9,7 +9,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
-	"github.com/rootcause-org/rootcause-cli/internal/outputspill"
 )
 
 func Capabilities(w io.Writer, r *client.CapabilitiesResponse) {
@@ -161,7 +160,19 @@ func BashList(w io.Writer, r *client.BashListResponse) {
 	_ = tw.Flush()
 }
 
-func BashRun(w io.Writer, r *client.BashRunResponse, artifacts map[string]outputspill.Artifact) {
+// SpillArtifact is render's view of one stream the output-spill layer wrote to disk: only the fields
+// the bash-run view prints. render owns this type so it stays a leaf package — the spilling machinery
+// (and its JSON manifest shape) is the CLI layer's business, mapped in on the way here.
+type SpillArtifact struct {
+	Path  string
+	Bytes int
+	Lines int
+	Head  string
+	Tail  string
+	Hints []string
+}
+
+func BashRun(w io.Writer, r *client.BashRunResponse, artifacts map[string]SpillArtifact) {
 	if r.Stdout != "" {
 		renderBashStream(w, r.Stdout, artifacts["stdout"])
 	}
@@ -195,7 +206,7 @@ func BashRun(w io.Writer, r *client.BashRunResponse, artifacts map[string]output
 	_, _ = fmt.Fprintf(w, "\nexit=%d (%dms) run=%s seq=%d%s\n", r.ExitCode, r.DurationMs, r.RunID, r.Seq, suffix)
 }
 
-func renderBashStream(w io.Writer, value string, art outputspill.Artifact) {
+func renderBashStream(w io.Writer, value string, art SpillArtifact) {
 	if art.Path == "" {
 		_, _ = fmt.Fprint(w, value)
 		if !strings.HasSuffix(value, "\n") {
@@ -204,19 +215,17 @@ func renderBashStream(w io.Writer, value string, art outputspill.Artifact) {
 		return
 	}
 	_, _ = fmt.Fprintf(w, "[output too large: %d bytes, %d lines - full output saved to %s]\n", art.Bytes, art.Lines, art.Path)
-	if art.Preview != nil {
-		if art.Preview.Head != "" {
-			_, _ = fmt.Fprint(w, art.Preview.Head)
-			if !strings.HasSuffix(art.Preview.Head, "\n") {
-				_, _ = fmt.Fprintln(w)
-			}
+	if art.Head != "" {
+		_, _ = fmt.Fprint(w, art.Head)
+		if !strings.HasSuffix(art.Head, "\n") {
+			_, _ = fmt.Fprintln(w)
 		}
-		if art.Preview.Tail != "" {
-			_, _ = fmt.Fprintln(w, "...[middle omitted]...")
-			_, _ = fmt.Fprint(w, art.Preview.Tail)
-			if !strings.HasSuffix(art.Preview.Tail, "\n") {
-				_, _ = fmt.Fprintln(w)
-			}
+	}
+	if art.Tail != "" {
+		_, _ = fmt.Fprintln(w, "...[middle omitted]...")
+		_, _ = fmt.Fprint(w, art.Tail)
+		if !strings.HasSuffix(art.Tail, "\n") {
+			_, _ = fmt.Fprintln(w)
 		}
 	}
 	if len(art.Hints) > 0 {

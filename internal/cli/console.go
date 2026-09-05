@@ -569,15 +569,23 @@ func bashRunLabel(r *client.BashRunResponse) string {
 	return fmt.Sprintf("bash-run-%s-seq-%d", id, r.Seq)
 }
 
-func bashArtifacts(m *outputspill.Manifest) map[string]outputspill.Artifact {
+// bashArtifacts maps the spill manifest's stdout/stderr entries into render's own artifact type, so
+// internal/render never has to import internal/outputspill (it stays a leaf over internal/client).
+func bashArtifacts(m *outputspill.Manifest) map[string]render.SpillArtifact {
 	if m == nil {
 		return nil
 	}
-	arts := map[string]outputspill.Artifact{}
+	arts := map[string]render.SpillArtifact{}
 	for _, name := range []string{"stdout", "stderr"} {
-		if art, ok := m.Artifacts[name]; ok {
-			arts[name] = art
+		art, ok := m.Artifacts[name]
+		if !ok {
+			continue
 		}
+		out := render.SpillArtifact{Path: art.Path, Bytes: art.Bytes, Lines: art.Lines, Hints: art.Hints}
+		if art.Preview != nil {
+			out.Head, out.Tail = art.Preview.Head, art.Preview.Tail
+		}
+		arts[name] = out
 	}
 	return arts
 }
