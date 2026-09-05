@@ -189,7 +189,7 @@ done
 
 # The release workflow owns the public cloud bootstrap. Verify both keys byte-for-byte so a green
 # workflow cannot silently leave the stable installer missing or stale.
-step "Verifying cloud setup mirror"
+step "Verifying release mirror"
 for path in "$VERSION/cloud-setup.sh" cloud-setup.sh; do
   if curl -fsSL --retry 3 --retry-delay 1 "$RELEASE_MIRROR_URL/$path" | cmp -s scripts/cloud-setup.sh -; then
     ok "mirror $path"
@@ -197,6 +197,17 @@ for path in "$VERSION/cloud-setup.sh" cloud-setup.sh; do
     die "mirror $path is missing or differs from scripts/cloud-setup.sh"
   fi
 done
+
+# `latest` is the mirror's only version pointer: cloud-setup.sh reads it on every sandbox boot and
+# `rc self update` falls back to it when GitHub is unreachable. The workflow writes it last, so a
+# green run can still leave it stale — in which case every cloud sandbox silently installs the
+# previous rc. The archives are useless without their digests, so check checksums.txt landed too.
+mirror_latest="$(curl -fsSL --retry 3 --retry-delay 1 "$RELEASE_MIRROR_URL/latest" 2>/dev/null | tr -d '[:space:]')"
+[ "$mirror_latest" = "$VERSION" ] || die "mirror latest is ${mirror_latest:-missing}, want $VERSION"
+ok "mirror latest is $VERSION"
+curl -fsSL --retry 3 --retry-delay 1 -o /dev/null "$RELEASE_MIRROR_URL/$VERSION/checksums.txt" \
+  || die "mirror $VERSION/checksums.txt is missing"
+ok "mirror $VERSION/checksums.txt"
 
 # --- wait for the GitHub Release + Homebrew cask --------------------------------------------------
 

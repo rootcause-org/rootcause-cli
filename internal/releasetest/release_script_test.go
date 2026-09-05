@@ -12,6 +12,9 @@ import (
 // gh/go are replaced only at their external boundaries, so the test proves an unpushed local main is
 // accepted, published, remotely verified, and tagged at the same exact commit.
 func TestReleasePublishesMainBeforeTag(t *testing.T) {
+	if testing.Short() { // ~6 s of git/curl subprocesses; release.sh runs the full suite itself
+		t.Skip("release script end-to-end run is skipped under -short")
+	}
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
 		t.Fatal(err)
@@ -47,6 +50,8 @@ func TestReleasePublishesMainBeforeTag(t *testing.T) {
 	}
 	write(t, filepath.Join(mirror, "cloud-setup.sh"), string(cloudSetup), 0o644)
 	write(t, filepath.Join(mirror, "v9.9.9", "cloud-setup.sh"), string(cloudSetup), 0o644)
+	write(t, filepath.Join(mirror, "latest"), "v9.9.9\n", 0o644)
+	write(t, filepath.Join(mirror, "v9.9.9", "checksums.txt"), "deadbeef  rc_9.9.9_linux_amd64.tar.gz\n", 0o644)
 
 	run(t, checkout, "git", "add", "README.md", "scripts/cloud-setup.sh")
 	run(t, checkout, "git", "commit", "-m", "initial")
@@ -66,6 +71,15 @@ func TestReleasePublishesMainBeforeTag(t *testing.T) {
 	fakeBin := filepath.Join(tmp, "bin")
 	if err := os.Mkdir(fakeBin, 0o755); err != nil {
 		t.Fatal(err)
+	}
+	// shellcheck and golangci-lint are shimmed for the same reason go and gh are: this sandbox is a
+	// two-file checkout, so re-running them here proves nothing (ci.yml and the developer's own
+	// `go test ./...` already cover them) while adding 1–2 s and an undeclared host dependency —
+	// release.sh dies without shellcheck, so `go test ./...` would fail on a machine without it. We
+	// still assert release.sh invoked both, which is the part this test is about.
+	invoked := filepath.Join(tmp, "invoked")
+	for _, linter := range []string{"shellcheck", "golangci-lint"} {
+		write(t, filepath.Join(fakeBin, linter), "#!/usr/bin/env bash\nprintf '"+linter+"\\n' >> "+invoked+"\nexit 0\n", 0o755)
 	}
 	write(t, filepath.Join(fakeBin, "go"), `#!/usr/bin/env bash
 if [[ "$*" == *"rootcause-org/rootcause-cli@latest"* ]]; then
@@ -116,10 +130,16 @@ exit 0
 	if !strings.Contains(string(out), "Homebrew cask is 9.9.9") {
 		t.Fatalf("release output omitted Homebrew verification:\n%s", out)
 	}
-	for _, key := range []string{"mirror v9.9.9/cloud-setup.sh", "mirror cloud-setup.sh"} {
+	for _, key := range []string{
+		"mirror v9.9.9/cloud-setup.sh", "mirror cloud-setup.sh",
+		"mirror latest is v9.9.9", "mirror v9.9.9/checksums.txt",
+	} {
 		if !strings.Contains(string(out), key) {
-			t.Fatalf("release output omitted cloud mirror verification (%s):\n%s", key, out)
+			t.Fatalf("release output omitted release mirror verification (%s):\n%s", key, out)
 		}
+	}
+	if got, err := os.ReadFile(invoked); err != nil || !strings.Contains(string(got), "shellcheck") || !strings.Contains(string(got), "golangci-lint") {
+		t.Fatalf("release did not run both linters: %q (%v)", got, err)
 	}
 
 	gotMain := strings.TrimSpace(run(t, tmp, "git", "--git-dir", origin, "rev-parse", "refs/heads/main"))

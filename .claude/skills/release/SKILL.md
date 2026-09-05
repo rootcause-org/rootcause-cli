@@ -16,7 +16,7 @@ of the release. Pick the bump by what changed in the *command surface*, not by c
 ## Why the script, never by hand
 
 A release is one transaction of six things landing together (tested SHA on `origin/main`, tag, GitHub
-Release + GoReleaser binaries, Homebrew cask, Go module proxy, cloud-setup mirror objects). Skip the main
+Release + GoReleaser binaries, Homebrew cask, Go module proxy, release-mirror objects — cloud-setup.sh, `latest`, checksums). Skip the main
 push and GitHub trails the published binary; skip the proxy warmup and every consumer's
 `go get …@latest` keeps resolving the **old pseudo-version** while looking successful.
 
