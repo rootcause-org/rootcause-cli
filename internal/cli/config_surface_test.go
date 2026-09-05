@@ -1108,3 +1108,59 @@ func TestMailboxPasswordLink(t *testing.T) {
 		t.Errorf("password-link stdout = %q, want just the URL", got)
 	}
 }
+
+// --- parseSetArgs value coercion ---
+
+// The literal `null` must reach the server as JSON null for every kind (nullable knobs reset to
+// inherit); the empty value keeps its per-kind clear meaning.
+func TestParseSetArgsNullAndKinds(t *testing.T) {
+	coerce := func(key string) valueKind {
+		switch key {
+		case "chat_hot_ttl_secs", "max_run_usd":
+			return kindNumber
+		case "pr.triggers":
+			return kindList
+		case "actions_enabled":
+			return kindBool
+		case "models.agent":
+			return kindObject
+		default:
+			return kindString
+		}
+	}
+	cases := []struct {
+		name string
+		arg  string
+		want string // json.Marshal of the single patch value
+	}{
+		{"number null", "chat_hot_ttl_secs=null", `null`},
+		{"string null", "persona.tone=null", `null`},
+		{"bool null", "actions_enabled=null", `null`},
+		{"list null", "pr.triggers=null", `null`},
+		{"object null", "models.agent=null", `null`},
+		{"number value", "max_run_usd=5", `5`},
+		{"list clear stays empty array", "pr.triggers=", `[]`},
+		{"object clear stays empty object", "models.agent=", `{}`},
+		{"quoted null is a string", `persona.tone="null"`, `"\"null\""`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			patch, err := parseSetArgs([]string{tc.arg}, coerce)
+			if err != nil {
+				t.Fatalf("parseSetArgs(%q): %v", tc.arg, err)
+			}
+			key, _, _ := strings.Cut(tc.arg, "=")
+			val, ok := patch[key]
+			if !ok {
+				t.Fatalf("patch missing key %q: %#v", key, patch)
+			}
+			b, err := json.Marshal(val)
+			if err != nil {
+				t.Fatalf("marshal: %v", err)
+			}
+			if string(b) != tc.want {
+				t.Fatalf("got %s, want %s", b, tc.want)
+			}
+		})
+	}
+}

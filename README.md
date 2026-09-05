@@ -30,6 +30,7 @@ $ rc dev brain promote --channel stable --sha "$(git rev-parse HEAD)"
 $ rc dev brain status                 # verify stable/edge resolved SHAs before claiming success
 $ rc project settings runtime set max_run_usd=5 'models.agent={"tier":"pro"}'
 $ rc project settings behavior set persona.tone=warm channel.labeling_enabled=true
+$ rc project chat set chat_hot_ttl_secs=null   # key=null resets a nullable knob to inherit
 $ rc project triage policy get -o json
 $ rc project triage rules ls -o json
 $ rc project tenant settings get acme

@@ -106,8 +106,9 @@ func normalizeType(typ string) valueKind {
 }
 
 // parseSetArgs turns key=value args into the sparse PATCH body, using coerce to pick each value's JSON
-// kind. Keys pass through verbatim (the server owns the whitelist). A LIST key comma-splits into a JSON
-// array (empty value → empty array, the "clear" gesture); a NUMBER key parses to a JSON number, falling
+// kind. Keys pass through verbatim (the server owns the whitelist). The literal value `null` is JSON
+// null for every kind — the reset-to-inherit gesture for a nullable knob. A LIST key comma-splits into a
+// JSON array (empty value → empty array, the "clear" gesture); a NUMBER key parses to a JSON number, falling
 // back to the raw string so the server returns the precise INVALID_SETTINGS message rather than a
 // client-side guess; an OBJECT key rides through as raw JSON; everything else is a string.
 func parseSetArgs(args []string, coerce coercer) (map[string]any, error) {
@@ -116,6 +117,12 @@ func parseSetArgs(args []string, coerce coercer) (map[string]any, error) {
 		key, val, ok := strings.Cut(arg, "=")
 		if !ok || key == "" {
 			return nil, fmt.Errorf("invalid argument %q: expected key=value", arg)
+		}
+		// The server decides per field whether null is legal (nullable → inherit the host default), so
+		// send it for every kind; lists/objects keep the empty `key=` as their own clear gesture.
+		if strings.TrimSpace(val) == "null" {
+			patch[key] = nil
+			continue
 		}
 		switch coerce(key) {
 		case kindList:

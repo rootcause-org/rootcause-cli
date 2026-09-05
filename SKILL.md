@@ -378,8 +378,9 @@ non-decodable body falls back to `error: HTTP <status>` — clean non-zero exit,
   `/meta/schema` ONCE and coerces each `k=v` by the field's declared type (a `list`/`array` comma-splits to
   a JSON array, empty → `[]`; a numeric type → a JSON number; an `object` type — a closed record like
   `models.agent={"tier":"pro"}` — is parsed as JSON and passed through verbatim, empty → `{}` (clear),
-  non-object rejected client-side). On a schema miss it falls back to a static
-  known-key set. The server is always the final validator.
+  non-object rejected client-side). `key=null` resets a nullable knob to inherit (e.g.
+  `chat_hot_ttl_secs=null`) — a JSON null for any kind, the server decides whether it is legal. On a
+  schema miss it falls back to a static known-key set. The server is always the final validator.
 - **Hierarchy settings coercion:** [`hierarchy_settings.go`](internal/cli/hierarchy_settings.go) fetches
   `/meta/schema` ONCE per `settings set` and builds its group→field index from the response's
   `hierarchy_settings[group].field_schemas` (plus any resource field whose dotted key prefix is its own
