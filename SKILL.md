@@ -145,7 +145,7 @@ redirect traffic. `.rootcause/local.toml` overlays `tenant` only.
   every surface that can receive one prints "withheld" instead of an empty section
   ([`internal/render/redaction.go`](internal/render/redaction.go), `render.Patterns`, the `run debug`
   index). Absent field = older server = full detail.
-- **`rc run debug`** ([`internal/debugdump`](internal/debugdump/emit.go)) writes files and deliberately
+- **`rc run debug`** ([`internal/debugdump`](internal/debugdump/dump.go)) writes files and deliberately
   does **not** summarize into stdout; the agent reads the index, then drills the JSONL. Its JSONL shape
   (header line + `disp`-keyed events) is a contract shared with rootcause's Python renderer — jq recipes
   in the field depend on it. Historical `/trace` snapshots are authoritative; current state appears only

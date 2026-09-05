@@ -3,119 +3,11 @@ package debugdump
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
-
-// EmitJSONL writes the drill-down event log: a {"type":"run"} header line (run metadata + full
-// draft/note bodies + the untrimmed system prompt + egress) followed by one {"type":"event"} line per
-// tool call, every field FULL and untruncated, keyed by `disp`. Header rollups are `run_`-prefixed so
-// event-space jq queries (`select(.duration_ms > 60000)`) never match the header.
-func EmitJSONL(w io.Writer, full *client.FullResponse) error {
-	events := decorate(full.Events)
-	enc := json.NewEncoder(w)
-	enc.SetEscapeHTML(false)
-
-	r := full.Run
-	header := map[string]any{
-		"type":                    "run",
-		"run_id":                  r.RunID,
-		"project":                 r.Project,
-		"tenant":                  emptyNil(r.Tenant),
-		"status":                  r.Status,
-		"kind":                    r.Kind,
-		"trigger":                 emptyNil(r.Trigger),
-		"brain_ref":               emptyNil(r.BrainRef),
-		"brain_resolved":          emptyNil(r.BrainResolved),
-		"tenant_settings":         tenantSettingsJSON(r.TenantSettings),
-		"tenant_settings_current": tenantSettingsJSON(r.TenantSettingsCurrent),
-		"error":                   emptyNil(r.Error),
-		"thread_id":               emptyNil(r.ThreadID),
-		"session_id":              emptyNil(r.SessionID),
-		"topic":                   emptyNil(r.Topic),
-		"question":                emptyNil(r.Question),
-		"warm_start_digest":       emptyNil(r.WarmStartDigest),
-		"grounding_seed":          emptyNil(r.GroundingSeed),
-		"system_prompt":           emptyNil(r.SystemPrompt),
-		"created_at":              emptyNil(r.CreatedAt),
-		"finished_at":             emptyNil(r.FinishedAt),
-		"draft":                   emptyNil(r.Draft),
-		"notes":                   notesJSON(r.Notes),
-		"metadata":                metadataJSON(r.Metadata),
-		"egress":                  egressJSON(r.Egress),
-	}
-	// A redacted bundle still gets its JSONL (whatever the server sent) — but the header must carry the
-	// marker so a jq consumer can tell "nothing happened" from "nothing was served".
-	if full.Redacted() {
-		header["detail_redacted"] = true
-	}
-	if len(r.GroundingSourcesRaw) > 0 {
-		header["grounding_sources"] = json.RawMessage(r.GroundingSourcesRaw)
-		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
-	} else if r.GroundingSources != nil {
-		header["grounding_sources"] = r.GroundingSources
-		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
-	}
-	if len(r.ProposedActions) > 0 {
-		header["proposed_actions"] = r.ProposedActions
-	}
-	// The persisted prompt context, under the server's own field names so the rc-debug jq recipes read
-	// the same keys the API documents. context_schema_version is written even when 0: that zero IS the
-	// "this run predates the capture / aged out" signal, and a jq consumer needs it present to test it.
-	header["context_schema_version"] = r.ContextSchemaVersion
-	if len(r.PromptSections) > 0 {
-		header["prompt_sections"] = json.RawMessage(r.PromptSections)
-	}
-	if len(r.ManifestBlocks) > 0 {
-		header["manifest_blocks"] = json.RawMessage(r.ManifestBlocks)
-	}
-	if r.BootstrapTurn != "" {
-		header["bootstrap_turn"] = r.BootstrapTurn
-	}
-	if r.PreselectedTurn != "" {
-		header["preselected_turn"] = r.PreselectedTurn
-	}
-	if drift, err := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
-		header["tenant_settings_drift"] = drift
-	}
-	if err := enc.Encode(header); err != nil {
-		return err
-	}
-	for _, e := range events {
-		line := map[string]any{
-			"type":        "event",
-			"disp":        e.disp,
-			"seq":         e.src.Seq,
-			"grounding":   e.grounding,
-			"tool":        e.src.Tool,
-			"label":       e.label,
-			"command":     e.command,
-			"stdout":      emptyNil(e.src.Stdout),
-			"stderr":      emptyNil(e.src.Stderr),
-			"exit_code":   e.src.ExitCode,
-			"status":      e.src.Status,
-			"duration_ms": e.src.DurationMs,
-			"at":          emptyNil(e.src.At),
-			"reasoning":   emptyNil(e.src.Reasoning),
-		}
-		// Bash's full input is `command`; other tools carry their structured input in `args`.
-		if e.src.Tool != "bash" {
-			if len(e.src.Args) > 0 {
-				line["args"] = json.RawMessage(e.src.Args)
-			} else {
-				line["args"] = map[string]any{}
-			}
-		}
-		if err := enc.Encode(line); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 // RenderIndex builds the THIN markdown index: the run header, question, outcome gist, a main-loop
 // timeline table (mechanical search/read steps omitted), auto-flagged anomalies, files read, an egress
@@ -673,190 +565,7 @@ func renderOutcome(r client.RunHeader) []string {
 	return out
 }
 
-// --- flags (attention-directing anomalies) -----------------------------------------------------------
-
-var grepRx = regexp.MustCompile(`^\s*(rg|grep|egrep|fgrep)\b`)
-
-// flags surfaces where "why did it do that" questions are likely to live: errors, failed steps, blocked
-// egress, repeated commands, one turn dominating the wall clock, large output. A trimmed port of the
-// shared renderer's flags().
-func flags(full *client.FullResponse, events []decEvent) []string {
-	r := full.Run
-	var out []string
-	// Polish rows are host bookkeeping, not turns: their non-"ok" status would read as a failed step and
-	// their (absent) duration would skew the median. They have their own section.
-	kept := events[:0:0]
-	for _, e := range events {
-		if !e.polish {
-			kept = append(kept, e)
-		}
-	}
-	events = kept
-	if r.Error != "" {
-		out = append(out, fmt.Sprintf("run errored: `%s`", r.Error))
-	}
-	if r.Draft == "" && len(r.Notes) == 0 && len(r.Metadata) == 0 {
-		out = append(out, "no stored callback — the run never produced one")
-	}
-	for _, e := range events {
-		if benignGrepMiss(e) {
-			// grep exit 1 = no match, not a failure
-		} else if e.src.Status != "ok" {
-			s := fmt.Sprintf("[%s] %s", e.disp, e.src.Status)
-			if e.src.ExitCode != 0 {
-				s += fmt.Sprintf(" (exit %d)", e.src.ExitCode)
-			}
-			out = append(out, s)
-		} else if e.src.ExitCode != 0 {
-			out = append(out, fmt.Sprintf("[%s] exit %d", e.disp, e.src.ExitCode))
-		}
-		if strings.Contains(e.src.Stdout+e.src.Stderr, "EGRESS_BLOCKED") {
-			out = append(out, fmt.Sprintf("[%s] output mentions EGRESS_BLOCKED", e.disp))
-		}
-		if len(e.src.Stdout) > 20_000 {
-			out = append(out, fmt.Sprintf("[%s] large stdout (%d KB)", e.disp, len(e.src.Stdout)/1024))
-		}
-	}
-
-	// Repeated identical bash commands — possible flailing.
-	seen := map[string][]string{}
-	for _, e := range events {
-		if e.src.Tool == "bash" && strings.TrimSpace(e.command) != "" {
-			k := strings.Join(strings.Fields(e.command), " ")
-			seen[k] = append(seen[k], e.disp)
-		}
-	}
-	repeats := make([]string, 0, len(seen))
-	for k := range seen {
-		repeats = append(repeats, k)
-	}
-	sort.Strings(repeats)
-	for _, k := range repeats {
-		if steps := seen[k]; len(steps) > 1 {
-			out = append(out, fmt.Sprintf("[%s] identical command ran %d×: `%s`", strings.Join(steps, ", "), len(steps), cell(k, 60)))
-		}
-	}
-
-	// Duration spikes: one turn that dominated the wall clock — the "why did this run take so long"
-	// pointer. Needs ≥4 timed turns for a meaningful median, and ≥1s so millisecond noise never flags.
-	var durs []float64
-	for _, e := range events {
-		if e.src.DurationMs > 0 {
-			durs = append(durs, float64(e.src.DurationMs))
-		}
-	}
-	if len(durs) >= 4 {
-		med := median(durs)
-		for _, e := range events {
-			d := float64(e.src.DurationMs)
-			if d > 0 && med > 0 && d > 4*med && d >= 1000 {
-				out = append(out, fmt.Sprintf("[%s] slow turn %s (%.0f× median turn)", e.disp, dur(e.src.DurationMs), d/med))
-			}
-		}
-	}
-
-	for _, g := range r.Egress {
-		if g.Blocked {
-			out = append(out, fmt.Sprintf("egress BLOCKED: `%s` (%d×)", g.Host, g.Count))
-		}
-	}
-	return out
-}
-
-func benignGrepMiss(e decEvent) bool {
-	return e.src.ExitCode == 1 && (e.src.Status == "ok" || e.src.Status == "error") &&
-		strings.TrimSpace(e.src.Stderr) == "" &&
-		grepRx.MatchString(cdPrefix.ReplaceAllString(e.command, ""))
-}
-
-// pathRx matches the run's read-only mounts in commands — the bridge to "what did the run read". ALL
-// mounts must be listed: a missing one (`/tenant` was absent until 2026-08-13) renders an index that
-// silently claims the run never opened a tenant file, which reads as evidence in an audit.
-// The leading (^|[^\w-]) group emulates the reference renderer's negative lookbehind (RE2 has none): a
-// path must not be glued onto a preceding word/hyphen char, so `foo/brain/x.py` isn't mis-read as a path.
-// Matching is global over the WHOLE command string, so every clause of a `;`/`&&`-chained or `for f in
-// … ; do … done` command contributes its paths, not just the first.
-// Group 1 is the boundary (discarded); group 2 is the path.
-var pathRx = regexp.MustCompile(`(^|[^\w-])(/(?:brain|tenant|mirrors|kb|tmp/rc-context)/[A-Za-z0-9._/@%+-]*[A-Za-z0-9_])`)
-
-// filesRead returns the sorted FILE paths (those with an extension) the run's bash commands touched.
-func filesRead(events []decEvent) []string {
-	set := map[string]struct{}{}
-	for _, e := range events {
-		if e.src.Tool != "bash" {
-			continue
-		}
-		for _, m := range pathRx.FindAllStringSubmatch(e.command, -1) {
-			p := m[2] // the path (group 1 is the leading boundary char)
-			last := p[strings.LastIndex(p, "/")+1:]
-			if strings.Contains(last, ".") { // a dot in the basename ⇒ a file, not a dir
-				set[p] = struct{}{}
-			}
-		}
-	}
-	files := make([]string, 0, len(set))
-	for f := range set {
-		files = append(files, f)
-	}
-	sort.Strings(files)
-	return files
-}
-
-// --- small JSON/format helpers -----------------------------------------------------------------------
-
-func emptyNil(s string) any {
-	if s == "" {
-		return nil
-	}
-	return s
-}
-
-func notesJSON(notes []client.Note) []map[string]any {
-	out := make([]map[string]any, 0, len(notes))
-	for _, n := range notes {
-		out = append(out, map[string]any{"key": n.Key, "body": n.Body})
-	}
-	return out
-}
-
-// metadataJSON passes the run's freeform metadata into the JSONL header, minus the host-only keys an
-// older server may still emit (spend/tokens, serving model identity) — the dump is a read surface like
-// any other.
-func metadataJSON(m map[string]any) any {
-	if len(m) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(m))
-	for k, v := range m {
-		if client.HostOnlyMetadataKey(k) {
-			continue
-		}
-		out[k] = v
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func tenantSettingsJSON(raw string) any {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return nil
-	}
-	if json.Valid([]byte(raw)) {
-		return json.RawMessage(raw)
-	}
-	return raw
-}
-
-func egressJSON(egress []client.EgressItem) []map[string]any {
-	out := make([]map[string]any, 0, len(egress))
-	for _, g := range egress {
-		out = append(out, map[string]any{"host": g.Host, "count": g.Count, "blocked": g.Blocked})
-	}
-	return out
-}
+// --- index formatters --------------------------------------------------------------------------------
 
 func selectorSummary(vals []client.TenantSettingValue) string {
 	parts := make([]string, 0, len(vals))
@@ -924,15 +633,87 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-func median(vals []float64) float64 {
-	s := append([]float64(nil), vals...)
-	sort.Float64s(s)
-	n := len(s)
-	if n == 0 {
-		return 0
+// --- header summaries (link + attachment traces, rendered from the last reply/compose args) ----------
+
+// linkSummary renders the link-validator verdicts carried by the last reply/compose call as one
+// index-header line ("N checked · N passed · …" plus a per-link detail). Second return is false when
+// no such call carried a `links` envelope, so the header omits the line entirely.
+func linkSummary(events []decEvent) (string, bool) {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].src.Tool != "reply" && events[i].src.Tool != "compose" {
+			continue
+		}
+		var envelope map[string]json.RawMessage
+		if json.Unmarshal(events[i].src.Args, &envelope) != nil {
+			continue
+		}
+		raw, ok := envelope["links"]
+		if !ok {
+			return "", false
+		}
+		var links []linkTrace
+		if json.Unmarshal(raw, &links) != nil {
+			return "", false
+		}
+		passed, removed := 0, 0
+		parts := make([]string, 0, len(links))
+		for _, link := range links {
+			switch link.Verdict {
+			case "pass":
+				passed++
+			case "fail":
+				removed++
+			}
+			status := "no HTTP status"
+			if link.Status > 0 {
+				status = fmt.Sprintf("HTTP %d", link.Status)
+			}
+			parts = append(parts, fmt.Sprintf("`%s` · %s · %s · %d ms",
+				strings.ReplaceAll(link.URL, "`", "\\`"), link.Verdict, status, link.MS))
+		}
+		checked := passed + removed
+		summary := fmt.Sprintf("%d checked · %d passed · %d removed · %d untouched",
+			checked, passed, removed, len(links)-checked)
+		if len(parts) > 0 {
+			summary += " — " + strings.Join(parts, "; ")
+		}
+		return summary, true
 	}
-	if n%2 == 1 {
-		return s[n/2]
+	return "", false
+}
+
+// attachmentSummary renders what the last reply call declared vs actually shipped as one index-header
+// line, naming each attachment and any drop reason.
+func attachmentSummary(events []decEvent) (string, bool) {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].src.Tool != "reply" {
+			continue
+		}
+		var args struct {
+			Attachments []attachmentTrace `json:"attachments"`
+		}
+		_ = json.Unmarshal(events[i].src.Args, &args)
+		shipped := 0
+		parts := make([]string, 0, len(args.Attachments))
+		for _, a := range args.Attachments {
+			state := a.Status
+			if state == "shipped" {
+				shipped++
+			} else if a.DropReason != "" {
+				state += ": " + a.DropReason
+			}
+			mime := a.MimeType
+			if mime == "" {
+				mime = "unknown MIME"
+			}
+			parts = append(parts, fmt.Sprintf("`%s` · %d bytes · `%s` · `%s` · %s",
+				a.Filename, a.SizeBytes, mime, a.Path, state))
+		}
+		summary := fmt.Sprintf("%d declared · %d shipped · %d dropped", len(args.Attachments), shipped, len(args.Attachments)-shipped)
+		if len(parts) > 0 {
+			summary += " — " + strings.Join(parts, "; ")
+		}
+		return summary, true
 	}
-	return (s[n/2-1] + s[n/2]) / 2
+	return "", false
 }
