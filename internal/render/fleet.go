@@ -408,7 +408,7 @@ func fleetHuman(w io.Writer, runs []client.RunSummary, opt FleetOptions) {
 	_, _ = fmt.Fprintln(tw, "RUN8\tKIND\tSTATUS\tDURATION\tTURNS\tFLAGS")
 	for _, r := range runs {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			short8(r.RunID), r.Kind, r.Status, duration(r.DurationMs),
+			clipID(r.RunID, 8), r.Kind, r.Status, duration(r.DurationMs),
 			turnsIntCell(turnsOf(r)), flagStr(r, spikes))
 	}
 	_ = tw.Flush()
@@ -781,13 +781,6 @@ func clip(s []client.RunSummary, n int) []client.RunSummary {
 }
 
 // --- small formatters ---
-
-func short8(id string) string {
-	if len(id) > 8 {
-		return id[:8]
-	}
-	return id
-}
 
 // turnsCell renders an average turn count with one decimal, "-" when there is no turn data.
 func turnsCell(t float64) string {

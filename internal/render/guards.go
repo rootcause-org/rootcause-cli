@@ -44,7 +44,7 @@ func Guards(w io.Writer, g *client.GuardsView) {
 	fv, fd := guardsFinal(g.Final)
 	add("final", fv, fd)
 	for _, r := range rows {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", r.name, r.verdict, blank(r.detail))
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\n", r.name, r.verdict, orDash(r.detail, "-"))
 	}
 	_ = tw.Flush()
 }
@@ -75,7 +75,7 @@ func guardsPrincipal(raw json.RawMessage) (verdict, detail string) {
 	if err := json.Unmarshal(raw, &ps); err != nil {
 		return "present", "unparseable principal_scope"
 	}
-	verdict = blank(ps.Resolution)
+	verdict = orDash(ps.Resolution, "-")
 	detail = joinNonEmpty(" · ", kv("kind", ps.Kind), kv("assurance", ps.Assurance))
 	return verdict, detail
 }
@@ -139,12 +139,12 @@ func guardsFinal(s *client.GuardsFinal) (verdict, detail string) {
 		return "n/a", ""
 	}
 	detail = joinNonEmpty(" · ",
-		kv("draft", boolMark(s.HasDraft)),
-		kv("note", boolMark(s.HasNote)),
+		kv("draft", yesNo(s.HasDraft)),
+		kv("note", yesNo(s.HasNote)),
 		kv("guardrail", s.Guardrail),
 		s.DeclineReason,
 	)
-	return blank(s.Outcome), detail
+	return orDash(s.Outcome, "-"), detail
 }
 
 func joinNonEmpty(sep string, parts ...string) string {
@@ -183,11 +183,4 @@ func listDetail(label string, items []string) string {
 		return ""
 	}
 	return label + "=[" + strings.Join(items, ",") + "]"
-}
-
-func boolMark(b bool) string {
-	if b {
-		return "yes"
-	}
-	return "no"
 }

@@ -12,15 +12,6 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
-// shortID clips a run/thread id to its 8-char prefix for the compact table, matching rc_agent_debug's
-// own short-id convention; a shorter id is returned as-is.
-func shortID(id string) string {
-	if len(id) > 8 {
-		return id[:8]
-	}
-	return id
-}
-
 // ThreadTrace renders the provider-neutral channel row before the run table. That makes a triage skip or
 // injection block diagnosable even when the pipeline deliberately minted no run.
 func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
@@ -33,7 +24,7 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 		_, _ = fmt.Fprintln(tw, "LOCAL\tPROVIDER\tTENANT\tSTATUS\tOUTCOME\tMSG\tDRAFT\tNOTE\tUPDATED")
 		for _, th := range t.Threads {
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\n",
-				shortID(th.LocalThreadID), th.Provider, strOrBlank(th.Tenant), th.Status, th.Outcome,
+				clipID(th.LocalThreadID, 8), th.Provider, orDash(th.Tenant, "-"), th.Status, th.Outcome,
 				th.MessageCount, th.DraftCount, th.NoteCount, th.UpdatedAt.Format(time.RFC3339))
 		}
 		_ = tw.Flush()
@@ -66,8 +57,8 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSTATUS\tOUTCOME\tCATEGORY\tHEALTH\tPLACED\tCREATED\tTOPIC")
 	for _, r := range t.Runs {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			shortID(r.RunID), r.Kind, r.Status, r.Outcome, r.Category,
-			healthFlags(r.Health), placement(r), r.CreatedAt, strOrBlank(r.Topic))
+			clipID(r.RunID, 8), r.Kind, r.Status, r.Outcome, r.Category,
+			healthFlags(r.Health), placement(r), r.CreatedAt, orDash(r.Topic, "-"))
 	}
 	_ = tw.Flush()
 	renderThreadAttribution(w, t.Runs)
@@ -100,7 +91,7 @@ func renderThreadAttribution(w io.Writer, runs []client.RunSummary) {
 			relation = "clarifies " + a.ParentRunID
 		}
 		_, _ = fmt.Fprintf(w, "- run %s (%s)\n", r.RunID, relation)
-		_, _ = fmt.Fprintf(w, "  conversation %s · provider thread %s · session %s\n", strOrBlank(a.LocalThreadID), strOrBlank(a.ThreadID), strOrBlank(a.SessionID))
+		_, _ = fmt.Fprintf(w, "  conversation %s · provider thread %s · session %s\n", orDash(a.LocalThreadID, "-"), orDash(a.ThreadID, "-"), orDash(a.SessionID, "-"))
 		if len(a.TriggerMessageIDs) == 0 {
 			_, _ = fmt.Fprintln(w, "  trigger message: unavailable for this historical turn")
 		} else {

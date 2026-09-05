@@ -22,8 +22,8 @@ func WatchedMailboxes(w io.Writer, l *client.WatchedMailboxList) {
 	_, _ = fmt.Fprintln(tw, "ID\tPROVIDER\tEMAIL\tSTATUS\tMODE\tPROCESSING\tTENANT\tSUB-EXPIRES\tLAST-SYNC\tERROR")
 	for _, m := range l.Mailboxes {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			m.ID, m.Provider, m.EmailAddress, m.Status, strOrBlank(m.Mode), processingLabel(m.ProcessingEnabled),
-			strOrBlank(m.Tenant), strOrBlank(m.SubscriptionExpiresAt), lastSyncLabel(m), strOrBlank(m.ErrorMessage))
+			m.ID, m.Provider, m.EmailAddress, m.Status, orDash(m.Mode, "-"), processingLabel(m.ProcessingEnabled),
+			orDash(m.Tenant, "-"), orDash(m.SubscriptionExpiresAt, "-"), lastSyncLabel(m), orDash(m.ErrorMessage, "-"))
 	}
 	_ = tw.Flush()
 }

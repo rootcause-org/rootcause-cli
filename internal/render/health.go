@@ -81,7 +81,7 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 	case len(badBoot) > 0:
 		unhealthy = true
 		for _, b := range badBoot {
-			_, _ = fmt.Fprintf(w, "  ! %s: FAILED @ %s — %s\n", brainBootName(b.Tenant), shortGit(b.SHA), firstLine120(b.Reason))
+			_, _ = fmt.Fprintf(w, "  ! %s: FAILED @ %s — %s\n", brainBootName(b.Tenant), clipID(b.SHA, 12), firstLine120(b.Reason))
 		}
 	case len(h.BrainBoot) == 0:
 		_, _ = fmt.Fprintln(w, "  (no checks yet)")
@@ -118,7 +118,7 @@ func Health(w io.Writer, h *client.HealthResponse) (healthy bool) {
 	if len(h.DeadLettered) > 0 {
 		unhealthy = true
 		for _, d := range h.DeadLettered {
-			_, _ = fmt.Fprintf(w, "  ! %s %s — %s\n", d.Kind, short8(d.RunID), firstLine120(d.Error))
+			_, _ = fmt.Fprintf(w, "  ! %s %s — %s\n", d.Kind, clipID(d.RunID, 8), firstLine120(d.Error))
 		}
 	} else {
 		_, _ = fmt.Fprintln(w, "  ok — no runs dead-lettered in window")

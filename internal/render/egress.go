@@ -29,7 +29,7 @@ func RunEgress(w io.Writer, resp *client.RunEgressResponse) {
 		for _, row := range resp.HTTP {
 			_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%d\t%s\n",
 				row.At, row.Source, row.Method, row.Host, endpointOf(row), httpStatus(row.StatusCode), row.Attempt,
-				blank(row.Reason), row.RequestBytes, blank(row.RequestID))
+				orDash(row.Reason, "-"), row.RequestBytes, orDash(row.RequestID, "-"))
 		}
 		_ = tw.Flush()
 		for _, row := range resp.HTTP {
@@ -56,7 +56,7 @@ func RunEgress(w io.Writer, resp *client.RunEgressResponse) {
 	_, _ = fmt.Fprintln(tw, "  AT\tHOST\tPORT\tSCHEME\tDECISION\tBYTES_OUT\tURL")
 	for _, row := range resp.Egress {
 		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%d\t%s\t%s\t%d\t%s\n",
-			row.At, row.Host, row.Port, row.Scheme, row.Decision, row.BytesOut, blank(row.URL))
+			row.At, row.Host, row.Port, row.Scheme, row.Decision, row.BytesOut, orDash(row.URL, "-"))
 	}
 	_ = tw.Flush()
 }
@@ -74,8 +74,8 @@ func ActionHistory(w io.Writer, rows []client.ActionHistoryRow) {
 			duration = fmt.Sprintf("%dms", *row.DurationMs)
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			row.ID, row.ActionID, row.Status, blankDash(row.ErrorClass), row.Digest, row.ParamsHash,
-			duration, row.CreatedAt, blank(row.CompletedAt))
+			row.ID, row.ActionID, row.Status, orDashTrimmed(row.ErrorClass, "-"), row.Digest, row.ParamsHash,
+			duration, row.CreatedAt, orDash(row.CompletedAt, "-"))
 	}
 	_ = tw.Flush()
 }
@@ -197,7 +197,7 @@ func endpointOf(row client.HTTPAuditRow) string {
 	if row.Endpoint != "" {
 		return row.Endpoint
 	}
-	return blank(row.Path)
+	return orDash(row.Path, "-")
 }
 
 func httpStatus(status int32) string {
@@ -205,13 +205,6 @@ func httpStatus(status int32) string {
 		return "transport_error"
 	}
 	return fmt.Sprint(status)
-}
-
-func blank(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
 }
 
 func compactBody(body []byte) string {

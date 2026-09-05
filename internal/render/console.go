@@ -243,9 +243,9 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 	}
 	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
 	_, _ = fmt.Fprintf(w, "Ref:     %s\n", st.Ref)
-	_, _ = fmt.Fprintf(w, "Local:   %s\n", shortGit(st.LocalSHA))
+	_, _ = fmt.Fprintf(w, "Local:   %s\n", clipID(st.LocalSHA, 12))
 	if st.RemoteSHA != "" {
-		_, _ = fmt.Fprintf(w, "Origin:  %s\n", shortGit(st.RemoteSHA))
+		_, _ = fmt.Fprintf(w, "Origin:  %s\n", clipID(st.RemoteSHA, 12))
 	}
 	_, _ = fmt.Fprintf(w, "State:   %s", state)
 	if st.Ahead > 0 || st.Behind > 0 {
@@ -263,9 +263,9 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 	case st.BootCheck == nil:
 		_, _ = fmt.Fprintln(w, "Boot:    unchecked")
 	case st.BootCheck.OK:
-		_, _ = fmt.Fprintf(w, "Boot:    ok @ %s (%s)\n", shortGit(st.BootCheck.SHA), st.BootCheck.CheckedAt)
+		_, _ = fmt.Fprintf(w, "Boot:    ok @ %s (%s)\n", clipID(st.BootCheck.SHA, 12), st.BootCheck.CheckedAt)
 	default:
-		_, _ = fmt.Fprintf(w, "Boot:    FAILED @ %s: %s\n", shortGit(st.BootCheck.SHA), st.BootCheck.Reason)
+		_, _ = fmt.Fprintf(w, "Boot:    FAILED @ %s: %s\n", clipID(st.BootCheck.SHA, 12), st.BootCheck.Reason)
 	}
 	if st.Message != "" {
 		_, _ = fmt.Fprintf(w, "Note:    %s\n", st.Message)
@@ -276,8 +276,8 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 		_, _ = fmt.Fprintln(tw, "CHANNEL\tRESOLVED\tORIGIN\tMAIN\tORIGIN?\tMAIN?\tSTATE\tPROVENANCE")
 		for _, ch := range st.Channels {
 			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-				ch.Channel, dash(shortGit(ch.ResolvedSHA)), dash(shortGit(ch.OriginSHA)), dash(shortGit(ch.MainSHA)),
-				yesNo(ch.MatchesOrigin), yesNo(ch.MatchesMain), dash(ch.State), dash(ch.Provenance))
+				ch.Channel, orDashTrimmed(clipID(ch.ResolvedSHA, 12), "—"), orDashTrimmed(clipID(ch.OriginSHA, 12), "—"), orDashTrimmed(clipID(ch.MainSHA, 12), "—"),
+				yesNo(ch.MatchesOrigin), yesNo(ch.MatchesMain), orDashTrimmed(ch.State, "—"), orDashTrimmed(ch.Provenance, "—"))
 		}
 		_ = tw.Flush()
 	}
@@ -308,8 +308,8 @@ func BrainPromote(w io.Writer, r *client.BrainPromoteResponse) {
 	}
 	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
 	_, _ = fmt.Fprintf(w, "Channel: %s\n", r.Channel)
-	_, _ = fmt.Fprintf(w, "Old:     %s\n", dash(shortGit(r.OldSHA)))
-	_, _ = fmt.Fprintf(w, "New:     %s\n", dash(shortGit(r.NewSHA)))
+	_, _ = fmt.Fprintf(w, "Old:     %s\n", orDashTrimmed(clipID(r.OldSHA, 12), "—"))
+	_, _ = fmt.Fprintf(w, "New:     %s\n", orDashTrimmed(clipID(r.NewSHA, 12), "—"))
 	_, _ = fmt.Fprintf(w, "State:   %s\n", state)
 }
 
@@ -324,7 +324,7 @@ func BrainPreflight(w io.Writer, r *client.BrainPreflightResponse) {
 	}
 	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
 	_, _ = fmt.Fprintf(w, "Channel: %s\n", c.Channel)
-	_, _ = fmt.Fprintf(w, "Commit:  %s\n", dash(shortGit(c.SHA)))
+	_, _ = fmt.Fprintf(w, "Commit:  %s\n", orDashTrimmed(clipID(c.SHA, 12), "—"))
 	_, _ = fmt.Fprintf(w, "Verdict: %s\n", verdict)
 	_, _ = fmt.Fprintf(w, "Tenants: %d consumers, %d checked, %d skipped\n", c.Consumers, c.Checked, c.Skipped)
 	if c.Error != "" {
@@ -368,11 +368,11 @@ func sortedCanaryTenants(in []client.BrainCanaryTenant) []client.BrainCanaryTena
 func BrainRender(w io.Writer, r *client.BrainRenderResponse) {
 	s := r.Stats
 	_, _ = fmt.Fprintf(w, "Tenant:   %s\n", r.Tenant)
-	_, _ = fmt.Fprintf(w, "Commit:   %s (%s)\n", dash(shortGit(r.SHA)), dash(r.Channel))
+	_, _ = fmt.Fprintf(w, "Commit:   %s (%s)\n", orDashTrimmed(clipID(r.SHA, 12), "—"), orDashTrimmed(r.Channel, "—"))
 	_, _ = fmt.Fprintf(w, "Files:    %d rendered, %d copied, %d dropped\n", s.FilesRendered, s.FilesCopied, s.FilesDropped)
 	_, _ = fmt.Fprintf(w, "Filled:   %d placeholders, %d branches collapsed, %d degraded\n", s.PlaceholdersFilled, s.BranchesCollapsed, len(r.Degradations))
 	for _, d := range r.Degradations {
-		_, _ = fmt.Fprintf(w, "  %s  %s  %s\n", d.Key, dash(d.File), d.Reason)
+		_, _ = fmt.Fprintf(w, "  %s  %s  %s\n", d.Key, orDashTrimmed(d.File, "—"), d.Reason)
 	}
 	for _, f := range r.Files {
 		_, _ = fmt.Fprintf(w, "\n=== %s ===\n", f.Path)
@@ -399,7 +399,7 @@ func BrainDeveloperInvitation(w io.Writer, r *client.BrainDeveloperInvitation) {
 	_, _ = fmt.Fprintf(w, "Repository:     %s\n", r.Repository)
 	_, _ = fmt.Fprintf(w, "Permission:     %s\n", r.Permission)
 	_, _ = fmt.Fprintf(w, "State:          %s\n", r.State)
-	_, _ = fmt.Fprintf(w, "Acceptance URL: %s\n", dash(r.InvitationURL))
+	_, _ = fmt.Fprintf(w, "Acceptance URL: %s\n", orDashTrimmed(r.InvitationURL, "—"))
 }
 
 func ActionList(w io.Writer, r *client.ActionListResponse) {
@@ -411,8 +411,8 @@ func ActionList(w io.Writer, r *client.ActionListResponse) {
 	_, _ = fmt.Fprintln(tw, "ID\tDISPLAY NAME\tRISK\tPREFLIGHT\tAUTONOMY\tSUCCESS\tLAST RUN")
 	for _, a := range r.Actions {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			a.ID, dash(a.DisplayName), dash(a.Risk), yesNo(a.Preflight || a.HasPreflight),
-			dash(a.Autonomy.Effective), actionSuccessCell(a.Stats), actionLastRunCell(a.Stats))
+			a.ID, orDashTrimmed(a.DisplayName, "—"), orDashTrimmed(a.Risk, "—"), yesNo(a.Preflight || a.HasPreflight),
+			orDashTrimmed(a.Autonomy.Effective, "—"), actionSuccessCell(a.Stats), actionLastRunCell(a.Stats))
 	}
 	_ = tw.Flush()
 }
@@ -435,7 +435,7 @@ func ActionShow(w io.Writer, r *client.ActionShowResponse) {
 
 	if c.Autonomy.Manifest != "" || c.Autonomy.Cap != "" || c.Autonomy.Effective != "" {
 		_, _ = fmt.Fprintf(w, "\nAutonomy:    manifest %s -> cap %s -> effective %s\n",
-			dash(c.Autonomy.Manifest), dash(c.Autonomy.Cap), dash(c.Autonomy.Effective))
+			orDashTrimmed(c.Autonomy.Manifest, "—"), orDashTrimmed(c.Autonomy.Cap, "—"), orDashTrimmed(c.Autonomy.Effective, "—"))
 		for _, f := range c.Autonomy.Floors {
 			_, _ = fmt.Fprintf(w, "  - %s\n", f)
 		}
@@ -459,7 +459,7 @@ func ActionShow(w io.Writer, r *client.ActionShowResponse) {
 		ptw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 		_, _ = fmt.Fprintln(ptw, "  NAME\tTYPE\tREQUIRED\tDESCRIPTION")
 		for _, p := range c.Params {
-			_, _ = fmt.Fprintf(ptw, "  %s\t%s\t%s\t%s\n", p.Name, dash(p.Type), yesNo(p.Required), p.Description)
+			_, _ = fmt.Fprintf(ptw, "  %s\t%s\t%s\t%s\n", p.Name, orDashTrimmed(p.Type, "—"), yesNo(p.Required), p.Description)
 		}
 		_ = ptw.Flush()
 	}
@@ -485,13 +485,6 @@ func ActionShow(w io.Writer, r *client.ActionShowResponse) {
 		_, _ = fmt.Fprintln(w, "\nManifest:")
 		_ = JSON(w, r.Manifest)
 	}
-}
-
-func dash(s string) string {
-	if strings.TrimSpace(s) == "" {
-		return "—"
-	}
-	return s
 }
 
 // actionSuccessCell renders "8/10 80%" over settled runs, or "—" when no run has settled (SuccessRate nil).
@@ -550,11 +543,4 @@ func scalar(v any) string {
 		}
 		return string(b)
 	}
-}
-
-func shortGit(s string) string {
-	if len(s) > 12 {
-		return s[:12]
-	}
-	return s
 }

@@ -27,8 +27,8 @@ func Exports(w io.Writer, l *client.ExportList) {
 			count = x.TemplateCount
 		}
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			x.ID, x.Kind, strOrBlank(x.Format), x.Status, intPtrOrBlank(count), boolLabel(x.Truncated),
-			strOrBlank(x.CreatedAt), strOrBlank(x.CompletedAt))
+			x.ID, x.Kind, orDash(x.Format, "-"), x.Status, intPtrOrBlank(count), boolLabel(x.Truncated),
+			orDash(x.CreatedAt, "-"), orDash(x.CompletedAt, "-"))
 	}
 	_ = tw.Flush()
 }
@@ -42,7 +42,7 @@ func Export(w io.Writer, x *client.ExportItem) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintf(tw, "id:\t%s\n", x.ID)
 	_, _ = fmt.Fprintf(tw, "kind:\t%s\n", x.Kind)
-	_, _ = fmt.Fprintf(tw, "format:\t%s\n", strOrBlank(x.Format))
+	_, _ = fmt.Fprintf(tw, "format:\t%s\n", orDash(x.Format, "-"))
 	_, _ = fmt.Fprintf(tw, "status:\t%s\n", x.Status)
 	if x.MailboxID != "" {
 		_, _ = fmt.Fprintf(tw, "mailbox:\t%s\n", x.MailboxID)

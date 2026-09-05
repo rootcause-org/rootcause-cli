@@ -27,17 +27,17 @@ type HostUnpromoted struct {
 func DeployState(w io.Writer, d *client.DeployStateResponse, unpromoted *HostUnpromoted) {
 	_, _ = fmt.Fprintf(w, "Deploy state — %s @ %s (UTC)\n", d.Project, d.GeneratedAt)
 
-	_, _ = fmt.Fprintf(w, "\nHost (rootcause) — release %s\n", orDash(d.Host.Release))
-	_, _ = fmt.Fprintf(w, "  up since %s (%.1fh)\n", orDash(d.Host.StartedAt), d.Host.UptimeHours)
+	_, _ = fmt.Fprintf(w, "\nHost (rootcause) — release %s\n", orDash(d.Host.Release, "-"))
+	_, _ = fmt.Fprintf(w, "  up since %s (%.1fh)\n", orDash(d.Host.StartedAt, "-"), d.Host.UptimeHours)
 	renderUnpromoted(w, unpromoted)
 
-	_, _ = fmt.Fprintf(w, "\nBrain (%s) — local main %s · state %s\n", d.Project, short12(d.Brain.MainSHA), orDash(d.Brain.State))
+	_, _ = fmt.Fprintf(w, "\nBrain (%s) — local main %s · state %s\n", d.Project, orDash(clipID(d.Brain.MainSHA, 12), "-"), orDash(d.Brain.State, "-"))
 	if len(d.Brain.Channels) == 0 {
 		_, _ = fmt.Fprintln(w, "  (no channel pointers on the box)")
 	}
 	for _, c := range d.Brain.Channels {
 		_, _ = fmt.Fprintf(w, "  %-7s %s  state=%s origin=%s main=%s\n",
-			c.Channel, short12(c.ResolvedSHA), c.State, yesNo(c.MatchesOrigin), yesNo(c.MatchesMain))
+			c.Channel, orDash(clipID(c.ResolvedSHA, 12), "-"), c.State, yesNo(c.MatchesOrigin), yesNo(c.MatchesMain))
 	}
 	if len(d.Brain.Promotions) > 0 {
 		_, _ = fmt.Fprintf(w, "  promotions (last %d):\n", len(d.Brain.Promotions))
@@ -47,7 +47,7 @@ func DeployState(w io.Writer, d *client.DeployStateResponse, unpromoted *HostUnp
 				when = p.CreatedAt
 			}
 			_, _ = fmt.Fprintf(w, "    %s  %-7s %s → %s  %s  %s\n",
-				when, p.Channel, short12(p.OldSHA), short12(promotedSHA(p)), p.Outcome, p.Actor)
+				when, p.Channel, orDash(clipID(p.OldSHA, 12), "-"), orDash(clipID(promotedSHA(p), 12), "-"), p.Outcome, p.Actor)
 		}
 	} else {
 		_, _ = fmt.Fprintln(w, "  promotions: none recorded")
@@ -56,13 +56,13 @@ func DeployState(w io.Writer, d *client.DeployStateResponse, unpromoted *HostUnp
 	_, _ = fmt.Fprintf(w, "\nMirrors — %d\n", len(d.Mirrors))
 	for _, m := range d.Mirrors {
 		_, _ = fmt.Fprintf(w, "  %-28s %s  state=%s last_ok=%s  %s\n",
-			mirrorName(m.Repo, m.Tenant), short12(m.SHA), m.State, orDash(m.LastOkAt), clipStr(m.Subject, 60))
+			mirrorName(m.Repo, m.Tenant), orDash(clipID(m.SHA, 12), "-"), m.State, orDash(m.LastOkAt, "-"), clipStr(m.Subject, 60))
 	}
 	if len(d.MirrorHistory) > 0 {
 		_, _ = fmt.Fprintf(w, "  refreshes (last %d, newest first):\n", len(d.MirrorHistory))
 		for _, e := range d.MirrorHistory {
 			_, _ = fmt.Fprintf(w, "    %s  %-28s %s  %s\n",
-				e.RefreshedAt, mirrorName(e.Repo, e.Tenant), short12(e.SHA), clipStr(e.Subject, 50))
+				e.RefreshedAt, mirrorName(e.Repo, e.Tenant), orDash(clipID(e.SHA, 12), "-"), clipStr(e.Subject, 50))
 		}
 	} else {
 		_, _ = fmt.Fprintln(w, "  refreshes: none recorded yet")
@@ -103,21 +103,4 @@ func mirrorName(repo, tenant string) string {
 		return repo
 	}
 	return repo + " [" + tenant + "]"
-}
-
-func short12(sha string) string {
-	if sha == "" {
-		return "-"
-	}
-	if len(sha) <= 12 {
-		return sha
-	}
-	return sha[:12]
-}
-
-func orDash(s string) string {
-	if s == "" {
-		return "-"
-	}
-	return s
 }

@@ -32,7 +32,7 @@ func Actions(w io.Writer, items []client.ActionFeedItem, format string) {
 			nullableString(item.TenantID),
 			item.ActionID,
 			item.Status,
-			blankDash(item.ErrorClass),
+			orDashTrimmed(item.ErrorClass, "-"),
 			item.ProposedAt,
 			nullableString(item.ExecutedAt),
 			nullableDuration(item.DurationMs),
@@ -50,7 +50,7 @@ func Actions(w io.Writer, items []client.ActionFeedItem, format string) {
 			item.ID, params, nullableString(item.RunURL))
 		if item.ErrorClass != "" || item.ErrorMessage != "" {
 			_, _ = fmt.Fprintf(w, "  Error: %s: %s\n",
-				blankDash(item.ErrorClass), errorMessage(item.ErrorMessage))
+				orDashTrimmed(item.ErrorClass, "-"), errorMessage(item.ErrorMessage))
 		}
 	}
 }
@@ -94,13 +94,6 @@ func errorMessage(value string) string {
 	return truncate(strings.Join(strings.Fields(value), " "), errorMessageWidth)
 }
 
-func blankDash(value string) string {
-	if strings.TrimSpace(value) == "" {
-		return "-"
-	}
-	return value
-}
-
 func agentValue(value *string) string {
 	if value == nil {
 		return "null"
@@ -114,18 +107,4 @@ func agentDuration(value *int64) string {
 		return "null"
 	}
 	return strconv.FormatInt(*value, 10)
-}
-
-func nullableString(value *string) string {
-	if value == nil || *value == "" {
-		return "-"
-	}
-	return *value
-}
-
-func nullableDuration(value *int64) string {
-	if value == nil {
-		return "-"
-	}
-	return fmt.Sprintf("%dms", *value)
 }

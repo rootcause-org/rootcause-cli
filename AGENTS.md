@@ -26,7 +26,7 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 - `internal/config/` — env-or-production URL resolution + brain-aware profile/project/tenant context (`.rootcause.toml` + `.rootcause/local.toml`).
 - `internal/debugdump/` — the `rc run debug <id>` decomposer (JSONL + thin markdown index).
 - `internal/outputspill/` — progressive output disclosure: large stdout/JSON/JSONL spills to `.rootcause/output/` (`--out-dir`/`RC_OUTPUT_DIR`), stdout gets a preview/manifest; `--no-preview`/`--raw-output` tune it.
-- `internal/render/` — TTY-detect + JSON passthrough (`render.go`) + per-view table renderers (`table.go`).
+- `internal/render/` — TTY-detect + JSON passthrough (`render.go`) + one file per view family (`runs.go`, `run.go`, `ask.go`, `fleet.go`, `console.go`, …) over the shared cell formatters in `format.go`.
 - `internal/dnsdetect/` + `internal/idutil/` — local, offline helpers behind `rc dev tools provider|id`.
 
 ## Cloud setup

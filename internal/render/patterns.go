@@ -448,11 +448,3 @@ func sortedRunIDs(runs map[string]bool, n int) []string {
 	}
 	return ids
 }
-
-func clipStr(s string, limit int) string {
-	s = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "|", "/"), "\n", " "))
-	if len([]rune(s)) <= limit {
-		return s
-	}
-	return string([]rune(s)[:limit])
-}
