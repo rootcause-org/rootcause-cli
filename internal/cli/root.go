@@ -194,7 +194,6 @@ func (e *env) newClient() (*client.Client, error) {
 	baseURL := res.BaseURL
 	if e.baseURLOvr != "" {
 		baseURL = e.baseURLOvr
-		res.BaseURLFromDefault = false
 		res.BaseURLSource = "test override"
 		e.resolved = res
 	}

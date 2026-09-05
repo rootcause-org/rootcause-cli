@@ -46,18 +46,16 @@ func (c *Client) LoginDevice(ctx context.Context, out io.Writer) (Tokens, error)
 	if interval <= 0 {
 		interval = 5 * time.Second
 	}
-	deadline := c.clock().Add(time.Duration(da.ExpiresIn) * time.Second)
+	deadline := time.Now().Add(time.Duration(da.ExpiresIn) * time.Second)
 
 	for {
 		// Poll wait first (RFC 8628: a client must not poll faster than the interval).
-		timer := time.NewTimer(interval)
 		select {
 		case <-ctx.Done():
-			timer.Stop()
 			return Tokens{}, ctx.Err()
-		case <-timer.C:
+		case <-c.pollWait(interval):
 		}
-		if da.ExpiresIn > 0 && !c.clock().Before(deadline) {
+		if da.ExpiresIn > 0 && !time.Now().Before(deadline) {
 			return Tokens{}, fmt.Errorf("device code expired before approval — run `rc auth login` again")
 		}
 
@@ -97,7 +95,7 @@ func (c *Client) startDevice(ctx context.Context) (deviceAuth, error) {
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return deviceAuth{}, fmt.Errorf("device authorization request: %w", err)
 	}
@@ -113,4 +111,12 @@ func (c *Client) startDevice(ctx context.Context) (deviceAuth, error) {
 		return deviceAuth{}, fmt.Errorf("device authorization response was incomplete")
 	}
 	return da, nil
+}
+
+// pollWait is the device-grant pacing timer: c.PollWait when set (tests), else time.After.
+func (c *Client) pollWait(d time.Duration) <-chan time.Time {
+	if c.PollWait != nil {
+		return c.PollWait(d)
+	}
+	return time.After(d)
 }

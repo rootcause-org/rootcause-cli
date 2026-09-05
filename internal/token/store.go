@@ -14,8 +14,6 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/rootcause-org/rootcause-cli/internal/config"
 )
 
 // fileName is the token store under the rootcause config dir.
@@ -60,9 +58,21 @@ type storeFile struct {
 	Profiles map[string]Token `json:"profiles"`
 }
 
+// configDir is the resolved ~/.config/rootcause directory (XDG-style; honors XDG_CONFIG_HOME).
+func configDir() (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return filepath.Join(xdg, "rootcause"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("locate home dir: %w", err)
+	}
+	return filepath.Join(home, ".config", "rootcause"), nil
+}
+
 // Path is the resolved tokens.json location (exported for diagnostics/messages).
 func Path() (string, error) {
-	dir, err := config.ConfigDir()
+	dir, err := configDir()
 	if err != nil {
 		return "", err
 	}

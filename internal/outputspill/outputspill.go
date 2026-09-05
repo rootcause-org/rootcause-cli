@@ -78,11 +78,6 @@ func NewConfig(dir string, noPreview, raw bool) Config {
 	}
 }
 
-func (c Config) WithRaw(raw bool) Config {
-	c.Raw = raw
-	return c
-}
-
 func (c Config) ShouldSpillBytes(b []byte) bool {
 	return !c.Raw && len(b) > c.Threshold
 }
@@ -219,33 +214,29 @@ func Hints(format, path string) []string {
 	switch format {
 	case "json":
 		return []string{
-			"jq '.' " + shellQuote(path),
-			"jq 'keys' " + shellQuote(path),
-			"jq -r '.. | strings' " + shellQuote(path) + " | rg PATTERN",
+			"jq '.' " + ShellQuote(path),
+			"jq 'keys' " + ShellQuote(path),
+			"jq -r '.. | strings' " + ShellQuote(path) + " | rg PATTERN",
 		}
 	case "jsonl", "ndjson":
 		return []string{
-			"sed -n '1,120p' " + shellQuote(path),
-			"jq -r 'select(...)' " + shellQuote(path),
-			"jq -r '.stdout? // empty' " + shellQuote(path),
+			"sed -n '1,120p' " + ShellQuote(path),
+			"jq -r 'select(...)' " + ShellQuote(path),
+			"jq -r '.stdout? // empty' " + ShellQuote(path),
 		}
 	case "csv", "tsv":
 		return []string{
-			"sed -n '1,20p' " + shellQuote(path),
-			"rg PATTERN " + shellQuote(path),
-			"tail -n 120 " + shellQuote(path),
+			"sed -n '1,20p' " + ShellQuote(path),
+			"rg PATTERN " + ShellQuote(path),
+			"tail -n 120 " + ShellQuote(path),
 		}
 	default:
 		return []string{
-			"sed -n '1,120p' " + shellQuote(path),
-			"rg PATTERN " + shellQuote(path),
-			"tail -n 120 " + shellQuote(path),
+			"sed -n '1,120p' " + ShellQuote(path),
+			"rg PATTERN " + ShellQuote(path),
+			"tail -n 120 " + ShellQuote(path),
 		}
 	}
-}
-
-func ShellQuote(s string) string {
-	return shellQuote(s)
 }
 
 type jsonField struct {
@@ -380,7 +371,7 @@ func extensionForFormat(format string) string {
 func manifestHints(artifacts map[string]Artifact) []string {
 	var hints []string
 	if a, ok := artifacts["response"]; ok {
-		hints = append(hints, "jq '.' "+shellQuote(a.Path))
+		hints = append(hints, "jq '.' "+ShellQuote(a.Path))
 	}
 	for name, art := range artifacts {
 		if name == "response" {
@@ -388,9 +379,9 @@ func manifestHints(artifacts map[string]Artifact) []string {
 		}
 		switch art.Format {
 		case "json":
-			hints = append(hints, "jq '.' "+shellQuote(art.Path))
+			hints = append(hints, "jq '.' "+ShellQuote(art.Path))
 		default:
-			hints = append(hints, "sed -n '1,120p' "+shellQuote(art.Path))
+			hints = append(hints, "sed -n '1,120p' "+ShellQuote(art.Path))
 		}
 	}
 	if len(hints) < 3 {
@@ -428,7 +419,9 @@ func sanitize(s string) string {
 	return strings.Trim(s, "-")
 }
 
-func shellQuote(s string) string {
+// ShellQuote renders s as a single POSIX shell word, quoting only when it contains something a shell
+// would treat specially. Used to build the copy-pasteable hint commands.
+func ShellQuote(s string) string {
 	if s == "" {
 		return "''"
 	}

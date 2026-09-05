@@ -434,12 +434,8 @@ func latestMirrorReleaseTagAt(ctx context.Context, baseURL string) (string, erro
 	return tag, nil
 }
 
-// fetchReleaseBinary downloads the archive for goos/goarch, verifies its sha256 against the release's
-// checksums.txt, and returns the extracted rc (or rc.exe) bytes.
-func fetchReleaseBinary(ctx context.Context, tag, goos, goarch string) ([]byte, error) {
-	return fetchReleaseBinaryFrom(ctx, githubReleaseSource, tag, goos, goarch)
-}
-
+// fetchReleaseBinaryFrom downloads the archive for goos/goarch from source, verifies its sha256 against
+// the release's checksums.txt, and returns the extracted rc (or rc.exe) bytes.
 func fetchReleaseBinaryFrom(ctx context.Context, source releaseSource, tag, goos, goarch string) ([]byte, error) {
 	asset := assetName(normVersion(tag), goos, goarch)
 

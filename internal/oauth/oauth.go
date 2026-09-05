@@ -73,12 +73,12 @@ func IsInvalidGrant(err error) bool {
 }
 
 // Client talks to one issuer's /oauth endpoints. BaseURL is the issuer (the configured rootcause base
-// URL); HTTP defaults to a sane client when nil.
+// URL). Always build one with NewClient — it sets HTTP (30 s timeout).
 type Client struct {
 	BaseURL string
 	HTTP    *http.Client
-	// now is the clock for computing absolute expiry in tests; nil → time.Now.
-	now func() time.Time
+	// PollWait paces the device-grant polling loop; nil → time.After. Tests override it to skip the wait.
+	PollWait func(time.Duration) <-chan time.Time
 }
 
 // NewClient builds an OAuth client for the given issuer/base URL.
@@ -87,20 +87,6 @@ func NewClient(baseURL string) *Client {
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		HTTP:    &http.Client{Timeout: 30 * time.Second},
 	}
-}
-
-func (c *Client) httpClient() *http.Client {
-	if c.HTTP != nil {
-		return c.HTTP
-	}
-	return http.DefaultClient
-}
-
-func (c *Client) clock() time.Time {
-	if c.now != nil {
-		return c.now()
-	}
-	return time.Now()
 }
 
 // Refresh exchanges a refresh token for a fresh access token (and, for a rotating grant, a new refresh
@@ -124,7 +110,7 @@ func (c *Client) Revoke(ctx context.Context, token string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return fmt.Errorf("revoke request: %w", err)
 	}
@@ -156,7 +142,7 @@ func (c *Client) postToken(ctx context.Context, form url.Values) (Tokens, error)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return Tokens{}, fmt.Errorf("token request: %w", err)
 	}

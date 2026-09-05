@@ -59,31 +59,30 @@ const (
 )
 
 // Resolved is the effective config for one invocation. Profile is the token-store key the command's
-// client authenticates with. BaseURLFromDefault is true when nothing set a base URL and we fell back to
-// DefaultBaseURL. BaseURLSource is either ROOTCAUSE_BASE_URL or "built-in production". Brain is non-nil
+// client authenticates with. BaseURLSource names where BaseURL came from: ROOTCAUSE_BASE_URL, a test
+// override, or "built-in production" (nothing set one, we fell back to DefaultBaseURL). Brain is non-nil
 // when a .rootcause.toml was discovered; Project/Tenant come from it. BaseURL is always non-empty.
 // Project here is the BRAIN's project (the checkout's identity), NOT the --project scope override —
 // that's a server-side selector the command layer owns, never a profile.
 type Resolved struct {
-	Profile            string
-	BaseURL            string
-	BaseURLFromDefault bool
-	BaseURLSource      string
-	Project            string
-	Tenant             string
-	TenantSource       string
-	Brain              *Brain
+	Profile       string
+	BaseURL       string
+	BaseURLSource string
+	Project       string
+	Tenant        string
+	TenantSource  string
+	Brain         *Brain
 }
 
 // Brain is the committed .rootcause.toml marker: the project this checkout belongs to. Dir is the
 // directory the marker was found in. MachineTokenEnv names an optional secret source for headless
 // agents; it never stores the token. Tenant is a legacy/local override; the normal tenant-enabled path
-// gets tenant scope from the active OAuth login. BaseURL is a legacy decoded field, ignored by resolution.
+// gets tenant scope from the active OAuth login. A legacy base_url key in the marker is ignored (toml
+// tolerates unknown keys); transport is env-or-production only.
 type Brain struct {
 	Project         string `toml:"project"`
 	MachineTokenEnv string `toml:"machine_token_env"`
 	Tenant          string `toml:"tenant"`
-	BaseURL         string `toml:"base_url"`
 	Dir             string `toml:"-"`
 }
 
@@ -145,12 +144,10 @@ func load(profileName, cwd string) (Resolved, error) {
 func applyBaseURL(res *Resolved) {
 	if v := os.Getenv(envBaseURL); v != "" {
 		res.BaseURL = CanonicalBaseURL(v)
-		res.BaseURLFromDefault = false
 		res.BaseURLSource = envBaseURL
 		return
 	}
 	res.BaseURL = DefaultBaseURL
-	res.BaseURLFromDefault = true
 	res.BaseURLSource = "built-in production"
 }
 
@@ -266,17 +263,4 @@ func UpdateBrainProject(brain *Brain, oldProject, newProject string) (bool, erro
 	}
 	brain.Project = newProject
 	return true, nil
-}
-
-// ConfigDir is the resolved ~/.config/rootcause directory (XDG-style; honors XDG_CONFIG_HOME). The
-// token store lives here too, so it's exported for internal/token to share the one resolution.
-func ConfigDir() (string, error) {
-	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return filepath.Join(xdg, "rootcause"), nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("locate home dir: %w", err)
-	}
-	return filepath.Join(home, ".config", "rootcause"), nil
 }

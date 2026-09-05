@@ -55,8 +55,8 @@ func TestLoad_NoBrain_IgnoresConfigBaseURL(t *testing.T) {
 	if res.Brain != nil || res.Project != "" {
 		t.Errorf("expected no brain binding outside a brain, got %+v", res)
 	}
-	if res.BaseURL != DefaultBaseURL || !res.BaseURLFromDefault || res.BaseURLSource != "built-in production" {
-		t.Errorf("base=%q fromDefault=%v source=%q, want built-in production", res.BaseURL, res.BaseURLFromDefault, res.BaseURLSource)
+	if res.BaseURL != DefaultBaseURL || res.BaseURLSource != "built-in production" {
+		t.Errorf("base=%q source=%q, want built-in production", res.BaseURL, res.BaseURLSource)
 	}
 }
 
@@ -71,8 +71,8 @@ func TestLoad_NoBrain_NoConfig_BuiltInBase(t *testing.T) {
 	if res.Profile != DefaultProfile {
 		t.Errorf("profile=%q, want default", res.Profile)
 	}
-	if res.BaseURL != DefaultBaseURL || !res.BaseURLFromDefault || res.BaseURLSource != "built-in production" {
-		t.Errorf("base=%q fromDefault=%v, want production built-in default", res.BaseURL, res.BaseURLFromDefault)
+	if res.BaseURL != DefaultBaseURL || res.BaseURLSource != "built-in production" {
+		t.Errorf("base=%q source=%q, want production built-in default", res.BaseURL, res.BaseURLSource)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestLoad_EnvBaseURLWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.BaseURL != "https://env.example" || res.BaseURLFromDefault || res.BaseURLSource != envBaseURL {
+	if res.BaseURL != "https://env.example" || res.BaseURLSource != envBaseURL {
 		t.Errorf("base=%q source=%q, want env override", res.BaseURL, res.BaseURLSource)
 	}
 }
