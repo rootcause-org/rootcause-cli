@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
@@ -114,6 +115,9 @@ func TestMailboxHarvestConflict(t *testing.T) {
 // TestMailboxHarvestWait: --wait polls the export to a terminal status (the stub flips running→done on
 // the 2nd read) and prints the finished row. Also proves --clean=false / --max-threads ride in the body.
 func TestMailboxHarvestWait(t *testing.T) {
+	prev := exportPollInterval
+	exportPollInterval = time.Millisecond
+	t.Cleanup(func() { exportPollInterval = prev })
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")

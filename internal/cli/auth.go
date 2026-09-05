@@ -46,6 +46,11 @@ type scopeResolution struct {
 // tokens are stored under the resolved profile in the 0600 token store; every later `rc` refreshes the
 // access token transparently. The project the token is scoped to is chosen on the consent screen in the
 // browser (a project, or — for a global admin — all projects), not on the CLI.
+// devicePollWait overrides the device grant's inter-poll wait, which RFC 8628 puts in the server's
+// hands (seconds). nil = the real timer; tests set it so the flow runs at test speed instead of
+// paying that interval per poll.
+var devicePollWait func(time.Duration) <-chan time.Time
+
 func newLoginCmd(e *env) *cobra.Command {
 	var device bool
 	cmd := &cobra.Command{
@@ -69,6 +74,7 @@ func newLoginCmd(e *env) *cobra.Command {
 			}
 
 			oc := oauth.NewClient(base)
+			oc.PollWait = devicePollWait
 			ctx, cancel := context.WithTimeout(e.ctx(), loginTimeout)
 			defer cancel()
 

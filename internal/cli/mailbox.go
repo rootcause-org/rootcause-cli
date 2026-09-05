@@ -187,14 +187,17 @@ func mailboxHarvestCmd(e *env) *cobra.Command {
 	return cmd
 }
 
+// exportPollInterval is the poll floor for --wait. Unlike ask.go's waitForRun the server sends no poll
+// hint for exports, so there is nothing to derive it from; tests shrink it to cover the wait path
+// without a real second of sleep.
+var exportPollInterval = time.Second
+
 // waitForExport polls GET /exports/{id} until the export reaches a terminal status (done|error|failed)
 // or the timeout elapses, printing a terse live status line to stderr on a TTY (never stdout, so a
-// piped/JSON path stays clean). Mirrors ask.go's waitForRun — no fixed sleep in tests: the interval is
-// a small fixed poll floored for the loop, and the context timeout bounds it. It returns the terminal
-// export AND its raw body so the JSON caller passes the verbatim server bytes through without a second
-// GET (avoiding a redundant round-trip + TOCTOU).
+// piped/JSON path stays clean). Mirrors ask.go's waitForRun, at exportPollInterval, bounded by the
+// context timeout. It returns the terminal export AND its raw body so the JSON caller passes the
+// verbatim server bytes through without a second GET (avoiding a redundant round-trip + TOCTOU).
 func waitForExport(e *env, c *client.Client, id string, timeout time.Duration) (*client.ExportItem, json.RawMessage, error) {
-	const interval = time.Second
 	ctx, cancel := context.WithTimeout(e.ctx(), timeout)
 	defer cancel()
 
@@ -216,7 +219,7 @@ func waitForExport(e *env, c *client.Client, id string, timeout time.Duration) (
 		if showProgress {
 			_, _ = fmt.Fprintf(e.err, "\r\033[K%s … %s", id, x.Status)
 		}
-		timer := time.NewTimer(interval)
+		timer := time.NewTimer(exportPollInterval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()

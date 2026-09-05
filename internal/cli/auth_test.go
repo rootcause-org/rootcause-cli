@@ -106,6 +106,10 @@ func isolatedConfig(t *testing.T) {
 func TestLoginDeviceStoresToken(t *testing.T) {
 	isolatedConfig(t)
 	stub := newOAuthStub(t)
+	// The stub advertises the RFC-minimum 1 s interval and needs two polls; without this seam the test
+	// spends 2 s asleep proving nothing about the wait itself.
+	devicePollWait = func(time.Duration) <-chan time.Time { return time.After(time.Millisecond) }
+	t.Cleanup(func() { devicePollWait = nil })
 
 	var out, errb bytes.Buffer
 	e := &env{profile: "default", baseURLOvr: stub.srv.URL, out: &out, err: &errb}
