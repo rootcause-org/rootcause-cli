@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -139,7 +138,7 @@ func hierarchySettingsGetCmd(e *env, scope string, idArg func(*cobra.Command, []
 			if err != nil {
 				return err
 			}
-			renderHierarchySettings(e, resp)
+			render.HierarchySettings(e.out, resp)
 			return nil
 		},
 	}
@@ -205,7 +204,7 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 			if err != nil {
 				return err
 			}
-			renderHierarchySettings(e, resp)
+			render.HierarchySettings(e.out, resp)
 			return nil
 		},
 	}
@@ -347,83 +346,4 @@ func inferHierarchyValue(val string) any {
 		return n
 	}
 	return val
-}
-
-func renderHierarchySettings(e *env, hs *client.HierarchySettings) {
-	_, _ = fmt.Fprintf(e.out, "scope: %s", hs.Scope)
-	if hs.Project != "" {
-		_, _ = fmt.Fprintf(e.out, "  project: %s", hs.Project)
-	}
-	if hs.Tenant != "" {
-		_, _ = fmt.Fprintf(e.out, "  tenant: %s", hs.Tenant)
-	}
-	if hs.Mailbox != "" {
-		_, _ = fmt.Fprintf(e.out, "  mailbox: %s", hs.Mailbox)
-	}
-	_, _ = fmt.Fprintln(e.out)
-
-	local := nestedRaw(hs.Settings)
-	if len(local) == 0 {
-		_, _ = fmt.Fprintln(e.out, "\nLocal overrides:\n  (none)")
-	} else {
-		_, _ = fmt.Fprintln(e.out, "\nLocal overrides:")
-		renderNestedRaw(e, local)
-	}
-	resolved := nestedRaw(hs.Resolved)
-	if len(resolved) > 0 {
-		_, _ = fmt.Fprintln(e.out, "\nResolved:")
-		renderResolved(e, resolved)
-	}
-}
-
-func nestedRaw(raw json.RawMessage) map[string]map[string]json.RawMessage {
-	if len(raw) == 0 {
-		return nil
-	}
-	var out map[string]map[string]json.RawMessage
-	if json.Unmarshal(raw, &out) != nil {
-		return nil
-	}
-	return out
-}
-
-func renderNestedRaw(e *env, groups map[string]map[string]json.RawMessage) {
-	for _, group := range sortedNestedGroups(groups) {
-		_, _ = fmt.Fprintf(e.out, "  %s:\n", group)
-		for _, field := range sortedRawKeys(groups[group]) {
-			_, _ = fmt.Fprintf(e.out, "    %s = %s\n", field, formatValue(groups[group][field]))
-		}
-	}
-}
-
-func renderResolved(e *env, groups map[string]map[string]json.RawMessage) {
-	for _, group := range sortedNestedGroups(groups) {
-		_, _ = fmt.Fprintf(e.out, "  %s:\n", group)
-		for _, field := range sortedRawKeys(groups[group]) {
-			_, _ = fmt.Fprintf(e.out, "    %s = %s\n", field, formatResolvedField(groups[group][field]))
-		}
-	}
-}
-
-func formatResolvedField(raw json.RawMessage) string {
-	var f struct {
-		Value  json.RawMessage `json:"value"`
-		Source string          `json:"source"`
-	}
-	if json.Unmarshal(raw, &f) != nil {
-		return formatValue(raw)
-	}
-	if f.Source == "" {
-		return formatValue(f.Value)
-	}
-	return fmt.Sprintf("%s (%s)", formatValue(f.Value), f.Source)
-}
-
-func sortedNestedGroups(m map[string]map[string]json.RawMessage) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }

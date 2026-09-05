@@ -1,0 +1,12 @@
+scope: tenant  project: acme  tenant: north
+
+Local overrides:
+  persona:
+    tone = formal
+
+Resolved:
+  channel:
+    reply_window_hours = 24
+  persona:
+    signature = Team ACME (project)
+    tone = formal (tenant)

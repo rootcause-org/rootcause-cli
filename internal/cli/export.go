@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -200,7 +199,7 @@ func splitExport(exportID string, corpus []byte, dir string) (*splitResult, erro
 		if err := os.WriteFile(filepath.Join(dir, "diagnostics.json"), raw, 0o644); err != nil {
 			return nil, fmt.Errorf("write diagnostics.json: %w", err)
 		}
-		if err := os.WriteFile(filepath.Join(dir, "diagnostics.md"), []byte(renderSplitDiagnostics(parsed.diagnostics)), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "diagnostics.md"), []byte(render.SplitDiagnostics(diagnosticsView(parsed.diagnostics))), 0o644); err != nil {
 			return nil, fmt.Errorf("write diagnostics.md: %w", err)
 		}
 	}
@@ -254,32 +253,21 @@ func writeIndexHeader(b *strings.Builder, exportID string, c *splitCorpus) {
 	b.WriteString("|---|---|---|---|---|\n")
 }
 
-func renderSplitDiagnostics(d *splitDiagnostics) string {
-	var b strings.Builder
-	b.WriteString("# Harvest diagnostics\n\n")
-	fmt.Fprintf(&b, "Accepted: %d; rejected: %d; deduplicated candidates: %d.\n", d.AcceptedCount, sumDiagnosticCounts(d.RejectionReasons), d.Deduplicated)
-	writeSplitDiagnosticCounts(&b, "Rejection reasons", d.RejectionReasons)
-	writeSplitDiagnosticCounts(&b, "Actor types", d.ActorTypes)
-	writeSplitDiagnosticCounts(&b, "Initiation types", d.InitiationTypes)
-	if len(d.CandidateBands) > 0 {
-		b.WriteString("\nCandidate bands:\n")
-		for _, band := range d.CandidateBands {
-			fmt.Fprintf(&b, "- %s..%s: %d\n", band.Start, band.End, band.Count)
-		}
+// diagnosticsView maps the parsed corpus diagnostics onto the render view. splitDiagnostics stays here
+// because it is also written verbatim as diagnostics.json (a machine contract) and carries parse-only
+// fields (schema_version, available) the document never shows.
+func diagnosticsView(d *splitDiagnostics) render.HarvestDiagnostics {
+	view := render.HarvestDiagnostics{
+		AcceptedCount:    d.AcceptedCount,
+		RejectionReasons: d.RejectionReasons,
+		ActorTypes:       d.ActorTypes,
+		InitiationTypes:  d.InitiationTypes,
+		Deduplicated:     d.Deduplicated,
 	}
-	return b.String()
-}
-
-func writeSplitDiagnosticCounts(b *strings.Builder, title string, counts map[string]int) {
-	keys := make([]string, 0, len(counts))
-	for key := range counts {
-		keys = append(keys, key)
+	for _, band := range d.CandidateBands {
+		view.CandidateBands = append(view.CandidateBands, render.HarvestBand{Start: band.Start, End: band.End, Count: band.Count})
 	}
-	sort.Strings(keys)
-	fmt.Fprintf(b, "\n%s:\n", title)
-	for _, key := range keys {
-		fmt.Fprintf(b, "- %s: %d\n", key, counts[key])
-	}
+	return view
 }
 
 func sumDiagnosticCounts(counts map[string]int) int {

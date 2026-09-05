@@ -1,0 +1,6 @@
+tenant: acme  version: 7  applied: 2026-01-02T03:04:05Z
+  escalate_to = null
+  legacy_flag = true
+  reply_window_hours = 24
+  signature = Team ACME
+  tone = formal

@@ -1,0 +1,5 @@
+source: github
+running rc: /Users/me/go/bin/rc (Go install, v1.1.3)
+latest rc:  v1.2.4 (update available)
+installation problem: 2 distinct binaries; run `rc self doctor`
+migration: rc self update --migrate

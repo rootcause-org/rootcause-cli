@@ -1,0 +1,12 @@
+tenant: acme  version: 7  applied: 2026-01-02T03:04:05Z
+
+Persona:
+  tone (Toon) = formal
+  signature = Team ACME
+
+Kanaal:
+  reply_window_hours (Antwoordvenster) = 24
+  escalate_to (Escalatie) = null
+
+Other:
+  legacy_flag = true

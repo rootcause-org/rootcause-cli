@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 func TestCompareVersions(t *testing.T) {
@@ -193,7 +195,7 @@ func TestRenderUpdateCheckReportsAlreadyLatestDuplicates(t *testing.T) {
 	other := executableFile(t, filepath.Join(t.TempDir(), "bin", "rc"))
 	inv := inspectRCInstallations(running, strings.Join([]string{filepath.Dir(running), filepath.Dir(other)}, string(os.PathListSeparator)), "linux")
 	var out bytes.Buffer
-	renderUpdateCheck(&env{out: &out}, "1.1.3", "v1.1.3", inv, "github")
+	render.UpdateCheck(&out, updateStatus("1.1.3", "v1.1.3", inv, "github"))
 	got := out.String()
 	if !strings.Contains(got, "source: github") || !strings.Contains(got, "up to date") || !strings.Contains(got, "installation problem: 2 distinct binaries") {
 		t.Fatalf("check hid duplicate at latest version:\n%s", got)

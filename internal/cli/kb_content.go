@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 const (
@@ -107,7 +108,7 @@ func newKBListCmd(e *env) *cobra.Command {
 			if e.jsonOut() {
 				return writeJSON(e, resp)
 			}
-			renderKBList(e, resp)
+			render.KBList(e.out, kbListView(resp))
 			return nil
 		},
 	}
@@ -144,7 +145,7 @@ func newKBSearchCmd(e *env, version string) *cobra.Command {
 			if e.jsonOut() {
 				return writeJSON(e, summary)
 			}
-			renderKBSearch(e, summary)
+			render.KBSearch(e.out, kbSearchView(summary))
 			return nil
 		},
 	}
@@ -198,7 +199,7 @@ func newKBExportCmd(e *env, version string) *cobra.Command {
 			if e.jsonOut() {
 				return writeJSON(e, summary)
 			}
-			renderKBSearch(e, summary)
+			render.KBSearch(e.out, kbSearchView(summary))
 			return nil
 		},
 	}
@@ -350,7 +351,7 @@ func finishKBArtifacts(e *env, c *client.Client, version string, resp *kbSearchR
 	if err := writeJSONFile(filepath.Join(dir, "manifest.json"), manifest); err != nil {
 		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "hits.md"), []byte(renderKBHitsMarkdown(resp, display)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "hits.md"), []byte(render.KBHitsMarkdown(kbHitsView(resp), display)), 0o644); err != nil {
 		return nil, fmt.Errorf("write hits.md: %w", err)
 	}
 	summary.ArtifactDir = display
@@ -372,79 +373,46 @@ func fetchKBArticle(e *env, c *client.Client, provider, rel string) ([]byte, boo
 	return data, resp.StdoutTruncated || resp.StderrTruncated, nil
 }
 
-func renderKBList(e *env, resp *kbListResponse) {
-	if resp.Project != "" {
-		_, _ = fmt.Fprintf(e.out, "Project: %s\n", resp.Project)
+// The kb* response types stay here: they are the JSON contract of `-o json` and of the artifact
+// manifest. These map only the fields the human/markdown views print.
+
+func kbListView(resp *kbListResponse) render.KBListView {
+	view := render.KBListView{
+		Project: resp.Project, Provider: resp.Provider,
+		Revision: resp.Revision, Truncated: resp.Truncated,
 	}
-	_, _ = fmt.Fprintf(e.out, "Provider: %s\n", resp.Provider)
-	if resp.Revision != "" {
-		_, _ = fmt.Fprintf(e.out, "Revision: %s\n", resp.Revision)
-	}
-	if resp.Truncated {
-		_, _ = fmt.Fprintln(e.out, "Truncated: true")
-	}
-	_, _ = fmt.Fprintln(e.out, "\nCollection\tArticles")
 	for _, c := range resp.Collections {
-		_, _ = fmt.Fprintf(e.out, "%s\t%d\n", c.Name, c.ArticleCount)
+		view.Collections = append(view.Collections, render.KBCollection{Name: c.Name, ArticleCount: c.ArticleCount})
+	}
+	return view
+}
+
+func kbSearchView(summary *kbCommandSummary) render.KBSearchView {
+	return render.KBSearchView{
+		ArticlesMatched: summary.ArticlesMatched, Hits: summary.Hits,
+		ArtifactDir: summary.ArtifactDir, Truncated: summary.Truncated,
+		Articles: kbArticleViews(summary.Articles),
 	}
 }
 
-func renderKBSearch(e *env, summary *kbCommandSummary) {
-	_, _ = fmt.Fprintf(e.out, "Found %d articles", summary.ArticlesMatched)
-	if summary.Hits > 0 {
-		_, _ = fmt.Fprintf(e.out, ", %d matching lines", summary.Hits)
-	}
-	_, _ = fmt.Fprintln(e.out)
-	if summary.ArtifactDir != "" {
-		_, _ = fmt.Fprintf(e.out, "Artifacts: %s\n", summary.ArtifactDir)
-	}
-	if summary.Truncated {
-		_, _ = fmt.Fprintln(e.out, "Truncated: true")
-	}
-	for i, article := range summary.Articles {
-		_, _ = fmt.Fprintf(e.out, "\n%d. %s\n", i+1, article.Title)
-		if article.URL != "" {
-			_, _ = fmt.Fprintf(e.out, "   URL: %s\n", article.URL)
-		}
-		if summary.ArtifactDir != "" {
-			_, _ = fmt.Fprintf(e.out, "   Local: articles/%s\n", article.Path)
-		}
-		if len(article.Hits) > 0 {
-			_, _ = fmt.Fprintf(e.out, "   Hits: %s\n", hitLineSummary(article.Hits))
-		}
+func kbHitsView(resp *kbSearchResponse) render.KBHitsView {
+	return render.KBHitsView{
+		Query: resp.Query, Project: resp.Project, Provider: resp.Provider,
+		Revision: resp.Revision, HitCount: resp.HitCount,
+		Articles: kbArticleViews(resp.Articles),
 	}
 }
 
-func renderKBHitsMarkdown(resp *kbSearchResponse, artifactDir string) string {
-	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "# KB hits: %s\n\n", resp.Query)
-	_, _ = fmt.Fprintf(&b, "- Project: `%s`\n- Provider: `%s`\n- Artifacts: `%s`\n- Articles: %d\n- Hits: %d\n",
-		resp.Project, resp.Provider, artifactDir, len(resp.Articles), resp.HitCount)
-	if resp.Revision != "" {
-		_, _ = fmt.Fprintf(&b, "- Revision: `%s`\n", resp.Revision)
-	}
-	for i, article := range resp.Articles {
-		_, _ = fmt.Fprintf(&b, "\n## %d. %s\n\n", i+1, article.Title)
-		if article.URL != "" {
-			_, _ = fmt.Fprintf(&b, "- URL: %s\n", article.URL)
+func kbArticleViews(articles []kbArticle) []render.KBArticle {
+	views := make([]render.KBArticle, 0, len(articles))
+	for _, a := range articles {
+		view := render.KBArticle{Title: a.Title, URL: a.URL, Path: a.Path}
+		for _, h := range a.Hits {
+			view.Hits = append(view.Hits, render.KBHit{Line: h.Line, Snippet: h.Snippet})
 		}
-		_, _ = fmt.Fprintf(&b, "- Local: `articles/%s`\n", article.Path)
-		if len(article.Hits) > 0 {
-			_, _ = fmt.Fprintln(&b, "\nHits:")
-			for _, hit := range article.Hits {
-				_, _ = fmt.Fprintf(&b, "- L%d: %s\n", hit.Line, hit.Snippet)
-			}
-		}
+		views = append(views, view)
 	}
-	return b.String()
-}
-
-func hitLineSummary(hits []kbHit) string {
-	lines := make([]string, 0, len(hits))
-	for _, h := range hits {
-		lines = append(lines, fmt.Sprintf("%d", h.Line))
-	}
-	return "lines " + strings.Join(lines, ",")
+	return views
 }
 
 func kbArtifactDir(out, query string) (string, string, error) {

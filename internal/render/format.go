@@ -5,7 +5,9 @@
 package render
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -153,4 +155,30 @@ func nullableDuration(value *int64) string {
 		return "-"
 	}
 	return fmt.Sprintf("%dms", *value)
+}
+
+// settingValue renders one stored settings value compactly: a JSON string as its bare text, null as
+// the literal "null" (an explicitly-unconfigured field), anything else as its compact JSON. It differs
+// from jsonScalar on purpose — the settings views must show "null" rather than an empty cell, because
+// "unset" is a meaningful state there.
+func settingValue(raw json.RawMessage) string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "null" || trimmed == "" {
+		return "null"
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	return trimmed
+}
+
+// sortedRawKeys returns a raw-JSON map's keys, sorted — the settings views print in key order.
+func sortedRawKeys(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 // `rc self update` replaces the binary with the latest published release for the
@@ -79,7 +81,7 @@ func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
 	}
 
 	if checkOnly {
-		renderUpdateCheck(e, current, latest, inv, source.kind)
+		render.UpdateCheck(e.out, updateStatus(current, latest, inv, source.kind))
 		return nil
 	}
 
@@ -126,25 +128,22 @@ func runSelfUpdate(e *env, current string, checkOnly, migrate bool) error {
 	return nil
 }
 
-func renderUpdateCheck(e *env, current, latest string, inv rcInstallInventory, source string) {
+// updateStatus resolves every host-dependent question `--check` answers (which copy is running,
+// whether this OS has a Homebrew canonical install, how the versions compare) so the renderer is a
+// pure function of the result.
+func updateStatus(current, latest string, inv rcInstallInventory, source string) render.UpdateStatus {
 	running := findRunningInstall(inv.Paths)
-	_, _ = fmt.Fprintf(e.out, "source: %s\n", source)
-	_, _ = fmt.Fprintf(e.out, "running rc: %s (%s, %s)\n", inv.RunningPath, running.Kind, normVersion(current))
-	if compareVersions(current, latest) < 0 {
-		_, _ = fmt.Fprintf(e.out, "latest rc:  %s (update available)\n", normVersion(latest))
-	} else {
-		_, _ = fmt.Fprintf(e.out, "latest rc:  %s (up to date)\n", normVersion(latest))
-	}
-	if inv.HasDuplicates || inv.RunningShadowed {
-		_, _ = fmt.Fprintf(e.out, "installation problem: %d distinct binaries; run `rc self doctor`\n", inv.Installations)
-		if runtime.GOOS == "darwin" {
-			_, _ = fmt.Fprintln(e.out, "migration: rc self update --migrate")
-		}
-		return
-	}
-	if runtime.GOOS == "darwin" && running.Kind != installHomebrew {
-		_, _ = fmt.Fprintln(e.out, "installation problem: macOS canonical install is Homebrew")
-		_, _ = fmt.Fprintln(e.out, "migration: rc self update --migrate")
+	return render.UpdateStatus{
+		Source:           source,
+		RunningPath:      inv.RunningPath,
+		InstallKind:      string(running.Kind),
+		Current:          normVersion(current),
+		Latest:           normVersion(latest),
+		UpdateAvailable:  compareVersions(current, latest) < 0,
+		InstallProblem:   inv.HasDuplicates || inv.RunningShadowed,
+		Installations:    inv.Installations,
+		OfferMigrate:     runtime.GOOS == "darwin",
+		NotCanonicalHome: runtime.GOOS == "darwin" && running.Kind != installHomebrew,
 	}
 }
 

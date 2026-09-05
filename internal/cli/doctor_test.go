@@ -14,6 +14,8 @@ import (
 	"runtime/debug"
 	"strings"
 	"testing"
+
+	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 func TestAnalyzePathBinaries(t *testing.T) {
@@ -123,7 +125,7 @@ func TestRenderDoctorHuman(t *testing.T) {
 		Update:       doctorUpdate{Current: "1.2.3", Latest: "v1.2.4", Available: true},
 	}
 	var out bytes.Buffer
-	if err := renderDoctorHuman(&out, report); err != nil {
+	if err := render.Doctor(&out, doctorView(report)); err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{"This binary", "PATH scan", "Scope", "auth details:", "Capabilities", "harvest corpus formats:", "v1, v2, v3", "Update", "1.2.3 → v1.2.4", "Findings: none"} {
@@ -152,7 +154,7 @@ func TestDoctorServerHarvestCorpusFormat(t *testing.T) {
 				t.Errorf("unsupported() = %v, want %v", got, tc.update)
 			}
 			var out bytes.Buffer
-			if err := renderDoctorHuman(&out, doctorReport{Capabilities: tc.caps}); err != nil {
+			if err := render.Doctor(&out, doctorView(doctorReport{Capabilities: tc.caps})); err != nil {
 				t.Fatal(err)
 			}
 			if !strings.Contains(out.String(), tc.want) {

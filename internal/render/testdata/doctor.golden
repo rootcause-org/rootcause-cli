@@ -1,0 +1,32 @@
+This binary
+  path:             /opt/homebrew/bin/rc
+  resolved:         /opt/homebrew/Caskroom/rc/1.2.3/rc
+  version:          1.2.3
+  module:           v1.2.3
+  ldflags version:  —
+  install:          Homebrew
+
+PATH scan
+  ACTIVE  VERSION  INSTALL     PATH
+  yes     1.2.3    Homebrew    /opt/homebrew/bin/rc
+          1.1.0    Go install  /Users/me/go/bin/rc
+                                 note: shadowed by the Homebrew copy
+                                 fix: rc self update --migrate
+
+Scope
+  profile:       default
+  project:       acme (.rootcause.toml)
+  tenant:        —
+  base URL:      https://app.replypen.com (built-in production)
+  auth details:  rc auth status
+
+Capabilities
+  harvest corpus formats:  v1, v2, v3
+  server writes:           v4 — this rc cannot split it; run: rc self update
+
+Update
+  available:  1.2.3 → v1.2.4 (run: rc self update)
+
+Findings: 1 (exit 1)
+  - /Users/me/go/bin/rc: duplicate rc on PATH
+    fix: remove it

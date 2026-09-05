@@ -78,7 +78,11 @@ map. The rules that make the layering real:
   The client is OAuth-oblivious — it takes a `TokenSource`, all refresh policy lives in
   `internal/cli/tokensource.go`.
 - `internal/render` holds no transport and no auth; renderers are pure functions of server rows, which is
-  what makes them golden-testable.
+  what makes them golden-testable. Every renderer is `func X(w io.Writer, typed …)` — no `*env`, no
+  host lookups (PATH, `runtime.GOOS`, `time.Now`). When a view needs CLI-private state, `internal/cli`
+  maps it onto a small exported render view struct (`render.DoctorReport`, `render.UpdateStatus`,
+  `render.SettingsSchema`, `render.EnvDrift`, `render.HarvestDiagnostics`, `render.KB*View`) rather than
+  the renderer reaching back into cli.
 - Business logic never lives in `internal/cli` command bodies beyond flag validation + orchestration.
 
 ### Output: pipe-first, TTY-aware

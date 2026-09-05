@@ -1,0 +1,12 @@
+Found 2 articles, 3 matching lines
+Artifacts: .rootcause/kb/refunds
+Truncated: true
+
+1. Refund policy
+   URL: https://help.example/refunds
+   Local: articles/billing/refund-policy.md
+   Hits: lines 12,40
+
+2. Chargebacks
+   Local: articles/billing/chargebacks.md
+   Hits: lines 3

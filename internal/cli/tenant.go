@@ -84,7 +84,7 @@ func newTenantProfileGetCmd(e *env) *cobra.Command {
 			// Group/label using the schema when it's reachable; fall back to a plain sorted key=value
 			// list if the schema fetch fails (never block a read on the schema endpoint).
 			schema, _ := c.GetTenantSettingsSchema(e.ctx(), project)
-			renderTenantSettings(e, ts, parseSchema(schema))
+			render.TenantSettings(e.out, ts, schemaView(parseSchema(schema)))
 			return nil
 		},
 	}
@@ -129,7 +129,7 @@ func newTenantProfileSetCmd(e *env) *cobra.Command {
 			if render.IsJSON(e.mode(), e.out) {
 				return e.renderJSON("tenant-profile-"+tenant, raw)
 			}
-			renderTenantSettings(e, ts, schema)
+			render.TenantSettings(e.out, ts, schemaView(schema))
 			return nil
 		},
 	}
@@ -409,107 +409,19 @@ func contains(ss []string, v string) bool {
 
 // --- get: render ---
 
-// renderTenantSettings prints a tenant's settings for a human. With a schema it groups fields by
-// x-groups (ordered), labels them with x-label-nl, and orders within a group by x-order — only fields
-// the record actually carries are shown. Without a schema it falls back to a flat, sorted key=value
-// list. The header line carries the tenant + version so an operator can confirm what they just wrote.
-func renderTenantSettings(e *env, ts *client.TenantSettings, schema *tenantSchema) {
-	values := map[string]json.RawMessage{}
-	if len(ts.Settings) > 0 {
-		_ = json.Unmarshal(ts.Settings, &values)
-	}
-	_, _ = fmt.Fprintf(e.out, "tenant: %s", ts.TenantID)
-	if ts.Version != "" {
-		_, _ = fmt.Fprintf(e.out, "  version: %s", ts.Version)
-	}
-	if ts.AppliedAt != "" {
-		_, _ = fmt.Fprintf(e.out, "  applied: %s", ts.AppliedAt)
-	}
-	_, _ = fmt.Fprintln(e.out)
-
-	if len(values) == 0 {
-		_, _ = fmt.Fprintln(e.out, "(no settings configured)")
-		return
-	}
-
+// schemaView projects the parsed schema onto what rendering needs (groups in order, per-field group /
+// order / label). The parsed schema stays in the CLI because its type and enum information drives
+// `set`'s coercion, which is logic, not presentation.
+func schemaView(schema *tenantSchema) *render.SettingsSchema {
 	if schema == nil {
-		// Plain key=value, sorted — acceptable fallback per the spec.
-		for _, k := range sortedRawKeys(values) {
-			_, _ = fmt.Fprintf(e.out, "  %s = %s\n", k, formatValue(values[k]))
-		}
-		return
+		return nil
 	}
-
-	rendered := map[string]bool{}
+	view := &render.SettingsSchema{Fields: make(map[string]render.SettingsField, len(schema.props))}
 	for _, g := range schema.groups {
-		// Collect this group's present fields, ordered by x-order then name.
-		var keys []string
-		for k := range values {
-			if p, ok := schema.props[k]; ok && p.group == g.key {
-				keys = append(keys, k)
-			}
-		}
-		if len(keys) == 0 {
-			continue
-		}
-		sort.SliceStable(keys, func(i, j int) bool {
-			pi, pj := schema.props[keys[i]], schema.props[keys[j]]
-			if pi.order != pj.order {
-				return pi.order < pj.order
-			}
-			return keys[i] < keys[j]
-		})
-		_, _ = fmt.Fprintf(e.out, "\n%s:\n", g.labelNL)
-		for _, k := range keys {
-			rendered[k] = true
-			_, _ = fmt.Fprintf(e.out, "  %s = %s\n", labelFor(schema, k), formatValue(values[k]))
-		}
+		view.Groups = append(view.Groups, render.SettingsGroup{Key: g.key, Label: g.labelNL})
 	}
-	// Any field not placed by the schema (unknown key on the stored record) — show it so nothing is
-	// silently hidden.
-	var orphans []string
-	for k := range values {
-		if !rendered[k] {
-			orphans = append(orphans, k)
-		}
+	for name, p := range schema.props {
+		view.Fields[name] = render.SettingsField{Group: p.group, Order: p.order, Label: p.labelNL}
 	}
-	if len(orphans) > 0 {
-		sort.Strings(orphans)
-		_, _ = fmt.Fprintln(e.out, "\nOther:")
-		for _, k := range orphans {
-			_, _ = fmt.Fprintf(e.out, "  %s = %s\n", k, formatValue(values[k]))
-		}
-	}
-}
-
-// labelFor returns "key (Dutch label)" when the schema has an x-label-nl, else just the key — so the
-// raw key (what `set` takes) is always visible alongside the human label.
-func labelFor(schema *tenantSchema, key string) string {
-	if p, ok := schema.props[key]; ok && p.labelNL != "" {
-		return fmt.Sprintf("%s (%s)", key, p.labelNL)
-	}
-	return key
-}
-
-// formatValue renders one stored JSON value compactly: a JSON string as its bare text, null as the
-// literal "null" (an explicitly-unconfigured field), anything else as its compact JSON.
-func formatValue(raw json.RawMessage) string {
-	trimmed := strings.TrimSpace(string(raw))
-	if trimmed == "null" || trimmed == "" {
-		return "null"
-	}
-	var s string
-	if json.Unmarshal(raw, &s) == nil {
-		return s
-	}
-	return trimmed
-}
-
-func sortedRawKeys(m map[string]json.RawMessage) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
+	return view
 }

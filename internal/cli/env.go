@@ -265,7 +265,7 @@ func newEnvDiffCmd(e *env) *cobra.Command {
 					return err
 				}
 			} else {
-				renderDiff(e, resp, d)
+				render.EnvDiff(e.out, resp, d.drift())
 			}
 			if !d.inSync() {
 				// Nonzero exit on drift (like `rc_env.py --verify`): the detail is already printed; this
@@ -311,22 +311,10 @@ func diffEnv(local, server map[string]string) envDiff {
 	return d
 }
 
-// renderDiff prints the human drift report (names only).
-func renderDiff(e *env, resp *client.EnvResponse, d envDiff) {
-	if d.inSync() {
-		_, _ = fmt.Fprintf(e.out, "in sync: %d keys match the server (%s)\n", len(resp.Keys), scopeLabel(resp))
-		return
-	}
-	_, _ = fmt.Fprintf(e.out, "DRIFT vs server (%s) — names only:\n", scopeLabel(resp))
-	if len(d.valueDiffers) > 0 {
-		_, _ = fmt.Fprintf(e.out, "  value differs : %s\n", strings.Join(d.valueDiffers, ", "))
-	}
-	if len(d.onlyLocal) > 0 {
-		_, _ = fmt.Fprintf(e.out, "  only local    : %s\n", strings.Join(d.onlyLocal, ", "))
-	}
-	if len(d.onlyServer) > 0 {
-		_, _ = fmt.Fprintf(e.out, "  only on server: %s\n", strings.Join(d.onlyServer, ", "))
-	}
+// drift is the render view of the diff. envDiff itself stays here: `verify`'s exit code and its JSON
+// shape are built from it, so it is logic state, not only a view model.
+func (d envDiff) drift() render.EnvDrift {
+	return render.EnvDrift{ValueDiffers: d.valueDiffers, OnlyLocal: d.onlyLocal, OnlyServer: d.onlyServer}
 }
 
 // scopeLabel describes the resolved scope for a status line: "project" or "project/tenant".

@@ -10,10 +10,11 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
 
 const rcCommandPath = "github.com/rootcause-org/rootcause-cli/cmd/rc"
@@ -100,7 +101,7 @@ func newSelfDoctorCmd(e *env, version string) *cobra.Command {
 			if e.jsonOut() {
 				err = writeJSON(e, report)
 			} else {
-				err = renderDoctorHuman(e.out, report)
+				err = render.Doctor(e.out, doctorView(report))
 			}
 			if err != nil {
 				return err
@@ -447,91 +448,45 @@ func isGoBin(dir string) bool {
 	return err == nil && dir == filepath.Join(home, "go", "bin")
 }
 
-func renderDoctorHuman(w interface{ Write([]byte) (int, error) }, report doctorReport) error {
-	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "This binary")
-	_, _ = fmt.Fprintf(tw, "  path:\t%s\n", report.Binary.Path)
-	if report.Binary.ResolvedPath != "" {
-		_, _ = fmt.Fprintf(tw, "  resolved:\t%s\n", report.Binary.ResolvedPath)
+// doctorView maps the JSON report onto the render view. The report struct stays here because its JSON
+// shape is the machine contract of `rc self doctor -o json`; the view carries only what the human
+// output prints, plus the one derived flag (unsupported) whose answer depends on this binary's
+// supported format list.
+func doctorView(report doctorReport) render.DoctorReport {
+	view := render.DoctorReport{
+		Binary: doctorBinaryView(report.Binary),
+		Scope: render.DoctorScope{
+			Profile: report.Scope.Profile,
+			Project: report.Scope.Project, ProjectSource: report.Scope.ProjectSource,
+			Tenant: report.Scope.Tenant, TenantSource: report.Scope.TenantSource,
+			BaseURL: report.Scope.BaseURL, BaseURLSource: report.Scope.BaseURLSource,
+			LoginNote: report.Scope.LoginNote,
+		},
+		Capabilities: render.DoctorCapabilities{
+			HarvestCorpusFormats: report.Capabilities.HarvestCorpusFormats,
+			ServerHarvestCorpus:  report.Capabilities.ServerHarvestCorpus,
+			ServerNote:           report.Capabilities.ServerNote,
+			Unsupported:          report.Capabilities.unsupported(),
+		},
+		Update: render.DoctorUpdate{
+			Current: report.Update.Current, Latest: report.Update.Latest,
+			Available: report.Update.Available, Note: report.Update.Note,
+		},
 	}
-	_, _ = fmt.Fprintf(tw, "  version:\t%s\n", report.Binary.Version)
-	_, _ = fmt.Fprintf(tw, "  module:\t%s\n", emptyDash(report.Binary.ModuleVersion))
-	_, _ = fmt.Fprintf(tw, "  ldflags version:\t%s\n", emptyDash(report.Binary.LDFlagsVersion))
-	_, _ = fmt.Fprintf(tw, "  install:\t%s\n\n", report.Binary.Install)
-
-	_, _ = fmt.Fprintln(tw, "PATH scan")
-	_, _ = fmt.Fprintln(tw, "  ACTIVE\tVERSION\tINSTALL\tPATH")
-	for _, copy := range report.Path {
-		active := ""
-		if copy.Active {
-			active = "yes"
-		}
-		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", active, copy.Version, copy.Install, copy.Path)
-		if copy.ResolvedPath != "" {
-			_, _ = fmt.Fprintf(tw, "  \t\t\t  resolved: %s\n", copy.ResolvedPath)
-		}
-		if copy.Note != "" {
-			_, _ = fmt.Fprintf(tw, "  \t\t\t  note: %s\n", copy.Note)
-		}
-		if copy.ReadError != "" {
-			_, _ = fmt.Fprintf(tw, "  \t\t\t  read error: %s\n", copy.ReadError)
-		}
-		if copy.Hint != "" {
-			_, _ = fmt.Fprintf(tw, "  \t\t\t  fix: %s\n", copy.Hint)
-		}
+	for _, entry := range report.Path {
+		view.Path = append(view.Path, doctorBinaryView(entry))
 	}
-	_, _ = fmt.Fprintln(tw)
-
-	_, _ = fmt.Fprintln(tw, "Scope")
-	_, _ = fmt.Fprintf(tw, "  profile:\t%s\n", report.Scope.Profile)
-	_, _ = fmt.Fprintf(tw, "  project:\t%s%s\n", emptyDash(report.Scope.Project), sourceSuffix(report.Scope.ProjectSource))
-	_, _ = fmt.Fprintf(tw, "  tenant:\t%s%s\n", emptyDash(report.Scope.Tenant), sourceSuffix(report.Scope.TenantSource))
-	_, _ = fmt.Fprintf(tw, "  base URL:\t%s (%s)\n", report.Scope.BaseURL, report.Scope.BaseURLSource)
-	if report.Scope.LoginNote != "" {
-		_, _ = fmt.Fprintf(tw, "  note:\t%s\n", report.Scope.LoginNote)
+	for _, f := range report.Findings {
+		view.Findings = append(view.Findings, render.DoctorFinding{Path: f.Path, Message: f.Message, Hint: f.Hint})
 	}
-	_, _ = fmt.Fprintln(tw, "  auth details:\trc auth status")
-	_, _ = fmt.Fprintln(tw)
-
-	_, _ = fmt.Fprintln(tw, "Capabilities")
-	_, _ = fmt.Fprintf(tw, "  harvest corpus formats:\t%s\n", strings.Join(report.Capabilities.HarvestCorpusFormats, ", "))
-	switch {
-	case report.Capabilities.ServerNote != "":
-		_, _ = fmt.Fprintf(tw, "  server writes:\t%s\n", report.Capabilities.ServerNote)
-	case report.Capabilities.unsupported():
-		_, _ = fmt.Fprintf(tw, "  server writes:\t%s — this rc cannot split it; run: rc self update\n", report.Capabilities.ServerHarvestCorpus)
-	case report.Capabilities.ServerHarvestCorpus != "":
-		_, _ = fmt.Fprintf(tw, "  server writes:\t%s\n", report.Capabilities.ServerHarvestCorpus)
-	}
-	_, _ = fmt.Fprintln(tw)
-
-	_, _ = fmt.Fprintln(tw, "Update")
-	if report.Update.Note != "" {
-		_, _ = fmt.Fprintf(tw, "  %s\n", report.Update.Note)
-	} else if report.Update.Available {
-		_, _ = fmt.Fprintf(tw, "  available:\t%s → %s (run: rc self update)\n", report.Update.Current, report.Update.Latest)
-	} else {
-		_, _ = fmt.Fprintf(tw, "  status:\tup to date (%s)\n", report.Update.Current)
-	}
-	_, _ = fmt.Fprintln(tw)
-
-	if len(report.Findings) == 0 {
-		_, _ = fmt.Fprintln(tw, "Findings: none")
-	} else {
-		_, _ = fmt.Fprintf(tw, "Findings: %d (exit 1)\n", len(report.Findings))
-		for _, finding := range report.Findings {
-			_, _ = fmt.Fprintf(tw, "  - %s: %s\n", finding.Path, finding.Message)
-			if finding.Hint != "" {
-				_, _ = fmt.Fprintf(tw, "    fix: %s\n", finding.Hint)
-			}
-		}
-	}
-	return tw.Flush()
+	return view
 }
 
-func sourceSuffix(source string) string {
-	if source == "" {
-		return ""
+func doctorBinaryView(b binaryInfo) render.DoctorBinary {
+	return render.DoctorBinary{
+		Path: b.Path, ResolvedPath: b.ResolvedPath, Version: b.Version,
+		ModuleVersion: b.ModuleVersion, LDFlagsVersion: b.LDFlagsVersion,
+		Install: b.Install, Active: b.Active,
+		Note: b.Note, Hint: b.Hint, ReadError: b.ReadError,
 	}
-	return " (" + source + ")"
 }
