@@ -33,6 +33,7 @@ type askFlags struct {
 	filePaths     []string
 	attachPaths   []string // deprecated --attach alias, merged after --file
 	noWait        bool
+	dryScope      bool
 	timeout       time.Duration
 }
 
@@ -65,6 +66,33 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+
+			// --dry-scope: resolve and print the principal scope this run WOULD get, then STOP — no effort,
+			// no attachments, no wait, no agent loop (no LLM spend, no run row). A red-team enumeration
+			// primitive: flip principal flags and see instantly whether the resolution widens. JSON is a
+			// verbatim passthrough of the server's dry-scope body; table renders the resolved record.
+			if f.dryScope {
+				c, err := e.newClient()
+				if err != nil {
+					return err
+				}
+				preview, raw, err := c.DryScope(e.ctx(), client.SubmitRequest{
+					Prompt:    args[0],
+					SessionID: f.session,
+					Tenant:    e.scopeTenant(),
+					Principal: principal,
+					Project:   e.scopeProject(),
+				})
+				if err != nil {
+					return err
+				}
+				if jsonMode {
+					return render.JSON(e.out, raw)
+				}
+				render.AskDryScope(e.out, preview)
+				return nil
+			}
+
 			attachments, err := readAskAttachments(append(append([]string(nil), f.filePaths...), f.attachPaths...))
 			if err != nil {
 				return err
@@ -142,6 +170,7 @@ func newAskCmd(e *env) *cobra.Command {
 	cmd.Flags().StringArrayVar(&f.attachPaths, "attach", nil, "deprecated alias for --file")
 	_ = cmd.Flags().MarkDeprecated("attach", "use --file instead")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
+	cmd.Flags().BoolVar(&f.dryScope, "dry-scope", false, "resolve and print the principal scope this run WOULD get, without running the agent (no LLM spend)")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")
 	return cmd
 }

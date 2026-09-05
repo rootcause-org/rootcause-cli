@@ -1,0 +1,2 @@
+Dry-scope:  false
+Refused:    principal asserted (kind "probackup_user") but resolved no scope claims on a principal-scoped project — refusing (would widen to a tenant-wide read)

@@ -49,6 +49,53 @@ func TestAskRawTableGolden(t *testing.T) {
 	assertGolden(t, "ask_raw.golden", out.String())
 }
 
+// TestAskDryScopeTableGolden: --dry-scope resolves the principal scope and renders the record without
+// running the agent. This dashboard_member self-assertion surfaces as tenant_wide — the finding target.
+func TestAskDryScopeTableGolden(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "ask", "widen me", "--dry-scope",
+		"--principal-kind", "dashboard_member", "--principal-id", "usr_42", "--asserted-by", "rootcause_session"); err != nil {
+		t.Fatalf("ask --dry-scope: %v", err)
+	}
+	assertGolden(t, "ask_dryscope.golden", out.String())
+}
+
+// TestAskDryScopeRefusedTableGolden: a fail-closed refusal prints the reason and no record.
+func TestAskDryScopeRefusedTableGolden(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "ask", "refuse-me", "--dry-scope",
+		"--principal-kind", "probackup_user", "--principal-id", "usr_1"); err != nil {
+		t.Fatalf("ask --dry-scope refuse: %v", err)
+	}
+	assertGolden(t, "ask_dryscope_refused.golden", out.String())
+}
+
+// TestAskDryScopeJSON: --dry-scope in -o json emits the server's dry-scope body verbatim (byte-faithful).
+func TestAskDryScopeJSON(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "ask", "widen me", "--dry-scope",
+		"--principal-kind", "dashboard_member", "--principal-id", "usr_42", "--asserted-by", "rootcause_session"); err != nil {
+		t.Fatalf("ask --dry-scope -o json: %v", err)
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(out.Bytes(), &obj); err != nil {
+		t.Fatalf("output not a JSON object: %v\n%s", err, out.String())
+	}
+	if obj["resolved"] != true {
+		t.Errorf("resolved missing/wrong: %v", obj["resolved"])
+	}
+	scope, _ := obj["scope"].(map[string]any)
+	if scope["resolution"] != "tenant_wide" {
+		t.Errorf("scope.resolution = %v, want tenant_wide", scope["resolution"])
+	}
+}
+
 // TestAskWaitJSON: the wait path in -o json emits the /runs/{id} body verbatim, so `jq -r .run_id`
 // works on the result.
 func TestAskWaitJSON(t *testing.T) {

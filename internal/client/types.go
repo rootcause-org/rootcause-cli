@@ -739,7 +739,37 @@ type SubmitRequest struct {
 	Subject         string       `json:"subject,omitempty"`
 	Principal       *Principal   `json:"principal,omitempty"`
 	Attachments     []Attachment `json:"attachments,omitempty"`
-	Project         string       `json:"-"`
+	// DryScope resolves and returns the principal scope this run WOULD get, then stops — no agent loop, no
+	// LLM spend, no run row. The response is a ScopePreview, not a SubmitResponse.
+	DryScope bool   `json:"dry_scope,omitempty"`
+	Project  string `json:"-"`
+}
+
+// ScopePreview is the 200 body of a POST /api/v1/runs {dry_scope:true} request: the resolved principal
+// scope a real run would get (Resolved + Scope), or the server's fail-closed refusal reason (Error).
+type ScopePreview struct {
+	DryScope bool         `json:"dry_scope"`
+	Resolved bool         `json:"resolved"`
+	Error    string       `json:"error"`
+	Scope    *ScopeRecord `json:"scope"`
+}
+
+// ScopeRecord mirrors the server's principalScopeRecord verbatim: the operator-visible identity resolution
+// (IDs, never secrets). Fields are empty on an unresolved (resolution:none) record.
+type ScopeRecord struct {
+	Kind        string            `json:"kind,omitempty"`
+	ExternalID  string            `json:"external_id,omitempty"`
+	AssertedBy  string            `json:"asserted_by,omitempty"`
+	Assurance   string            `json:"assurance,omitempty"`
+	Resolution  string            `json:"resolution"`
+	Claims      map[string]any    `json:"claims,omitempty"`
+	TableGrants *ScopeTableGrants `json:"table_grants,omitempty"`
+}
+
+// ScopeTableGrants is the per-principal readable-table decision: the full-grant flag, else the granted names.
+type ScopeTableGrants struct {
+	All     bool     `json:"all,omitempty"`
+	Granted []string `json:"granted,omitempty"`
 }
 
 // Attachment is one local file uploaded by rc ask for a synthetic Prompt API run.

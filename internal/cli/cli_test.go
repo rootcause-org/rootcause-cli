@@ -260,6 +260,18 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("POST /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
+		// --dry-scope: the server resolves the principal scope and returns a ScopePreview (200), never a
+		// run. "refuse-me" drives the fail-closed branch; otherwise a dashboard_member self-assertion
+		// resolves to tenant_wide (the finding target the tool surfaces instantly).
+		if strings.Contains(body, `"dry_scope":true`) {
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(body, "refuse-me") {
+				_, _ = w.Write([]byte(`{"dry_scope":true,"resolved":false,"error":"principal asserted (kind \"probackup_user\") but resolved no scope claims on a principal-scoped project — refusing (would widen to a tenant-wide read)","scope":null}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"dry_scope":true,"resolved":true,"error":"","scope":{"kind":"dashboard_member","external_id":"usr_42","asserted_by":"rootcause_session","resolution":"tenant_wide"}}`))
+			return
+		}
 		// A rejected ref drives the BAD_BRAIN_REF path; seeing it in the body also proves --brain-ref
 		// is forwarded verbatim.
 		if strings.Contains(body, `"brain_ref":"bad/ref"`) {

@@ -226,6 +226,70 @@ func AskRaw(w io.Writer, r *client.RunDetail) {
 	renderMetadata(w, r.Metadata)
 }
 
+// AskDryScope renders `rc ask --dry-scope`: the principal scope this run WOULD get, resolved without
+// running the agent. On a fail-closed refusal it prints the reason (no record); otherwise the resolved
+// principalScopeRecord — resolution first (the finding-relevant field), then the identity, claims, and
+// table grants. IDs are shown UNMASKED: this is an operator/red-team tool, not customer-facing output.
+func AskDryScope(w io.Writer, p *client.ScopePreview) {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintf(tw, "Dry-scope:\t%t\n", p.Resolved)
+	if !p.Resolved {
+		reason := p.Error
+		if reason == "" {
+			reason = "refused (no reason given)"
+		}
+		_, _ = fmt.Fprintf(tw, "Refused:\t%s\n", reason)
+		_ = tw.Flush()
+		return
+	}
+	s := p.Scope
+	if s == nil {
+		_, _ = fmt.Fprintf(tw, "Scope:\t(none)\n")
+		_ = tw.Flush()
+		return
+	}
+	_, _ = fmt.Fprintf(tw, "Resolution:\t%s\n", s.Resolution)
+	if s.Kind != "" {
+		_, _ = fmt.Fprintf(tw, "Kind:\t%s\n", s.Kind)
+	}
+	if s.ExternalID != "" {
+		_, _ = fmt.Fprintf(tw, "External ID:\t%s\n", s.ExternalID)
+	}
+	if s.AssertedBy != "" {
+		_, _ = fmt.Fprintf(tw, "Asserted by:\t%s\n", s.AssertedBy)
+	}
+	if s.Assurance != "" {
+		_, _ = fmt.Fprintf(tw, "Assurance:\t%s\n", s.Assurance)
+	}
+	for _, name := range sortedClaimKeys(s.Claims) {
+		_, _ = fmt.Fprintf(tw, "Claim %s:\t%v\n", name, s.Claims[name])
+	}
+	if g := s.TableGrants; g != nil {
+		grant := strings.Join(g.Granted, ", ")
+		if g.All {
+			grant = "all tables"
+		}
+		if grant == "" {
+			grant = "(none)"
+		}
+		_, _ = fmt.Fprintf(tw, "Table grants:\t%s\n", grant)
+	}
+	_ = tw.Flush()
+}
+
+// sortedClaimKeys returns a claims map's keys in stable order so a dump renders deterministically (golden-safe).
+func sortedClaimKeys(m map[string]any) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func renderAskHeader(w io.Writer, r *client.RunDetail, scenario string) {
 	if r.Scenario != "" {
 		scenario = r.Scenario

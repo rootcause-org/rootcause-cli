@@ -246,6 +246,27 @@ func (c *Client) Submit(ctx context.Context, req SubmitRequest) (*SubmitResponse
 	return &out, raw, nil
 }
 
+// DryScope posts POST /api/v1/runs with dry_scope:true — resolve and return the principal scope this run
+// WOULD get, WITHOUT running the agent (no LLM spend, no run row). Returns BOTH the typed ScopePreview
+// (for table rendering) and the verbatim bytes (for `-o json` passthrough), the same "render, don't
+// reshape" invariant as Submit. No legacy fallback: dry_scope is a new field a stale server never had.
+func (c *Client) DryScope(ctx context.Context, req SubmitRequest) (*ScopePreview, json.RawMessage, error) {
+	req.DryScope = true
+	path := "/api/v1/runs"
+	if req.Project != "" {
+		path += "?project=" + url.QueryEscape(req.Project)
+	}
+	var raw json.RawMessage
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
+		return nil, nil, err
+	}
+	var out ScopePreview
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, nil, fmt.Errorf("decode dry-scope response: %w", err)
+	}
+	return &out, raw, nil
+}
+
 type legacySubmitRequest struct {
 	Prompt string `json:"prompt"`
 	Tenant string `json:"tenant,omitempty"`

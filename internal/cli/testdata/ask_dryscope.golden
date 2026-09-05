@@ -1,0 +1,5 @@
+Dry-scope:    true
+Resolution:   tenant_wide
+Kind:         dashboard_member
+External ID:  usr_42
+Asserted by:  rootcause_session
