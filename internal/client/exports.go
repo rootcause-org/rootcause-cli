@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 )
@@ -141,50 +140,9 @@ func exportItemPath(id, suffix, project, tenant string) string {
 	return collectionScopePath(path, "", tenant)
 }
 
-// attemptRawWithRefresh sends one request with the Accept header set to accept, returning the raw 2xx
-// body bytes. On a 401 it forces a token refresh and retries once (the JSON `do` pattern, minus the
-// body decode). A non-2xx decodes the JSON error envelope via decodeAPIError so a harvest error still
-// surfaces as a typed APIError.
+// attemptRawWithRefresh sends one bodyless request with a caller-chosen Accept header (the download
+// endpoints are GETs that don't want application/json), returning the raw 2xx body bytes. Auth,
+// 401-refresh, retry policy and the typed APIError on a non-2xx come from the shared transport loop.
 func (c *Client) attemptRawWithRefresh(ctx context.Context, method, path, accept string) ([]byte, error) {
-	token, err := c.tokens.Token(ctx)
-	if err != nil {
-		return nil, err
-	}
-	resp, data, err := c.attemptAccept(ctx, method, path, accept, token)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		if newToken, rerr := c.tokens.Refresh(ctx); rerr == nil && newToken != "" && newToken != token {
-			resp, data, err = c.attemptAccept(ctx, method, path, accept, newToken)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
-	}
-	return data, nil
-}
-
-// attemptAccept is attempt with a caller-chosen Accept header (attempt hardcodes application/json). No
-// request body: the download endpoints are GETs.
-func (c *Client) attemptAccept(ctx context.Context, method, path, accept, token string) (*http.Response, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, nil)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", accept)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, nil, fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read response: %w", err)
-	}
-	return resp, data, nil
+	return c.fetch(ctx, sendSpec{method: method, path: path, accept: accept})
 }

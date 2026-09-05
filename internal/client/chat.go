@@ -2,7 +2,6 @@ package client
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -69,19 +68,16 @@ func (c *Client) ProbeWidgetLoader(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, &TransportError{Err: err}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 	return resp.StatusCode, nil
 }
 
 func (c *Client) ChatOpen(ctx context.Context, project, origin, token string) (string, error) {
 	path := "/chat/v1/session?project=" + url.QueryEscape(project)
-	resp, data, err := c.embedRequest(ctx, http.MethodPost, path, origin, token, []byte(`{}`))
+	data, err := c.fetch(ctx, embedSpec(http.MethodPost, path, origin, token, []byte(`{}`)))
 	if err != nil {
 		return "", err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", decodeAPIError(resp.StatusCode, http.MethodPost, path, c.baseURL, data)
 	}
 	var out struct {
 		SessionID string `json:"session_id"`
@@ -94,14 +90,7 @@ func (c *Client) ChatOpen(ctx context.Context, project, origin, token string) (s
 
 func (c *Client) ChatSession(ctx context.Context, project, origin, token, sessionID string) (json.RawMessage, error) {
 	path := "/chat/v1/session/" + url.PathEscape(sessionID) + "?project=" + url.QueryEscape(project)
-	resp, data, err := c.embedRequest(ctx, http.MethodGet, path, origin, token, nil)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, decodeAPIError(resp.StatusCode, http.MethodGet, path, c.baseURL, data)
-	}
-	return data, nil
+	return c.fetch(ctx, embedSpec(http.MethodGet, path, origin, token, nil))
 }
 
 func (c *Client) ChatSend(ctx context.Context, project, origin, token, sessionID, messageID string, parts []map[string]any, out io.Writer) (string, error) {
@@ -110,23 +99,13 @@ func (c *Client) ChatSend(ctx context.Context, project, origin, token, sessionID
 		return "", err
 	}
 	path := "/chat/v1/message?project=" + url.QueryEscape(project)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(body))
+	spec := embedSpec(http.MethodPost, path, origin, token, body)
+	spec.accept = "text/event-stream"
+	resp, err := c.openStream(ctx, spec)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-RC-Embed-Origin", origin)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return "", &TransportError{Err: err}
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return "", decodeAPIError(resp.StatusCode, http.MethodPost, path, c.baseURL, data)
-	}
+	defer func() { _ = resp.Body.Close() }()
 
 	var runID, streamError string
 	scanner := bufio.NewScanner(resp.Body)
@@ -169,22 +148,16 @@ func (c *Client) ChatSend(ctx context.Context, project, origin, token, sessionID
 	return runID, nil
 }
 
-func (c *Client) embedRequest(ctx context.Context, method, path, origin, token string, body []byte) (*http.Response, []byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(body))
-	if err != nil {
-		return nil, nil, err
+// embedSpec is the transport spec for the chat embed plane: the credential is the widget/embed JWT
+// rather than the OAuth bearer (a StaticToken, so the shared loop's 401-refresh step is a no-op), plus
+// the origin header the server checks. Everything else — timeout, 429/5xx backoff on safe methods,
+// verbatim error decoding — comes from the one transport loop.
+func embedSpec(method, path, origin, token string, body []byte) sendSpec {
+	return sendSpec{
+		method:  method,
+		path:    path,
+		body:    body,
+		headers: map[string]string{"X-RC-Embed-Origin": origin},
+		tokens:  StaticToken(token),
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("X-RC-Embed-Origin", origin)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, nil, &TransportError{Err: err}
-	}
-	defer resp.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return nil, nil, &TransportError{Err: err}
-	}
-	return resp, data, nil
 }

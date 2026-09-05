@@ -97,7 +97,7 @@ func (c *Client) DBQueryStream(
 		return nil, fmt.Errorf("marshal request body: %w", err)
 	}
 	path := "/api/v1/console/db/" + url.PathEscape(db) + "/query" + consoleScope(project, tenant)
-	resp, err := c.openStream(ctx, http.MethodPost, path, body, "application/x-ndjson")
+	resp, err := c.openStream(ctx, sendSpec{method: http.MethodPost, path: path, body: body, accept: "application/x-ndjson"})
 	if err != nil {
 		return nil, err
 	}

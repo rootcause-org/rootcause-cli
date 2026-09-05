@@ -5,7 +5,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,7 +13,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -489,7 +487,7 @@ func (c *Client) Raw(ctx context.Context, method, path string, body map[string]a
 // Download streams one successful response directly to w. It keeps the normal OAuth refresh and safe
 // GET retry policy without buffering potentially large artifacts in memory.
 func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
-	resp, err := c.openStream(ctx, http.MethodGet, path, nil, "application/octet-stream")
+	resp, err := c.openStream(ctx, sendSpec{method: http.MethodGet, path: path, accept: "application/octet-stream"})
 	if err != nil {
 		return err
 	}
@@ -503,194 +501,6 @@ func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
 	}
 	if resp.ContentLength >= 0 && written != resp.ContentLength {
 		return &TransportError{Err: fmt.Errorf("incomplete response: received %d of %d bytes", written, resp.ContentLength)}
-	}
-	return nil
-}
-
-// openStream performs the authenticated/retryable part of a request but leaves a successful body open
-// for incremental consumers. A failed refresh preserves the server's original 401 envelope, matching do.
-func (c *Client) openStream(ctx context.Context, method, path string, body []byte, accept string) (*http.Response, error) {
-	token, err := c.tokens.Token(ctx)
-	if err != nil {
-		return nil, err
-	}
-	refreshed := false
-	for attempt := 0; ; {
-		req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("build request: %w", err)
-		}
-		req.Header.Set("Authorization", "Bearer "+token)
-		req.Header.Set("Accept", accept)
-		if len(body) > 0 {
-			req.Header.Set("Content-Type", "application/json")
-		}
-		resp, err := c.http.Do(req)
-		if err != nil {
-			return nil, &TransportError{Err: fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)}
-		}
-		if resp.StatusCode == http.StatusUnauthorized && !refreshed {
-			data, readErr := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			newToken, refreshErr := c.tokens.Refresh(ctx)
-			if refreshErr == nil && newToken != "" && newToken != token {
-				token, refreshed = newToken, true
-				continue
-			}
-			if readErr != nil {
-				return nil, &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
-			}
-			return nil, decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
-		}
-		if retryableStatus(resp.StatusCode) && retryableRequest(method, path, body) && attempt < 3 {
-			delay := retryDelay(resp, attempt)
-			_ = resp.Body.Close()
-			attempt++
-			select {
-			case <-ctx.Done():
-				return nil, &TransportError{Err: ctx.Err()}
-			case <-time.After(delay):
-			}
-			continue
-		}
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			data, readErr := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			if readErr != nil {
-				return nil, &TransportError{Err: fmt.Errorf("read response: %w", readErr)}
-			}
-			return nil, decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
-		}
-		return resp, nil
-	}
-}
-
-// attempt builds and sends one request with the given bearer token, draining and returning the response
-// body bytes (the body is closed before return so the caller can retry without leaking a connection).
-func (c *Client) attempt(ctx context.Context, method, path string, reqBody []byte, token string) (*http.Response, []byte, error) {
-	return c.attemptOnce(ctx, method, path, reqBody, token, true)
-}
-
-func (c *Client) attemptOnce(ctx context.Context, method, path string, reqBody []byte, token string, backoff bool) (*http.Response, []byte, error) {
-	const maxRetries = 3
-	for attempt := 0; ; attempt++ {
-		resp, data, err := c.send(ctx, method, path, reqBody, token)
-		if err != nil || !backoff || !retryableRequest(method, path, reqBody) || !retryableStatus(resp.StatusCode) || attempt >= maxRetries {
-			return resp, data, err
-		}
-		delay := retryDelay(resp, attempt)
-		select {
-		case <-ctx.Done():
-			return nil, nil, &TransportError{Err: ctx.Err()}
-		case <-time.After(delay):
-		}
-	}
-}
-
-func (c *Client) send(ctx context.Context, method, path string, reqBody []byte, token string) (*http.Response, []byte, error) {
-	var r io.Reader
-	if reqBody != nil {
-		r = bytes.NewReader(reqBody)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, r)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/json")
-	if reqBody != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		// Connection-level failure (DNS, refused, TLS, timeout): include the base URL so a request that
-		// silently went to the localhost default instead of the intended host is obvious.
-		return nil, nil, &TransportError{Err: fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)}
-	}
-	defer func() { _ = resp.Body.Close() }()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, &TransportError{Err: fmt.Errorf("read response: %w", err)}
-	}
-	return resp, data, nil
-}
-
-func retryableStatus(status int) bool {
-	return status == http.StatusTooManyRequests || status >= 500
-}
-
-func retryableRequest(method, path string, body []byte) bool {
-	if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
-		return true
-	}
-	if method != http.MethodPost || !strings.Contains(pathOnly(path), "/console/db/") || !strings.HasSuffix(pathOnly(path), "/query") {
-		return false
-	}
-	var req DBQueryRequest
-	return json.Unmarshal(body, &req) == nil && !req.Write
-}
-
-func retryDelay(resp *http.Response, attempt int) time.Duration {
-	if raw := resp.Header.Get("Retry-After"); raw != "" {
-		if seconds, err := strconv.Atoi(raw); err == nil && seconds >= 0 {
-			return time.Duration(seconds) * time.Second
-		}
-	}
-	return time.Duration(1<<attempt) * 250 * time.Millisecond
-}
-
-// do issues one request: OAuth bearer auth, JSON body in/out, and on non-2xx decodes the error
-// envelope into a typed APIError (code/message/details verbatim). out may be a *json.RawMessage to
-// capture the body unparsed for passthrough. On a 401 (an access token that expired/was revoked
-// mid-flight) it forces a token refresh and retries ONCE — the body is buffered up front so the retry
-// can resend it.
-func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
-	var reqBody []byte
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("marshal request body: %w", err)
-		}
-		reqBody = b
-	}
-
-	token, err := c.tokens.Token(ctx)
-	if err != nil {
-		return err
-	}
-
-	resp, data, err := c.attempt(ctx, method, path, reqBody, token)
-	if err != nil {
-		return err
-	}
-	// One transparent retry on a 401: the access token expired between pre-flight refresh and the
-	// request (or was revoked). Force a refresh and resend; a still-401 surfaces verbatim below.
-	if resp.StatusCode == http.StatusUnauthorized {
-		if newToken, rerr := c.tokens.Refresh(ctx); rerr == nil && newToken != "" && newToken != token {
-			resp, data, err = c.attempt(ctx, method, path, reqBody, newToken)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
-	}
-
-	if out != nil {
-		// A 204/empty body (e.g. a DELETE, or a no-content verb) is valid only where the caller asked for
-		// raw bytes (*json.RawMessage) — leave out nil, nothing to decode. A typed target still requires a
-		// body, so a malformed empty 2xx on a content endpoint stays a decode error rather than a silent
-		// zero value.
-		if _, raw := out.(*json.RawMessage); raw && len(bytes.TrimSpace(data)) == 0 {
-			return nil
-		}
-		dec := json.NewDecoder(bytes.NewReader(data))
-		dec.UseNumber()
-		if err := dec.Decode(out); err != nil {
-			return fmt.Errorf("decode response: %w", err)
-		}
 	}
 	return nil
 }

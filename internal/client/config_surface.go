@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -326,56 +325,13 @@ func (c *Client) AdminUpdate(ctx context.Context, resource, id string, body map[
 	return c.itemWrite(ctx, http.MethodPatch, "/api/v1/admin/"+resource+"/"+url.PathEscape(id), body)
 }
 
-// doRaw issues one request with an explicit Content-Type and a pre-built body (the multipart path),
-// returning the verbatim 2xx body bytes. It reuses attempt's bearer auth + 401-retry by calling the
-// shared low-level helper.
+// doRaw issues one request with an explicit Content-Type and a pre-built body (the multipart path, so
+// the boundary rides along instead of the hard-coded application/json), returning the verbatim 2xx body
+// bytes. Auth, 401-refresh, retry policy and error decoding come from the shared transport loop.
 func (c *Client) doRaw(ctx context.Context, method, path, contentType string, reqBody []byte) (json.RawMessage, error) {
-	token, err := c.tokens.Token(ctx)
+	data, err := c.fetch(ctx, sendSpec{method: method, path: path, body: reqBody, contentType: contentType})
 	if err != nil {
 		return nil, err
-	}
-	resp, data, err := c.attemptCT(ctx, method, path, contentType, reqBody, token)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode == http.StatusUnauthorized {
-		if newToken, rerr := c.tokens.Refresh(ctx); rerr == nil && newToken != "" && newToken != token {
-			resp, data, err = c.attemptCT(ctx, method, path, contentType, reqBody, newToken)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, decodeAPIError(resp.StatusCode, method, path, c.baseURL, data)
 	}
 	return json.RawMessage(data), nil
-}
-
-// attemptCT is attempt with a caller-supplied Content-Type (so the multipart boundary rides along),
-// instead of the hard-coded application/json.
-func (c *Client) attemptCT(ctx context.Context, method, path, contentType string, reqBody []byte, token string) (*http.Response, []byte, error) {
-	var r io.Reader
-	if reqBody != nil {
-		r = bytes.NewReader(reqBody)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, r)
-	if err != nil {
-		return nil, nil, fmt.Errorf("build request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/json")
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, nil, fmt.Errorf("request %s %s (base %s): %w", method, path, c.baseURL, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read response: %w", err)
-	}
-	return resp, data, nil
 }
