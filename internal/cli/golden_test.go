@@ -115,7 +115,8 @@ func TestRunGuardsTable(t *testing.T) {
 }
 
 // TestRunGuardsJSON confirms -o json emits the raw guards OBJECT (not the whole trace bundle),
-// byte-faithful to the server's run.guards.
+// byte-faithful to the server's run.guards. The fixture carries a `future_checkpoint` the CLI's
+// GuardsView does not model: it must still reach jq (we project the raw body, we do not re-marshal).
 func TestRunGuardsJSON(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -132,6 +133,9 @@ func TestRunGuardsJSON(t *testing.T) {
 		t.Fatalf("decode fixture: %v", err)
 	}
 	assertJSONEqual(t, bundle.Run.Guards, out.Bytes())
+	if !strings.Contains(out.String(), "future_checkpoint") {
+		t.Fatalf("unmodelled guard checkpoint dropped from -o json:\n%s", out.String())
+	}
 }
 
 // TestRunGuardsAbsent covers the nil-guards case (older server / a trace with no guards on the

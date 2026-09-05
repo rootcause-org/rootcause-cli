@@ -695,6 +695,29 @@ func TestEgressInspectionCommands(t *testing.T) {
 	}
 }
 
+// TestRunEgressActionsJSONKeepsUnknownFields pins the F4 contract on the two per-run inspection views:
+// `-o json` must carry the server's body, not a re-marshal of the CLI's closed structs. The stub adds a
+// top-level key the CLI does not model (`future_summary`) and a row-level one (`future_row_field`); both
+// have to reach jq.
+func TestRunEgressActionsJSONKeepsUnknownFields(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, tc := range []struct{ view, want string }{
+		{"egress", "future_summary"},
+		{"actions", "future_row_field"},
+	} {
+		t.Run(tc.view, func(t *testing.T) {
+			e, out, _ := newTestEnv(t, srv, "json")
+			if err := run(t, e, "run", tc.view, "run-1"); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(out.String(), tc.want) {
+				t.Fatalf("run %s -o json dropped %q:\n%s", tc.view, tc.want, out.String())
+			}
+		})
+	}
+}
+
 func TestHealthJSONPassthrough(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
