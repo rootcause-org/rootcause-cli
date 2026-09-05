@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -333,5 +334,37 @@ func TestChatDoctorSinceMarksOldRejectStale(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "stale   BAD_TOKEN") || !strings.Contains(out.String(), "recent  PRINCIPAL_UNVERIFIED") {
 		t.Fatalf("output = %q", out.String())
+	}
+}
+
+// A doctor that exits 0 when piped is a false clean bill of health: the verdict must not depend on the
+// output mode, and the bundle must still be printed alongside the non-zero exit.
+func TestChatDoctorJSONStillFailsWhenACheckFails(t *testing.T) {
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"chat_enabled":{"effective":false},"chat_origins":{"effective":[]}}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/principals", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"kinds":{}}`)) })
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat/secret", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"source":"dedicated"}`)) })
+	mux.HandleFunc("GET /api/v1/branding", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"name":{"effective":"Example"}}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat/rejects", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(`{"rejects":[]}`)) })
+	mux.HandleFunc("GET /chat/widget/v1/loader.js", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "json")
+	err := run(t, e, "--project", "alpha", "project", "chat", "doctor")
+	var cmdErr *commandError
+	if !errors.As(err, &cmdErr) || cmdErr.name != "CHAT_DOCTOR_FAILED" || cmdErr.code == 0 {
+		t.Fatalf("err = %v, want a non-zero CHAT_DOCTOR_FAILED", err)
+	}
+	var bundle map[string]any
+	if jsonErr := json.Unmarshal(out.Bytes(), &bundle); jsonErr != nil {
+		t.Fatalf("bundle not printed: %v (%q)", jsonErr, out.String())
+	}
+	if bundle["project"] != "alpha" {
+		t.Fatalf("bundle = %#v", bundle)
 	}
 }

@@ -430,23 +430,34 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 		add(brandingErr == nil, "BRANDING_REACHABLE", "BRANDING_UNAVAILABLE", "Check the branding API and project scope.")
 		add(probeErr == nil && loaderStatus == http.StatusOK, "WIDGET_LOADER_REACHABLE", "WIDGET_SCRIPT_BLOCKED", "Allow the ReplyPen loader URL through network and CSP policy.")
 
-		if bundle || e.jsonOut() {
-			encoded, _ := json.Marshal(b)
-			return render.JSON(e.out, encoded)
-		}
+		// The verdict is a property of the findings, not of the output mode: fold it BEFORE the mode
+		// branch so a piped `rc project chat doctor | jq` exits non-zero on broken wiring too.
 		failed := false
 		for _, f := range b.Findings {
-			_, _ = fmt.Fprintf(e.out, "%-7s %-28s %s\n", f.Status, f.Check, f.Hint)
 			if f.Status == "failed" {
 				failed = true
+				break
 			}
 		}
-		for _, reject := range b.Rejects {
-			state := "recent"
-			if reject.Stale {
-				state = "stale"
+		if bundle || e.jsonOut() {
+			encoded, marshalErr := json.Marshal(b)
+			if marshalErr != nil {
+				return marshalErr
 			}
-			_, _ = fmt.Fprintf(e.out, "%-7s %-28s %s\n", state, reject.Code, reject.Timestamp.Format(time.RFC3339))
+			if err := render.JSON(e.out, encoded); err != nil {
+				return err
+			}
+		} else {
+			for _, f := range b.Findings {
+				_, _ = fmt.Fprintf(e.out, "%-7s %-28s %s\n", f.Status, f.Check, f.Hint)
+			}
+			for _, reject := range b.Rejects {
+				state := "recent"
+				if reject.Stale {
+					state = "stale"
+				}
+				_, _ = fmt.Fprintf(e.out, "%-7s %-28s %s\n", state, reject.Code, reject.Timestamp.Format(time.RFC3339))
+			}
 		}
 		if failed {
 			return &commandError{code: exitUsage, name: "CHAT_DOCTOR_FAILED", silent: true, message: "chat doctor found failures"}
