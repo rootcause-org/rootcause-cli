@@ -71,7 +71,10 @@ A command is `parse flags → client call(s) → render`. The split exists so ea
 home and nothing leaks sideways — see [AGENTS.md](AGENTS.md#code-map-detail-in-skillmd) for the per-package
 map. The rules that make the layering real:
 
-- `internal/client` is the **one** HTTP wrapper; `types.go` field names must match the server verbatim.
+- `internal/client` is the **one** HTTP wrapper — every request goes through the single send loop in
+  `transport.go` (buffered `do`/`fetch` or streamed `openStream`, one credential source per call).
+  Wire-contract field names must match the server verbatim (`<endpoint>_types.go` per endpoint family,
+  shared primitives in `types.go`).
   The client is OAuth-oblivious — it takes a `TokenSource`, all refresh policy lives in
   `internal/cli/tokensource.go`.
 - `internal/render` holds no transport and no auth; renderers are pure functions of server rows, which is
@@ -165,7 +168,7 @@ redirect traffic. `.rootcause/local.toml` overlays `tenant` only.
 
 ## Adding a command
 
-1. Wire struct in [`types.go`](internal/client/types.go) — field names match the server JSON exactly.
+1. Wire struct in the endpoint's `internal/client/<endpoint>_types.go` — field names match the server JSON exactly.
 2. Client method in `internal/client` (one method per endpoint).
 3. Render function + golden fixture/test in `internal/render`.
 4. Cobra command in `surface.go`, plus a `commandScope` entry if it accepts any selector (without one it
