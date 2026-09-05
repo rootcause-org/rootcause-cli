@@ -1,0 +1,45 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "actions": [
+    {
+      "id": "cancel_subscription",
+      "display_name": "Cancel subscription",
+      "description": "Cancel a tenant subscription at period end",
+      "risk": "high",
+      "preflight": true,
+      "has_preflight": true,
+      "has_policy": true,
+      "autonomy": { "manifest": "propose", "cap": "propose", "effective": "propose" },
+      "stats": {
+        "total": 12,
+        "succeeded": 8,
+        "failed": 2,
+        "proposed": 2,
+        "executing": 0,
+        "canceled": 0,
+        "success_rate": 0.8,
+        "p50_duration_ms": 412,
+        "last_proposed_at": "2026-06-22T08:15:00Z",
+        "last_executed_at": "2026-06-22T09:20:00Z"
+      }
+    },
+    {
+      "id": "resend_invoice",
+      "risk": "low",
+      "preflight": false,
+      "has_preflight": false,
+      "has_policy": false,
+      "autonomy": { "manifest": "", "cap": "", "effective": "" },
+      "stats": {
+        "total": 0,
+        "succeeded": 0,
+        "failed": 0,
+        "proposed": 0,
+        "executing": 0,
+        "canceled": 0,
+        "p50_duration_ms": 0
+      }
+    }
+  ]
+}

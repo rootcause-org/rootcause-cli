@@ -1,0 +1,34 @@
+Action:      cancel_subscription
+Name:        Cancel subscription
+Description: Cancel a tenant subscription at period end
+Risk:        high
+Preflight:   yes
+Policy:      yes
+Digest:      sha256:9f1c0d
+
+Autonomy:    manifest execute -> cap propose -> effective propose
+  - tenant autonomy cap = propose
+  - risk=high requires human approval
+
+Connections:
+  stripe      granted
+  billing_db  missing
+
+Params:
+  NAME             TYPE    REQUIRED  DESCRIPTION
+  subscription_id  string  yes       Stripe subscription id
+  reason           —       no        Free-text cancellation reason
+
+Stats (window):
+  runs:       12 (succeeded 8, failed 2, proposed 2, executing 0, canceled 0)
+  success:    8/10 80%
+  p50:        412 ms
+  proposed:   2026-06-22 08:15
+  executed:   2026-06-22 09:20
+
+Manifest:
+{
+  "endpoint": "POST /actions/cancel_subscription",
+  "id": "cancel_subscription",
+  "version": 3
+}

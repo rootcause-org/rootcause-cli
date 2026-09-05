@@ -1,0 +1,12 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "id": "cancel_subscription",
+  "status": "succeeded",
+  "dry_run": false,
+  "duration_ms": 418,
+  "result": {
+    "subscription_id": "sub_123",
+    "canceled_at": "2026-06-22T09:20:00Z"
+  }
+}

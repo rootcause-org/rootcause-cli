@@ -1,0 +1,10 @@
+Action run: cancel_subscription
+Status:     succeeded
+Dry run:    no
+Duration:   418 ms
+
+Result:
+{
+  "canceled_at": "2026-06-22T09:20:00Z",
+  "subscription_id": "sub_123"
+}

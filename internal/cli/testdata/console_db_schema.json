@@ -1,0 +1,25 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "db": "app",
+  "tables": [
+    {
+      "schema": "public",
+      "name": "subscriptions",
+      "columns": [
+        { "name": "id", "type": "uuid", "nullable": false },
+        { "name": "tenant_slug", "type": "text", "nullable": false },
+        { "name": "canceled_at", "type": "timestamptz", "nullable": true }
+      ]
+    },
+    {
+      "schema": "billing",
+      "name": "invoices",
+      "columns": [
+        { "name": "id", "type": "bigint", "nullable": false },
+        { "name": "amount_cents", "type": "integer", "nullable": false },
+        { "name": "paid_at", "type": "timestamptz", "nullable": true }
+      ]
+    }
+  ]
+}

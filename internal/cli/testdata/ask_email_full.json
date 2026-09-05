@@ -10,7 +10,19 @@
     "finished_at": "2026-06-19T09:01:30Z",
     "draft": "Hi Sophie,\n\nYou have 2 open invoices totalling $480.",
     "notes": [
-      { "key": "summary", "body": "Checked Stripe customer cus_123 and found two unpaid invoices." }
+      {
+        "key": "summary",
+        "body": "Checked Stripe customer cus_123 and found two unpaid invoices.",
+        "actions": [
+          {
+            "id": "note_act_1",
+            "label": "Open Stripe customer",
+            "description": "Jump to cus_123 in Stripe.",
+            "url": "https://dashboard.stripe.com/customers/cus_123"
+          },
+          { "id": "note_act_2", "label": "Mark reviewed" }
+        ]
+      }
     ],
     "proposed_actions": [
       {

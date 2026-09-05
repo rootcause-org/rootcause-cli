@@ -1,0 +1,22 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "databases": [
+    {
+      "name": "app",
+      "env": "production",
+      "description": "Primary application database (tenant-scoped views)",
+      "scoped": true,
+      "pii_masked": true,
+      "writable": false
+    },
+    {
+      "name": "analytics",
+      "env": "production",
+      "description": "Read-only warehouse replica",
+      "scoped": false,
+      "pii_masked": false,
+      "writable": true
+    }
+  ]
+}

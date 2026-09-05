@@ -1,0 +1,8 @@
+public.subscriptions
+  id           uuid         not null
+  tenant_slug  text         not null
+  canceled_at  timestamptz  nullable
+billing.invoices
+  id            bigint       not null
+  amount_cents  integer      not null
+  paid_at       timestamptz  nullable

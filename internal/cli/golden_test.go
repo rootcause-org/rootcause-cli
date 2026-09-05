@@ -1250,3 +1250,76 @@ func TestHealthMailboxExpiryTable(t *testing.T) {
 	}
 	assertGolden(t, "health_expiry.golden", out.String())
 }
+
+// The guarded console read/exec views (`rc dev console …`) had no golden at all — the renderers were
+// dead to the test suite. One case each, over fixtures that exercise the optional blocks: capabilities
+// with every plane populated, an action manifest with autonomy floors / connections / params / stats,
+// and both arms of the exec view (a result body vs an error body).
+func TestConsoleCapabilitiesTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "console", "capabilities"); err != nil {
+		t.Fatalf("console capabilities: %v", err)
+	}
+	assertGolden(t, "console_capabilities.golden", out.String())
+}
+
+func TestConsoleDBListTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "console", "database", "list"); err != nil {
+		t.Fatalf("console database list: %v", err)
+	}
+	assertGolden(t, "console_db_list.golden", out.String())
+}
+
+func TestConsoleDBSchemaTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "console", "database", "schema", "app"); err != nil {
+		t.Fatalf("console database schema: %v", err)
+	}
+	assertGolden(t, "console_db_schema.golden", out.String())
+}
+
+func TestConsoleActionListTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "console", "action", "list"); err != nil {
+		t.Fatalf("console action list: %v", err)
+	}
+	assertGolden(t, "console_action_list.golden", out.String())
+}
+
+func TestConsoleActionShowTable(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "dev", "console", "action", "show", "cancel_subscription"); err != nil {
+		t.Fatalf("console action show: %v", err)
+	}
+	assertGolden(t, "console_action_show.golden", out.String())
+}
+
+func TestConsoleActionExecTables(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, tc := range []struct {
+		verb   string
+		golden string
+	}{
+		{"run", "console_action_run.golden"},
+		{"preflight", "console_action_preflight.golden"},
+	} {
+		e, out, _ := newTestEnv(t, srv, "table")
+		if err := run(t, e, "dev", "console", "action", tc.verb, "cancel_subscription",
+			"--params", `{"subscription_id":"sub_123"}`); err != nil {
+			t.Fatalf("console action %s: %v", tc.verb, err)
+		}
+		assertGolden(t, tc.golden, out.String())
+	}
+}

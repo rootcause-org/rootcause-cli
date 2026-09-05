@@ -1,0 +1,12 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "id": "cancel_subscription",
+  "status": "failed",
+  "dry_run": true,
+  "duration_ms": 22,
+  "error": {
+    "code": "MISSING_CONNECTION",
+    "message": "billing_db connection is not sealed for this tenant"
+  }
+}

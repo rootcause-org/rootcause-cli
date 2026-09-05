@@ -1,0 +1,10 @@
+Action run: cancel_subscription
+Status:     failed
+Dry run:    yes
+Duration:   22 ms
+
+Error:
+{
+  "code": "MISSING_CONNECTION",
+  "message": "billing_db connection is not sealed for this tenant"
+}

@@ -366,6 +366,38 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "bash_list.json"))
 	})
+	// The rest of the guarded console read/exec plane, so every console renderer has a golden.
+	mux.HandleFunc("GET /api/v1/console/db", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_db_list.json"))
+	})
+	mux.HandleFunc("GET /api/v1/console/db/{db}/schema", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_db_schema.json"))
+	})
+	mux.HandleFunc("GET /api/v1/console/action", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_action_list.json"))
+	})
+	mux.HandleFunc("GET /api/v1/console/action/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_action_show.json"))
+	})
+	// run succeeds with a result body; preflight fails with an error body — the ActionExec view's two arms.
+	mux.HandleFunc("POST /api/v1/console/action/{id}/run", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_action_run.json"))
+	})
+	mux.HandleFunc("POST /api/v1/console/action/{id}/preflight", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "console_action_preflight.json"))
+	})
 	mux.HandleFunc("GET /api/v1/console/capabilities", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

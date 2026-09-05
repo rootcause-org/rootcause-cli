@@ -1,0 +1,3 @@
+NAME       ENV         SCOPED  PII  WRITABLE  DESCRIPTION
+app        production  yes     yes  no        Primary application database (tenant-scoped views)
+analytics  production  no      no   yes       Read-only warehouse replica

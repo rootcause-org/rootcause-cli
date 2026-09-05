@@ -1,0 +1,25 @@
+Project: momentum-tools
+Tenant:  acme
+Egress:  enforce
+
+Brain:
+Project: momentum-tools
+Ref:     main
+Local:   111111111111
+Origin:  222222222222
+State:   behind (ahead 0, behind 1) stale
+Synced:  2026-07-01T10:44:34Z
+Boot:    unchecked
+Note:    origin/main has commits not deployed on this box
+
+Databases:
+NAME  ENV         SCOPED  PII  WRITABLE  DESCRIPTION
+app   production  yes     yes  no        Primary application database (tenant-scoped views)
+
+Scripts:
+NAME                PATH                                          ARGS             PURPOSE
+subscription_to_md  skills/support/scripts/subscription_to_md.py  --tenant <slug>  Render subscription context
+
+Actions:
+ID                   DISPLAY NAME         RISK  PREFLIGHT  AUTONOMY  SUCCESS  LAST RUN
+cancel_subscription  Cancel subscription  high  yes        propose   —        —

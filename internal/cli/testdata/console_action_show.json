@@ -1,0 +1,48 @@
+{
+  "project": "momentum-tools",
+  "tenant": "acme",
+  "id": "cancel_subscription",
+  "digest": "sha256:9f1c0d",
+  "preflight": true,
+  "manifest": {
+    "id": "cancel_subscription",
+    "version": 3,
+    "endpoint": "POST /actions/cancel_subscription"
+  },
+  "catalog": {
+    "id": "cancel_subscription",
+    "display_name": "Cancel subscription",
+    "description": "Cancel a tenant subscription at period end",
+    "risk": "high",
+    "preflight": true,
+    "has_preflight": true,
+    "has_policy": true,
+    "autonomy": {
+      "manifest": "execute",
+      "cap": "propose",
+      "effective": "propose",
+      "floors": ["tenant autonomy cap = propose", "risk=high requires human approval"]
+    },
+    "connections": [
+      { "key": "stripe", "satisfied": true },
+      { "key": "billing_db", "satisfied": false }
+    ],
+    "params": [
+      { "name": "subscription_id", "type": "string", "required": true, "description": "Stripe subscription id" },
+      { "name": "reason", "type": "", "required": false, "description": "Free-text cancellation reason" }
+    ],
+    "stats": {
+      "total": 12,
+      "succeeded": 8,
+      "failed": 2,
+      "proposed": 2,
+      "executing": 0,
+      "canceled": 0,
+      "success_rate": 0.8,
+      "p50_duration_ms": 412,
+      "last_proposed_at": "2026-06-22T08:15:00Z",
+      "last_executed_at": "2026-06-22T09:20:00Z"
+    },
+    "digest": "sha256:9f1c0d"
+  }
+}

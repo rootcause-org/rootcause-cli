@@ -19,6 +19,13 @@ You have 2 open invoices totalling $480.
 Note (summary):
 Checked Stripe customer cus_123 and found two unpaid invoices.
 
+Note actions (2):
+  ID          LABEL
+  note_act_1  Open Stripe customer
+  note_act_2  Mark reviewed
+    url: https://dashboard.stripe.com/customers/cus_123
+    Jump to cus_123 in Stripe.
+
 Actions (1):
   ID       ACTION                 LABEL
   act_123  send_invoice_reminder  Send invoice reminder

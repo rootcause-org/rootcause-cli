@@ -15,7 +15,16 @@
     "synced_at": "2026-07-01T10:44:34Z",
     "message": "origin/main has commits not deployed on this box"
   },
-  "databases": [],
+  "databases": [
+    {
+      "name": "app",
+      "env": "production",
+      "description": "Primary application database (tenant-scoped views)",
+      "scoped": true,
+      "pii_masked": true,
+      "writable": false
+    }
+  ],
   "scripts": [
     {
       "name": "subscription_to_md",
@@ -24,7 +33,26 @@
       "args": "--tenant <slug>"
     }
   ],
-  "actions": [],
+  "actions": [
+    {
+      "id": "cancel_subscription",
+      "display_name": "Cancel subscription",
+      "risk": "high",
+      "preflight": true,
+      "has_preflight": true,
+      "has_policy": true,
+      "autonomy": { "manifest": "propose", "cap": "propose", "effective": "propose" },
+      "stats": {
+        "total": 0,
+        "succeeded": 0,
+        "failed": 0,
+        "proposed": 0,
+        "executing": 0,
+        "canceled": 0,
+        "p50_duration_ms": 0
+      }
+    }
+  ],
   "egress_mode": "enforce",
   "planes": { "db": "available", "bash": "available", "action": "not_available" }
 }
