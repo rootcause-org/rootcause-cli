@@ -76,7 +76,8 @@ map. The rules that make the layering real:
   Wire-contract field names must match the server verbatim (`<endpoint>_types.go` per endpoint family,
   shared primitives in `types.go`).
   The client is OAuth-oblivious — it takes a `TokenSource`, all refresh policy lives in
-  `internal/cli/tokensource.go`.
+  `internal/cli/tokensource.go`. Wire decoding only: client-side analysis over those raw rows
+  (triage ordering, drift/attention counts, selector heuristics) lives in `internal/digest`.
 - `internal/render` holds no transport and no auth; renderers are pure functions of server rows, which is
   what makes them golden-testable. Every renderer is `func X(w io.Writer, typed …)` — no `*env`, no
   host lookups (PATH, `runtime.GOOS`, `time.Now`). When a view needs CLI-private state, `internal/cli`

@@ -1,0 +1,208 @@
+// Package digest holds client-side analysis over raw wire rows — the fat-client half.
+// Pure functions, no I/O: they take internal/client wire structs and return the ordered,
+// counted or diffed views renderers and dumps present. internal/client stays the wire
+// contract + transport; anything that answers "what should a human look at first" lives here.
+package digest
+
+import (
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/rootcause-org/rootcause-cli/internal/client"
+)
+
+// TenantSettingValue is one scalar tenant setting surfaced in concise human summaries.
+type TenantSettingValue struct {
+	Key   string
+	Value string
+}
+
+// TenantSettingsDriftItem is one setting whose historical run value differs from the tenant's current
+// record. Then is what the run saw; Now is what the tenant row holds today.
+type TenantSettingsDriftItem struct {
+	Key  string `json:"key"`
+	Then string `json:"then"`
+	Now  string `json:"now"`
+}
+
+// BranchSelectorValues returns known projection branch selector values when they are present in the
+// settings snapshot. If this is a future project with different selector names, fall back to likely
+// selector-shaped scalar keys rather than dumping the whole settings record.
+func BranchSelectorValues(settings map[string]any) []TenantSettingValue {
+	if len(settings) == 0 {
+		return nil
+	}
+	preferred := []string{
+		"newpatient_method",
+		"existingpatient_method",
+		"reschedule_method",
+		"booking_hygienist_dentist_interaction",
+	}
+	out := selectorValues(settings, preferred)
+	if len(out) > 0 {
+		return out
+	}
+	var keys []string
+	for k := range settings {
+		if strings.HasSuffix(k, "_method") || strings.HasSuffix(k, "_selector") || strings.HasSuffix(k, "_interaction") {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	return selectorValues(settings, keys)
+}
+
+// TenantSettingsDrift compares two tenant-settings snapshots and returns only settings whose values
+// differ. Version/source changes with identical settings are deliberately ignored: the warning is for
+// variables that could change model behavior.
+func TenantSettingsDrift(snapshotRaw, currentRaw string) ([]TenantSettingsDriftItem, error) {
+	snapshot, err := client.ParseTenantSettingsSnapshot(snapshotRaw)
+	if err != nil {
+		return nil, err
+	}
+	current, err := client.ParseTenantSettingsSnapshot(currentRaw)
+	if err != nil {
+		return nil, err
+	}
+	if snapshot == nil || current == nil {
+		return nil, nil
+	}
+	keys := map[string]bool{}
+	for k := range snapshot.Settings {
+		keys[k] = true
+	}
+	for k := range current.Settings {
+		keys[k] = true
+	}
+	sorted := make([]string, 0, len(keys))
+	for k := range keys {
+		sorted = append(sorted, k)
+	}
+	sort.Strings(sorted)
+
+	out := make([]TenantSettingsDriftItem, 0)
+	for _, k := range sorted {
+		then, thenOK := snapshot.Settings[k]
+		now, nowOK := current.Settings[k]
+		if canonicalSettingValue(then, thenOK) == canonicalSettingValue(now, nowOK) {
+			continue
+		}
+		out = append(out, TenantSettingsDriftItem{
+			Key:  k,
+			Then: displaySettingValue(then, thenOK),
+			Now:  displaySettingValue(now, nowOK),
+		})
+	}
+	return out, nil
+}
+
+// GroundingSourceDriftCount counts source fields that changed between the run snapshot and the current
+// sync state. It ignores uncaptured old runs and nil blocks.
+func GroundingSourceDriftCount(gs *client.GroundingSources) int {
+	if gs == nil || !gs.Captured {
+		return 0
+	}
+	n := 0
+	for _, s := range gs.Sources {
+		n += len(s.Drift)
+	}
+	return n
+}
+
+// GroundingSourceAttentionCount counts sources whose historical snapshot needs attention: missing
+// config/sync/mount or any current drift.
+func GroundingSourceAttentionCount(gs *client.GroundingSources) int {
+	if gs == nil || !gs.Captured {
+		return 0
+	}
+	n := 0
+	for _, s := range gs.Sources {
+		if groundingNeedsAttention(s) {
+			n++
+		}
+	}
+	return n
+}
+
+// SortGroundingSources returns a copy ordered for human triage: missing/drifted rows first, then
+// kind/name for determinism.
+func SortGroundingSources(in []client.GroundingSource) []client.GroundingSource {
+	out := append([]client.GroundingSource(nil), in...)
+	sort.SliceStable(out, func(i, j int) bool {
+		ai := groundingNeedsAttention(out[i])
+		aj := groundingNeedsAttention(out[j])
+		if ai != aj {
+			return ai
+		}
+		if out[i].Kind != out[j].Kind {
+			return out[i].Kind < out[j].Kind
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
+
+func groundingNeedsAttention(s client.GroundingSource) bool {
+	return !s.Configured || !s.Available || !s.Mounted || len(s.Drift) > 0
+}
+
+func selectorValues(settings map[string]any, keys []string) []TenantSettingValue {
+	out := make([]TenantSettingValue, 0, len(keys))
+	for _, k := range keys {
+		v, ok := settings[k]
+		if !ok {
+			continue
+		}
+		s, ok := scalarString(v)
+		if !ok {
+			continue
+		}
+		out = append(out, TenantSettingValue{Key: k, Value: s})
+	}
+	return out
+}
+
+func canonicalSettingValue(v any, ok bool) string {
+	if !ok {
+		return "<unset>"
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%#v", v)
+	}
+	return string(b)
+}
+
+func displaySettingValue(v any, ok bool) string {
+	if !ok {
+		return "(unset)"
+	}
+	if s, ok := scalarString(v); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%v", v)
+	}
+	return string(b)
+}
+
+func scalarString(v any) (string, bool) {
+	switch x := v.(type) {
+	case nil:
+		return "null", true
+	case string:
+		return x, true
+	case bool:
+		if x {
+			return "true", true
+		}
+		return "false", true
+	case float64:
+		return fmt.Sprintf("%g", x), true
+	default:
+		return "", false
+	}
+}

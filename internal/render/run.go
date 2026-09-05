@@ -12,6 +12,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/digest"
 )
 
 // Run renders one run's high-level view — the promised set: status, category, draft?/note?, turns/bash,
@@ -184,7 +185,7 @@ func Full(w io.Writer, f *client.FullResponse) {
 	if settings := projectionSummary(r.TenantSettings); settings != "" {
 		_, _ = fmt.Fprintf(tw, "Tenant settings:\t%s\n", settings)
 	}
-	drift, _ := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent)
+	drift, _ := digest.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent)
 	if len(drift) > 0 {
 		_, _ = fmt.Fprintf(tw, "Tenant settings drift:\t%d changed\n", len(drift))
 	}
@@ -287,10 +288,10 @@ func groundingSummary(gs *client.GroundingSources) string {
 		return "not captured"
 	}
 	parts := []string{fmt.Sprintf("%d sources", len(gs.Sources))}
-	if attention := client.GroundingSourceAttentionCount(gs); attention > 0 {
+	if attention := digest.GroundingSourceAttentionCount(gs); attention > 0 {
 		parts = append(parts, fmt.Sprintf("%d attention", attention))
 	}
-	if drift := client.GroundingSourceDriftCount(gs); drift > 0 {
+	if drift := digest.GroundingSourceDriftCount(gs); drift > 0 {
 		parts = append(parts, fmt.Sprintf("%d drift fields", drift))
 	}
 	if gs.CapturedAt != "" {
@@ -309,7 +310,7 @@ func renderGroundingSources(w io.Writer, gs *client.GroundingSources) {
 	_, _ = fmt.Fprintf(w, "\nGrounding sources (%d):\n", len(gs.Sources))
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	_, _ = fmt.Fprintln(tw, "  !\tSOURCE\tSNAPSHOT\tSYNC\tCURRENT\tDRIFT")
-	for _, s := range client.SortGroundingSources(gs.Sources) {
+	for _, s := range digest.SortGroundingSources(gs.Sources) {
 		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\t%s\t%s\n",
 			groundingMark(s), groundingSourceName(s), groundingSnapshot(s), groundingSync(s), groundingCurrent(s), groundingDrift(s))
 	}
@@ -438,7 +439,7 @@ func projectionSummary(raw string) string {
 	if snap.Version != "" {
 		parts = append(parts, "version="+snap.Version)
 	}
-	if selectors := client.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
+	if selectors := digest.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
 		parts = append(parts, fmt.Sprintf("selectors=%d", len(selectors)))
 	}
 	return strings.Join(parts, "  ")

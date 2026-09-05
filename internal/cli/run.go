@@ -11,6 +11,7 @@ import (
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 	"github.com/rootcause-org/rootcause-cli/internal/debugdump"
+	"github.com/rootcause-org/rootcause-cli/internal/digest"
 	"github.com/rootcause-org/rootcause-cli/internal/outputspill"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
 )
@@ -561,5 +562,5 @@ func groundingSourceDriftCount(raw json.RawMessage) (int, bool) {
 	if err := json.Unmarshal(raw, &gs); err != nil {
 		return 0, false
 	}
-	return client.GroundingSourceDriftCount(&gs), true
+	return digest.GroundingSourceDriftCount(&gs), true
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/digest"
 )
 
 // EmitJSONL writes the drill-down event log: a {"type":"run"} header line (run metadata + full
@@ -52,10 +53,10 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	}
 	if len(r.GroundingSourcesRaw) > 0 {
 		header["grounding_sources"] = json.RawMessage(r.GroundingSourcesRaw)
-		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
+		header["grounding_source_drift_count"] = digest.GroundingSourceDriftCount(r.GroundingSources)
 	} else if r.GroundingSources != nil {
 		header["grounding_sources"] = r.GroundingSources
-		header["grounding_source_drift_count"] = client.GroundingSourceDriftCount(r.GroundingSources)
+		header["grounding_source_drift_count"] = digest.GroundingSourceDriftCount(r.GroundingSources)
 	}
 	if len(r.ProposedActions) > 0 {
 		header["proposed_actions"] = r.ProposedActions
@@ -76,7 +77,7 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	if r.PreselectedTurn != "" {
 		header["preselected_turn"] = r.PreselectedTurn
 	}
-	if drift, err := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
+	if drift, err := digest.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
 		header["tenant_settings_drift"] = drift
 	}
 	if err := enc.Encode(header); err != nil {

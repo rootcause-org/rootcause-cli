@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/digest"
 )
 
 // RenderIndex builds the THIN markdown index: the run header, question, outcome gist, a main-loop
@@ -217,12 +218,12 @@ func renderProjectionInputs(r client.RunHeader) []string {
 		} else if snap != nil {
 			out = append(out, fmt.Sprintf("- **Tenant settings:** source `%s` · synced_at `%s` · version `%s`",
 				backtickSafe(orQ(snap.Source)), backtickSafe(orQ(snap.SyncedAt)), backtickSafe(orQ(snap.Version))))
-			if selectors := client.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
+			if selectors := digest.BranchSelectorValues(snap.Settings); len(selectors) > 0 {
 				out = append(out, fmt.Sprintf("- **Branch selectors:** %s", selectorSummary(selectors)))
 			}
 		}
 	}
-	if drift, err := client.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
+	if drift, err := digest.TenantSettingsDrift(r.TenantSettings, r.TenantSettingsCurrent); err == nil && len(drift) > 0 {
 		out = append(out, "", "### Current drift", "")
 		out = append(out, "Careful: when this run happened, these tenant settings differed from the current config.")
 		for _, d := range drift {
@@ -380,15 +381,15 @@ func renderGroundingSources(gs *client.GroundingSources) []string {
 	}
 	out = append(out, fmt.Sprintf("- **Captured:** yes · captured_at `%s` · current_checked_at `%s`",
 		backtickSafe(orQ(gs.CapturedAt)), backtickSafe(orQ(gs.CurrentCheckedAt))))
-	driftCount := client.GroundingSourceDriftCount(gs)
-	attention := client.GroundingSourceAttentionCount(gs)
+	driftCount := digest.GroundingSourceDriftCount(gs)
+	attention := digest.GroundingSourceAttentionCount(gs)
 	if driftCount > 0 || attention > 0 {
 		out = append(out, fmt.Sprintf("- **Attention:** %d source(s), %d drift field(s)", attention, driftCount))
 	}
 	if len(gs.Sources) == 0 {
 		return append(out, "- _(no source rows)_", "")
 	}
-	for _, s := range client.SortGroundingSources(gs.Sources) {
+	for _, s := range digest.SortGroundingSources(gs.Sources) {
 		out = append(out, "", fmt.Sprintf("### `%s`", backtickSafe(groundingSourceName(s))))
 		if s.MountPath != "" {
 			out = append(out, fmt.Sprintf("- **Source:** `%s`", backtickSafe(s.MountPath)))
@@ -567,7 +568,7 @@ func renderOutcome(r client.RunHeader) []string {
 
 // --- index formatters --------------------------------------------------------------------------------
 
-func selectorSummary(vals []client.TenantSettingValue) string {
+func selectorSummary(vals []digest.TenantSettingValue) string {
 	parts := make([]string, 0, len(vals))
 	for _, v := range vals {
 		parts = append(parts, fmt.Sprintf("`%s=%s`", backtickSafe(v.Key), backtickSafe(v.Value)))

@@ -1,4 +1,4 @@
-package client
+package digest
 
 import "testing"
 

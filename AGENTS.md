@@ -21,6 +21,7 @@ do their own thing. No DB access in the CLI — data comes only through `/api/v1
 - `cmd/rc/main.go` — entrypoint → `cli.Execute(version)`.
 - `internal/cli/` — `surface.go` owns the nine roots; command files implement their grouped endpoint adapters. `tokensource.go` is the live token source; `errors.go` surfaces API errors verbatim.
 - `internal/client/` — the one HTTP wrapper (`transport.go`, the single send loop: timeout + safe 429/5xx backoff + refresh-on-401, buffered or streamed) + `TokenSource` (`auth.go`) + wire contract (`*_types.go` per endpoint, shared primitives in `types.go`; field names match the server exactly) + `APIError`.
+- `internal/digest/` — client-side analysis over raw wire rows (the fat-client half): grounding-source triage order + drift/attention counts, tenant-settings drift, branch-selector heuristics. Pure functions over `internal/client` types, no I/O; used by render + debugdump.
 - `internal/oauth/` — OAuth protocol client: PKCE loopback + device grant + refresh/revoke (first-party client `rcocl_cli`).
 - `internal/token/` — token store `~/.config/rootcause/tokens.json` (0600), per-profile.
 - `internal/config/` — env-or-production URL resolution + brain-aware profile/project/tenant context (`.rootcause.toml` + `.rootcause/local.toml`).
