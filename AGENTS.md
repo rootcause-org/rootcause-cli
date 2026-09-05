@@ -41,7 +41,7 @@ installs the pinned one over the shadowing binary. `RC_CLOUD_SKIP_UV=1` / `RC_CL
 ## Working on it
 - **Toolchain:** Go 1.25 via `mise` (pinned in `mise.toml`); `cobra`+`pflag`, `BurntSushi/toml`. Run from the repo dir so mise selects go 1.25.
 - **Before finishing any change:** `go build ./... && go vet ./... && go test ./...`, and `gofmt -w`.
-- **Golden + generated docs:** fixtures `internal/cli/testdata/*.json` → `*.golden`; the README command inventory and `docs/cli-help.txt` are test-guarded. After changing any command/flag/short, regenerate all of it with `go test ./internal/cli -update`; `internal/render` has its own view goldens (`internal/render/testdata/*.golden`, `go test ./internal/render -update`). Fixtures use canned timestamps — never `time.Now`.
+- **Golden + generated docs:** fixtures `internal/cli/testdata/*.json` → `*.golden`; the README command inventory and `docs/cli-help.txt` are test-guarded. After changing any command/flag/short, regenerate all of it with `go test ./internal/cli -update`; `internal/render` has its own view goldens (`internal/render/testdata/*.golden`, `go test ./internal/render -update`). Fixtures use canned timestamps — never `time.Now`. Cases whose whole body is "stub server → run → assert" live as rows in `internal/cli/table_test.go` (`TestTableGolden`, `TestJSONPassthrough`, `TestTableLine`, `TestRejectsBeforeRequest`) — add a row there, and only write a standalone `func Test…` when the case needs its own setup or extra asserts.
 - **Greenfield release bias:** verified + low regression risk ⇒ release immediately, then update local `rc`.
 - **Adding a command / the four thin layers / config precedence** → see [SKILL.md](SKILL.md).
 

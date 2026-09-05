@@ -16,104 +16,6 @@ import (
 
 // Table-mode golden tests: each pins one renderer's human output against testdata/*.golden.
 
-func TestStatusTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "status"); err != nil {
-		t.Fatalf("status: %v", err)
-	}
-	assertGolden(t, "status.golden", out.String())
-}
-
-func TestRunsTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "list", "--limit", "10"); err != nil {
-		t.Fatalf("runs: %v", err)
-	}
-	assertGolden(t, "runs.golden", out.String())
-}
-
-func TestRunDetailTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "show", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	assertGolden(t, "run.golden", out.String())
-}
-
-func TestRunEventsTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "events", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("run events: %v", err)
-	}
-	assertGolden(t, "events.golden", out.String())
-}
-
-func TestRunFullTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "trace", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("run trace: %v", err)
-	}
-	assertGolden(t, "full.golden", out.String())
-}
-
-// TestRunDeclinedTable pins the index "why" one-liner for a run that declined (the motivating case:
-// the CLI previously showed `declined` with no WHY). It must surface the truncated decline_reason plus
-// the guardrail/forced/fallback flags on a single Why: row.
-func TestRunDeclinedTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "show", "declined"); err != nil {
-		t.Fatalf("run declined: %v", err)
-	}
-	assertGolden(t, "run_declined.golden", out.String())
-}
-
-// TestRunDeclinedEventsTable pins the trace's terminal-decline rendering: the reply event shows the
-// decline_reason instead of a draft/note line.
-func TestRunDeclinedEventsTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "events", "declined"); err != nil {
-		t.Fatalf("run events declined: %v", err)
-	}
-	assertGolden(t, "events_declined.golden", out.String())
-}
-
-// TestRunDeclinedFullTable pins the full header's debug rows + the untruncated decline_reason block.
-func TestRunDeclinedFullTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "trace", "declined"); err != nil {
-		t.Fatalf("run trace declined: %v", err)
-	}
-	assertGolden(t, "full_declined.golden", out.String())
-}
-
-// TestRunGuardsTable pins the security-checkpoint readback: one row per checkpoint in evaluation
-// order, with blocks/violations/fail-open surfaced loudly.
-func TestRunGuardsTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "guards", "guarded"); err != nil {
-		t.Fatalf("run guards: %v", err)
-	}
-	assertGolden(t, "guards.golden", out.String())
-}
-
 // TestRunGuardsJSON confirms -o json emits the raw guards OBJECT (not the whole trace bundle),
 // byte-faithful to the server's run.guards. The fixture carries a `future_checkpoint` the CLI's
 // GuardsView does not model: it must still reach jq (we project the raw body, we do not re-marshal).
@@ -169,54 +71,6 @@ func TestRunGuardsRedacted(t *testing.T) {
 	if !strings.Contains(errb.String(), "no guards on this trace") {
 		t.Fatalf("expected guards-absent notice on stderr, got %q", errb.String())
 	}
-}
-
-// TestRunDeclinedJSONPassthrough confirms the new debug fields ride through -o json verbatim (the CLI
-// reshapes nothing): the raw server body round-trips unchanged.
-func TestRunDeclinedJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "show", "declined"); err != nil {
-		t.Fatalf("run declined -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "run_declined.json"), out.Bytes())
-}
-
-// TestRunBrainDiffTable pins the brain-diff renderer: the commit header (short sha, author, time,
-// subject), the touched files with churn, and the unified diff.
-func TestRunBrainDiffTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "brain-diff", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("run brain-diff: %v", err)
-	}
-	assertGolden(t, "brain_diff.golden", out.String())
-}
-
-// TestRunBrainDiffNotFoundTable pins the explicit-empty case: a run that wrote no journal commit shows
-// the "No brain changes from this run." line, not an error.
-func TestRunBrainDiffNotFoundTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "brain-diff", "no-brain"); err != nil {
-		t.Fatalf("run brain-diff (not found): %v", err)
-	}
-	assertGolden(t, "brain_diff_none.golden", out.String())
-}
-
-// TestRunBrainDiffJSONPassthrough confirms -o json rides the server body through verbatim (the CLI
-// reshapes nothing).
-func TestRunBrainDiffJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "brain-diff", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("run brain-diff -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "brain_diff.json"), out.Bytes())
 }
 
 func TestBashRunTable(t *testing.T) {
@@ -339,16 +193,6 @@ func TestBashRunLargeJSONManifestAndRawOutput(t *testing.T) {
 	} else if len(entries) != 0 {
 		t.Fatalf("raw output wrote artifacts: %v", entries)
 	}
-}
-
-func TestBashListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "bash", "list"); err != nil {
-		t.Fatalf("dev console bash list: %v", err)
-	}
-	assertGolden(t, "bash_list.golden", out.String())
 }
 
 // TestRunFullJSONL locks the cross-repo seam: `rc run trace <id> -o json` must emit a `type:run`
@@ -553,18 +397,6 @@ func TestRunDebugJSONManifest(t *testing.T) {
 	}
 }
 
-// TestThreadTraceTable pins the thread trace: how the id resolved, the newest-first runs table with
-// health flags + placement, and the "Likely:" hint on the newest (egress-blocked) run.
-func TestThreadTraceTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "thread", "thread-abc123"); err != nil {
-		t.Fatalf("thread: %v", err)
-	}
-	assertGolden(t, "thread_trace.golden", out.String())
-}
-
 func TestThreadTraceAcceptsRunID(t *testing.T) {
 	var tracedID string
 	mux := http.NewServeMux()
@@ -584,98 +416,6 @@ func TestThreadTraceAcceptsRunID(t *testing.T) {
 	if tracedID != "99999999-9999-9999-9999-999999999999" {
 		t.Fatalf("run id resolved trace %q, want exact local thread id; output:\n%s", tracedID, out.String())
 	}
-}
-
-// TestThreadTraceSessionTable pins the session-fallback path (resolved_by:"session") and the declined-run
-// hint (the agent's own words on a declined run).
-func TestThreadTraceSessionTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "thread", "session-fallback"); err != nil {
-		t.Fatalf("run thread session: %v", err)
-	}
-	assertGolden(t, "thread_trace_session.golden", out.String())
-}
-
-// TestThreadTraceProviderTable pins the pre-run diagnostic path: a provider conversation id resolves
-// to its local channel row and explains a triage skip even though no run exists.
-func TestThreadTraceProviderTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "thread", "215475391714527"); err != nil {
-		t.Fatalf("run thread provider id: %v", err)
-	}
-	assertGolden(t, "thread_trace_provider.golden", out.String())
-}
-
-// TestThreadTraceSecurityBlockTable pins the pre-agent injection block: the thread went terminal with no
-// run row, so the loud SECURITY-BLOCK line (stage/category) is the only place the verdict surfaces.
-func TestThreadTraceSecurityBlockTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "thread", "blocked-thread-xyz"); err != nil {
-		t.Fatalf("run thread blocked id: %v", err)
-	}
-	assertGolden(t, "thread_trace_blocked.golden", out.String())
-}
-
-// TestThreadTraceUnknownTable pins the explicit-empty case: an unknown id is a clean "no runs" answer
-// (resolved_by:"none"), not an error.
-func TestThreadTraceUnknownTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "thread", "unknown"); err != nil {
-		t.Fatalf("run thread unknown: %v", err)
-	}
-	assertGolden(t, "thread_trace_none.golden", out.String())
-}
-
-// TestThreadTraceJSONPassthrough confirms -o json emits the server body verbatim — the CLI reshapes
-// nothing.
-func TestThreadTraceJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "thread", "thread-abc123"); err != nil {
-		t.Fatalf("run thread -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "thread_trace.json"), out.Bytes())
-}
-
-func TestConfigGetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "runtime", "get"); err != nil {
-		t.Fatalf("project settings runtime get: %v", err)
-	}
-	assertGolden(t, "config_get.golden", out.String())
-}
-
-func TestConfigSetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "runtime", "set", `models.agent={"tier":"pro"}`, "max_run_usd=5"); err != nil {
-		t.Fatalf("project settings runtime set: %v", err)
-	}
-	assertGolden(t, "config_set.golden", out.String())
-}
-
-// TestConfigSetListValue locks the list-coercion contract: `project settings runtime set pr.triggers=inbound,mcp` sends a
-// JSON ARRAY (asserted in the PATCH handler), not a comma string. The handler fatals if it's not an array.
-func TestConfigSetListValue(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "runtime", "set", "pr.triggers=inbound,mcp"); err != nil {
-		t.Fatalf("project settings runtime set pr.triggers: %v", err)
-	}
-	assertGolden(t, "config_set.golden", out.String())
 }
 
 // TestConfigSetListClear locks the empty-list "clear" gesture: `project settings runtime set egress.allowlist=` sends an
@@ -700,41 +440,6 @@ func TestConfigSetObjectClear(t *testing.T) {
 	}
 }
 
-// TestConfigSetObjectRejectsNonObject asserts a non-JSON-object value for an object key fails
-// client-side with a shape hint instead of being sent as a bare string.
-func TestConfigSetObjectRejectsNonObject(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "project", "settings", "runtime", "set", "models.agent=pro")
-	if err == nil || !strings.Contains(err.Error(), "expected a JSON object") {
-		t.Fatalf("want JSON-object error, got %v", err)
-	}
-}
-
-// TestKBGetTable pins `rc project knowledge sync get` — the generic bag command over a non-settings
-// bag renders the same {key:value/effective/default/source} table as project runtime settings.
-func TestKBGetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "knowledge", "sync", "get"); err != nil {
-		t.Fatalf("project knowledge sync get: %v", err)
-	}
-	assertGolden(t, "kb_get.golden", out.String())
-}
-
-// TestKBSetTable pins `rc project knowledge sync set provider=intercom` round-tripping through PATCH /api/v1/kb.
-func TestKBSetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "knowledge", "sync", "set", "provider=intercom", "base_url=https://acme.intercom.io"); err != nil {
-		t.Fatalf("project knowledge sync set: %v", err)
-	}
-	assertGolden(t, "kb_get.golden", out.String())
-}
-
 // TestActionConfigSetBoolCoercion locks the bool-coercion contract: `rc project action-settings set
 // actions_enabled=true` must send a JSON boolean, not the string "true" (asserted in the PATCH handler).
 func TestActionConfigSetBoolCoercion(t *testing.T) {
@@ -746,99 +451,8 @@ func TestActionConfigSetBoolCoercion(t *testing.T) {
 	}
 }
 
-func TestSchemaTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "schema"); err != nil {
-		t.Fatalf("schema: %v", err)
-	}
-	assertGolden(t, "schema.golden", out.String())
-}
-
-func TestSchemaJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "settings", "schema"); err != nil {
-		t.Fatalf("schema -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "meta_schema.json"), out.Bytes())
-}
-
-func TestExplainTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "settings", "describe", "models.agent"); err != nil {
-		t.Fatalf("explain: %v", err)
-	}
-	assertGolden(t, "explain_models_agent.golden", out.String())
-}
-
-// TestExplainUnknownKey asserts an unknown key is a clear client-side error (not a silent miss).
-func TestExplainUnknownKey(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "project", "settings", "describe", "nope")
-	if err == nil || !strings.Contains(err.Error(), "unknown config key") {
-		t.Fatalf("want unknown-key error, got %v", err)
-	}
-}
-
-func TestAccessTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "auth", "access"); err != nil {
-		t.Fatalf("access: %v", err)
-	}
-	assertGolden(t, "access.golden", out.String())
-}
-
-func TestAccessJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "auth", "access"); err != nil {
-		t.Fatalf("access -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "meta_capabilities.json"), out.Bytes())
-}
-
 // JSON-mode passthrough tests: -o json must emit the canned server body verbatim (re-indented only),
 // so it round-trips to the same value the server sent.
-
-func TestStatusJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "status"); err != nil {
-		t.Fatalf("status -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "runs.json"), out.Bytes())
-}
-
-func TestRunDetailJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "run", "show", "11111111-1111-1111-1111-111111111111"); err != nil {
-		t.Fatalf("run -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "run.json"), out.Bytes())
-}
-
-func TestConfigGetJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "settings", "runtime", "get"); err != nil {
-		t.Fatalf("project settings runtime get -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "settings.json"), out.Bytes())
-}
 
 // TestEventsNDJSON asserts -o json on `rc run events` emits one event object per line (NDJSON), not a
 // wrapping array — the streamable, jq-friendly contract.
@@ -1006,18 +620,6 @@ func TestEventsRenumbered(t *testing.T) {
 	}
 }
 
-// TestSpamListTable pins `rc project senders ls`: both lists rendered as one VERDICT/PATTERN/TYPE/SOURCE/CREATED
-// table (allows first, then blocks), in server order.
-func TestSpamListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "senders", "ls"); err != nil {
-		t.Fatalf("project senders ls: %v", err)
-	}
-	assertGolden(t, "spam_ls.golden", out.String())
-}
-
 // TestSpamListJSON confirms -o json carries both raw list bodies through verbatim under an
 // {allows,blocks} envelope — the CLI reshapes nothing inside each.
 func TestSpamListJSON(t *testing.T) {
@@ -1040,54 +642,6 @@ func TestSpamListJSON(t *testing.T) {
 	if got.Allows[0].Pattern != "@acme.com" || got.Blocks[0].Verdict != "block" {
 		t.Errorf("raw list bodies not carried through: %+v / %+v", got.Allows[0], got.Blocks[0])
 	}
-}
-
-// TestSpamAllowTable pins `rc project senders allow <pattern> --reason …`: the echoed rule with the
-// server-inferred match_type renders as a one-row table.
-func TestSpamAllowTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "senders", "allow", "@partner.example", "--reason", "trusted"); err != nil {
-		t.Fatalf("project senders allow: %v", err)
-	}
-	assertGolden(t, "spam_allow.golden", out.String())
-}
-
-// TestSpamAllowMailboxTable pins `rc project senders allow <pattern> --mailbox <uuid>`: the mailbox_id rides in the
-// POST body (asserted server-side by echoing it back as "mailbox"), and the echoed rule renders with the
-// MAILBOX column populated.
-func TestSpamAllowMailboxTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "senders", "allow", "@partner.example", "--mailbox", "mbx11111-0000-0000-0000-000000000009"); err != nil {
-		t.Fatalf("project senders allow --mailbox: %v", err)
-	}
-	assertGolden(t, "spam_allow_mailbox.golden", out.String())
-}
-
-// TestSpamListMailboxFilter pins `rc project senders ls --mailbox <uuid>`: the client-side filter narrows the table
-// to the two rules (one allow, one block) scoped to that mailbox, dropping the project-scoped rows.
-func TestSpamListMailboxFilter(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "senders", "ls", "--mailbox", "mbx11111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("project senders ls --mailbox: %v", err)
-	}
-	assertGolden(t, "spam_ls_mailbox.golden", out.String())
-}
-
-// TestSpamBlockTable pins `rc project senders block <pattern>` (no reason).
-func TestSpamBlockTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "senders", "block", "junk@spammy.example"); err != nil {
-		t.Fatalf("project senders block: %v", err)
-	}
-	assertGolden(t, "spam_block.golden", out.String())
 }
 
 // TestSpamRmTryBoth locks the `rm <id>` UX: an id absent from the block list (404) falls through to the
@@ -1253,60 +807,6 @@ func TestHealthMailboxExpiryTable(t *testing.T) {
 		t.Fatal("lapsed mailbox subscriptions must exit non-zero")
 	}
 	assertGolden(t, "health_expiry.golden", out.String())
-}
-
-// The guarded console read/exec views (`rc dev console …`) had no golden at all — the renderers were
-// dead to the test suite. One case each, over fixtures that exercise the optional blocks: capabilities
-// with every plane populated, an action manifest with autonomy floors / connections / params / stats,
-// and both arms of the exec view (a result body vs an error body).
-func TestConsoleCapabilitiesTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "capabilities"); err != nil {
-		t.Fatalf("console capabilities: %v", err)
-	}
-	assertGolden(t, "console_capabilities.golden", out.String())
-}
-
-func TestConsoleDBListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "database", "list"); err != nil {
-		t.Fatalf("console database list: %v", err)
-	}
-	assertGolden(t, "console_db_list.golden", out.String())
-}
-
-func TestConsoleDBSchemaTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "database", "schema", "app"); err != nil {
-		t.Fatalf("console database schema: %v", err)
-	}
-	assertGolden(t, "console_db_schema.golden", out.String())
-}
-
-func TestConsoleActionListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "action", "list"); err != nil {
-		t.Fatalf("console action list: %v", err)
-	}
-	assertGolden(t, "console_action_list.golden", out.String())
-}
-
-func TestConsoleActionShowTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "console", "action", "show", "cancel_subscription"); err != nil {
-		t.Fatalf("console action show: %v", err)
-	}
-	assertGolden(t, "console_action_show.golden", out.String())
 }
 
 func TestConsoleActionExecTables(t *testing.T) {

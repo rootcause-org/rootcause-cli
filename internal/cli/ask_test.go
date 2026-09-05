@@ -29,51 +29,6 @@ func TestAskWaitsForTerminal(t *testing.T) {
 	}
 }
 
-func TestAskEmailTableGolden(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "ask", "email-rich"); err != nil {
-		t.Fatalf("ask email: %v", err)
-	}
-	assertGolden(t, "ask_email.golden", out.String())
-}
-
-func TestAskRawTableGolden(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "ask", "show billing counts", "--scenario", "raw"); err != nil {
-		t.Fatalf("ask raw: %v", err)
-	}
-	assertGolden(t, "ask_raw.golden", out.String())
-}
-
-// TestAskDryScopeTableGolden: --dry-scope resolves the principal scope and renders the record without
-// running the agent. This dashboard_member self-assertion surfaces as tenant_wide — the finding target.
-func TestAskDryScopeTableGolden(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "ask", "widen me", "--dry-scope",
-		"--principal-kind", "dashboard_member", "--principal-id", "usr_42", "--asserted-by", "rootcause_session"); err != nil {
-		t.Fatalf("ask --dry-scope: %v", err)
-	}
-	assertGolden(t, "ask_dryscope.golden", out.String())
-}
-
-// TestAskDryScopeRefusedTableGolden: a fail-closed refusal prints the reason and no record.
-func TestAskDryScopeRefusedTableGolden(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "ask", "refuse-me", "--dry-scope",
-		"--principal-kind", "probackup_user", "--principal-id", "usr_1"); err != nil {
-		t.Fatalf("ask --dry-scope refuse: %v", err)
-	}
-	assertGolden(t, "ask_dryscope_refused.golden", out.String())
-}
-
 // TestAskDryScopeJSON: --dry-scope in -o json emits the server's dry-scope body verbatim (byte-faithful).
 func TestAskDryScopeJSON(t *testing.T) {
 	srv := stubServer(t)

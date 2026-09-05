@@ -14,36 +14,6 @@ import (
 	"github.com/rootcause-org/rootcause-cli/internal/client"
 )
 
-func TestTenantSettingsGetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "tenant", "settings", "get", "de-kies"); err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	assertGolden(t, "tenant_get.golden", out.String())
-}
-
-func TestTenantSettingsGetJSON(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "tenant", "settings", "get", "de-kies"); err != nil {
-		t.Fatalf("get -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "hierarchy_tenant_settings.json"), out.Bytes())
-}
-
-func TestTenantSettingsGetMissingTenant(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "project", "tenant", "settings", "get")
-	if err == nil || !strings.Contains(err.Error(), "arg") {
-		t.Fatalf("expected positional tenant error, got %v", err)
-	}
-}
-
 func TestTenantSettingsGet404(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -140,16 +110,6 @@ func TestTenantSettingsSchemaDump(t *testing.T) {
 	}
 }
 
-func TestTenantProfileGetJSON(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "tenant", "profile", "get", "de-kies"); err != nil {
-		t.Fatalf("profile get: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "tenant_settings.json"), out.Bytes())
-}
-
 func TestTenantProfileGetProjectScope(t *testing.T) {
 	var sawProject string
 	mux := http.NewServeMux()
@@ -175,16 +135,6 @@ func TestTenantProfileGetProjectScope(t *testing.T) {
 	}
 }
 
-func TestTenantProfileSchemaDump(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "tenant", "profile", "schema"); err != nil {
-		t.Fatalf("profile schema: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "tenant_schema.json"), out.Bytes())
-}
-
 func TestTenantProfileSetLegacyFieldErrors(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
@@ -199,16 +149,6 @@ func TestTenantProfileSetLegacyFieldErrors(t *testing.T) {
 	if !strings.Contains(got, "validation_failed") || !strings.Contains(got, "unknown_key") {
 		t.Fatalf("missing field_errors rendering: %q", got)
 	}
-}
-
-func TestProjectHierarchySettingsGetJSON(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "settings", "behavior", "get"); err != nil {
-		t.Fatalf("project settings behavior get: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "hierarchy_project_settings.json"), out.Bytes())
 }
 
 func TestMailboxSettingsSetTable(t *testing.T) {

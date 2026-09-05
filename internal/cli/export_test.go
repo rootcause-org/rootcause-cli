@@ -16,46 +16,6 @@ import (
 
 // --- rc project corpus ls / get ---
 
-func TestExportListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "corpus", "ls"); err != nil {
-		t.Fatalf("project corpus ls: %v", err)
-	}
-	assertGolden(t, "export_ls.golden", out.String())
-}
-
-func TestExportListJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "corpus", "ls"); err != nil {
-		t.Fatalf("project corpus ls -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "exports.json"), out.Bytes())
-}
-
-func TestExportGetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "corpus", "get", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("project corpus get: %v", err)
-	}
-	assertGolden(t, "export_get.golden", out.String())
-}
-
-func TestExportGetJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "corpus", "get", "eeee1111-0000-0000-0000-000000000001"); err != nil {
-		t.Fatalf("project corpus get -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "export_item.json"), out.Bytes())
-}
-
 func TestExportGetSurveyShowsBlankFormat(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()

@@ -20,36 +20,6 @@ import (
 
 // --- watched mailboxes (rc project mailbox ls/mode/connect) ---
 
-func TestMailboxWatchedListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "mailbox", "ls"); err != nil {
-		t.Fatalf("project mailbox ls: %v", err)
-	}
-	assertGolden(t, "mailbox_watched_ls.golden", out.String())
-}
-
-func TestMailboxWatchedListJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "mailbox", "ls"); err != nil {
-		t.Fatalf("project mailbox ls -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "watched_mailboxes.json"), out.Bytes())
-}
-
-func TestMailboxModeTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--project", "alpha", "project", "mailbox", "mode", "11111111-1111-1111-1111-111111111111", "watch"); err != nil {
-		t.Fatalf("project mailbox mode: %v", err)
-	}
-	assertGolden(t, "mailbox_mode.golden", out.String())
-}
-
 // TestMailboxConnectURL: connect makes NO API call beyond whoami — it composes + prints the dashboard
 // Connections URL to stdout (with --project resolving the slug) and a one-line hint to stderr.
 func TestMailboxConnectURL(t *testing.T) {
@@ -142,18 +112,6 @@ func TestEnvSetActionPlane(t *testing.T) {
 	}
 }
 
-func TestEnvRmTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "env", "rm", "STRIPE_KEY"); err != nil {
-		t.Fatalf("project env rm: %v", err)
-	}
-	if got := out.String(); got != "deleted STRIPE_KEY (env_grounding)\n" {
-		t.Errorf("project env rm output = %q", got)
-	}
-}
-
 // TestEnvRevealSecret: reveal prints the value alone to stdout with a stderr warning (like connection reveal).
 func TestEnvRevealSecret(t *testing.T) {
 	srv := stubServer(t)
@@ -171,46 +129,6 @@ func TestEnvRevealSecret(t *testing.T) {
 }
 
 // --- database collection + controls ---
-
-func TestDatabaseListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "database", "ls"); err != nil {
-		t.Fatalf("database ls: %v", err)
-	}
-	assertGolden(t, "database_ls.golden", out.String())
-}
-
-func TestDatabaseGetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "database", "get", "primary"); err != nil {
-		t.Fatalf("database get: %v", err)
-	}
-	assertGolden(t, "database_get.golden", out.String())
-}
-
-func TestDatabaseSetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "database", "set", "primary", "description=Primary OLTP"); err != nil {
-		t.Fatalf("database set: %v", err)
-	}
-	assertGolden(t, "database_get.golden", out.String())
-}
-
-func TestDatabaseControlsGetJSON(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "database", "controls", "get", "primary"); err != nil {
-		t.Fatalf("database controls get: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "database_controls.json"), out.Bytes())
-}
 
 // TestDatabaseControlsSetJSON: a JSON-object arg is sent verbatim as the PATCH body (pii_masked arrives
 // as a JSON bool, asserted server-side).
@@ -243,71 +161,7 @@ func TestBrandingLogoSetTable(t *testing.T) {
 	}
 }
 
-func TestBrandingLogoClear(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "branding", "logo", "clear"); err != nil {
-		t.Fatalf("branding logo clear: %v", err)
-	}
-	if got := out.String(); got != "logo cleared\n" {
-		t.Errorf("branding logo clear output = %q", got)
-	}
-}
-
-// --- github status ---
-
-func TestGitHubStatusTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "github", "status"); err != nil {
-		t.Fatalf("github status: %v", err)
-	}
-	assertGolden(t, "github_status.golden", out.String())
-}
-
-func TestGitHubStatusJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "project", "github", "status"); err != nil {
-		t.Fatalf("github status -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "github_status.json"), out.Bytes())
-}
-
 // --- dev brain status / sync / edit / consolidate / developer access ---
-
-func TestBrainStatusTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "brain", "status"); err != nil {
-		t.Fatalf("dev brain status: %v", err)
-	}
-	assertGolden(t, "brain_status.golden", out.String())
-}
-
-func TestBrainStatusJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "dev", "brain", "status"); err != nil {
-		t.Fatalf("dev brain status -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "brain_status.json"), out.Bytes())
-}
-
-func TestBrainSyncTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "brain", "sync"); err != nil {
-		t.Fatalf("dev brain sync: %v", err)
-	}
-	assertGolden(t, "brain_sync.golden", out.String())
-}
 
 // A 409 BRAIN_BOOT_CHECK_FAILED is terminal, not a transient sync failure: `rc dev brain sync` must
 // exit non-zero and say the box kept its last-good commit rather than parroting the raw API error.
@@ -339,58 +193,6 @@ func TestBrainSyncBootCheckRefusal(t *testing.T) {
 	}
 }
 
-func TestBrainPromoteTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "brain", "promote", "--channel", "stable", "--sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE"); err != nil {
-		t.Fatalf("dev brain promote: %v", err)
-	}
-	assertGolden(t, "brain_promote.golden", out.String())
-}
-
-func TestBrainPromoteJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "alpha", "dev", "brain", "promote", "--channel", "stable", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"); err != nil {
-		t.Fatalf("dev brain promote -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "brain_promote.json"), out.Bytes())
-}
-
-func TestBrainRenderTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render"); err != nil {
-		t.Fatalf("dev brain render: %v", err)
-	}
-	assertGolden(t, "brain_render.golden", out.String())
-}
-
-func TestBrainRenderJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render"); err != nil {
-		t.Fatalf("dev brain render -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "brain_render.json"), out.Bytes())
-}
-
-// --sha and --channel name two different commits; accepting both would silently pick one.
-func TestBrainRenderRejectsShaAndChannelTogether(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render",
-		"--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce", "--channel", "stable")
-	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Fatalf("sha+channel error = %v", err)
-	}
-}
-
 // A refusing preflight must render the offenders AND exit non-zero, so a script can gate on it.
 func TestBrainPreflightTableRefusesWithNonZeroExit(t *testing.T) {
 	srv := stubServer(t)
@@ -411,37 +213,6 @@ func TestBrainPreflightJSONPassthrough(t *testing.T) {
 		t.Fatal("a refusing preflight must return an error")
 	}
 	assertJSONEqual(t, fixture(t, "brain_preflight.json"), out.Bytes())
-}
-
-// preflight is project-only: an ambient --tenant would silently narrow a fleet-wide question.
-func TestBrainPreflightRejectsTenantSelector(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "--tenant", "de-kies", "dev", "brain", "preflight", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce")
-	if err == nil || !strings.Contains(err.Error(), "--tenant is not supported") {
-		t.Fatalf("tenant selector error = %v", err)
-	}
-}
-
-func TestMirrorRefreshTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "mirror", "refresh", "--repo", "kampadmin-rootcause-common", "--expect-sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE"); err != nil {
-		t.Fatalf("dev mirror refresh: %v", err)
-	}
-	assertGolden(t, "mirror_refresh.golden", out.String())
-}
-
-func TestMirrorRefreshJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "alpha", "dev", "mirror", "refresh", "--repo", "kampadmin-rootcause-common", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"); err != nil {
-		t.Fatalf("dev mirror refresh -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "mirror_refresh.json"), out.Bytes())
 }
 
 func TestMirrorRefreshRejectsInvalidSHAAndTenantSelector(t *testing.T) {
@@ -641,46 +412,6 @@ func TestBrainPublishRejectsInvalidInputsAndTenantSelectors(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestBrainEditTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "brain", "edit", "add", "a", "runbook", "for", "refunds"); err != nil {
-		t.Fatalf("dev brain edit: %v", err)
-	}
-	assertGolden(t, "brain_edit.golden", out.String())
-}
-
-func TestBrainConsolidateTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "dev", "brain", "consolidate"); err != nil {
-		t.Fatalf("dev brain consolidate: %v", err)
-	}
-	assertGolden(t, "brain_consolidate.golden", out.String())
-}
-
-func TestBrainDeveloperInviteTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"); err != nil {
-		t.Fatalf("dev brain developer invite: %v", err)
-	}
-	assertGolden(t, "brain_developer_invitation.golden", out.String())
-}
-
-func TestBrainDeveloperInviteJSONPassthrough(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "json")
-	if err := run(t, e, "--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"); err != nil {
-		t.Fatalf("dev brain developer invite -o json: %v", err)
-	}
-	assertJSONEqual(t, fixture(t, "brain_developer_invitation.json"), out.Bytes())
 }
 
 func TestBrainDeveloperInviteActiveOutput(t *testing.T) {
@@ -891,31 +622,6 @@ func TestTriagePolicyAndRules(t *testing.T) {
 
 // --- run feedback / retry ---
 
-func TestRunFeedbackTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111", "--score", "1", "--comment", "great draft"); err != nil {
-		t.Fatalf("run feedback: %v", err)
-	}
-	if got := out.String(); got != "feedback recorded for run 11111111-1111-1111-1111-111111111111\n" {
-		t.Errorf("run feedback output = %q", got)
-	}
-}
-
-// TestRunFeedbackProcessedTable: the operator plane rides a PATCH and prints its own terse line.
-func TestRunFeedbackProcessedTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111", "--processed", "--resolution-note", "fixed the brain skill"); err != nil {
-		t.Fatalf("run feedback --processed: %v", err)
-	}
-	if got := out.String(); got != "feedback marked processed with a resolution note for run 11111111-1111-1111-1111-111111111111\n" {
-		t.Errorf("run feedback --processed output = %q", got)
-	}
-}
-
 // TestRunFeedbackScoreAndProcessed: one invocation spanning both planes does POST then PATCH, and -o json
 // renders the merged state the PATCH returned (not the POST ack).
 func TestRunFeedbackScoreAndProcessed(t *testing.T) {
@@ -935,84 +641,7 @@ func TestRunFeedbackScoreAndProcessed(t *testing.T) {
 	}
 }
 
-// TestRunFeedbackProcessedExclusive: the two processed flags contradict each other; reject client-side.
-func TestRunFeedbackProcessedExclusive(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111", "--processed", "--unprocessed")
-	if err == nil || !strings.Contains(err.Error(), "processed") {
-		t.Fatalf("want mutually-exclusive error, got %v", err)
-	}
-}
-
-// TestRunFeedbackRequiresInput: with no flag at all it's a clear client-side error.
-func TestRunFeedbackRequiresInput(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "run", "feedback", "11111111-1111-1111-1111-111111111111")
-	if err == nil || !strings.Contains(err.Error(), "nothing to record") {
-		t.Fatalf("want nothing-to-record error, got %v", err)
-	}
-}
-
-// TestRunRetryPrintsNewID: retry prints the NEW run id on stdout (the table path), capturable for chaining.
-func TestRunRetryPrintsNewID(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "retry", "11111111-1111-1111-1111-111111111111", "--tier", "pro"); err != nil {
-		t.Fatalf("run retry: %v", err)
-	}
-	if got := out.String(); got != "99999999-9999-9999-9999-999999999999\n" {
-		t.Errorf("run retry output = %q, want the new run id", got)
-	}
-}
-
-func TestRunProcessThreadPrintsStatusURL(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "run", "process-thread", "thread-1"); err != nil {
-		t.Fatalf("run process-thread: %v", err)
-	}
-	if got := out.String(); got != "/api/v1/projects/alpha/inbox/threads/thread-1\n" {
-		t.Errorf("run process-thread output = %q", got)
-	}
-}
-
 // --- admin ---
-
-func TestAdminUserListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "admin", "user", "ls"); err != nil {
-		t.Fatalf("admin user ls: %v", err)
-	}
-	assertGolden(t, "admin_user_ls.golden", out.String())
-}
-
-func TestAdminUserAddTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "admin", "user", "add", "email=dana@acme.test", "admin=true"); err != nil {
-		t.Fatalf("admin user add: %v", err)
-	}
-	assertGolden(t, "admin_user_add.golden", out.String())
-}
-
-func TestAdminProjectListTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "admin", "project", "ls"); err != nil {
-		t.Fatalf("admin project ls: %v", err)
-	}
-	assertGolden(t, "admin_project_ls.golden", out.String())
-}
 
 // TestAdminProjectAddShowsSecret: the webhook_secret is printed (in the item) AND the shown-once warning
 // goes to stderr.
@@ -1029,16 +658,6 @@ func TestAdminProjectAddShowsSecret(t *testing.T) {
 	if !strings.Contains(errb.String(), "shown once") {
 		t.Errorf("admin project add missing stderr warning: %q", errb.String())
 	}
-}
-
-func TestAdminCatalogUpsertTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "admin", "catalog", "upsert", "key=podio", "kind=api_key"); err != nil {
-		t.Fatalf("admin catalog upsert: %v", err)
-	}
-	assertGolden(t, "admin_catalog_upsert.golden", out.String())
 }
 
 // `mailbox test` re-runs the live check on a CONNECTED mailbox: it renders the stage checklist and,

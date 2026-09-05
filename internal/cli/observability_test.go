@@ -300,19 +300,6 @@ func decodeJSON(t *testing.T, body []byte, v any) {
 // JSON-passthrough test per command + the health non-zero-exit contract. The stub server pages the
 // runs index + events feed so the paging loop is exercised end to end.
 
-// TestFleetTable pins the fleet digest: the per-run flag line (incl. the client-computed T! turn
-// spike), the aggregate, and the worst-offender shortlists. The --kind fleet param routes the stub to
-// the operator-tier (health-bearing) paged fixtures.
-func TestFleetTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "runs", "--kind", "fleet"); err != nil {
-		t.Fatalf("fleet: %v", err)
-	}
-	assertGolden(t, "fleet.golden", out.String())
-}
-
 // modelIdentityFixtureStrings are the model names the testdata fixtures still carry — deliberately, as
 // a stand-in for a stale or rogue server that has not stopped emitting them. The typed DTOs no longer
 // decode those keys and the metadata passthrough filters them, so NO rendered surface may echo one.
@@ -400,17 +387,6 @@ func assertNoModelIdentity(t *testing.T, got string) {
 			t.Fatalf("surface still renders a model line (%q):\n%s", label, got)
 		}
 	}
-}
-
-// TestFleetTimeline pins the per-day runs/errors/latency histogram (the "what changed today" anchor).
-func TestFleetTimeline(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "runs", "--kind", "fleet", "--timeline"); err != nil {
-		t.Fatalf("fleet --timeline: %v", err)
-	}
-	assertGolden(t, "fleet_timeline.golden", out.String())
 }
 
 // TestFleetAgentTable pins the token-lean agent index (full ids + ranked "look here first" + all runs).
@@ -557,19 +533,6 @@ func TestPatternsAgentRendersWhenPiped(t *testing.T) {
 	}
 }
 
-// TestPatternsTable pins the run_patterns port: the bash-failure clusters (twin orders_2024/2025 collapse
-// to one signature across 2 runs via masking) + the blocked-egress host cluster, each with a suggested-fix
-// stub.
-func TestPatternsTable(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "patterns"); err != nil {
-		t.Fatalf("patterns: %v", err)
-	}
-	assertGolden(t, "patterns.golden", out.String())
-}
-
 // TestHealthTable pins the health roll-up (stale/failing mirror + dead-lettered run → UNHEALTHY) AND the
 // non-zero exit contract: an unhealthy fleet returns an error so CI/cron sees a failure.
 func TestHealthTable(t *testing.T) {
@@ -602,17 +565,6 @@ func TestHealthAllProjectsTokenFallsBackToFanOut(t *testing.T) {
 			t.Errorf("fallback fan-out output missing %q:\n%s", want, got)
 		}
 	}
-}
-
-// TestHealthCleanExitsZero: a clean fleet renders healthy AND returns nil (zero exit).
-func TestHealthCleanExitsZero(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "fleet", "health", "--hours", "999"); err != nil {
-		t.Fatalf("clean health should exit zero, got %v", err)
-	}
-	assertGolden(t, "health_clean.golden", out.String())
 }
 
 // --- JSON passthrough: -o json must round-trip the server rows (paged ones reassembled), no rendering ---

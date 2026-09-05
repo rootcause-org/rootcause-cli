@@ -90,16 +90,6 @@ func TestKBSearchJSONIncludesArtifactPath(t *testing.T) {
 	}
 }
 
-func TestKBSearchRejectsProviderTraversal(t *testing.T) {
-	srv := stubServer(t)
-	defer srv.Close()
-	e, _, _ := newTestEnv(t, srv, "table")
-	err := run(t, e, "project", "knowledge", "content", "search", "--provider", "../agent_internal", "restore")
-	if err == nil || !strings.Contains(err.Error(), "invalid --provider") {
-		t.Fatalf("project knowledge content search traversal err = %v, want invalid provider", err)
-	}
-}
-
 func TestKBSearchDefaultDirsAreUniqueWithinSecond(t *testing.T) {
 	wd := t.TempDir()
 	oldwd, err := os.Getwd()
