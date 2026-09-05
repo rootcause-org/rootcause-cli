@@ -33,7 +33,7 @@ func (c *Client) triage(ctx context.Context, method, suffix, project, tenant str
 	if err != nil {
 		return nil, err
 	}
-	return c.Raw(ctx, method, path, body)
+	return c.raw(ctx, method, path, body)
 }
 
 // TriagePolicy fetches the free-form triage guidance.

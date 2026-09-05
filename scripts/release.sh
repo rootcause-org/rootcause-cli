@@ -141,6 +141,8 @@ ok "cloud setup shellcheck"
 # the standard linters, and CI runs the same config. golangci-lint is a declared precondition above.
 golangci-lint run
 ok "lint"
+bash scripts/lint-contracts.sh
+ok "layer contracts"
 
 # The gates above covered RELEASE_SHA. Refuse to publish a moving target if another process changed
 # HEAD or the worktree while they ran.

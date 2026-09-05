@@ -16,10 +16,9 @@ import (
 // request mapping straight onto one endpoint — same "render, don't reshape" invariant as the rest of
 // the client. JSON-shaped calls return the raw body for the -o json passthrough plus a typed view.
 
-// RawScoped issues an arbitrary method/path with a JSON body, threading ?project=&tenant= onto the
-// path, and returns the verbatim body bytes. It's the project-scoped sibling of Raw for the bespoke
-// commands that share the collection scope semantics.
-func (c *Client) RawScoped(ctx context.Context, method, path string, body any, project, tenant string) (json.RawMessage, error) {
+// rawScoped is the project/tenant-scoped sibling of raw: it threads ?project=&tenant= onto the path
+// and returns the verbatim body bytes. Package-internal for the same reason as raw.
+func (c *Client) rawScoped(ctx context.Context, method, path string, body any, project, tenant string) (json.RawMessage, error) {
 	var raw json.RawMessage
 	if err := c.do(ctx, method, path+collectionScope(project, tenant), body, &raw); err != nil {
 		return nil, err
@@ -52,14 +51,14 @@ func (c *Client) SetBrandingLogo(ctx context.Context, filename, contentType stri
 
 // ClearBrandingLogo removes the stored logo (DELETE).
 func (c *Client) ClearBrandingLogo(ctx context.Context, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodDelete, "/api/v1/branding/logo", nil, project, "")
+	return c.rawScoped(ctx, http.MethodDelete, "/api/v1/branding/logo", nil, project, "")
 }
 
 // --- GitHub install status (GET /api/v1/github/status) ---
 
 // GitHubStatus fetches {installed, account, install_url?}.
 func (c *Client) GitHubStatus(ctx context.Context, project string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodGet, "/api/v1/github/status", nil, project, "")
+	return c.rawScoped(ctx, http.MethodGet, "/api/v1/github/status", nil, project, "")
 }
 
 // --- Brain status / sync / promote / edit / consolidate / developer access ---
@@ -184,7 +183,7 @@ func (c *Client) BrainEdit(ctx context.Context, instruction, project, tenant str
 	if project == "" {
 		return nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "brain commands require a project scope"}
 	}
-	return c.Raw(ctx, http.MethodPost, treePath(project, tenant, "/brain/edit"), map[string]any{"instruction": instruction})
+	return c.raw(ctx, http.MethodPost, treePath(project, tenant, "/brain/edit"), map[string]any{"instruction": instruction})
 }
 
 // BrainConsolidate queues the consolidation cron on demand; returns {queued, job_id}.
@@ -195,7 +194,7 @@ func (c *Client) BrainConsolidate(ctx context.Context, project, tenant string) (
 	if project == "" {
 		return nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "brain commands require a project scope"}
 	}
-	return c.Raw(ctx, http.MethodPost, treePath(project, tenant, "/brain/consolidate"), map[string]any{})
+	return c.raw(ctx, http.MethodPost, treePath(project, tenant, "/brain/consolidate"), map[string]any{})
 }
 
 // InviteBrainDeveloper asks the server's GitHub App to grant one developer access to exactly one
@@ -248,18 +247,18 @@ func requireTenantProject(project, tenant, resource string) error {
 
 // RunFeedback posts a score/comment on a run's trace.
 func (c *Client) RunFeedback(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
+	return c.rawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
 }
 
 // SetRunFeedback patches the operator-side feedback state on a run (sparse: processed,
 // resolution_note). Admin-tier on the server; returns the merged feedback state.
 func (c *Client) SetRunFeedback(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPatch, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
+	return c.rawScoped(ctx, http.MethodPatch, "/api/v1/runs/"+url.PathEscape(id)+"/feedback", body, project, tenant)
 }
 
 // RunRetry re-runs a run (optionally at a different tier); returns the new run id.
 func (c *Client) RunRetry(ctx context.Context, id string, body map[string]any, project, tenant string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/retry", body, project, tenant)
+	return c.rawScoped(ctx, http.MethodPost, "/api/v1/runs/"+url.PathEscape(id)+"/retry", body, project, tenant)
 }
 
 // ProcessInboxThread resumes a triage-skipped or security-blocked thread through the canonical project tree.
@@ -268,7 +267,7 @@ func (c *Client) ProcessInboxThread(ctx context.Context, id, project, tenant str
 		return nil, fmt.Errorf("--project <project> is required to process an inbox thread")
 	}
 	path := scopedTreePath(project, tenant, "/inbox/threads/"+url.PathEscape(id)+"/process", "")
-	return c.Raw(ctx, http.MethodPost, path, map[string]any{})
+	return c.raw(ctx, http.MethodPost, path, map[string]any{})
 }
 
 // --- Action drafts (the authoring plane behind `rc project action draft …`) ---
@@ -288,39 +287,39 @@ func actionDraftPath(id, verb string) string {
 // CreateActionDraft scaffolds a new draft. The draft body is server-validated and freeform, so these
 // methods carry bytes both ways — the command layer only labels the JSON it passes through.
 func (c *Client) CreateActionDraft(ctx context.Context, project string, body map[string]any) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, actionDraftPath("", ""), body, project, "")
+	return c.rawScoped(ctx, http.MethodPost, actionDraftPath("", ""), body, project, "")
 }
 
 // ActionDraft fetches one draft (verb "") or runs one of its lifecycle verbs (validate/submit/approve).
 func (c *Client) ActionDraft(ctx context.Context, project, id, verb string) (json.RawMessage, error) {
 	if verb == "" {
-		return c.RawScoped(ctx, http.MethodGet, actionDraftPath(id, ""), nil, project, "")
+		return c.rawScoped(ctx, http.MethodGet, actionDraftPath(id, ""), nil, project, "")
 	}
-	return c.RawScoped(ctx, http.MethodPost, actionDraftPath(id, verb), map[string]any{}, project, "")
+	return c.rawScoped(ctx, http.MethodPost, actionDraftPath(id, verb), map[string]any{}, project, "")
 }
 
 // TestActionDraft mints a human-confirmed test run for a draft.
 func (c *Client) TestActionDraft(ctx context.Context, project, id string, body map[string]any) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPost, actionDraftPath(id, "test"), body, project, "")
+	return c.rawScoped(ctx, http.MethodPost, actionDraftPath(id, "test"), body, project, "")
 }
 
 // --- Database controls (GET/PATCH /api/v1/databases/{dsn}/controls) ---
 
 // DatabaseControls fetches a database's controls sub-resource.
 func (c *Client) DatabaseControls(ctx context.Context, dsn, project, tenant string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodGet, "/api/v1/databases/"+url.PathEscape(dsn)+"/controls", nil, project, tenant)
+	return c.rawScoped(ctx, http.MethodGet, "/api/v1/databases/"+url.PathEscape(dsn)+"/controls", nil, project, tenant)
 }
 
 // SetDatabaseControls patches a database's controls sub-resource (sparse).
 func (c *Client) SetDatabaseControls(ctx context.Context, dsn string, body map[string]any, project, tenant string) (json.RawMessage, error) {
-	return c.RawScoped(ctx, http.MethodPatch, "/api/v1/databases/"+url.PathEscape(dsn)+"/controls", body, project, tenant)
+	return c.rawScoped(ctx, http.MethodPatch, "/api/v1/databases/"+url.PathEscape(dsn)+"/controls", body, project, tenant)
 }
 
 // ScopePreview mints the scoped views a real run of (tenant, principal) would see and returns per-table
 // counts + sample rows + compiled predicates. The tenant + principal ride the BODY (the scoped identity),
 // not the query — only project resolution uses ?project=. Returns raw + typed for -o json / table.
 func (c *Client) ScopePreview(ctx context.Context, dsn string, body map[string]any, project string) (*ScopePreviewReport, json.RawMessage, error) {
-	raw, err := c.RawScoped(ctx, http.MethodPost, "/api/v1/databases/"+url.PathEscape(dsn)+"/scope-preview", body, project, "")
+	raw, err := c.rawScoped(ctx, http.MethodPost, "/api/v1/databases/"+url.PathEscape(dsn)+"/scope-preview", body, project, "")
 	if err != nil {
 		return nil, nil, err
 	}

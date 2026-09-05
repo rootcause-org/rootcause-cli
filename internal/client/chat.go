@@ -43,7 +43,7 @@ func (c *Client) ChatSecretAction(ctx context.Context, project, action string) (
 // ChatSecretStatus fetches GET /chat/secret — where the signing secret comes from (dedicated vs the
 // webhook fallback), never the secret itself. Raw only: the diagnostic bundle carries it verbatim.
 func (c *Client) ChatSecretStatus(ctx context.Context, project string) (json.RawMessage, error) {
-	return c.Raw(ctx, http.MethodGet, chatProjectPath(project, "/secret"), nil)
+	return c.raw(ctx, http.MethodGet, chatProjectPath(project, "/secret"), nil)
 }
 
 // ChatToken mints a five-minute embed token (POST /chat/token).
@@ -58,7 +58,7 @@ func (c *Client) ChatRejects(ctx context.Context, project string, limit int) (js
 	if limit > 0 {
 		suffix += "?limit=" + strconv.Itoa(limit)
 	}
-	return c.Raw(ctx, http.MethodGet, chatProjectPath(project, suffix), nil)
+	return c.raw(ctx, http.MethodGet, chatProjectPath(project, suffix), nil)
 }
 
 // ChatBrief streams the server-owned secret-free Markdown handoff.
@@ -91,7 +91,7 @@ func (c *Client) Principals(ctx context.Context, project string) (*PrincipalMani
 // SetPrincipals replaces the manifest (PATCH /principals). The body is server-validated and freeform,
 // so it rides through as given and the verbatim response comes back.
 func (c *Client) SetPrincipals(ctx context.Context, project string, body map[string]any) (json.RawMessage, error) {
-	return c.Raw(ctx, http.MethodPatch, principalsPath(project), body)
+	return c.raw(ctx, http.MethodPatch, principalsPath(project), body)
 }
 
 // ResolvePrincipal posts POST /principals/resolve — email (or pass-through external id) → the

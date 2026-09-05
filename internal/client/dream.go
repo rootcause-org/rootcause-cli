@@ -56,5 +56,5 @@ func (c *Client) DreamEvidence(ctx context.Context, p DreamEvidenceParams) (json
 	if enc := q.Encode(); enc != "" {
 		path += "?" + enc
 	}
-	return c.Raw(ctx, http.MethodGet, path, nil)
+	return c.raw(ctx, http.MethodGet, path, nil)
 }

@@ -52,7 +52,7 @@ func TestBufferedPathRefreshesOn401ThenSucceeds(t *testing.T) {
 	defer srv.Close()
 	src := &rotatingSource{}
 	c := New(srv.URL, src)
-	raw, err := c.Raw(context.Background(), http.MethodGet, "/probe", nil)
+	raw, err := c.raw(context.Background(), http.MethodGet, "/probe", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestSafeReadRetriesServerFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 	c := New(srv.URL, StaticToken("test"))
-	if _, err := c.Raw(context.Background(), http.MethodGet, "/probe", nil); err != nil {
+	if _, err := c.raw(context.Background(), http.MethodGet, "/probe", nil); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 3 {

@@ -393,7 +393,7 @@ func (c *Client) PatchHierarchySettings(ctx context.Context, scope, project, id 
 }
 
 func (c *Client) RawHierarchySettings(ctx context.Context, method, scope, project, id string, body map[string]any, resolved bool) (json.RawMessage, error) {
-	return c.Raw(ctx, method, hierarchySettingsPath(scope, project, id, resolved), body)
+	return c.raw(ctx, method, hierarchySettingsPath(scope, project, id, resolved), body)
 }
 
 // tenantProfileScope is the profile endpoint's project selector. Pinned tokens validate it server-side;
@@ -441,13 +441,13 @@ func (c *Client) Routes(ctx context.Context) (*RouteManifest, json.RawMessage, e
 
 // OpenAPI fetches GET /api/v1/meta/openapi.json — dumped verbatim, never reshaped.
 func (c *Client) OpenAPI(ctx context.Context) (json.RawMessage, error) {
-	return c.Raw(ctx, http.MethodGet, "/api/v1/meta/openapi.json", nil)
+	return c.raw(ctx, http.MethodGet, "/api/v1/meta/openapi.json", nil)
 }
 
-// RawRuns / RawRun / RawEvents / RawSettings return the response BODY bytes for JSON passthrough, so
-// `-o json` emits exactly what the server sent (the CLI renders; it never reshapes for jq). The
-// pretty-print happens in the render layer; here we just carry bytes.
-func (c *Client) Raw(ctx context.Context, method, path string, body map[string]any) (json.RawMessage, error) {
+// raw is the package-internal body-bytes fetch behind the named endpoint methods: it returns exactly
+// what the server sent so `-o json` can pass it through. Unexported on purpose — internal/cli never
+// builds a path/verb of its own (SKILL.md "one fetch per command"); add a named method instead.
+func (c *Client) raw(ctx context.Context, method, path string, body map[string]any) (json.RawMessage, error) {
 	var raw json.RawMessage
 	if err := c.do(ctx, method, path, body, &raw); err != nil {
 		return nil, err

@@ -40,6 +40,12 @@ func TestReleasePublishesMainBeforeTag(t *testing.T) {
 		t.Fatal(err)
 	}
 	write(t, filepath.Join(checkout, "scripts", "cloud-setup.sh"), string(cloudSetup), 0o755)
+	// Same for the layer-contract greps the release gates run (a checkout with no Go files must pass).
+	lintContracts, err := os.ReadFile(filepath.Join(repoRoot, "scripts", "lint-contracts.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(checkout, "scripts", "lint-contracts.sh"), string(lintContracts), 0o755)
 
 	// A local stand-in for the S3 release mirror the workflow publishes to (RC_RELEASE_MIRROR is the
 	// same override scripts/cloud-setup.sh honours). Without it the script would curl the production
@@ -53,7 +59,7 @@ func TestReleasePublishesMainBeforeTag(t *testing.T) {
 	write(t, filepath.Join(mirror, "latest"), "v9.9.9\n", 0o644)
 	write(t, filepath.Join(mirror, "v9.9.9", "checksums.txt"), "deadbeef  rc_9.9.9_linux_amd64.tar.gz\n", 0o644)
 
-	run(t, checkout, "git", "add", "README.md", "scripts/cloud-setup.sh")
+	run(t, checkout, "git", "add", "README.md", "scripts/cloud-setup.sh", "scripts/lint-contracts.sh")
 	run(t, checkout, "git", "commit", "-m", "initial")
 	run(t, checkout, "git", "remote", "add", "origin", origin)
 	run(t, checkout, "git", "push", "-u", "origin", "main")
@@ -131,7 +137,7 @@ exit 0
 		t.Fatalf("release output omitted Homebrew verification:\n%s", out)
 	}
 	for _, key := range []string{
-		"mirror v9.9.9/cloud-setup.sh", "mirror cloud-setup.sh",
+		"layer contracts", "mirror v9.9.9/cloud-setup.sh", "mirror cloud-setup.sh",
 		"mirror latest is v9.9.9", "mirror v9.9.9/checksums.txt",
 	} {
 		if !strings.Contains(string(out), key) {

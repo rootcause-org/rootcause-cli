@@ -58,7 +58,8 @@ check() {
 
 # go_sources <pathspec…> — tracked non-test Go files under the given roots.
 go_sources() {
-	git ls-files "$@" | grep '\.go$' | grep -v '_test\.go$'
+	# `|| true`: under pipefail an empty match set (a checkout with no Go files) must not read as a hit.
+	git ls-files "$@" | { grep '\.go$' || true; } | { grep -v '_test\.go$' || true; }
 }
 
 if selected cli-no-raw-write; then
