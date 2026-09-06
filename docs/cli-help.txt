@@ -70,6 +70,7 @@ Flags:
       --principal-kind string   principal kind to scope the run's data (e.g. kampadmin_person); requires --principal-id
       --scenario string         answer shape: email or raw (default "email")
       --session string          session id to thread the run onto
+      --simulation              dress rehearsal: real brain + grounding, but no action executes, no journal commit and nothing is placed in a mailbox (attachments are refused)
       --subject string          subject for --scenario email (default: compact prompt first line)
       --timeout duration        max time to wait for a terminal status (default 5m0s)
 

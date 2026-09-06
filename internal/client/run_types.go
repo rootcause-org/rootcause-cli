@@ -293,6 +293,10 @@ type SubmitRequest struct {
 	SessionID       string       `json:"session_id,omitempty"`
 	Tenant          string       `json:"tenant,omitempty"`
 	BrainRef        string       `json:"brain_ref,omitempty"`
+	// Simulation asks the server for a dress-rehearsal run: the tenant's normal production brain and
+	// grounding, but action autonomy clamped to human, no durable journal commit and no mailbox
+	// placement. The server rejects it together with attachments.
+	Simulation      bool         `json:"simulation,omitempty"`
 	ReasoningEffort string       `json:"reasoning_effort,omitempty"`
 	Sender          string       `json:"sender,omitempty"`
 	Subject         string       `json:"subject,omitempty"`

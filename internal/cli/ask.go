@@ -33,6 +33,7 @@ type askFlags struct {
 	filePaths     []string
 	attachPaths   []string // deprecated --attach alias, merged after --file
 	noWait        bool
+	simulation    bool
 	dryScope      bool
 	timeout       time.Duration
 }
@@ -110,6 +111,7 @@ func newAskCmd(e *env) *cobra.Command {
 				SessionID:       f.session,
 				Tenant:          e.scopeTenant(),
 				BrainRef:        f.brainRef,
+				Simulation:      f.simulation,
 				ReasoningEffort: effort,
 				Sender:          sender,
 				Subject:         subject,
@@ -169,6 +171,7 @@ func newAskCmd(e *env) *cobra.Command {
 	cmd.Flags().StringArrayVar(&f.filePaths, "file", nil, "attach a local file to the synthetic run (repeatable; max 4 files, 5 MiB each, 15 MiB total)")
 	cmd.Flags().StringArrayVar(&f.attachPaths, "attach", nil, "deprecated alias for --file")
 	_ = cmd.Flags().MarkDeprecated("attach", "use --file instead")
+	cmd.Flags().BoolVar(&f.simulation, "simulation", false, "dress rehearsal: real brain + grounding, but no action executes, no journal commit and nothing is placed in a mailbox (attachments are refused)")
 	cmd.Flags().BoolVar(&f.noWait, "no-wait", false, "submit and print the run_id immediately, without waiting")
 	cmd.Flags().BoolVar(&f.dryScope, "dry-scope", false, "resolve and print the principal scope this run WOULD get, without running the agent (no LLM spend)")
 	cmd.Flags().DurationVar(&f.timeout, "timeout", 5*time.Minute, "max time to wait for a terminal status")

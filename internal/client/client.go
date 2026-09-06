@@ -281,7 +281,7 @@ func shouldRetryLegacySubmit(err error, req SubmitRequest) bool {
 	if req.Principal != nil {
 		return false
 	}
-	if req.SessionID != "" || req.BrainRef != "" || req.ReasoningEffort != "" || len(req.Attachments) > 0 {
+	if req.SessionID != "" || req.BrainRef != "" || req.Simulation || req.ReasoningEffort != "" || len(req.Attachments) > 0 {
 		return false
 	}
 	var apiErr *APIError

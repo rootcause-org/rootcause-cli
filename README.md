@@ -572,6 +572,13 @@ preserve exact full stdout.
 dev's "test without pushing main" loop. Push a `dev/*` branch to your brain first (`git push origin
 dev/<branch>`); the server runs the real loop against it and flags any actions/PRs as test.
 
+`rc ask --simulation` is a **dress rehearsal**: the run rides the tenant's normal production brain and
+real grounding, but every side effect is fenced off — action autonomy is clamped to human (proposals
+only), the durable journal commit is suppressed and the result is never placed in a mailbox. Use it to
+show a customer how their configuration would answer. Attachments are refused on a simulation (they mint
+a thread on the tenant's live mailbox). The API echoes `simulation` on `GET /api/v1/runs/{id}` and on
+each run of `GET /api/v1/runs`, which also accepts `?simulation=true|false`.
+
 `rc ask` defaults to `--scenario email`: it sends an explicit `scenario=email` to the Prompt API and
 wraps the prompt as one synthetic inbound message from `--from` with `--subject` (or a compact prompt
 first line). Use this for high-fidelity brain-dev checks: tone, notes, actions, PR proposals, and
