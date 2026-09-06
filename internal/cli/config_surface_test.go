@@ -215,14 +215,13 @@ func TestBrainPreflightJSONPassthrough(t *testing.T) {
 	assertJSONEqual(t, fixture(t, "brain_preflight.json"), out.Bytes())
 }
 
-func TestMirrorRefreshRejectsInvalidSHAAndTenantSelector(t *testing.T) {
+func TestMirrorRefreshRejectsInvalidSHA(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args []string
 		want string
 	}{
 		{"short sha", []string{"dev", "mirror", "refresh", "--repo", "common", "--expect-sha", "222222222222"}, "full 40-character"},
-		{"tenant selector", []string{"--tenant", "de-kies", "dev", "mirror", "refresh", "--repo", "common", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "--tenant is not supported"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := &env{out: &strings.Builder{}, err: &strings.Builder{}, tokenSource: testTokenSource("test"), baseURLOvr: "http://127.0.0.1:1", output: "table"}

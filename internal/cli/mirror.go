@@ -11,7 +11,7 @@ import (
 )
 
 func newMirrorCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "mirror", Short: "Refresh project source mirrors"}
+	cmd := &cobra.Command{Use: "mirror", Short: "Refresh project or tenant source mirrors"}
 	cmd.AddCommand(mirrorRefreshCmd(e))
 	return cmd
 }
@@ -20,7 +20,7 @@ func mirrorRefreshCmd(e *env) *cobra.Command {
 	var repo, expectedSHA string
 	cmd := &cobra.Command{
 		Use:   "refresh --repo <name> --expect-sha <commit>",
-		Short: "Refresh mirrors and verify one repository at an exact commit",
+		Short: "Refresh mirrors and verify one repository at an exact commit (--tenant for a tenant's own mirror)",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			repo = strings.TrimSpace(repo)
@@ -37,7 +37,7 @@ func mirrorRefreshCmd(e *env) *cobra.Command {
 			if err := e.resolvePinnedProject(c); err != nil {
 				return err
 			}
-			resp, raw, err := c.MirrorRefresh(e.ctx(), e.scopeProject(), client.MirrorRefreshRequest{
+			resp, raw, err := c.MirrorRefresh(e.ctx(), e.scopeProject(), e.scopeTenant(), client.MirrorRefreshRequest{
 				Repo: repo, ExpectedSHA: strings.ToLower(expectedSHA),
 			})
 			if err != nil {

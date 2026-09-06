@@ -78,7 +78,7 @@ func TestMirrorRefreshUsesCanonicalProjectRouteAndPreservesRawResult(t *testing.
 	defer srv.Close()
 
 	c := New(srv.URL, StaticToken("test"))
-	resp, raw, err := c.MirrorRefresh(context.Background(), "dentai/shared", MirrorRefreshRequest{Repo: "common", ExpectedSHA: sha})
+	resp, raw, err := c.MirrorRefresh(context.Background(), "dentai/shared", "", MirrorRefreshRequest{Repo: "common", ExpectedSHA: sha})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,6 +91,33 @@ func TestMirrorRefreshUsesCanonicalProjectRouteAndPreservesRawResult(t *testing.
 	}
 	if verbatim["extra"] != "kept" {
 		t.Fatalf("raw response lost additive field: %s", raw)
+	}
+}
+
+// A tenant-scoped mirror lives in the tenant tree, not behind a query selector: --tenant must reach
+// /projects/{project}/tenants/{slug}/mirrors/refresh.
+func TestMirrorRefreshUsesTenantTreeRoute(t *testing.T) {
+	const sha = "d2f9de784ab7cded001f2b6ac86892795f58a8ce"
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/projects/{project}/tenants/{tenant}/mirrors/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.PathValue("project"); got != "kampadmin-support" {
+			t.Fatalf("project path = %q", got)
+		}
+		if got := r.PathValue("tenant"); got != "demo" {
+			t.Fatalf("tenant path = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"project":"kampadmin-support","tenant":"demo","repo":"site","branch":"main","expected_sha":"` + sha + `","actual_sha":"` + sha + `","verified":true,"job_id":7,"refreshed_workspaces":0}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	resp, _, err := New(srv.URL, StaticToken("test")).MirrorRefresh(context.Background(), "kampadmin-support", "demo", MirrorRefreshRequest{Repo: "site", ExpectedSHA: sha})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Tenant != "demo" || resp.Repo != "site" || !resp.Verified {
+		t.Fatalf("response = %+v", resp)
 	}
 }
 

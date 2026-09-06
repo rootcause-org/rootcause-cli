@@ -1,0 +1,11 @@
+{
+  "project": "alpha",
+  "tenant": "demo",
+  "repo": "site",
+  "branch": "main",
+  "expected_sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
+  "actual_sha": "d2f9de784ab7cded001f2b6ac86892795f58a8ce",
+  "verified": true,
+  "job_id": 43,
+  "refreshed_workspaces": 1
+}

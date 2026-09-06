@@ -382,8 +382,8 @@ help using `go test ./internal/cli -update`.
 | `rc dev context-export` | Render a project's full opening context offline (needs a rootcause host checkout) |
 | `rc dev learning evidence` | List feedback, sent-delta, shadow, and triage evidence |
 | `rc dev learning` | Inspect learning and consolidation inputs |
-| `rc dev mirror refresh` | Refresh mirrors and verify one repository at an exact commit |
-| `rc dev mirror` | Refresh project source mirrors |
+| `rc dev mirror refresh` | Refresh mirrors and verify one repository at an exact commit (--tenant for a tenant's own mirror) |
+| `rc dev mirror` | Refresh project or tenant source mirrors |
 | `rc dev tools id gmail` | Translate Gmail hex/decimal/thread-f: ids + build a clickable URL |
 | `rc dev tools id outlook` | Classify an Outlook/Graph id + tell you which DB column matches it |
 | `rc dev tools id` | Translate provider message/thread ids |

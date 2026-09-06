@@ -170,7 +170,9 @@ type MirrorRefreshRequest struct {
 }
 
 type MirrorRefreshResponse struct {
-	Project             string `json:"project"`
+	Project string `json:"project"`
+	// Tenant is set only when the refresh proved a tenant's own mirror.
+	Tenant              string `json:"tenant"`
 	Repo                string `json:"repo"`
 	Branch              string `json:"branch"`
 	ExpectedSHA         string `json:"expected_sha"`

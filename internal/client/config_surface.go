@@ -158,13 +158,14 @@ func (c *Client) BrainRender(ctx context.Context, project string, req BrainRende
 }
 
 // MirrorRefresh queues the server's existing mirror sweep and verifies one repository reached an
-// exact commit. It is project-only because project mirrors are shared by every tenant.
-func (c *Client) MirrorRefresh(ctx context.Context, project string, req MirrorRefreshRequest) (*MirrorRefreshResponse, json.RawMessage, error) {
+// exact commit. The tenant tree route proves a TENANT's own mirror (tenants.config.repos); no tenant
+// proves the project mirrors every tenant shares.
+func (c *Client) MirrorRefresh(ctx context.Context, project, tenant string, req MirrorRefreshRequest) (*MirrorRefreshResponse, json.RawMessage, error) {
 	if project == "" {
 		return nil, nil, &APIError{Status: http.StatusBadRequest, Code: "PROJECT_REQUIRED", Message: "--project <project> is required to refresh mirrors"}
 	}
 	var raw json.RawMessage
-	path := "/api/v1/projects/" + url.PathEscape(project) + "/mirrors/refresh"
+	path := treePath(project, tenant, "/mirrors/refresh")
 	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
 		return nil, nil, err
 	}

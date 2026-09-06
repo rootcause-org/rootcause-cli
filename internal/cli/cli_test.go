@@ -1249,6 +1249,21 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(fixture(t, "mirror_refresh.json"))
 	})
+	mux.HandleFunc("POST /api/v1/projects/{project}/tenants/{tenant}/mirrors/refresh", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if got := r.PathValue("tenant"); got != "demo" {
+			t.Fatalf("mirror refresh tenant = %q, want demo", got)
+		}
+		var body client.MirrorRefreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode tenant mirror refresh body: %v", err)
+		}
+		if body.Repo != "site" || body.ExpectedSHA != "d2f9de784ab7cded001f2b6ac86892795f58a8ce" {
+			t.Fatalf("tenant mirror refresh body = %+v", body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "mirror_refresh_tenant.json"))
+	})
 	mux.HandleFunc("POST /api/v1/projects/{project}/brain/edit", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)

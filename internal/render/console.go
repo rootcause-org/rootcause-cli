@@ -394,6 +394,9 @@ func BrainRender(w io.Writer, r *client.BrainRenderResponse) {
 
 func MirrorRefresh(w io.Writer, r *client.MirrorRefreshResponse) {
 	_, _ = fmt.Fprintf(w, "Project:    %s\n", r.Project)
+	if r.Tenant != "" {
+		_, _ = fmt.Fprintf(w, "Tenant:     %s\n", r.Tenant)
+	}
 	_, _ = fmt.Fprintf(w, "Repository: %s\n", r.Repo)
 	_, _ = fmt.Fprintf(w, "Branch:     %s\n", r.Branch)
 	_, _ = fmt.Fprintf(w, "Commit:     %s\n", r.ActualSHA)

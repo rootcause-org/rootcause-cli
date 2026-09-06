@@ -45,6 +45,7 @@ func TestTableGolden(t *testing.T) {
 		{"BrainPromoteTable", []string{"dev", "brain", "promote", "--channel", "stable", "--sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE"}, "brain_promote.golden"},
 		{"BrainRenderTable", []string{"--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render"}, "brain_render.golden"},
 		{"MirrorRefreshTable", []string{"dev", "mirror", "refresh", "--repo", "kampadmin-rootcause-common", "--expect-sha", "D2F9DE784AB7CDED001F2B6AC86892795F58A8CE"}, "mirror_refresh.golden"},
+		{"MirrorRefreshTenantTable", []string{"--project", "alpha", "--tenant", "demo", "dev", "mirror", "refresh", "--repo", "site", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "mirror_refresh_tenant.golden"},
 		{"BrainEditTable", []string{"dev", "brain", "edit", "add", "a", "runbook", "for", "refunds"}, "brain_edit.golden"},
 		{"BrainConsolidateTable", []string{"dev", "brain", "consolidate"}, "brain_consolidate.golden"},
 		{"BrainDeveloperInviteTable", []string{"--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"}, "brain_developer_invitation.golden"},
@@ -180,6 +181,7 @@ func TestJSONPassthrough(t *testing.T) {
 		{"BrainPromoteJSONPassthrough", []string{"--project", "alpha", "dev", "brain", "promote", "--channel", "stable", "--sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "brain_promote.json"},
 		{"BrainRenderJSONPassthrough", []string{"--project", "alpha", "--tenant", "de-linde", "dev", "brain", "render"}, "brain_render.json"},
 		{"MirrorRefreshJSONPassthrough", []string{"--project", "alpha", "dev", "mirror", "refresh", "--repo", "kampadmin-rootcause-common", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "mirror_refresh.json"},
+		{"MirrorRefreshTenantJSONPassthrough", []string{"--project", "alpha", "--tenant", "demo", "dev", "mirror", "refresh", "--repo", "site", "--expect-sha", "d2f9de784ab7cded001f2b6ac86892795f58a8ce"}, "mirror_refresh_tenant.json"},
 		{"BrainDeveloperInviteJSONPassthrough", []string{"--project", "alpha", "--tenant", "evident", "dev", "brain", "developer", "invite", "ardeae-praktijk"}, "brain_developer_invitation.json"},
 		// DeployStateJSONPassthrough: without --host-repo the -o json body is the verbatim server rows.
 		{"DeployStateJSONPassthrough", []string{"fleet", "deploy-state"}, "deploy_state.json"},
