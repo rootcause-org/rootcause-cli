@@ -521,6 +521,10 @@ func actionLastRunCell(s client.ActionStats) string {
 
 func ActionExec(w io.Writer, r *client.ActionExecResponse) {
 	_, _ = fmt.Fprintf(w, "Action run: %s\nStatus:     %s\nDry run:    %s\nDuration:   %d ms\n", r.ID, r.Status, yesNo(r.DryRun), r.DurationMs)
+	if len(r.Preflight) > 0 && string(r.Preflight) != "null" {
+		_, _ = fmt.Fprintln(w, "\nPreflight:")
+		_ = JSON(w, r.Preflight)
+	}
 	if len(r.Error) > 0 && string(r.Error) != "null" {
 		_, _ = fmt.Fprintln(w, "\nError:")
 		_ = JSON(w, r.Error)

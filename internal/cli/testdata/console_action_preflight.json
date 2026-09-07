@@ -5,6 +5,15 @@
   "status": "failed",
   "dry_run": true,
   "duration_ms": 22,
+  "preflight": {
+    "ok": true,
+    "summary": "subscription sub_123 is active and cancelable",
+    "observed": {
+      "plan": "pro",
+      "renews_at": "2026-07-01T00:00:00Z"
+    },
+    "resource_url": "https://app.example.com/subscriptions/sub_123"
+  },
   "error": {
     "code": "MISSING_CONNECTION",
     "message": "billing_db connection is not sealed for this tenant"

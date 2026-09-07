@@ -60,11 +60,14 @@ type ActionExecRequest struct {
 }
 
 type ActionExecResponse struct {
-	Project    string          `json:"project"`
-	Tenant     string          `json:"tenant,omitempty"`
-	ID         string          `json:"id"`
-	Status     string          `json:"status"`
-	DryRun     bool            `json:"dry_run"`
+	Project string `json:"project"`
+	Tenant  string `json:"tenant,omitempty"`
+	ID      string `json:"id"`
+	Status  string `json:"status"`
+	DryRun  bool   `json:"dry_run"`
+	// Preflight is the brain's Python PreflightResult ({ok, summary, reason?, observed?,
+	// resource_url?}) — present on preflight calls in both hosted and Embassy mode.
+	Preflight  json.RawMessage `json:"preflight,omitempty"`
 	Result     json.RawMessage `json:"result,omitempty"`
 	Error      json.RawMessage `json:"error,omitempty"`
 	DurationMs int64           `json:"duration_ms"`

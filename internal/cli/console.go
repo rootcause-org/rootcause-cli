@@ -439,14 +439,22 @@ func actionShowCmd(e *env) *cobra.Command {
 func actionExecCmd(e *env, dry bool) *cobra.Command {
 	verb := "run"
 	short := "Execute an action"
+	long := ""
 	if dry {
 		verb = "preflight"
-		short = "Run action preflight/dry-run"
+		short = "Run the action's preflight.py in the console workspace, then the Embassy dry-run"
+		long = "The brain's Python actions/<id>/preflight.py runs first in the session workspace " +
+			"(composed grounding env, tenant-scoped DSNs) and reports {ok, summary, observed, resource_url}.\n" +
+			"A refusal short-circuits: status is preflight_failed and no dry-run is attempted.\n" +
+			"On Embassy projects a passing preflight is followed by the Embassy would_execute dry-run " +
+			"(digest/schema/tenant checked on the customer app); hosted projects stop after the preflight.\n" +
+			"Nothing is executed either way."
 	}
 	var params string
 	cmd := &cobra.Command{
 		Use:   verb + " <id> --params '{...}'",
 		Short: short,
+		Long:  long,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			c, err := e.newClient()

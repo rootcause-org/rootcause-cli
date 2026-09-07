@@ -364,7 +364,7 @@ help using `go test ./internal/cli -update`.
 | `rc dev brain sync` | Fetch origin/main and refresh deployed brain cache |
 | `rc dev brain` | Inspect, publish, and manage brain repositories |
 | `rc dev console action list` | List available actions |
-| `rc dev console action preflight` | Run action preflight/dry-run |
+| `rc dev console action preflight` | Run the action's preflight.py in the console workspace, then the Embassy dry-run |
 | `rc dev console action run` | Execute an action |
 | `rc dev console action show` | Show one action manifest |
 | `rc dev console action` | Inspect and execute guarded rootcause actions |

@@ -3,6 +3,17 @@ Status:     failed
 Dry run:    yes
 Duration:   22 ms
 
+Preflight:
+{
+  "observed": {
+    "plan": "pro",
+    "renews_at": "2026-07-01T00:00:00Z"
+  },
+  "ok": true,
+  "resource_url": "https://app.example.com/subscriptions/sub_123",
+  "summary": "subscription sub_123 is active and cancelable"
+}
+
 Error:
 {
   "code": "MISSING_CONNECTION",

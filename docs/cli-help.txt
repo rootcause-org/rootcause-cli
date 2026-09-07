@@ -3561,7 +3561,7 @@ Usage:
 Available Commands:
   list        List available actions
   show        Show one action manifest
-  preflight   Run action preflight/dry-run
+  preflight   Run the action's preflight.py in the console workspace, then the Embassy dry-run
   run         Execute an action
 
 Global Flags:
@@ -3609,7 +3609,10 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc dev console action preflight --help
-Run action preflight/dry-run
+The brain's Python actions/<id>/preflight.py runs first in the session workspace (composed grounding env, tenant-scoped DSNs) and reports {ok, summary, observed, resource_url}.
+A refusal short-circuits: status is preflight_failed and no dry-run is attempted.
+On Embassy projects a passing preflight is followed by the Embassy would_execute dry-run (digest/schema/tenant checked on the customer app); hosted projects stop after the preflight.
+Nothing is executed either way.
 
 Usage:
   rc dev console action preflight <id> --params '{...}' [flags]
