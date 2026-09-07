@@ -5,3 +5,6 @@
 # `rc run debug <id>` default output dir
 /rc-debug/
 /.rootcause/
+
+# agent git worktrees (keep the shared checkout clean for release.sh)
+/.worktrees/
