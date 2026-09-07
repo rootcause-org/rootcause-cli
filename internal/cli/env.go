@@ -72,7 +72,7 @@ A grounding key named ` + "`<PROJECT>_<DBKEY>_DSN`" + ` registers a database (` 
 			if err != nil {
 				return err
 			}
-			body, err := parseItemArgs(args)
+			body, err := parseRawItemArgs(args)
 			if err != nil {
 				return err
 			}

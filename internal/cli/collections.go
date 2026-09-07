@@ -422,9 +422,29 @@ func parseJSONOrItemArgs(args []string) (map[string]any, error) {
 }
 
 // parseItemArgs turns k=v field args into a flat create/patch body. Keys pass through verbatim (the
-// server owns each resource's field whitelist + validation); values are strings — collection item
-// fields are flat scalars, and the server validates types, so the CLI doesn't guess.
+// server owns each resource's field whitelist + validation); values are strings, except the bare
+// literals true/false, which go as JSON booleans: the server's bool fields (members.admin,
+// repos.pr_enabled, users.is_admin) used to read the string "true" as false without complaint. String
+// fields accept a bool literal server-side, so the coercion is safe for every collection field.
 func parseItemArgs(args []string) (map[string]any, error) {
+	body, err := parseRawItemArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range body {
+		switch v {
+		case "true":
+			body[k] = true
+		case "false":
+			body[k] = false
+		}
+	}
+	return body, nil
+}
+
+// parseRawItemArgs is parseItemArgs without the bool coercion, for verbs whose values are opaque text
+// (env vars: a value of "true" is the four-letter string, not a flag).
+func parseRawItemArgs(args []string) (map[string]any, error) {
 	body := make(map[string]any, len(args))
 	for _, arg := range args {
 		key, val, ok := strings.Cut(arg, "=")
