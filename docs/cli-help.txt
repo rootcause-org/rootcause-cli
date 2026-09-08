@@ -1543,6 +1543,7 @@ Usage:
 
 Available Commands:
   content     List, search, and export knowledge articles
+  article     Write and read help-centre articles from a markdown block
   sync        Manage knowledge synchronization settings
 
 Global Flags:
@@ -1636,6 +1637,75 @@ Flags:
       --out string        artifact directory (must not already exist)
       --provider string   KB provider mount under /kb (default: all mounted providers)
       --query string      search query to export
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project knowledge article --help
+Write and read help-centre articles from a markdown block
+
+Usage:
+  rc project knowledge article [flags]
+  rc project knowledge article [command]
+
+Available Commands:
+  apply       Apply a help-centre article block to its provider
+  get         Fetch one help-centre article as an applyable markdown block
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+Use "rc project knowledge article [command] --help" for more information about a command.
+
+$ rc project knowledge article apply --help
+Apply a help-centre article block (`replypen: helpcenter/v1`) to its provider.
+
+Run it with --dry-run first: the output is the exact provider calls that would be sent, in full.
+A published article is refused unless you pass --publish; without it the change lands in the
+provider's draft lane and the live article stays untouched. --from - reads the block from stdin.
+
+Usage:
+  rc project knowledge article apply --from <file.md> [flags]
+
+Flags:
+      --dry-run       show the provider calls without sending them
+      --from string   markdown file holding the article block (- reads stdin)
+      --publish       allow changing a published (live) article
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project knowledge article get --help
+Fetch one help-centre article as an applyable markdown block
+
+Usage:
+  rc project knowledge article get --provider <provider> --id <id> [flags]
+
+Flags:
+      --id string         provider-native article id
+      --out string        write the block to this file instead of stdout
+      --provider string   help-centre provider (helpscout, intercom, knowledgeowl)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

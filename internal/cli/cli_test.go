@@ -1273,6 +1273,37 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"queued":true,"job_id":"job_edit_001"}`))
 	})
+	// Help-centre write path. The apply stub branches on the request itself: a dry run previews, a
+	// block with no body is the already-matching no-op, anything else is a real write.
+	mux.HandleFunc("POST /api/v1/projects/{project}/knowledge/articles/apply", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body client.KnowledgeArticleApplyRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode knowledge article apply body: %v", err)
+		}
+		if !strings.Contains(body.Markdown, "replypen: helpcenter/v1") {
+			t.Fatalf("knowledge article apply body is not a helpcenter block: %q", body.Markdown)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case body.DryRun:
+			_, _ = w.Write(fixture(t, "knowledge_article_apply_dry.json"))
+		case strings.Contains(body.Markdown, "Cancel subscription"):
+			if !body.Publish {
+				w.WriteHeader(http.StatusConflict)
+				_, _ = w.Write([]byte(`{"error":{"code":"PUBLISHED_ARTICLE","message":"article is published; re-run with --publish to change the live article"}}`))
+				return
+			}
+			_, _ = w.Write(fixture(t, "knowledge_article_apply.json"))
+		default:
+			_, _ = w.Write(fixture(t, "knowledge_article_apply_nochange.json"))
+		}
+	})
+	mux.HandleFunc("GET /api/v1/projects/{project}/knowledge/articles/{provider}/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "knowledge_article_get.json"))
+	})
 	mux.HandleFunc("POST /api/v1/projects/{project}/brain/consolidate", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")

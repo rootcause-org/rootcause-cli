@@ -72,7 +72,7 @@ func newKnowledgeCmd(e *env, version string) *cobra.Command {
 	content.AddCommand(newKBListCmd(e), newKBSearchCmd(e, version), newKBExportCmd(e, version))
 	sync := &cobra.Command{Use: "sync", Short: "Manage knowledge synchronization settings"}
 	sync.AddCommand(newBagGetCmd(e, "/api/v1/kb"), newBagSetCmd(e, "/api/v1/kb"))
-	cmd.AddCommand(content, sync)
+	cmd.AddCommand(content, newKnowledgeArticleCmd(e), sync)
 	return cmd
 }
 

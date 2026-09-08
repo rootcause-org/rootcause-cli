@@ -1,0 +1,12 @@
+dry-run · update helpscout article 5f1a2b3c4d5e6f7a8b9c0d1e "How to cancel" · changes: body, keywords
+PUT https://docsapi.helpscout.net/v1/articles/5f1a2b3c4d5e6f7a8b9c0d1e/drafts
+{
+  "text": "<p>Open <strong>Settings &rarr; Billing</strong> and choose <em>Cancel subscription</em>.</p>"
+}
+PUT https://docsapi.helpscout.net/v1/articles/5f1a2b3c4d5e6f7a8b9c0d1e
+{
+  "keywords": [
+    "cancel",
+    "stop subscription"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "provider": "helpscout",
+  "id": "5f1a2b3c4d5e6f7a8b9c0d1e",
+  "url": "https://docs.example.com/article/19-how-to-cancel",
+  "status": "published",
+  "has_draft": false,
+  "markdown": "---\nreplypen: helpcenter/v1\nop: update\nprovider: helpscout\nid: \"5f1a2b3c4d5e6f7a8b9c0d1e\"\nnumber: 19\nurl: https://docs.example.com/article/19-how-to-cancel\ntitle: \"How to cancel\"\nkeywords: [\"cancel\", \"stop subscription\"]\nstatus: draft\n---\nOpen **Settings \u2192 Billing** and choose *Cancel subscription*.\n\nYour data stays available until the end of the paid period.\n"
+}

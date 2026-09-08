@@ -107,6 +107,14 @@ func TestTableGolden(t *testing.T) {
 		{"KBGetTable", []string{"project", "knowledge", "sync", "get"}, "kb_get.golden"},
 		// KBSetTable pins `rc project knowledge sync set provider=intercom` round-tripping through PATCH /api/v1/kb.
 		{"KBSetTable", []string{"project", "knowledge", "sync", "set", "provider=intercom", "base_url=https://acme.intercom.io"}, "kb_get.golden"},
+		// The help-centre write path. Dry-run is the review surface: the verdict line plus the FULL
+		// provider calls that would be sent. The real write is one terse line, and an unchanged block
+		// is an explicit no-op rather than a wasted provider call.
+		{"KnowledgeArticleApplyDryTable", []string{"project", "knowledge", "article", "apply", "--from", "testdata/knowledge_article_block.md", "--dry-run"}, "knowledge_article_apply_dry.golden"},
+		{"KnowledgeArticleApplyTable", []string{"project", "knowledge", "article", "apply", "--from", "testdata/knowledge_article_block.md", "--publish"}, "knowledge_article_apply.golden"},
+		{"KnowledgeArticleApplyNoChangeTable", []string{"project", "knowledge", "article", "apply", "--from", "testdata/knowledge_article_block_nochange.md"}, "knowledge_article_apply_nochange.golden"},
+		// get prints the block verbatim — it is the input of the next apply, so nothing may be reformatted.
+		{"KnowledgeArticleGetTable", []string{"project", "knowledge", "article", "get", "--provider", "helpscout", "--id", "5f1a2b3c4d5e6f7a8b9c0d1e"}, "knowledge_article_get.golden"},
 		{"SchemaTable", []string{"project", "settings", "schema"}, "schema.golden"},
 		{"ExplainTable", []string{"project", "settings", "describe", "models.agent"}, "explain_models_agent.golden"},
 		{"AccessTable", []string{"auth", "access"}, "access.golden"},
@@ -196,6 +204,8 @@ func TestJSONPassthrough(t *testing.T) {
 		// ThreadTraceJSONPassthrough confirms -o json emits the server body verbatim — the CLI reshapes
 		// nothing.
 		{"ThreadTraceJSONPassthrough", []string{"run", "thread", "thread-abc123"}, "thread_trace.json"},
+		{"KnowledgeArticleApplyJSONPassthrough", []string{"project", "knowledge", "article", "apply", "--from", "testdata/knowledge_article_block.md", "--dry-run"}, "knowledge_article_apply_dry.json"},
+		{"KnowledgeArticleGetJSONPassthrough", []string{"project", "knowledge", "article", "get", "--provider", "helpscout", "--id", "5f1a2b3c4d5e6f7a8b9c0d1e"}, "knowledge_article_get.json"},
 		{"SchemaJSONPassthrough", []string{"project", "settings", "schema"}, "meta_schema.json"},
 		{"AccessJSONPassthrough", []string{"auth", "access"}, "meta_capabilities.json"},
 		{"StatusJSONPassthrough", []string{"status"}, "runs.json"},
@@ -275,6 +285,10 @@ func TestRejectsBeforeRequest(t *testing.T) {
 		// ExplainUnknownKey asserts an unknown key is a clear client-side error (not a silent miss).
 		{"ExplainUnknownKey", []string{"project", "settings", "describe", "nope"}, "unknown config key"},
 		{"KBSearchRejectsProviderTraversal", []string{"project", "knowledge", "content", "search", "--provider", "../agent_internal", "restore"}, "invalid --provider"},
+		// apply without a block has nothing to send; naming --from beats a server 400 on an empty body.
+		{"KnowledgeArticleApplyRequiresFrom", []string{"project", "knowledge", "article", "apply"}, "--from"},
+		// The get provider is a PATH segment: an unknown/traversing value never leaves the client.
+		{"KnowledgeArticleGetRejectsProvider", []string{"project", "knowledge", "article", "get", "--provider", "../agent_internal", "--id", "19"}, "invalid --provider"},
 		{"TenantSettingsGetMissingTenant", []string{"project", "tenant", "settings", "get"}, "arg"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

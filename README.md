@@ -457,6 +457,9 @@ help using `go test ./internal/cli -update`.
 | `rc project env` | Manage this project's sealed env secrets |
 | `rc project github status` | Show the GitHub App install status (installed/account/install_url) |
 | `rc project github` | Inspect the GitHub App install for this project |
+| `rc project knowledge article apply` | Apply a help-centre article block to its provider |
+| `rc project knowledge article get` | Fetch one help-centre article as an applyable markdown block |
+| `rc project knowledge article` | Write and read help-centre articles from a markdown block |
 | `rc project knowledge content export` | Export selected KB articles to a fresh local artifact directory |
 | `rc project knowledge content list` | List KB collections without article bodies |
 | `rc project knowledge content search` | Search KB articles and write matched articles to local artifacts |

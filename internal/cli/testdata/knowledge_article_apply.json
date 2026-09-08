@@ -1,0 +1,24 @@
+{
+  "op": "update",
+  "provider": "helpscout",
+  "dry_run": false,
+  "changed": true,
+  "article": {
+    "id": "5f1a2b3c4d5e6f7a8b9c0d1e",
+    "number": "19",
+    "url": "https://docs.example.com/article/19-how-to-cancel",
+    "title": "How to cancel",
+    "status": "published",
+    "draft_saved": true
+  },
+  "changes": ["body"],
+  "requests": [
+    {
+      "method": "PUT",
+      "url": "https://docsapi.helpscout.net/v1/articles/5f1a2b3c4d5e6f7a8b9c0d1e/drafts",
+      "body": {"text": "<p>Open <strong>Settings &rarr; Billing</strong> and choose <em>Cancel subscription</em>.</p>"}
+    }
+  ],
+  "resync": {"queued": true, "job_id": "123"},
+  "audit_id": "cccccccc-0000-0000-0000-000000000009"
+}
