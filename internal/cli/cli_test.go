@@ -255,6 +255,39 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		_, _ = w.Write(fixture(t, "brain_diff.json"))
 	})
+	// The share-token plane: the `t=` query parameter IS the credential, so these handlers assert the
+	// OPPOSITE of requireAuth — no Authorization header may be sent at all.
+	mux.HandleFunc("GET /api/v1/shared/runs/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
+		requireShareToken(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		if r.PathValue("id") == "gone" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"no such run"}}`))
+			return
+		}
+		_, _ = w.Write(fixture(t, "full.json"))
+	})
+	mux.HandleFunc("GET /api/v1/shared/runs/{id}/thread", func(w http.ResponseWriter, r *http.Request) {
+		requireShareToken(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "shared_thread_trace.json"))
+	})
+	mux.HandleFunc("GET /api/v1/shared/sessions/{token}/runs", func(w http.ResponseWriter, r *http.Request) {
+		requireNoAuthHeader(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "shared_session_runs.json"))
+	})
+	mux.HandleFunc("GET /s/{token}/transcript", func(w http.ResponseWriter, r *http.Request) {
+		requireNoAuthHeader(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		if r.PathValue("token") == "expired" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_SESSION","message":"this share link is no longer valid"}}`))
+			return
+		}
+		_, _ = w.Write(fixture(t, "shared_session_transcript.json"))
+	})
+
 	mux.HandleFunc("GET /api/v1/threads/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
@@ -1526,6 +1559,23 @@ func run(t *testing.T, e *env, args ...string) error {
 	root.SetOut(e.out)
 	root.SetErr(e.err)
 	return root.Execute()
+}
+
+// requireShareToken is requireAuth's mirror for the account-less plane: the token rides in `t=`, and an
+// Authorization header must NOT be sent (a reader may have no profile at all).
+func requireShareToken(t *testing.T, r *http.Request) {
+	t.Helper()
+	requireNoAuthHeader(t, r)
+	if got := r.URL.Query().Get("t"); got == "" {
+		t.Fatalf("share request %s carried no ?t= token", r.URL)
+	}
+}
+
+func requireNoAuthHeader(t *testing.T, r *http.Request) {
+	t.Helper()
+	if got := r.Header.Get("Authorization"); got != "" {
+		t.Fatalf("share request %s sent an Authorization header: %q", r.URL, got)
+	}
 }
 
 func requireAuth(t *testing.T, r *http.Request) {

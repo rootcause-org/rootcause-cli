@@ -1,0 +1,91 @@
+{
+  "id": "thread-abc123",
+  "resolved_by": "thread",
+  "runs": [
+    {
+      "run_id": "aaaaaaaa-1111-1111-1111-111111111111",
+      "kind": "email",
+      "source": "Inbound",
+      "status": "error",
+      "outcome": "error",
+      "category": "egress_blocked",
+      "created_at": "2026-06-22T10:05:00Z",
+      "finished_at": "2026-06-22T10:05:08Z",
+      "duration_ms": 8000,
+      "has_draft": false,
+      "has_note": false,
+      "topic": "refund not received",
+      "attribution": {
+        "local_thread_id": "50725584-d16f-4444-8e6f-86fd3f79547d",
+        "thread_id": "thread-abc123",
+        "session_id": "session-1",
+        "turn_key": "retry:test",
+        "retry_of": "bbbbbbbb-2222-2222-2222-222222222222",
+        "origin_run_id": "bbbbbbbb-2222-2222-2222-222222222222",
+        "trigger_message_ids": [
+          "2de0f6ed-f0d6-4c11-95d2-f42b60aec6dc"
+        ],
+        "drafts": []
+      },
+      "health": {
+        "turns": 4,
+        "grounding_turns": 1,
+        "bash_total": 6,
+        "bash_err_count": 5,
+        "bash_err_real_count": 1,
+        "bash_err_explore_count": 4,
+        "big_stdout_count": 0,
+        "blocked_egress": 1,
+        "grounding_discarded": false,
+        "no_journal": true
+      },
+      "share_url": "https://app.replypen.com/runs/aaaaaaaa-1111-1111-1111-111111111111?t=shr_aaaaaaaa"
+    },
+    {
+      "run_id": "bbbbbbbb-2222-2222-2222-222222222222",
+      "kind": "email",
+      "source": "Inbound",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T09:30:00Z",
+      "finished_at": "2026-06-22T09:31:12Z",
+      "duration_ms": 72000,
+      "has_draft": true,
+      "has_note": false,
+      "topic": "refund not received",
+      "attribution": {
+        "local_thread_id": "50725584-d16f-4444-8e6f-86fd3f79547d",
+        "thread_id": "thread-abc123",
+        "session_id": "session-1",
+        "turn_key": "2026-06-22T09:29:00Z",
+        "origin_run_id": "bbbbbbbb-2222-2222-2222-222222222222",
+        "trigger_message_ids": [
+          "2de0f6ed-f0d6-4c11-95d2-f42b60aec6dc"
+        ],
+        "drafts": [
+          {
+            "draft_id": "2c71eb27-c960-47f0-bdac-a7fcccbdf545",
+            "status": "superseded",
+            "sent_message_id": "14660c67-3022-431a-8b49-7ea183919c2a"
+          }
+        ],
+        "feedback": {
+          "score": 1,
+          "comment": "wrong promise; this belongs to the original draft"
+        }
+      },
+      "health": {
+        "turns": 5,
+        "grounding_turns": 2,
+        "bash_total": 9,
+        "bash_err_count": 0,
+        "big_stdout_count": 0,
+        "blocked_egress": 0,
+        "grounding_discarded": false,
+        "no_journal": false
+      },
+      "share_url": "https://app.replypen.com/runs/bbbbbbbb-2222-2222-2222-222222222222?t=shr_bbbbbbbb"
+    }
+  ]
+}

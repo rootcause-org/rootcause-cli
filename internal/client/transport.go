@@ -110,7 +110,11 @@ func (c *Client) sendOnce(ctx context.Context, spec sendSpec, token string) (*ht
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	// An empty token is the share-link path: the credential is the `t=` query parameter, and an
+	// `Authorization: Bearer ` header with no value is rejected by proxies before it reaches us.
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	req.Header.Set("Accept", orDefault(spec.accept, "application/json"))
 	if len(spec.body) > 0 {
 		req.Header.Set("Content-Type", orDefault(spec.contentType, "application/json"))

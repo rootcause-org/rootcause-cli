@@ -132,6 +132,24 @@ any command endpoint, and refuses to send the token to a non-production base URL
 ([`machine_token_env.go`](internal/cli/machine_token_env.go)). Under `CLAUDE_CODE_REMOTE=true` its absence
 fails rather than falling back to a broader `default` token.
 
+### The share-token path (no profile, no token source)
+
+A pasted run link (`/runs/<id>?t=…`) or chat share link (`/s/<token>`) is the ONE credential that does not
+come from the token store. [`share.go`](internal/cli/share.go) parses the link, and `newShareClient`
+builds a `client.New(origin, client.StaticToken(""))` — bypassing `newClient` entirely: no `config.Load`
+requirement (it is best-effort, only to find a base URL when the id was passed bare), no token store, no
+whoami/scope resolution. `config.Load` failing, a `--profile` that doesn't exist, or an empty `HOME` must
+all still open a link. `sendOnce` omits the `Authorization` header for an empty token, so the `t=` query
+parameter is the whole credential. The link's own origin wins over the configured base URL — the token is
+only valid on the host that minted it.
+
+Endpoints live in [`internal/client/share.go`](internal/client/share.go) and return the SAME shapes as
+their authenticated twins (`FullResponse`, `ThreadTrace` + a `share_url` per run row), which is why
+`rc run debug`/`rc run thread` produce byte-identical output on both paths and `internal/debugdump` never
+learns the difference. `rc run session` is the only share-only view: two fetches (`/s/{token}/transcript`
++ the shared session runs) into one flat markdown file — deliberately not a second progressive-disclosure
+format, since per-run depth stays behind the `rc run debug` command each table row prints.
+
 ### Config precedence
 
 [`internal/config/profiles.go`](internal/config/profiles.go) `Load(profile)` resolves a **profile name**

@@ -148,6 +148,23 @@ admin can keep one all-projects token in `default` and still have each brain che
 own project. Main intent: the checkout chooses the project context; the profile only chooses which
 local token to use.
 
+### Someone shared a link with you (no login)
+
+A run link (`https://app.replypen.com/runs/<id>?t=…`) or a chat share link
+(`https://app.replypen.com/s/<token>`) is itself the credential — no `rc auth login`, no profile:
+
+```bash
+brew install rootcause-org/tap/rc                                  # or the curl installer above
+rc run debug 'https://app.replypen.com/runs/<id>?t=<token>'        # → .rootcause/debug/<run>-<project>.{md,jsonl}
+rc run thread 'https://app.replypen.com/runs/<id>?t=<token>'       # the same run's thread + placement view
+rc run session 'https://app.replypen.com/s/<token>'                # → .rootcause/debug/session-<id>.md
+```
+
+`run debug` writes the same two artifacts (markdown index + jq-able JSONL) a logged-in user gets.
+`run session` writes ONE markdown file: the chat transcript in reading order, then the runs behind it,
+each row ending in the `rc run debug` command that drills that run. Pass the token separately with
+`--share-token <t>` if you have the id but not the link.
+
 ### Headless cloud agents
 
 For a trusted personal cloud-agent environment, keep machine credentials project-bound and let each
@@ -548,6 +565,7 @@ help using `go test ./internal/cli -update`.
 | `rc run list` | List recent runs (filterable) |
 | `rc run process-thread` | Process a triage-skipped or security-blocked inbox thread |
 | `rc run retry` | Re-run a run (optionally at a different tier); prints the new run id |
+| `rc run session` | Dump a shared chat session (transcript + its runs) to one markdown file |
 | `rc run show` | Show one run |
 | `rc run thread` | Trace one run, provider/local thread, or session through pipeline and placement |
 | `rc run trace` | Show the whole run bundle |

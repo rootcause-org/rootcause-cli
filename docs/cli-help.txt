@@ -102,6 +102,7 @@ Available Commands:
   actions        Show the safe action lifecycle history
   guards         Show every security-checkpoint verdict for one run
   thread         Trace one run, provider/local thread, or session through pipeline and placement
+  session        Dump a shared chat session (transcript + its runs) to one markdown file
   feedback       Record score/comment feedback on a run's trace, or mark it processed
   retry          Re-run a run (optionally at a different tier); prints the new run id
   process-thread Process a triage-skipped or security-blocked inbox thread
@@ -199,10 +200,13 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc run debug --help
-Decompose a run into local debug artifacts
+Write a run's trace to .rootcause/debug/ as a jq-able JSONL plus a thin markdown index. Accepts a run id (using your login) or a run link someone shared with you (https://app.replypen.com/runs/<id>?t=<token>) — a link needs no `rc auth login` and no profile.
 
 Usage:
-  rc run debug <id> [flags]
+  rc run debug <id|url> [flags]
+
+Flags:
+      --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -279,10 +283,32 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc run thread --help
-Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, or session id. A run id is resolved through its safe run-status identity first. Shows the pre-agent channel outcome, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error.
+Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, or session id. A run id is resolved through its safe run-status identity first. Shows the pre-agent channel outcome, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.
 
 Usage:
-  rc run thread <id> [flags]
+  rc run thread <id|url> [flags]
+
+Flags:
+      --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc run session --help
+Read a chat session someone shared with you — no login needed, the link is the credential. Paste https://app.replypen.com/s/<token> (or just the token) and rc writes .rootcause/debug/session-<session_id>.md: the transcript in reading order, then the runs behind it with a ready-to-run `rc run debug` command per run.
+
+Usage:
+  rc run session <share-url|token> [flags]
+
+Flags:
+      --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

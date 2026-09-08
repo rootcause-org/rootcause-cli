@@ -32,7 +32,9 @@ type RunSummary struct {
 	// Attribution is present on `rc run thread`: stable ids joining one exact inbound turn to its run,
 	// drafts, eventual sent messages, and human feedback. Ordinary run-index rows omit it.
 	Attribution *RunAttribution `json:"attribution,omitempty"`
-	raw         json.RawMessage
+	// ShareURL is present only on the share-token feeds: the account-less link that drills THIS run.
+	ShareURL string `json:"share_url,omitempty"`
+	raw      json.RawMessage
 }
 
 // Review is operator-tier human feedback attached when GET /runs is explicitly filtered with
@@ -288,11 +290,11 @@ type EventsResponse struct {
 // for the default email simulation; sender/subject shape the synthetic inbound email for that scenario.
 // Project is the ?project= selector for all-projects admin tokens, never JSON.
 type SubmitRequest struct {
-	Prompt          string       `json:"prompt"`
-	Scenario        string       `json:"scenario"`
-	SessionID       string       `json:"session_id,omitempty"`
-	Tenant          string       `json:"tenant,omitempty"`
-	BrainRef        string       `json:"brain_ref,omitempty"`
+	Prompt    string `json:"prompt"`
+	Scenario  string `json:"scenario"`
+	SessionID string `json:"session_id,omitempty"`
+	Tenant    string `json:"tenant,omitempty"`
+	BrainRef  string `json:"brain_ref,omitempty"`
 	// Simulation asks the server for a dress-rehearsal run: the tenant's normal production brain and
 	// grounding, but action autonomy clamped to human, no durable journal commit and no mailbox
 	// placement. The server rejects it together with attachments.

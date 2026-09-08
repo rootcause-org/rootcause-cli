@@ -35,6 +35,7 @@ func newRunCmd(e *env) *cobra.Command {
 		newRunActionsCmd(e),
 		newRunGuardsCmd(e),
 		newThreadCmd(e),
+		newRunSessionCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),
 		runProcessThreadCmd(e),
@@ -113,14 +114,49 @@ func newRunTraceCmd(e *env) *cobra.Command {
 
 // newRunDebugCmd decomposes the /trace bundle into a jq-able JSONL + a thin markdown index on disk,
 // then prints the two paths. The calling agent drills in with bash/jq — we don't summarize into stdout.
+// A pasted run link (with its `?t=` share token) takes the account-less path — same files, no login.
 func newRunDebugCmd(e *env) *cobra.Command {
-	return runIDCommand(e, "debug <id>", "Decompose a run into local debug artifacts", func(c *client.Client, id string, _ bool) error {
-		outDir := e.outDir
-		if outDir == "" {
-			outDir = defaultDebugDir
-		}
-		return runDebug(e, c, id, outDir)
-	})
+	var shareToken string
+	cmd := &cobra.Command{
+		Use:   "debug <id|url>",
+		Short: "Decompose a run into local debug artifacts",
+		Long: "Write a run's trace to .rootcause/debug/ as a jq-able JSONL plus a thin markdown index. " +
+			"Accepts a run id (using your login) or a run link someone shared with you " +
+			"(https://app.replypen.com/runs/<id>?t=<token>) — a link needs no `rc auth login` and no profile.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			target, err := parseRunTarget(args[0], shareToken)
+			if err != nil {
+				return err
+			}
+			outDir := e.outDir
+			if outDir == "" {
+				outDir = defaultDebugDir
+			}
+			full, err := fetchRunTrace(e, target)
+			if err != nil {
+				return err
+			}
+			return writeRunDebug(e, full, outDir)
+		},
+	}
+	addShareTokenFlag(cmd, &shareToken)
+	return cmd
+}
+
+// fetchRunTrace is the ONE fork between the two credentials: a share token reads the shared endpoint
+// with no bearer and no profile lookup, everything else the ordinary token-scoped one. Both return the
+// same FullResponse, so nothing downstream branches.
+func fetchRunTrace(e *env, target shareTarget) (*client.FullResponse, error) {
+	if target.shared() {
+		full, _, err := e.newShareClient(target).SharedRunTrace(e.ctx(), target.runID, target.token)
+		return full, err
+	}
+	c, err := e.newClient()
+	if err != nil {
+		return nil, err
+	}
+	return c.Full(e.ctx(), target.runID, e.scopeProject(), e.scopeTenant())
 }
 
 // newRunBrainDiffCmd: the brain commit a run wrote. JSON mode is a byte-faithful passthrough (render,
@@ -406,14 +442,11 @@ func cellOf(it client.Item, key string) string {
 // every subfolder); brains seed `/.rootcause/` so these dumps (real run data, PII) never get committed.
 const defaultDebugDir = ".rootcause/debug"
 
-// runDebug pulls the run's /trace bundle (cross-project for an all-projects admin token) and writes the
-// raw jq-able JSONL event log + a thin markdown index, printing both paths. It does NOT render the run
-// into stdout — the whole point is to hand the agent primitives (the two files) it drills into itself.
-func runDebug(e *env, c *client.Client, id, outDir string) error {
-	full, err := c.Full(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-	if err != nil {
-		return err
-	}
+// writeRunDebug turns a /trace bundle into the raw jq-able JSONL event log + a thin markdown index,
+// printing both paths. It does NOT render the run into stdout — the whole point is to hand the agent
+// primitives (the two files) it drills into itself. Credential-blind: the bearer and share-token paths
+// hand it the same bundle.
+func writeRunDebug(e *env, full *client.FullResponse, outDir string) error {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("create out dir %s: %w", outDir, err)
 	}

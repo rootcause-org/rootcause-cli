@@ -1,0 +1,29 @@
+# Booking totals | camp overview
+
+- Session: session-9f8e
+- Runs: 2
+
+## Transcript
+
+### user · 2026-06-22T10:00:55Z
+
+How many bookings did camp De Kies have last season?
+
+### assistant
+
+De Kies had **412** bookings last season.
+
+`[file: bookings-2025.xlsx]`
+
+`[card: data-memory]`
+
+### user
+
+_(empty)_
+
+## Runs
+
+| RUN | STATUS | OUTCOME | CREATED | TOPIC | DRILL |
+|---|---|---|---|---|---|
+| aaaaaaaa-1111-1111-1111-111111111111 | done | answered | 2026-06-22T10:05:00Z | booking totals per camp | `rc run debug 'https://app.replypen.com/runs/aaaaaaaa-1111-1111-1111-111111111111?t=shr_run_a'` |
+| bbbbbbbb-2222-2222-2222-222222222222 | error | error | 2026-06-22T10:01:00Z | - | `rc run debug 'https://app.replypen.com/runs/bbbbbbbb-2222-2222-2222-222222222222?t=shr_run_b'` |
