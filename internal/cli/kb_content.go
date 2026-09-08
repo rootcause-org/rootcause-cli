@@ -123,7 +123,7 @@ func newKBListCmd(e *env) *cobra.Command {
 			}
 			for i, view := range kbListViews(resp) {
 				if i > 0 {
-					fmt.Fprintln(e.out)
+					_, _ = fmt.Fprintln(e.out)
 				}
 				render.KBList(e.out, view)
 			}
