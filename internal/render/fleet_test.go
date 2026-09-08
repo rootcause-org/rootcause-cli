@@ -175,3 +175,37 @@ func TestBrainBootCheckDrivesHealthVerdict(t *testing.T) {
 		t.Errorf("missing no-checks-yet line in:\n%s", buf.String())
 	}
 }
+
+// A KB whose sync stopped (stale last success) or whose last attempt failed is unhealthy on its own:
+// the agent keeps answering from silently ageing support content. No KB rows at all is healthy.
+func TestKBDrivesHealthVerdict(t *testing.T) {
+	fresh := 1.0
+	stale := 40.0
+	base := func(kb []client.HealthKB) *client.HealthResponse {
+		return &client.HealthResponse{WindowHours: 24, KB: kb}
+	}
+	ok := base([]client.HealthKB{{Name: "kb", Provider: "intercom", State: "ok", ArticleTotal: 215, HoursSinceSuccess: &fresh}})
+	failing := base([]client.HealthKB{{Name: "kb:de-kies", Provider: "knowledgeowl", State: "fetch_failed", ArticleTotal: 12, UnmappedTotal: 4}})
+	stalled := base([]client.HealthKB{{Name: "kb", Provider: "intercom", State: "ok", ArticleTotal: 215, HoursSinceSuccess: &stale}})
+
+	if !HealthVerdict(base(nil), testNow) || !HealthVerdict(ok, testNow) {
+		t.Error("no KB rows and a freshly synced KB must both be healthy")
+	}
+	if HealthVerdict(failing, testNow) || HealthVerdict(stalled, testNow) {
+		t.Error("a failed or stale KB sync must make the verdict unhealthy")
+	}
+
+	var buf bytes.Buffer
+	if Health(&buf, failing, testNow) {
+		t.Error("Health() returned healthy on a failed KB sync")
+	}
+	if want := "  ! kb:de-kies (knowledgeowl): state=fetch_failed articles=12 unmapped=4 last_ok=never ago"; !strings.Contains(buf.String(), want) {
+		t.Errorf("missing %q in:\n%s", want, buf.String())
+	}
+
+	buf.Reset()
+	_ = Health(&buf, base(nil), testNow)
+	if !strings.Contains(buf.String(), "Knowledge base — 0/0 healthy\n  (no knowledge base configured)") {
+		t.Errorf("missing no-KB line in:\n%s", buf.String())
+	}
+}

@@ -1590,7 +1590,7 @@ Usage:
 Flags:
       --collection string   limit inventory to one provider-relative collection
       --limit int           max collections to print
-      --provider string     KB provider mount under /kb (default "intercom")
+      --provider string     KB provider mount under /kb (default: all mounted providers)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -1612,7 +1612,7 @@ Flags:
       --limit int         max matched articles to materialize (default 25)
       --no-materialize    skip writing full article markdown files
       --out string        artifact directory (must not already exist)
-      --provider string   KB provider mount under /kb (default "intercom")
+      --provider string   KB provider mount under /kb (default: all mounted providers)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -1634,7 +1634,7 @@ Flags:
       --all               export all provider articles
       --article string    article id, filename, or provider-relative path to export
       --out string        artifact directory (must not already exist)
-      --provider string   KB provider mount under /kb (default "intercom")
+      --provider string   KB provider mount under /kb (default: all mounted providers)
       --query string      search query to export
 
 Global Flags:

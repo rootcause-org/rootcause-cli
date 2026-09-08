@@ -31,6 +31,23 @@ type HealthMailbox struct {
 	ConsecutiveSyncFailures int      `json:"consecutive_sync_failures"`
 }
 
+// HealthKB is one raw kb_health row from GET /api/v1/health — the KB-sync analogue of HealthMirror.
+// Name is the scope handle ("kb" for the project, "kb:<slug>" for a tenant's own KB); State is the
+// TYPED sync state ("ok" | "fetch_failed" | …), never a raw provider error. HoursSinceSuccess is nil
+// when the KB never synced successfully.
+type HealthKB struct {
+	Name              string   `json:"name"`
+	Provider          string   `json:"provider,omitempty"`
+	State             string   `json:"state"`
+	ArticleTotal      int32    `json:"article_total"`
+	UnmappedTotal     int32    `json:"unmapped_total"`
+	LastSuccessAt     string   `json:"last_success_at,omitempty"`
+	LastAttemptAt     string   `json:"last_attempt_at,omitempty"`
+	HeadSHA           string   `json:"head_sha,omitempty"`
+	CheckedAt         string   `json:"checked_at,omitempty"`
+	HoursSinceSuccess *float64 `json:"hours_since_success"`
+}
+
 // HealthDeadLetter is one terminally dead-lettered run from GET /api/v1/health.
 type HealthDeadLetter struct {
 	RunID      string `json:"run_id"`
@@ -53,6 +70,7 @@ type HealthBrainBoot struct {
 type HealthResponse struct {
 	WindowHours  int                `json:"window_hours"`
 	Mirrors      []HealthMirror     `json:"mirrors"`
+	KB           []HealthKB         `json:"kb"`
 	BrainBoot    []HealthBrainBoot  `json:"brain_boot"`
 	Mailboxes    []HealthMailbox    `json:"mailboxes"`
 	DeadLettered []HealthDeadLetter `json:"dead_lettered"`

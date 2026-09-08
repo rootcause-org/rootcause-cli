@@ -21,6 +21,10 @@ import (
 // state "ok" — the refresh cron runs hourly, so a 6h+ gap means the worker itself stopped.
 const staleHours = 6.0
 
+// kbStaleHours: the KB-sync sweep runs on a 24h interval, so a last success older than one interval
+// plus slack means the sweep itself stopped, not that the KB simply didn't change.
+const kbStaleHours = 26.0
+
 // HealthVerdict is the pure healthy/unhealthy decision over the raw rows — true ⇒ healthy. It's the
 // verdict the -o json path needs (which renders no report but still must set the exit code) and the same
 // rule Health renders. A mirror is bad when non-ok OR stale (last_ok older than staleHours / never);
@@ -28,6 +32,11 @@ const staleHours = 6.0
 func HealthVerdict(h *client.HealthResponse, now time.Time) bool {
 	for _, m := range h.Mirrors {
 		if m.State != "ok" || m.HoursSinceOK == nil || *m.HoursSinceOK > staleHours {
+			return false
+		}
+	}
+	for _, k := range h.KB {
+		if kbNeedsAttention(k) {
 			return false
 		}
 	}
@@ -68,7 +77,28 @@ func Health(w io.Writer, h *client.HealthResponse, now time.Time) (healthy bool)
 		_, _ = fmt.Fprintln(w, "  ok — all mirrors synced recently")
 	}
 
-	// 2. brain boot checks — a failed check means that brain's newest commit never went live (the box
+	// 2. knowledge base — a typed non-ok sync state, or a last success older than one sweep interval.
+	var badKB []client.HealthKB
+	for _, k := range h.KB {
+		if kbNeedsAttention(k) {
+			badKB = append(badKB, k)
+		}
+	}
+	_, _ = fmt.Fprintf(w, "\nKnowledge base — %d/%d healthy\n", len(h.KB)-len(badKB), len(h.KB))
+	switch {
+	case len(badKB) > 0:
+		unhealthy = true
+		for _, k := range badKB {
+			_, _ = fmt.Fprintf(w, "  ! %s (%s): state=%s articles=%d unmapped=%d last_ok=%s ago\n",
+				k.Name, kbProvider(k.Provider), k.State, k.ArticleTotal, k.UnmappedTotal, ageOrNever(k.HoursSinceSuccess))
+		}
+	case len(h.KB) == 0:
+		_, _ = fmt.Fprintln(w, "  (no knowledge base configured)")
+	default:
+		_, _ = fmt.Fprintln(w, "  ok — every knowledge base synced recently")
+	}
+
+	// 3. brain boot checks — a failed check means that brain's newest commit never went live (the box
 	// kept the last-good one), so the fleet is running knowingly stale knowledge. No checks yet is fine.
 	var badBoot []client.HealthBrainBoot
 	for _, b := range h.BrainBoot {
@@ -89,7 +119,7 @@ func Health(w io.Writer, h *client.HealthResponse, now time.Time) (healthy bool)
 		_, _ = fmt.Fprintln(w, "  ok — every brain commit boots")
 	}
 
-	// 3. watched mailboxes — raw rows; error/needs_attention or active expired watches need attention.
+	// 4. watched mailboxes — raw rows; error/needs_attention or active expired watches need attention.
 	var badMailboxes []client.HealthMailbox
 	for _, m := range h.Mailboxes {
 		if mailboxNeedsAttention(m, now) {
@@ -113,7 +143,7 @@ func Health(w io.Writer, h *client.HealthResponse, now time.Time) (healthy bool)
 		_, _ = fmt.Fprintln(w, "  ok — no watched mailboxes parked or expired")
 	}
 
-	// 4. dead-lettered runs — any in the window is unhealthy (the customer never got the draft).
+	// 5. dead-lettered runs — any in the window is unhealthy (the customer never got the draft).
 	_, _ = fmt.Fprintf(w, "\nDead-lettered runs (last %dh) — %d total\n", h.WindowHours, len(h.DeadLettered))
 	if len(h.DeadLettered) > 0 {
 		unhealthy = true
@@ -141,6 +171,22 @@ func ageOrNever(hoursSinceOK *float64) string {
 		return "never"
 	}
 	return fmt.Sprintf("%.1fh", *hoursSinceOK)
+}
+
+// kbNeedsAttention: a typed failure state, or a stale/never-successful sync (the sweep itself stopped).
+func kbNeedsAttention(k client.HealthKB) bool {
+	if k.State != "ok" {
+		return true
+	}
+	return k.HoursSinceSuccess == nil || *k.HoursSinceSuccess > kbStaleHours
+}
+
+// kbProvider labels a KB row whose provider predates the stored provider label.
+func kbProvider(provider string) string {
+	if provider == "" {
+		return "unknown provider"
+	}
+	return provider
 }
 
 // brainBootName labels a boot-check row: the project brain has no tenant slug.
