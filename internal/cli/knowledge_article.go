@@ -19,7 +19,18 @@ var knowledgeArticleProviders = []string{"helpscout", "intercom", "knowledgeowl"
 // newKnowledgeArticleCmd is the help-centre WRITE path: a `replypen: helpcenter/v1` markdown block in,
 // a provider article out. Reading articles for grounding stays on `rc project knowledge content`.
 func newKnowledgeArticleCmd(e *env) *cobra.Command {
-	cmd := &cobra.Command{Use: "article", Short: "Write and read help-centre articles from a markdown block"}
+	cmd := &cobra.Command{
+		Use:   "article",
+		Short: "Write and read help-centre articles from a markdown block",
+		Long: "Write and read help-centre articles from a markdown block.\n\n" +
+			"The unit is one file: `replypen: helpcenter/v1` YAML front matter (op: create|update,\n" +
+			"provider, id or collection_id, title, optional keywords/anchor) + the article body in markdown.\n" +
+			"A write lands in the provider's DRAFT lane unless you pass --publish, and `apply --dry-run`\n" +
+			"first prints the exact provider calls. `get` hands you an editable block for a live article.\n" +
+			"The project needs a help-centre write grant (once, by an owner):\n" +
+			"  rc project connection add integration_key=<helpscout_docs|intercom|knowledgeowl> \\\n" +
+			"    label=help-center tier=write token=…",
+	}
 	cmd.AddCommand(knowledgeArticleApplyCmd(e), knowledgeArticleGetCmd(e))
 	return cmd
 }
@@ -33,7 +44,17 @@ func knowledgeArticleApplyCmd(e *env) *cobra.Command {
 		Long: "Apply a help-centre article block (`replypen: helpcenter/v1`) to its provider.\n\n" +
 			"Run it with --dry-run first: the output is the exact provider calls that would be sent, in full.\n" +
 			"A published article is refused unless you pass --publish; without it the change lands in the\n" +
-			"provider's draft lane and the live article stays untouched. --from - reads the block from stdin.",
+			"provider's draft lane and the live article stays untouched. --from - reads the block from stdin.\n" +
+			"A real write needs the `knowledge:write` token scope; --dry-run and `article get` work with read.\n\n" +
+			"Example block:\n" +
+			"  ---\n" +
+			"  replypen: helpcenter/v1\n" +
+			"  op: update\n" +
+			"  provider: helpscout\n" +
+			"  id: \"1234\"\n" +
+			"  title: Refunds within 14 days\n" +
+			"  ---\n" +
+			"  Body markdown; it replaces the whole article.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			markdown, err := readArticleBlock(e, from)
@@ -70,7 +91,15 @@ func knowledgeArticleGetCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get --provider <provider> --id <id>",
 		Short: "Fetch one help-centre article as an applyable markdown block",
-		Args:  cobra.NoArgs,
+		Long: "Fetch one help-centre article as an applyable markdown block.\n\n" +
+			"The output is a ready `replypen: helpcenter/v1` block with `op: update` and the article's\n" +
+			"current title/ids in the front matter: edit the body (or the title) and feed the same file\n" +
+			"back to `rc project knowledge article apply --from FILE.md --dry-run`.\n" +
+			"--id is the provider-native article id (the id in the article's help-centre URL or in the\n" +
+			"synced KB file's front matter), never our internal document id.\n" +
+			"Use --out FILE to write the block straight to disk instead of stdout. Reading works with the\n" +
+			"ordinary read scope; only the apply write needs `knowledge:write`.",
+		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			if err := validateKnowledgeArticleProvider(provider); err != nil {
 				return err

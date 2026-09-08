@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 
@@ -120,7 +121,9 @@ func newRootCmd(e *env, version string) *cobra.Command {
 		&cobra.Group{ID: "local", Title: "Local:"},
 	)
 	root.SetHelpCommandGroupID("local")
-	root.PersistentFlags().StringVar(&e.profile, "profile", "", "token profile to use (default: auto — the brain in the current directory, else \"default\")")
+	// RC_PROFILE is the flag's DEFAULT, not a preset: cobra rewrites the bound field to the default on
+	// every parse, so seeding e.profile instead would be silently dropped.
+	root.PersistentFlags().StringVar(&e.profile, "profile", os.Getenv("RC_PROFILE"), "token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else \"default\")")
 	if e.project == "" {
 		e.project = os.Getenv("RC_PROJECT")
 	}
@@ -263,7 +266,7 @@ func (e *env) storedTokenSource(res *config.Resolved, baseURL string) (client.To
 		}
 	}
 	if !ok {
-		return nil, notLoggedIn(*res)
+		return nil, notLoggedIn(*res, e.profile)
 	}
 	return newLiveSource(res.Profile, baseURL), nil
 }
@@ -341,12 +344,34 @@ func (e *env) resolvePinnedProject(c *client.Client) error {
 
 // notLoggedIn is the clear "no token for this profile" error. Inside a brain this is reached only
 // when neither the brain-named profile nor default has a token, so name the project and the fix.
-func notLoggedIn(res config.Resolved) error {
+// Outside a brain with no --profile/RC_PROFILE the profile was silently defaulted, so say that out
+// loud and list what could be picked instead — a caller run from an arbitrary customer repo has no
+// other way to learn that a profile is even the missing ingredient.
+func notLoggedIn(res config.Resolved, explicitProfile string) error {
 	if res.Brain != nil {
 		return authenticationError(fmt.Sprintf("this brain is project %q but you're not logged in for it\n"+
 			"  fix: run `rc auth login` from here (use --device on a headless box)", res.Brain.Project))
 	}
+	if explicitProfile == "" {
+		return authenticationError(fmt.Sprintf("no .rootcause.toml here and no --profile given — "+
+			"pass --profile <name> or cd into the brain checkout (%s)", knownProfilesHint()))
+	}
 	return authenticationError(fmt.Sprintf("not logged in (profile %q) — run `rc auth login`", res.Profile))
+}
+
+// knownProfilesHint names the logged-in profiles so the fix is copy-pasteable. A store read error is
+// swallowed: this is a hint inside another error, never the reason a command fails.
+func knownProfilesHint() string {
+	profiles, err := token.List()
+	if err != nil || len(profiles) == 0 {
+		return "no profiles logged in yet — run `rc auth login`"
+	}
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return "known profiles: " + strings.Join(names, ", ")
 }
 
 // tenantOr returns the explicit --tenant flag when set, else any local tenant override captured by

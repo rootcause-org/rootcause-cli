@@ -627,8 +627,8 @@ turn's answer; phrase follow-ups to stand on their own rather than referring bac
 second option"). `--no-wait` prints just the `run_id`; the `session_id` is the one you passed in.
 
 Output auto-detects: **TTY → table, piped → JSON**. Force with `-o json` / `-o table`. API errors are
-surfaced verbatim (`CODE: message`) with a non-zero exit. `RC_PROJECT` and `RC_TENANT` provide the
-defaults for their matching global flags. HTTP requests time out after 10 minutes by default
+surfaced verbatim (`CODE: message`) with a non-zero exit. `RC_PROFILE`, `RC_PROJECT` and `RC_TENANT` provide
+the defaults for their matching global flags. HTTP requests time out after 10 minutes by default
 (`RC_HTTP_TIMEOUT=2m` overrides it); safe reads retry 429/5xx responses three times.
 
 ### Composable console primitives

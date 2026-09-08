@@ -1499,6 +1499,7 @@ func newTestEnv(t *testing.T, srv *httptest.Server, output string) (*env, *bytes
 	t.Helper()
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the token store + config
 	t.Setenv("ROOTCAUSE_BASE_URL", "")       // a stray env must not override the test base URL
+	t.Setenv("RC_PROFILE", "")               // ditto for the profile default
 	var out, errb bytes.Buffer
 	e := &env{
 		profile:     "default",

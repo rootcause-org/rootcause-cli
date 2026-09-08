@@ -138,10 +138,11 @@ fails rather than falling back to a broader `default` token.
 (token-store key), a **base URL**, and an optional tenant override — never a secret. `--project` is not an
 input here; it is a server-side scope threaded on by the command layer.
 
-- explicit `--profile` → that profile, no brain binding (the escape hatch);
+- explicit `--profile` (or `RC_PROFILE`, its env default) → that profile, no brain binding (the escape hatch);
 - inside a brain (`.rootcause.toml`) → the marker's project as profile; without a project profile, fall
   back to `default` and carry the marker project as `?project=` (`autoProject` in `root.go`);
-- otherwise → `default`.
+- otherwise → `default` — and if that has no token, `notLoggedIn` says so and lists the stored profiles,
+  because outside a brain the profile was chosen silently.
 
 Base URL is exactly `ROOTCAUSE_BASE_URL` > built-in production. Rationale: one env var is the only
 staging/dev escape hatch, so a stale persisted `base_url` in a marker or token record can never silently

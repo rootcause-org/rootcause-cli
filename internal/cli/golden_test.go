@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
+	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
 // Table-mode golden tests: each pins one renderer's human output against testdata/*.golden.
@@ -557,17 +558,66 @@ func TestAPIErrorPath(t *testing.T) {
 	}
 }
 
-// TestNotLoggedIn asserts a clear "run `rc auth login`" error when no token resolves (no token store).
+// TestNotLoggedIn asserts a clear "run `rc auth login`" error when an EXPLICIT profile has no token
+// (the auto/no-profile case gets the richer hint — TestNoProfileOutsideBrainHint).
 func TestNotLoggedIn(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, _, _ := newTestEnv(t, srv, "table")
 	// Drop the static-token seam so newClient consults the (empty, isolated) token store.
-	e2 := &env{profile: "default", output: "table", baseURLOvr: srv.URL, out: e.out, err: e.err}
-	err := run(t, e2, "status")
+	e2 := &env{output: "table", baseURLOvr: srv.URL, out: e.out, err: e.err}
+	err := run(t, e2, "--profile", "default", "status")
 	if err == nil || !strings.Contains(err.Error(), "not logged in") {
 		t.Fatalf("expected a not-logged-in error, got %v", err)
 	}
+}
+
+// TestNoProfileOutsideBrainHint asserts the "silently defaulted profile" case (no .rootcause.toml, no
+// --profile) names the missing ingredient and lists what could be picked — and that RC_PROFILE counts
+// as "given", so a named-but-unauthenticated profile keeps the plain error.
+func TestNoProfileOutsideBrainHint(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+
+	newEnv := func(t *testing.T) *env {
+		t.Helper()
+		t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // isolate the token store
+		t.Setenv("ROOTCAUSE_BASE_URL", "")
+		t.Setenv("RC_PROFILE", "")
+		t.Chdir(t.TempDir()) // no .rootcause.toml above cwd
+		var out, errb bytes.Buffer
+		return &env{output: "table", baseURLOvr: srv.URL, out: &out, err: &errb}
+	}
+
+	t.Run("empty store", func(t *testing.T) {
+		err := run(t, newEnv(t), "status")
+		want := "no .rootcause.toml here and no --profile given — pass --profile <name> or cd into the brain checkout (no profiles logged in yet — run `rc auth login`)"
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("got %v\nwant substring %q", err, want)
+		}
+	})
+
+	t.Run("known profiles listed", func(t *testing.T) {
+		e := newEnv(t)
+		for _, name := range []string{"momentum", "dentai"} {
+			if err := token.Save(name, token.Token{AccessToken: "x", BaseURL: srv.URL}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		err := run(t, e, "status")
+		if err == nil || !strings.Contains(err.Error(), "known profiles: dentai, momentum") {
+			t.Fatalf("expected the sorted profile list, got %v", err)
+		}
+	})
+
+	t.Run("RC_PROFILE counts as given", func(t *testing.T) {
+		e := newEnv(t)
+		t.Setenv("RC_PROFILE", "momentum")
+		err := run(t, e, "status")
+		if err == nil || !strings.Contains(err.Error(), `not logged in (profile "momentum")`) {
+			t.Fatalf("expected RC_PROFILE to select the profile, got %v", err)
+		}
+	})
 }
 
 // TestNonEnvelopeHTTPError asserts a plain-text non-2xx (here a 405 from an older server) is rendered
