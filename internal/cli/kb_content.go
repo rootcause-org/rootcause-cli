@@ -570,7 +570,7 @@ for provider in providers:
     counts = {}
     for dirpath, _, filenames in os.walk(root):
         for name in filenames:
-            if not name.endswith(".md"):
+            if not name.endswith(".md") or name == "INDEX.md":
                 continue
             rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/")
             if collection_filter and not rel.startswith(collection_filter + "/") and rel != collection_filter:
@@ -624,7 +624,7 @@ for provider in providers:
     root = os.path.join("/kb", provider)
     for dirpath, _, filenames in os.walk(root):
         for name in sorted(filenames):
-            if not name.endswith(".md"):
+            if not name.endswith(".md") or name == "INDEX.md":
                 continue
             full = os.path.join(dirpath, name)
             rel = kb_rel(full)
@@ -695,7 +695,7 @@ for provider in providers:
     root = os.path.join("/kb", provider)
     for dirpath, _, filenames in os.walk(root):
         for name in sorted(filenames):
-            if not name.endswith(".md"): continue
+            if not name.endswith(".md") or name == "INDEX.md": continue
             full = os.path.join(dirpath, name)
             rel = kb_rel(full)
             if needle not in rel and needle != os.path.splitext(name)[0].split("-", 1)[0]:
@@ -717,7 +717,7 @@ for provider in providers:
     root = os.path.join("/kb", provider)
     for dirpath, _, filenames in os.walk(root):
         for name in sorted(filenames):
-            if not name.endswith(".md"): continue
+            if not name.endswith(".md") or name == "INDEX.md": continue
             rel = kb_rel(os.path.join(dirpath, name))
             items.append({"id": os.path.splitext(name)[0].split("-", 1)[0], "title": os.path.splitext(name)[0], "provider": provider, "collection": kb_collection(rel), "path": rel, "hits": []})
 print(json.dumps(kb_result(providers, items), ensure_ascii=False))
