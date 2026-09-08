@@ -339,12 +339,12 @@ func stubServer(t *testing.T) *httptest.Server {
 		}
 		if strings.Contains(req.Command, "# rc-kb:list") {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(bashRunResponseJSON("alpha", `{"provider":"intercom","root":"/kb/intercom","revision":"abc123","collections":[{"name":"restore-amp-recovery","article_count":2}],"truncated":false}`, "", false, false))
+			_, _ = w.Write(bashRunResponseJSON("alpha", `{"providers":[{"provider":"helpscout","root":"/kb/helpscout","revision":"def456","collections":[{"name":"getting-started","article_count":3}]},{"provider":"intercom","root":"/kb/intercom","revision":"abc123","collections":[{"name":"restore-amp-recovery","article_count":2}]}],"truncated":false}`, "", false, false))
 			return
 		}
 		if strings.Contains(req.Command, "# rc-kb:search") {
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(bashRunResponseJSON("alpha", `{"provider":"intercom","query":"restore as new","revision":"abc123","article_count":1,"hit_count":2,"truncated":false,"articles":[{"id":"9286853","title":"How to recover deleted data","url":"https://support.probackup.io/en/articles/9286853-how-to-recover-deleted-data","collection":"restore-amp-recovery","path":"restore-amp-recovery/9286853-how-to-recover-deleted-data.md","score":9,"hits":[{"line":51,"snippet":"Choose Restore as new to avoid overwriting live data."},{"line":52,"snippet":"Overwrite only when you are sure."}]}]}`, "", false, false))
+			_, _ = w.Write(bashRunResponseJSON("alpha", `{"providers":["helpscout","intercom"],"query":"restore as new","revision":"","article_count":1,"hit_count":2,"truncated":false,"articles":[{"id":"9286853","title":"How to recover deleted data","url":"https://support.probackup.io/en/articles/9286853-how-to-recover-deleted-data","provider":"intercom","collection":"restore-amp-recovery","path":"intercom/restore-amp-recovery/9286853-how-to-recover-deleted-data.md","score":9,"hits":[{"line":51,"snippet":"Choose Restore as new to avoid overwriting live data."},{"line":52,"snippet":"Overwrite only when you are sure."}]}]}`, "", false, false))
 			return
 		}
 		if strings.Contains(req.Command, "# rc-kb:cat") {

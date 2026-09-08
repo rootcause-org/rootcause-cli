@@ -16,8 +16,10 @@ func TestKBListTable(t *testing.T) {
 		t.Fatalf("project knowledge content list: %v", err)
 	}
 	got := out.String()
-	if !strings.Contains(got, "Provider: intercom") || !strings.Contains(got, "restore-amp-recovery\t2") {
-		t.Fatalf("project knowledge content list output missing collection summary:\n%s", got)
+	for _, want := range []string{"Provider: helpscout", "getting-started\t3", "Provider: intercom", "restore-amp-recovery\t2"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("project knowledge content list output missing %q:\n%s", want, got)
+		}
 	}
 	if strings.Contains(got, "Choose Restore as new") {
 		t.Fatalf("project knowledge content list leaked article body:\n%s", got)
@@ -50,12 +52,12 @@ func TestKBSearchWritesProgressiveArtifacts(t *testing.T) {
 	}
 
 	dir := filepath.Join(wd, ".rootcause/tmp/kb-searches/fixed-restore")
-	for _, rel := range []string{"manifest.json", "hits.md", "articles/restore-amp-recovery/9286853-how-to-recover-deleted-data.md"} {
+	for _, rel := range []string{"manifest.json", "hits.md", "articles/intercom/restore-amp-recovery/9286853-how-to-recover-deleted-data.md"} {
 		if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
 			t.Fatalf("expected artifact %s: %v", rel, err)
 		}
 	}
-	body, err := os.ReadFile(filepath.Join(dir, "articles/restore-amp-recovery/9286853-how-to-recover-deleted-data.md"))
+	body, err := os.ReadFile(filepath.Join(dir, "articles/intercom/restore-amp-recovery/9286853-how-to-recover-deleted-data.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
