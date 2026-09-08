@@ -154,11 +154,13 @@ func newRunSessionCmd(e *env) *cobra.Command {
 // runSession fetches the two shared-session feeds and writes the single markdown artifact, printing its
 // path (the file is the deliverable — like `rc run debug`, we don't summarize into stdout).
 func runSession(e *env, c *client.Client, token string) error {
-	transcript, transcriptRaw, err := c.SharedTranscript(e.ctx(), token)
+	// Runs first: a dead/unknown token then fails with the API's UNKNOWN_SESSION envelope rather than
+	// the /s/ page's HTML 404.
+	session, runsRaw, err := c.SharedSessionRuns(e.ctx(), token)
 	if err != nil {
 		return err
 	}
-	session, runsRaw, err := c.SharedSessionRuns(e.ctx(), token)
+	transcript, transcriptRaw, err := c.SharedTranscript(e.ctx(), token)
 	if err != nil {
 		return err
 	}
