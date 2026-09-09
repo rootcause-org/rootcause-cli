@@ -179,7 +179,7 @@ func TestBuildHierarchyPatchAcceptsFollowUpSettings(t *testing.T) {
 		"channel.follow_up_enabled=true",
 		"channel.follow_up_max_steps=2",
 		"channel.follow_up_max_horizon_days=14",
-	}, nil, testHierarchySchema(t))
+	}, nil, testHierarchySchema(t), false)
 	if err != nil {
 		t.Fatalf("build follow-up settings patch: %v", err)
 	}
@@ -349,5 +349,34 @@ func hierarchyBodyCaptureServer(t *testing.T, dst *string) *httptest.Server {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"scope":"tenant","project":"alpha","tenant":"de-kies","settings":` + *dst + `}`))
 	})
+	mux.HandleFunc("PATCH /api/v1/projects/{project}/mailboxes/{id}/settings", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		*dst = readBody(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"scope":"mailbox","project":"alpha","settings":` + *dst + `}`))
+	})
 	return httptest.NewServer(mux)
+}
+
+func TestHierarchySettingsSetUndiscovered(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"enable", []string{"channel.draft_pending_notice=true"}, `{"channel":{"draft_pending_notice":true}}`},
+		{"clear", []string{"--unset", "channel.draft_pending_notice"}, `{"channel":{"draft_pending_notice":null}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var gotBody string
+			srv := hierarchyBodyCaptureServer(t, &gotBody)
+			defer srv.Close()
+			e := newTestEnvAt(t, srv.URL, "json")
+			args := append([]string{"project", "mailbox", "settings", "set", "mbx-1", "--allow-undiscovered"}, tc.args...)
+			if err := run(t, e, args...); err != nil {
+				t.Fatal(err)
+			}
+			assertJSONEqual(t, []byte(tc.want), []byte(gotBody))
+		})
+	}
 }

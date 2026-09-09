@@ -580,7 +580,8 @@ Usage:
   rc project settings behavior set group.key=value [group.key=value...] [flags]
 
 Flags:
-      --unset stringArray   clear a scope-local override (group.key); repeatable
+      --allow-undiscovered   allow keys omitted from discovery; infer bool/int literals and let the server validate
+      --unset stringArray    clear a scope-local override (group.key); repeatable
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -698,7 +699,8 @@ Usage:
   rc project tenant settings set <slug> group.key=value [group.key=value...] [flags]
 
 Flags:
-      --unset stringArray   clear a scope-local override (group.key); repeatable
+      --allow-undiscovered   allow keys omitted from discovery; infer bool/int literals and let the server validate
+      --unset stringArray    clear a scope-local override (group.key); repeatable
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -1036,7 +1038,8 @@ Usage:
   rc project mailbox settings set <id> group.key=value [group.key=value...] [flags]
 
 Flags:
-      --unset stringArray   clear a scope-local override (group.key); repeatable
+      --allow-undiscovered   allow keys omitted from discovery; infer bool/int literals and let the server validate
+      --unset stringArray    clear a scope-local override (group.key); repeatable
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
