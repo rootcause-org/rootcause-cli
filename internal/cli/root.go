@@ -450,6 +450,15 @@ func (e *env) ctx() context.Context {
 // plain-text non-2xx — proxy, or an older server missing the endpoint) gets method + path + status
 // text + base URL so the user can see WHAT was hit WHERE, with a pointed hint for the common 404/405.
 func printError(w io.Writer, err error) {
+	printErrorBody(w, err)
+	// A locally attached hint is the self-heal line: what the caller can do differently, printed after
+	// the server's own words so the error itself is never rewritten.
+	if hint := hintFor(err); hint != "" {
+		_, _ = fmt.Fprintf(w, "hint: %s\n", hint)
+	}
+}
+
+func printErrorBody(w io.Writer, err error) {
 	var apiErr *client.APIError
 	if asAPIError(err, &apiErr) {
 		if apiErr.Code == "" {

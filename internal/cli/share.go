@@ -8,7 +8,9 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -105,6 +107,41 @@ func pathSegments(u *url.URL) []string {
 	return strings.Split(strings.Trim(u.EscapedPath(), "/"), "/")
 }
 
+// runShareHint is the self-heal line for a run a caller cannot read: an agent that has the share link
+// somewhere in its context can retry without a login. Every denial gets it — the account-less
+// endpoints answer a uniform 404 by design, so we never probe the server to find out which case it is.
+const runShareHint = "this run is not visible to your login (or you are not logged in). " +
+	"If you were sent a link like https://app.replypen.com/runs/<id>?t=<token>, rerun with the full link, " +
+	"or add --share-token <token>. Chat links (https://app.replypen.com/s/<token>) → rc run session '<link>'"
+
+// sessionShareHint: a chat share token is only usable as the whole link the sender pasted.
+const sessionShareHint = "this chat session is not readable with that token (expired, revoked, or truncated). " +
+	"Use the full link exactly as it was shared with you: rc run session 'https://app.replypen.com/s/<token>'"
+
+// withRunAccessHint tags the denials a share link can fix: no login at all (exitAuth) and the
+// 401/403/404/UNKNOWN_RUN a logged-in member gets for a run outside their scope.
+func withRunAccessHint(err error) error { return withHint(err, hintIfDenied(err, runShareHint)) }
+
+// withSessionAccessHint is the same for a chat share token.
+func withSessionAccessHint(err error) error {
+	return withHint(err, hintIfDenied(err, sessionShareHint))
+}
+
+func hintIfDenied(err error, hint string) string {
+	var ce *commandError
+	if errors.As(err, &ce) && ce.code == exitAuth {
+		return hint
+	}
+	var apiErr *client.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.Status {
+		case http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound:
+			return hint
+		}
+	}
+	return ""
+}
+
 // newShareClient builds a token-less client for the shared endpoints. config.Load is BEST-EFFORT on
 // purpose: the reader may have no profile, no token store and no HOME at all — a link must still open.
 func (e *env) newShareClient(t shareTarget) *client.Client {
@@ -144,7 +181,7 @@ func newRunSessionCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return runSession(e, e.newShareClient(target), target.token)
+			return withSessionAccessHint(runSession(e, e.newShareClient(target), target.token))
 		},
 	}
 	addShareTokenFlag(cmd, &shareToken)

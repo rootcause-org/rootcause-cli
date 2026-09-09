@@ -31,7 +31,7 @@ func newThreadCmd(e *env) *cobra.Command {
 			}
 			tr, raw, err := fetchThreadTrace(e, target)
 			if err != nil {
-				return err
+				return withRunAccessHint(err)
 			}
 			if render.IsJSON(e.mode(), e.out) {
 				// Raw passthrough: emit exactly what the server sent (render, don't reshape) so jq sees
@@ -39,6 +39,11 @@ func newThreadCmd(e *env) *cobra.Command {
 				return render.JSON(e.out, raw)
 			}
 			render.ThreadTrace(e.out, tr)
+			// An empty answer for a bearer read is indistinguishable from "not yours" — the server
+			// never says which. Point at the share link rather than let an agent conclude "no such run".
+			if !target.shared() && len(tr.Runs) == 0 && len(tr.Threads) == 0 {
+				_, _ = fmt.Fprintf(e.err, "hint: %s\n", runShareHint)
+			}
 			return nil
 		},
 	}

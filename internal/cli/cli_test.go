@@ -216,6 +216,12 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs/{id}/trace", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		w.Header().Set("Content-Type", "application/json")
+		// id "unknown": the uniform refusal a run outside the token's scope gets — drives the share hint.
+		if r.PathValue("id") == "unknown" {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"no such run"}}`))
+			return
+		}
 		// id "declined" carries the run.debug bundle, exercising the full header's debug rows + the
 		// untruncated decline_reason block.
 		if r.PathValue("id") == "declined" {

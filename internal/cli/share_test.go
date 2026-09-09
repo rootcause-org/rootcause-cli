@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -214,6 +215,60 @@ func TestShareRefusalSurfacesVerbatim(t *testing.T) {
 			err := run(t, e, append(tc.args, "--out-dir", t.TempDir())...)
 			if err == nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("error = %v, want it to contain %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestDeniedRunCarriesShareHint is the self-heal path: whether the caller has no login at all or a
+// login that cannot see the run, the error must carry the "rerun with the link" hint — on a second
+// stderr line in table mode, in the `hint` field in JSON mode.
+func TestDeniedRunCarriesShareHint(t *testing.T) {
+	srv := stubServer(t)
+	defer srv.Close()
+	for _, tc := range []struct {
+		name     string
+		noLogin  bool
+		args     []string
+		wantHint string
+	}{
+		{name: "NotLoggedIn", noLogin: true, args: []string{"run", "debug", "11111111-1111-1111-1111-111111111111"}, wantHint: runShareHint},
+		{name: "RunNotVisible", args: []string{"run", "debug", "unknown"}, wantHint: runShareHint},
+		{name: "TraceNotVisible", args: []string{"run", "trace", "unknown"}, wantHint: runShareHint},
+		{name: "BadSessionToken", args: []string{"run", "session", srv.URL + "/s/expired"}, wantHint: sessionShareHint},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e, _, errb := newTestEnv(t, srv, "table")
+			if tc.noLogin {
+				e.tokenSource = nil
+				e.profile = "does-not-exist"
+				t.Setenv("HOME", t.TempDir())
+			}
+			err := run(t, e, append(tc.args, "--out-dir", t.TempDir())...)
+			if err == nil {
+				t.Fatal("expected a denial")
+			}
+			if got := hintFor(err); got != tc.wantHint {
+				t.Fatalf("hint = %q, want %q", got, tc.wantHint)
+			}
+			printError(errb, err)
+			if !strings.Contains(errb.String(), "\nhint: "+tc.wantHint+"\n") {
+				t.Errorf("stderr = %q, want the hint on its own line", errb.String())
+			}
+			var buf bytes.Buffer
+			if err := writeJSONError(&buf, err); err != nil {
+				t.Fatalf("writeJSONError: %v", err)
+			}
+			var env struct {
+				Error struct {
+					Hint string `json:"hint"`
+				} `json:"error"`
+			}
+			if err := json.Unmarshal(buf.Bytes(), &env); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			if env.Error.Hint != tc.wantHint {
+				t.Errorf("json hint = %q, want %q", env.Error.Hint, tc.wantHint)
 			}
 		})
 	}

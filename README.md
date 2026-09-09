@@ -20,7 +20,7 @@ $ rc ask --effort pro "Retry this with a stronger model tier"
 $ rc run list --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run list --outcome failed --learning             # learning candidates with failed verdicts
 $ rc run events <id>        # full per-iteration trace (NDJSON when piped)
-$ rc run trace <id>          # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
+$ rc run trace <id|url>      # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
 $ rc fleet actions --days 14 --action create_appointment --action update_appointment
 $ rc dev learning evidence --plane triage --limit 50 -o json
 $ rc dev learning evidence --plane deltas --include-bodies -o json
@@ -157,6 +157,7 @@ A run link (`https://app.replypen.com/runs/<id>?t=…`) or a chat share link
 brew install rootcause-org/tap/rc                                  # or the curl installer above
 rc run debug 'https://app.replypen.com/runs/<id>?t=<token>'        # → .rootcause/debug/<run>-<project>.{md,jsonl}
 rc run thread 'https://app.replypen.com/runs/<id>?t=<token>'       # the same run's thread + placement view
+rc run trace 'https://app.replypen.com/runs/<id>?t=<token>'        # the raw bundle
 rc run session 'https://app.replypen.com/s/<token>'                # → .rootcause/debug/session-<id>.md
 ```
 
@@ -164,6 +165,10 @@ rc run session 'https://app.replypen.com/s/<token>'                # → .rootca
 `run session` writes ONE markdown file: the chat transcript in reading order, then the runs behind it,
 each row ending in the `rc run debug` command that drills that run. Pass the token separately with
 `--share-token <t>` if you have the id but not the link.
+
+When `rc run debug|thread|trace <id>` is refused (no login, or a run your login cannot see) the error
+carries a `hint:` line (a `hint` field in `-o json`) telling you to rerun with the full link — the
+server answers a uniform 404 either way, so the hint is the only way to tell the two apart.
 
 ### Headless cloud agents
 

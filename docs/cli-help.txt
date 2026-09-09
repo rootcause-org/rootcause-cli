@@ -184,10 +184,11 @@ $ rc run trace --help
 Show the whole run bundle
 
 Usage:
-  rc run trace <id> [flags]
+  rc run trace <id|url> [flags]
 
 Flags:
-      --stream   stream JSONL to stdout even when it is large
+      --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
+      --stream              stream JSONL to stdout even when it is large
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

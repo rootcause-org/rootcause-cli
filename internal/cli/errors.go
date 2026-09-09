@@ -48,6 +48,34 @@ func remoteExitError() error {
 	return &commandError{code: exitRemote, name: "REMOTE_FAILED", silent: true, message: "remote command exited non-zero or timed out"}
 }
 
+// hintedError carries a LOCAL, actionable next step alongside any error. The wrapped error still
+// renders verbatim (code + message); the hint is a second stderr line, or the `hint` field in JSON.
+type hintedError struct {
+	hint string
+	err  error
+}
+
+func (e *hintedError) Error() string { return e.err.Error() }
+
+func (e *hintedError) Unwrap() error { return e.err }
+
+// withHint attaches hint to err (nil stays nil).
+func withHint(err error, hint string) error {
+	if err == nil || hint == "" {
+		return err
+	}
+	return &hintedError{hint: hint, err: err}
+}
+
+// hintFor returns the local hint attached to err, if any.
+func hintFor(err error) string {
+	var he *hintedError
+	if errors.As(err, &he) {
+		return he.hint
+	}
+	return ""
+}
+
 func exitCodeFor(err error) int {
 	if err == nil {
 		return exitOK
@@ -109,6 +137,9 @@ func writeJSONError(w io.Writer, err error) error {
 		body.Docs = apiErr.Docs
 	case errors.As(err, &transport):
 		body.Code = "NETWORK_ERROR"
+	}
+	if body.Hint == "" {
+		body.Hint = hintFor(err)
 	}
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)

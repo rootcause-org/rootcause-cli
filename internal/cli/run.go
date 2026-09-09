@@ -97,18 +97,29 @@ func newRunEventsCmd(e *env) *cobra.Command {
 // RAW bytes for the JSONL seam, so no server field is dropped on the cross-repo boundary.
 func newRunTraceCmd(e *env) *cobra.Command {
 	var stream bool
-	cmd := runIDCommand(e, "trace <id>", "Show the whole run bundle", func(c *client.Client, id string, jsonMode bool) error {
-		resp, raw, err := c.FullWithRaw(e.ctx(), id, e.scopeProject(), e.scopeTenant())
-		if err != nil {
-			return err
-		}
-		if jsonMode {
-			return emitFullJSONL(e, id, raw, stream)
-		}
-		render.Full(e.out, resp)
-		return nil
-	})
+	var shareToken string
+	cmd := &cobra.Command{
+		Use:   "trace <id|url>",
+		Short: "Show the whole run bundle",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) error {
+			target, err := parseRunTarget(args[0], shareToken)
+			if err != nil {
+				return err
+			}
+			resp, raw, err := fetchRunTrace(e, target)
+			if err != nil {
+				return withRunAccessHint(err)
+			}
+			if render.IsJSON(e.mode(), e.out) {
+				return emitFullJSONL(e, target.runID, raw, stream)
+			}
+			render.Full(e.out, resp)
+			return nil
+		},
+	}
 	addStreamFlag(cmd, &stream)
+	addShareTokenFlag(cmd, &shareToken)
 	return cmd
 }
 
@@ -133,9 +144,9 @@ func newRunDebugCmd(e *env) *cobra.Command {
 			if outDir == "" {
 				outDir = defaultDebugDir
 			}
-			full, err := fetchRunTrace(e, target)
+			full, _, err := fetchRunTrace(e, target)
 			if err != nil {
-				return err
+				return withRunAccessHint(err)
 			}
 			return writeRunDebug(e, full, outDir)
 		},
@@ -147,16 +158,15 @@ func newRunDebugCmd(e *env) *cobra.Command {
 // fetchRunTrace is the ONE fork between the two credentials: a share token reads the shared endpoint
 // with no bearer and no profile lookup, everything else the ordinary token-scoped one. Both return the
 // same FullResponse, so nothing downstream branches.
-func fetchRunTrace(e *env, target shareTarget) (*client.FullResponse, error) {
+func fetchRunTrace(e *env, target shareTarget) (*client.FullResponse, json.RawMessage, error) {
 	if target.shared() {
-		full, _, err := e.newShareClient(target).SharedRunTrace(e.ctx(), target.runID, target.token)
-		return full, err
+		return e.newShareClient(target).SharedRunTrace(e.ctx(), target.runID, target.token)
 	}
 	c, err := e.newClient()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return c.Full(e.ctx(), target.runID, e.scopeProject(), e.scopeTenant())
+	return c.FullWithRaw(e.ctx(), target.runID, e.scopeProject(), e.scopeTenant())
 }
 
 // newRunBrainDiffCmd: the brain commit a run wrote. JSON mode is a byte-faithful passthrough (render,
