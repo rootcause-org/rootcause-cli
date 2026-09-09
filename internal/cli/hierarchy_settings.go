@@ -146,7 +146,6 @@ func hierarchySettingsGetCmd(e *env, scope string, idArg func(*cobra.Command, []
 
 func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []string) (string, error)) *cobra.Command {
 	var unset []string
-	var allowUndiscovered bool
 	use := "set group.key=value [group.key=value...]"
 	args := cobra.ArbitraryArgs
 	if scope == "mailbox" || scope == "tenant" {
@@ -190,7 +189,7 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 			if err != nil {
 				return err
 			}
-			patch, err := buildHierarchyPatch(patchArgs, unset, newHierarchySchema(schemaResp), allowUndiscovered)
+			patch, err := buildHierarchyPatch(patchArgs, unset, newHierarchySchema(schemaResp))
 			if err != nil {
 				return err
 			}
@@ -210,7 +209,6 @@ func hierarchySettingsSetCmd(e *env, scope string, idArg func(*cobra.Command, []
 		},
 	}
 	cmd.Flags().StringArrayVar(&unset, "unset", nil, "clear a scope-local override (group.key); repeatable")
-	cmd.Flags().BoolVar(&allowUndiscovered, "allow-undiscovered", false, "allow keys omitted from discovery; infer bool/int literals and let the server validate")
 	return cmd
 }
 
@@ -232,7 +230,7 @@ func hierarchyProject(e *env, c *client.Client) (string, error) {
 	return "", fmt.Errorf("--project <project> is required for hierarchy settings unless the active login is project-scoped")
 }
 
-func buildHierarchyPatch(args, unset []string, schema hierarchySchema, allowUndiscovered bool) (map[string]any, error) {
+func buildHierarchyPatch(args, unset []string, schema hierarchySchema) (map[string]any, error) {
 	root := map[string]any{}
 	seen := map[string]bool{}
 	for _, arg := range args {
@@ -244,7 +242,7 @@ func buildHierarchyPatch(args, unset []string, schema hierarchySchema, allowUndi
 			return nil, fmt.Errorf("key %q given more than once", key)
 		}
 		seen[key] = true
-		if err := putHierarchyValue(root, schema, key, val, val == "", allowUndiscovered); err != nil {
+		if err := putHierarchyValue(root, schema, key, val, val == ""); err != nil {
 			return nil, err
 		}
 	}
@@ -256,24 +254,24 @@ func buildHierarchyPatch(args, unset []string, schema hierarchySchema, allowUndi
 			return nil, fmt.Errorf("key %q both set and --unset", key)
 		}
 		seen[key] = true
-		if err := putHierarchyValue(root, schema, key, "", true, allowUndiscovered); err != nil {
+		if err := putHierarchyValue(root, schema, key, "", true); err != nil {
 			return nil, err
 		}
 	}
 	return root, nil
 }
 
-func putHierarchyValue(root map[string]any, schema hierarchySchema, dotted, val string, clear, allowUndiscovered bool) error {
+func putHierarchyValue(root map[string]any, schema hierarchySchema, dotted, val string, clear bool) error {
 	group, field, ok := strings.Cut(dotted, ".")
 	if !ok || group == "" || field == "" {
 		return fmt.Errorf("%s: expected group.key (%s)", dotted, strings.Join(schema.groups(), ".* or ")+".*")
 	}
 	fields, ok := schema[group]
-	if !ok && !allowUndiscovered {
+	if !ok {
 		return fmt.Errorf("%s: unknown settings group %q (want %s)", dotted, group, strings.Join(schema.groups(), " or "))
 	}
 	f, ok := fields[field]
-	if !ok && !allowUndiscovered {
+	if !ok {
 		return fmt.Errorf("%s: unknown %s setting (try `rc schema`)", dotted, group)
 	}
 	bag, _ := root[group].(map[string]any)
@@ -336,7 +334,7 @@ func coerceHierarchyValue(f client.FieldSchema, dotted, val string) (any, error)
 }
 
 // inferHierarchyValue is the typeless path: a bool/int literal becomes JSON of that kind, anything else
-// stays a string. Also used for keys explicitly allowed outside discovery.
+// stays a string. Only reachable against a server whose /meta/schema names the key but not its type.
 func inferHierarchyValue(val string) any {
 	switch strings.ToLower(val) {
 	case "true":

@@ -220,9 +220,7 @@ and `-o json` on the raw rows.
 - **Settings coercion** ([config.go](internal/cli/config.go),
   [hierarchy_settings.go](internal/cli/hierarchy_settings.go)) fetches `/meta/schema` once and coerces
   `k=v` by the *declared* type. There is no hardcoded key list — a knob the server gains is settable
-  without a CLI release, and the server stays the final validator. Hidden hierarchy keys use
-  `set --allow-undiscovered`: bool/int literals are inferred, other values stay strings; known keys
-  retain schema validation.
+  without a CLI release, and the server stays the final validator.
 - **Capability/format lists the server owns** (e.g. harvest-corpus format versions on `/meta/capabilities`)
   are read at runtime, never re-pinned in CLI source.
 
