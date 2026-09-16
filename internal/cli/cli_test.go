@@ -1457,8 +1457,21 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/runs/{id}/retry", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		body := readBody(t, r)
-		if !strings.Contains(body, `"tier":"pro"`) {
-			t.Fatalf("retry body missing tier: %s", body)
+		var got map[string]any
+		if err := json.Unmarshal([]byte(body), &got); err != nil {
+			t.Fatalf("decode retry body: %v\n%s", err, body)
+		}
+		if tier, ok := got["tier"]; ok && tier != "pro" {
+			t.Fatalf("retry tier = %v: %s", tier, body)
+		}
+		// The reviewer steering must ride the same POST body, trimmed, under "comment".
+		if c, ok := got["comment"]; ok && c != "the correct answer is 42" {
+			t.Fatalf("retry comment = %v: %s", c, body)
+		}
+		if _, hasTier := got["tier"]; !hasTier {
+			if _, hasComment := got["comment"]; !hasComment {
+				t.Fatalf("retry body carried neither tier nor comment: %s", body)
+			}
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"run_id":"99999999-9999-9999-9999-999999999999","status":"queued"}`))

@@ -104,7 +104,7 @@ Available Commands:
   thread         Trace one run, provider/local thread, or session through pipeline and placement
   session        Dump a shared chat session (transcript + its runs) to one markdown file
   feedback       Record score/comment feedback on a run's trace, or mark it processed
-  retry          Re-run a run (optionally at a different tier); prints the new run id
+  retry          Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier
   process-thread Process a triage-skipped or security-blocked inbox thread
 
 Global Flags:
@@ -345,13 +345,15 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc run retry --help
-Re-run a run (optionally at a different tier); prints the new run id
+Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier
 
 Usage:
-  rc run retry <run-id> [--tier standard|pro|max] [flags]
+  rc run retry <run-id> [--tier standard|pro|max] [--comment <text>|--comment-file <path>] [flags]
 
 Flags:
-      --tier string   model tier for the retry: standard|pro|max
+      --comment string        reviewer steering for the rerun, e.g. the corrected answer (server clips at 8 KiB)
+      --comment-file string   read the reviewer steering from a file, or - for stdin (server clips at 8 KiB)
+      --tier string           model tier for the retry: standard|pro|max (default: keep the tier with --comment, else escalate one tier)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

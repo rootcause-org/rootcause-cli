@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -365,18 +366,32 @@ func feedbackPatchSummary(processed, unprocessed, noteSet bool) string {
 	}
 }
 
-// runRetryCmd: `rc run retry <id> [--tier standard|pro|max]` over POST /api/v1/runs/{id}/retry. Prints
-// the NEW run id (the server re-enqueues the run, optionally at a different tier).
+// runRetryCmd: `rc run retry <id> [--tier …] [--comment …|--comment-file …]` over
+// POST /api/v1/runs/{id}/retry. Prints the NEW run id (the server re-enqueues the run). A `comment` is
+// reviewer steering for the rerun (e.g. the corrected answer); the server keeps the original tier when
+// one is given, and otherwise escalates a finished run one tier.
 func runRetryCmd(e *env) *cobra.Command {
-	var tier string
+	var tier, comment, commentFile string
 	cmd := &cobra.Command{
-		Use:   "retry <run-id> [--tier standard|pro|max]",
-		Short: "Re-run a run (optionally at a different tier); prints the new run id",
+		Use:   "retry <run-id> [--tier standard|pro|max] [--comment <text>|--comment-file <path>]",
+		Short: "Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cc *cobra.Command, args []string) error {
 			body := map[string]any{}
 			if tier != "" {
 				body["tier"] = tier
+			}
+			if commentFile != "" {
+				data, err := readCLIFile(e.in, commentFile)
+				if err != nil {
+					return fmt.Errorf("read --comment-file %s: %w", commentFile, err)
+				}
+				comment = string(data)
+			}
+			if comment = strings.TrimSpace(comment); comment != "" {
+				body["comment"] = comment
+			} else if commentFile != "" || cc.Flags().Changed("comment") {
+				return fmt.Errorf("empty retry comment")
 			}
 			c, err := e.newClient()
 			if err != nil {
@@ -398,7 +413,10 @@ func runRetryCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tier, "tier", "", "model tier for the retry: standard|pro|max")
+	cmd.Flags().StringVar(&tier, "tier", "", "model tier for the retry: standard|pro|max (default: keep the tier with --comment, else escalate one tier)")
+	cmd.Flags().StringVar(&comment, "comment", "", "reviewer steering for the rerun, e.g. the corrected answer (server clips at 8 KiB)")
+	cmd.Flags().StringVar(&commentFile, "comment-file", "", "read the reviewer steering from a file, or - for stdin (server clips at 8 KiB)")
+	cmd.MarkFlagsMutuallyExclusive("comment", "comment-file")
 	return cmd
 }
 

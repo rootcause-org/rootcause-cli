@@ -247,6 +247,9 @@ func TestTableLine(t *testing.T) {
 		{"RunFeedbackProcessedTable", []string{"run", "feedback", "11111111-1111-1111-1111-111111111111", "--processed", "--resolution-note", "fixed the brain skill"}, "feedback marked processed with a resolution note for run 11111111-1111-1111-1111-111111111111\n"},
 		// RunRetryPrintsNewID: retry prints the NEW run id on stdout (the table path), capturable for chaining.
 		{"RunRetryPrintsNewID", []string{"run", "retry", "11111111-1111-1111-1111-111111111111", "--tier", "pro"}, "99999999-9999-9999-9999-999999999999\n"},
+		// RunRetryWithComment: reviewer steering rides the retry POST as "comment"; no --tier, so the
+		// server keeps the original tier.
+		{"RunRetryWithComment", []string{"run", "retry", "11111111-1111-1111-1111-111111111111", "--comment", "  the correct answer is 42\n"}, "99999999-9999-9999-9999-999999999999\n"},
 		{"RunProcessThreadPrintsStatusURL", []string{"run", "process-thread", "thread-1"}, "/api/v1/projects/alpha/inbox/threads/thread-1\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -292,6 +295,10 @@ func TestRejectsBeforeRequest(t *testing.T) {
 		{"TenantSettingsGetMissingTenant", []string{"project", "tenant", "settings", "get"}, "arg"},
 		// The console principal pair: half a principal is a scoping mistake (silent under- or over-scope),
 		// so each console verb refuses before the request instead of binding a partial identity.
+		// The steering text has one source; accepting both would silently pick one.
+		{"RunRetryRejectsCommentAndCommentFile", []string{"run", "retry", "11111111-1111-1111-1111-111111111111", "--comment", "hi", "--comment-file", "-"}, "none of the others can be"},
+		// Whitespace-only steering would reach the server as an empty comment; refuse instead.
+		{"RunRetryRejectsEmptyComment", []string{"run", "retry", "11111111-1111-1111-1111-111111111111", "--comment", "   "}, "empty retry comment"},
 		{"ConsoleBashRunRejectsHalfPrincipal", []string{"dev", "console", "bash", "run", "--principal-kind", "kampadmin_admin", "echo hi"}, "must be provided together"},
 		{"ConsoleDBQueryRejectsHalfPrincipal", []string{"dev", "console", "database", "query", "prod", "select 1", "--principal-id", "usr_1"}, "must be provided together"},
 		{"ConsoleDBSchemaRejectsHalfPrincipal", []string{"dev", "console", "database", "schema", "app", "--principal-kind", "kampadmin_admin"}, "must be provided together"},

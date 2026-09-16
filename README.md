@@ -569,7 +569,7 @@ help using `go test ./internal/cli -update`.
 | `rc run guards` | Show every security-checkpoint verdict for one run |
 | `rc run list` | List recent runs (filterable) |
 | `rc run process-thread` | Process a triage-skipped or security-blocked inbox thread |
-| `rc run retry` | Re-run a run (optionally at a different tier); prints the new run id |
+| `rc run retry` | Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier |
 | `rc run session` | Dump a shared chat session (transcript + its runs) to one markdown file |
 | `rc run show` | Show one run |
 | `rc run thread` | Trace one run, provider/local thread, or session through pipeline and placement |
