@@ -63,7 +63,7 @@ func newAskCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			principal, err := askPrincipal(f)
+			principal, err := principalFromFlags(f.principalKind, f.principalID, f.assertedBy, f.assurance)
 			if err != nil {
 				return err
 			}
@@ -178,16 +178,17 @@ func newAskCmd(e *env) *cobra.Command {
 	return cmd
 }
 
-// askPrincipal validates the principal flag group and builds the optional principal. --principal-kind
+// principalFromFlags validates the principal flag group and builds the optional principal. --principal-kind
 // and --principal-id are a pair (both or neither — a lone half is a scoping mistake, so error rather
 // than silently under- or over-scope). --asserted-by/--assurance are refinements meaningless without
 // the pair. Returns nil when no principal flags were given (the dormant default). asserted_by/assurance
-// stay omitempty so the server applies its own defaults.
-func askPrincipal(f askFlags) (*client.Principal, error) {
-	kind := strings.TrimSpace(f.principalKind)
-	id := strings.TrimSpace(f.principalID)
-	assertedBy := strings.TrimSpace(f.assertedBy)
-	assurance := strings.TrimSpace(f.assurance)
+// stay omitempty so the server applies its own defaults. Shared by `rc ask` and the `rc dev console`
+// verbs (which pass no asserted_by/assurance), so a principal is validated identically everywhere.
+func principalFromFlags(principalKind, principalID, assertedByFlag, assuranceFlag string) (*client.Principal, error) {
+	kind := strings.TrimSpace(principalKind)
+	id := strings.TrimSpace(principalID)
+	assertedBy := strings.TrimSpace(assertedByFlag)
+	assurance := strings.TrimSpace(assuranceFlag)
 
 	if (kind == "") != (id == "") {
 		return nil, fmt.Errorf("--principal-kind and --principal-id must be provided together (both or neither)")

@@ -64,17 +64,21 @@ func newConsoleDatabaseCmd(e *env) *cobra.Command {
 }
 
 func newDBSchemaCmd(e *env) *cobra.Command {
-	var table string
+	var table, principalKind, principalID string
 	cmd := &cobra.Command{
 		Use:   "schema <db>",
 		Short: "Fetch database schema, optionally one table",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			principal, err := principalFromFlags(principalKind, principalID, "", "")
+			if err != nil {
+				return err
+			}
 			c, err := e.newClient()
 			if err != nil {
 				return err
 			}
-			resp, raw, err := c.DBSchema(e.ctx(), args[0], table, e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.DBSchema(e.ctx(), args[0], table, e.scopeProject(), e.scopeTenant(), principal)
 			if err != nil {
 				return err
 			}
@@ -86,6 +90,7 @@ func newDBSchemaCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&table, "table", "", "limit schema to one table name")
+	addConsolePrincipalFlags(cmd, &principalKind, &principalID)
 	return cmd
 }
 
@@ -99,6 +104,7 @@ func newDBQueryCmd(e *env) *cobra.Command {
 	var format string
 	var out string
 	var paramValues []string
+	var principalKind, principalID string
 	cmd := &cobra.Command{
 		Use:   "query <db> <sql|->",
 		Short: "Run a guarded production database query",
@@ -116,6 +122,10 @@ func newDBQueryCmd(e *env) *cobra.Command {
 			if limit > maxAllPageRows {
 				return fmt.Errorf("--limit cannot exceed %d", maxAllPageRows)
 			}
+			principal, err := principalFromFlags(principalKind, principalID, "", "")
+			if err != nil {
+				return err
+			}
 			sql, err := consoleInput(e, args[1])
 			if err != nil {
 				return err
@@ -128,7 +138,7 @@ func newDBQueryCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			req := client.DBQueryRequest{SQL: sql, Params: params, Limit: limit, All: all, Write: write, DryRun: dryRun}
+			req := client.DBQueryRequest{SQL: sql, Params: params, Limit: limit, All: all, Write: write, DryRun: dryRun, Principal: principal}
 			if all {
 				if format == "" {
 					format = "json"
@@ -195,6 +205,7 @@ func newDBQueryCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&format, "format", "", "query data format: json|ndjson|csv|tsv")
 	cmd.Flags().StringVar(&out, "out", "", "write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact")
 	cmd.Flags().StringArrayVar(&paramValues, "param", nil, "bind @k in SQL as text using k=v (repeatable)")
+	addConsolePrincipalFlags(cmd, &principalKind, &principalID)
 	return cmd
 }
 
@@ -281,11 +292,16 @@ func newBashCmd(e *env) *cobra.Command {
 	})
 	var timeout int
 	var out string
+	var principalKind, principalID string
 	runCmd := &cobra.Command{
 		Use:   "run [--timeout N] <command|->",
 		Short: "Run one command in the guarded workspace console",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			principal, err := principalFromFlags(principalKind, principalID, "", "")
+			if err != nil {
+				return err
+			}
 			command, err := consoleInput(e, args[0])
 			if err != nil {
 				return err
@@ -294,7 +310,7 @@ func newBashCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			resp, raw, err := c.BashRun(e.ctx(), client.BashRunRequest{Command: command, TimeoutS: timeout}, e.scopeProject(), e.scopeTenant())
+			resp, raw, err := c.BashRun(e.ctx(), client.BashRunRequest{Command: command, TimeoutS: timeout, Principal: principal}, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -343,8 +359,18 @@ func newBashCmd(e *env) *cobra.Command {
 	}
 	runCmd.Flags().IntVar(&timeout, "timeout", 0, "per-command timeout in seconds")
 	runCmd.Flags().StringVar(&out, "out", "", "write command data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact")
+	addConsolePrincipalFlags(runCmd, &principalKind, &principalID)
 	cmd.AddCommand(runCmd)
 	return cmd
+}
+
+// addConsolePrincipalFlags registers the console's principal pair. The console defaults to the login's own
+// (unscoped) view; binding a principal makes the primitive see exactly what that end user's run would see —
+// scoped rows, and tables the identity may not read reported back as hidden_tables. Validated by
+// principalFromFlags, the same pair rule as `rc ask` (asserted_by/assurance are run-only refinements).
+func addConsolePrincipalFlags(cmd *cobra.Command, kind, id *string) {
+	cmd.Flags().StringVar(kind, "principal-kind", "", "bind the call to a principal kind (e.g. kampadmin_admin); requires --principal-id")
+	cmd.Flags().StringVar(id, "principal-id", "", "principal external id (the asserted identity); requires --principal-kind")
 }
 
 func newConsoleFileCmd(e *env) *cobra.Command {

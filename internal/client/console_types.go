@@ -60,6 +60,10 @@ type DBSchemaResponse struct {
 	Tenant  string          `json:"tenant,omitempty"`
 	DB      string          `json:"db"`
 	Tables  []DBSchemaTable `json:"tables"`
+	// Principal echoes the identity the console bound this call to, and HiddenTables names the tables that
+	// identity may not see. Both stay absent on an unbound call and on hosts that predate the feature.
+	Principal    *Principal `json:"principal,omitempty"`
+	HiddenTables []string   `json:"hidden_tables,omitempty"`
 }
 
 type DBSchemaTable struct {
@@ -84,6 +88,10 @@ type DBQueryRequest struct {
 	Write bool `json:"write,omitempty"`
 	// DryRun preserves the write plane and authorization but rolls the transaction back.
 	DryRun bool `json:"dry_run,omitempty"`
+	// Principal binds the query to an end-user identity so the server applies that principal's row scope.
+	// Pointer + omitempty: an absent principal must not appear on the wire at all, so an older host keeps
+	// seeing exactly the body it already accepts.
+	Principal *Principal `json:"principal,omitempty"`
 }
 
 type DBQueryResponse struct {
@@ -105,6 +113,9 @@ type DBQueryResponse struct {
 	Limit        int    `json:"limit,omitempty"`
 	LimitClamped bool   `json:"limit_clamped,omitempty"`
 	DurationMs   int64  `json:"duration_ms"`
+	// Principal echoes the bound identity; HiddenTables names the tables that identity cannot read.
+	Principal    *Principal `json:"principal,omitempty"`
+	HiddenTables []string   `json:"hidden_tables,omitempty"`
 }
 
 type DBQueryStreamHeader struct {
@@ -141,6 +152,9 @@ type BashListResponse struct {
 type BashRunRequest struct {
 	Command  string `json:"command"`
 	TimeoutS int    `json:"timeout_s,omitempty"`
+	// Principal binds the command to an end-user identity (the workspace gets that principal's scoped
+	// DSNs). Pointer + omitempty so an unbound run sends exactly the legacy body an older host expects.
+	Principal *Principal `json:"principal,omitempty"`
 }
 
 type BashRunResponse struct {
@@ -157,4 +171,7 @@ type BashRunResponse struct {
 	TimedOut        bool   `json:"timed_out"`
 	DurationMs      int64  `json:"duration_ms"`
 	EgressBlocked   bool   `json:"egress_blocked"`
+
+	Principal    *Principal `json:"principal,omitempty"`
+	HiddenTables []string   `json:"hidden_tables,omitempty"`
 }

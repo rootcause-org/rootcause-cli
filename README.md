@@ -675,6 +675,21 @@ printf 'SELECT id, amount FROM invoices WHERE state = @state' |
   jq '.rows[]'
 ```
 
+#### Binding a console call to a principal
+
+By default a console primitive sees what your login sees. `--principal-kind <kind> --principal-id
+<external-id>` (both or neither, on `bash run`, `database query` and `database schema`) binds the call to
+an end user instead, so the workspace/query sees exactly the rows a real run for that identity would see.
+The response echoes the bound `principal` and lists `hidden_tables` — tables that identity may not read,
+which is why an empty result can mean "hidden", not "absent". Both are printed above the result and ride
+through `-o json`. Older hosts that do not know the field are unaffected: an unbound call sends no
+`principal` at all.
+
+```bash
+rc dev console database query prod 'select id from invoices' \
+  --principal-kind kampadmin_admin --principal-id 3f1c…-…-…
+```
+
 SQL and bash commands accept a literal argument, `-` for stdin, or `@file`. Console SQL uses `@key`
 placeholders; repeated `--param k=v` values are bound server-side as text and never interpolated. The
 brain runtime's in-process `lib.db.query` API instead uses its driver's `%s` placeholders. `--limit >500`

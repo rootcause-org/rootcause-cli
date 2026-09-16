@@ -290,6 +290,11 @@ func TestRejectsBeforeRequest(t *testing.T) {
 		// The get provider is a PATH segment: an unknown/traversing value never leaves the client.
 		{"KnowledgeArticleGetRejectsProvider", []string{"project", "knowledge", "article", "get", "--provider", "../agent_internal", "--id", "19"}, "invalid --provider"},
 		{"TenantSettingsGetMissingTenant", []string{"project", "tenant", "settings", "get"}, "arg"},
+		// The console principal pair: half a principal is a scoping mistake (silent under- or over-scope),
+		// so each console verb refuses before the request instead of binding a partial identity.
+		{"ConsoleBashRunRejectsHalfPrincipal", []string{"dev", "console", "bash", "run", "--principal-kind", "kampadmin_admin", "echo hi"}, "must be provided together"},
+		{"ConsoleDBQueryRejectsHalfPrincipal", []string{"dev", "console", "database", "query", "prod", "select 1", "--principal-id", "usr_1"}, "must be provided together"},
+		{"ConsoleDBSchemaRejectsHalfPrincipal", []string{"dev", "console", "database", "schema", "app", "--principal-kind", "kampadmin_admin"}, "must be provided together"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv := stubServer(t)

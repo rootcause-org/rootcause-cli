@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -325,5 +326,99 @@ func TestStableExitClassification(t *testing.T) {
 		if got := exitCodeFor(tc.err); got != tc.want {
 			t.Errorf("exitCodeFor(%v) = %d, want %d", tc.err, got, tc.want)
 		}
+	}
+}
+
+// TestConsolePrincipalWireContract pins both halves of the principal binding: the request must carry
+// {kind, external_id} when the pair is given and must OMIT the key entirely when it is not (an older
+// host rejects an unknown body field, so a dormant `principal: null` would break every unbound call),
+// and the echoed principal + hidden_tables must survive into `-o json`.
+func TestConsolePrincipalWireContract(t *testing.T) {
+	var bashBodies, queryBodies []string
+	var schemaQueries []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/v1/console/bash/run", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		bashBodies = append(bashBodies, string(body))
+		_, _ = w.Write([]byte(`{"project":"alpha","run_id":"abcdef12-3456","exit_code":0,"stdout":"ok\n",` +
+			`"principal":{"kind":"kampadmin_admin","external_id":"usr-1"},"hidden_tables":["public.payouts"]}`))
+	})
+	mux.HandleFunc("POST /api/v1/console/db/{db}/query", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		queryBodies = append(queryBodies, string(body))
+		_, _ = w.Write([]byte(`{"project":"alpha","db":"prod","run_id":"abcdef12-3456","columns":["id"],"rows":[["1"]],` +
+			`"row_count":1,"truncated":false,"principal":{"kind":"kampadmin_admin","external_id":"usr-1"},` +
+			`"hidden_tables":["public.payouts"]}`))
+	})
+	mux.HandleFunc("GET /api/v1/console/db/{db}/schema", func(w http.ResponseWriter, r *http.Request) {
+		schemaQueries = append(schemaQueries, r.URL.RawQuery)
+		_, _ = w.Write([]byte(`{"project":"alpha","db":"prod","tables":[],"principal":{"kind":"kampadmin_admin","external_id":"usr-1"},"hidden_tables":["public.payouts"]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, out, _ := newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "console", "bash", "run", "echo hi", "--principal-kind", "kampadmin_admin", "--principal-id", "usr-1"); err != nil {
+		t.Fatalf("bash run bound: %v", err)
+	}
+	for _, want := range []string{`"kampadmin_admin"`, `"usr-1"`, `"hidden_tables"`, `"public.payouts"`} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("bash run -o json missing %s:\n%s", want, out.String())
+		}
+	}
+	e, _, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "console", "bash", "run", "echo hi"); err != nil {
+		t.Fatalf("bash run unbound: %v", err)
+	}
+
+	e, out, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "console", "database", "query", "prod", "select 1", "--principal-kind", "kampadmin_admin", "--principal-id", "usr-1"); err != nil {
+		t.Fatalf("query bound: %v", err)
+	}
+	for _, want := range []string{`"kampadmin_admin"`, `"hidden_tables"`, `"public.payouts"`} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("query -o json missing %s:\n%s", want, out.String())
+		}
+	}
+	e, _, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "console", "database", "query", "prod", "select 1"); err != nil {
+		t.Fatalf("query unbound: %v", err)
+	}
+
+	e, out, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "console", "database", "schema", "prod", "--principal-kind", "kampadmin_admin", "--principal-id", "usr-1"); err != nil {
+		t.Fatalf("schema bound: %v", err)
+	}
+	if !strings.Contains(out.String(), `"hidden_tables"`) || !strings.Contains(out.String(), `"public.payouts"`) {
+		t.Errorf("schema -o json dropped hidden_tables:\n%s", out.String())
+	}
+	e, _, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "dev", "console", "database", "schema", "prod"); err != nil {
+		t.Fatalf("schema unbound: %v", err)
+	}
+
+	if len(bashBodies) != 2 || len(queryBodies) != 2 || len(schemaQueries) != 2 {
+		t.Fatalf("captured %d bash, %d query, %d schema calls", len(bashBodies), len(queryBodies), len(schemaQueries))
+	}
+	for _, c := range []struct {
+		name  string
+		bound string
+		plain string
+	}{
+		{"bash run", bashBodies[0], bashBodies[1]},
+		{"db query", queryBodies[0], queryBodies[1]},
+	} {
+		if !strings.Contains(c.bound, `"principal":{"kind":"kampadmin_admin","external_id":"usr-1"}`) {
+			t.Errorf("%s bound body = %s", c.name, c.bound)
+		}
+		if strings.Contains(c.plain, "principal") {
+			t.Errorf("%s unbound body must omit principal entirely, got %s", c.name, c.plain)
+		}
+	}
+	if !strings.Contains(schemaQueries[0], "principal_kind=kampadmin_admin") || !strings.Contains(schemaQueries[0], "principal_id=usr-1") {
+		t.Errorf("schema bound query = %q", schemaQueries[0])
+	}
+	if strings.Contains(schemaQueries[1], "principal") {
+		t.Errorf("schema unbound query must omit principal params, got %q", schemaQueries[1])
 	}
 }

@@ -31,7 +31,9 @@ func (c *Client) DBList(ctx context.Context, project, tenant string) (*DBListRes
 	return fetchBoth[DBListResponse](ctx, c, http.MethodGet, "/api/v1/console/db"+consoleScope(project, tenant), nil)
 }
 
-func (c *Client) DBSchema(ctx context.Context, db, table, project, tenant string) (*DBSchemaResponse, json.RawMessage, error) {
+// DBSchema fetches the schema. The optional principal travels as query params (a GET has no body); when
+// bound, the response carries the echoed principal plus the tables that identity may not see.
+func (c *Client) DBSchema(ctx context.Context, db, table, project, tenant string, principal *Principal) (*DBSchemaResponse, json.RawMessage, error) {
 	q := url.Values{}
 	if project != "" {
 		q.Set("project", project)
@@ -41,6 +43,10 @@ func (c *Client) DBSchema(ctx context.Context, db, table, project, tenant string
 	}
 	if table != "" {
 		q.Set("table", table)
+	}
+	if principal != nil {
+		q.Set("principal_kind", principal.Kind)
+		q.Set("principal_id", principal.ExternalID)
 	}
 	path := "/api/v1/console/db/" + url.PathEscape(db) + "/schema"
 	if enc := q.Encode(); enc != "" {

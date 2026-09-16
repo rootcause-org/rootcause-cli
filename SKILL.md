@@ -188,6 +188,12 @@ redirect traffic. `.rootcause/local.toml` overlays `tenant` only.
   promote's dry run over the same server-side canary — it exits non-zero on a refusing verdict, but the
   server enforces the check on `promote` too, so preflight is for *seeing* the answer early, never what
   makes promotion safe. `consumers` (not `checked`) is the authoritative channel-use count.
+- **`rc dev console` principal binding** (`--principal-kind`/`--principal-id` on `bash run`,
+  `database query`, `database schema`) reuses `principalFromFlags` from [ask.go](internal/cli/ask.go): the
+  pair is all-or-nothing, because half a principal is a silent under- or over-scope. It is **omitempty on
+  the wire** — an unbound call must send the exact legacy body/query an older host accepts. When the server
+  echoes a principal it also returns `hidden_tables`; both are rendered above the result, since an empty
+  answer that is really "hidden from this identity" must never read as "no such data".
 - **`rc dev console database query --write --dry-run`** runs with **identical authorization** to a commit
   and rolls back — a safety net, not a lesser privilege. Rollback doesn't undo sequence bumps or volatile
   side effects, and rehearsal + commit are two executions, so re-check the row count.

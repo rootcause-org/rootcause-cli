@@ -49,6 +49,7 @@ func DBList(w io.Writer, r *client.DBListResponse) {
 }
 
 func DBSchema(w io.Writer, r *client.DBSchemaResponse) {
+	consolePrincipalHeader(w, r.Principal, r.HiddenTables)
 	if len(r.Tables) == 0 {
 		_, _ = fmt.Fprintln(w, "(no tables)")
 		return
@@ -68,6 +69,7 @@ func DBSchema(w io.Writer, r *client.DBSchemaResponse) {
 }
 
 func DBQuery(w io.Writer, r *client.DBQueryResponse) {
+	consolePrincipalHeader(w, r.Principal, r.HiddenTables)
 	if r.DryRun {
 		_, _ = fmt.Fprintln(w, "DRY RUN — rolled back, nothing committed")
 	}
@@ -143,6 +145,23 @@ func ScopePreview(w io.Writer, r *client.ScopePreviewReport) {
 	}
 }
 
+// consolePrincipalHeader prints the bound identity and the tables that identity cannot see, above the
+// result. Silent when the server echoed no principal (unbound call, or a host without the feature) —
+// but a bound call always says so, because the same query answers differently per principal, and an
+// empty result explained by a hidden table must never read as "no such data".
+func consolePrincipalHeader(w io.Writer, p *client.Principal, hidden []string) {
+	if p == nil && len(hidden) == 0 {
+		return
+	}
+	if p != nil {
+		_, _ = fmt.Fprintf(w, "Principal: %s=%s\n", p.Kind, p.ExternalID)
+	}
+	if len(hidden) > 0 {
+		_, _ = fmt.Fprintf(w, "Hidden:    %s\n", strings.Join(hidden, ", "))
+	}
+	_, _ = fmt.Fprintln(w)
+}
+
 func BashList(w io.Writer, r *client.BashListResponse) {
 	if r.Brain.Ref != "" || r.Brain.State != "" {
 		BrainStatus(w, &client.BrainStatusResponse{Project: r.Project, Status: r.Brain})
@@ -173,6 +192,7 @@ type SpillArtifact struct {
 }
 
 func BashRun(w io.Writer, r *client.BashRunResponse, artifacts map[string]SpillArtifact) {
+	consolePrincipalHeader(w, r.Principal, r.HiddenTables)
 	if r.Stdout != "" {
 		renderBashStream(w, r.Stdout, artifacts["stdout"])
 	}

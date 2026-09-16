@@ -3537,7 +3537,9 @@ Usage:
   rc dev console database schema <db> [flags]
 
 Flags:
-      --table string   limit schema to one table name
+      --principal-id string     principal external id (the asserted identity); requires --principal-kind
+      --principal-kind string   bind the call to a principal kind (e.g. kampadmin_admin); requires --principal-id
+      --table string            limit schema to one table name
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3556,14 +3558,16 @@ Usage:
   rc dev console database query <db> <sql|-> [flags]
 
 Flags:
-      --all                 stream every row from one repeatable-read database snapshot
-      --allow-truncated     accept an inline result that the server truncated
-      --dry-run             execute on the write plane, report rows affected + RETURNING rows, then ROLL BACK; requires --write
-      --format string       query data format: json|ndjson|csv|tsv
-      --limit int           max inline rows, or --all stream batch size (defaults: 500 inline, 5000 all; max 5000)
-      --out string          write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact
-      --param stringArray   bind @k in SQL as text using k=v (repeatable)
-      --write               execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write
+      --all                     stream every row from one repeatable-read database snapshot
+      --allow-truncated         accept an inline result that the server truncated
+      --dry-run                 execute on the write plane, report rows affected + RETURNING rows, then ROLL BACK; requires --write
+      --format string           query data format: json|ndjson|csv|tsv
+      --limit int               max inline rows, or --all stream batch size (defaults: 500 inline, 5000 all; max 5000)
+      --out string              write data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact
+      --param stringArray       bind @k in SQL as text using k=v (repeatable)
+      --principal-id string     principal external id (the asserted identity); requires --principal-kind
+      --principal-kind string   bind the call to a principal kind (e.g. kampadmin_admin); requires --principal-id
+      --write                   execute against the project's sealed write-plane DSN (<X>_WRITE_DSN in .env.action) and COMMIT; requires scope console:db:write
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -3621,8 +3625,10 @@ Usage:
   rc dev console bash run [--timeout N] <command|-> [flags]
 
 Flags:
-      --out string    write command data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact
-      --timeout int   per-command timeout in seconds
+      --out string              write command data to PATH; - writes stdout; auto writes a unique .rootcause/output artifact
+      --principal-id string     principal external id (the asserted identity); requires --principal-kind
+      --principal-kind string   bind the call to a principal kind (e.g. kampadmin_admin); requires --principal-id
+      --timeout int             per-command timeout in seconds
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
