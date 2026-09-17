@@ -11,6 +11,25 @@ and analysis logic (digests, clustering, health roll-ups, diagnosis) is allowed 
 Every such command MUST still expose the raw rows via `-o json`, so a consumer can skip our rendering and
 do their own thing. No DB access in the CLI — data comes only through `/api/v1`.
 
+## Domain taxonomy
+
+Rootcause (customer-facing **ReplyPen**) owns the shared
+[taxonomy](https://github.com/rootcause-org/rootcause/blob/main/AGENTS.md#taxonomy):
+project, run, session, thread, principal, brain, mirror, action, and Embassy keep those meanings here.
+CLI-specific distinctions:
+
+| Term | Meaning / distinction |
+|---|---|
+| **Profile** | Local token-store key selecting credentials; `--project` selects server-side scope, not a profile. See [scope model](SKILL.md#scope-model-fail-closed). |
+| **Tenant** | Scope below a project; ambient login/brain context can select it, but tenant-record commands use an explicit positional slug. See [scope model](SKILL.md#scope-model-fail-closed). |
+| **Scope selector** (`--scope`) | Chooses project or tenant request routing; never grants authorization beyond the token. See [scope contract](internal/cli/scope.go). |
+| **Brain marker** | Committed `.rootcause.toml` binding a checkout to a project; `.rootcause/local.toml` supplies a local tenant override. Neither stores credentials. See [config precedence](SKILL.md#config-precedence). |
+| **Brain channel** | Managed project-brain ref (`stable` / `edge`) promoted to an exact commit; distinct from an inbox/chat channel. Tenant overlays use `main`, without channels. See [brain commands](internal/cli/brain.go). |
+| **Fleet** | Aggregate views over runs/actions; `--all` fans out across authorized projects, while an ordinary fleet command can remain project-scoped. See [fleet commands](internal/cli/fleet.go). |
+| **Learning / reviewed** | Separate run filters: learning selects training signal and excludes held-out threads; reviewed selects human-scored runs, including held-out evaluations. See [run ladder](SKILL.md#the-ladder--index--one-run--detail). |
+| **Share token** | Credential carried by a run/chat share link; bypasses profile login and belongs to the link's origin. See [share path](internal/cli/share.go). |
+| **Output spill / manifest** | Large payload saved locally; stdout identifies the artifact and may preview it. JSON mode can therefore return a manifest rather than inline rows. See [output contract](docs/specs/progressive-output-disclosure.md). |
+
 ## Where to read (pick by task)
 - **Running/scripting `rc`, install, a command's flags, releasing** → **[README.md](README.md)** (the user manual; command inventory is generated from Cobra).
 - **Changing code** — a command, the HTTP client, OAuth/token/config resolution, render, or output spill → **[SKILL.md](SKILL.md)** first (architecture & intent: the API ladder, the four thin layers, config/auth precedence, the full "adding a command" recipe).
