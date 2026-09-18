@@ -2892,7 +2892,8 @@ Available Commands:
   set         Change values (sparse, validate-then-apply server-side)
   secret      Manage the dedicated chat signing secret
   token       Mint a five-minute server chat token
-  send        Send one chat turn and print its SSE frames and run ID
+  send        Send one chat turn and print its SSE frames and session + run IDs
+  session     Print a session's persisted transcript as the widget would reopen it
   doctor      Diagnose embedded-chat configuration and recent rejects
   brief       Print the secret-free chat implementation brief
 
@@ -3017,7 +3018,7 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc project chat send --help
-Send one chat turn and print its SSE frames and run ID
+Send one chat turn and print its SSE frames and session + run IDs
 
 Usage:
   rc project chat send [message] [flags]
@@ -3027,6 +3028,26 @@ Flags:
       --origin string        embedding-page origin (default: token origin claim)
       --session string       existing chat session ID (opens a new session when omitted)
       --token string         embed chat token (default: RC_CHAT_TOKEN)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project chat session --help
+Print a session's persisted transcript as the widget would reopen it
+
+Usage:
+  rc project chat session <id> [flags]
+
+Flags:
+      --origin string   embedding-page origin (default: token origin claim)
+      --token string    embed chat token (default: RC_CHAT_TOKEN)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

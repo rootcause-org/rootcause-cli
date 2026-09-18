@@ -21,7 +21,7 @@ import (
 
 func newChatCmd(e *env, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "chat", Short: "Configure, diagnose, and smoke-test embedded chat"}
-	cmd.AddCommand(newBagGetCmd(e, "/api/v1/chat"), newBagSetCmd(e, "/api/v1/chat"), chatSecretCmd(e), chatTokenCmd(e), chatSendCmd(e), chatDoctorCmd(e, version), chatBriefCmd(e))
+	cmd.AddCommand(newBagGetCmd(e, "/api/v1/chat"), newBagSetCmd(e, "/api/v1/chat"), chatSecretCmd(e), chatTokenCmd(e), chatSendCmd(e), chatSessionCmd(e), chatDoctorCmd(e, version), chatBriefCmd(e))
 	return cmd
 }
 
@@ -105,25 +105,10 @@ func chatTokenCmd(e *env) *cobra.Command {
 func chatSendCmd(e *env) *cobra.Command {
 	var token, origin, sessionID string
 	var answerFlags []string
-	cmd := &cobra.Command{Use: "send [message]", Short: "Send one chat turn and print its SSE frames and run ID", Args: cobra.MaximumNArgs(1), RunE: func(_ *cobra.Command, args []string) error {
-		if token == "" {
-			token = os.Getenv("RC_CHAT_TOKEN")
-		}
-		if token == "" {
-			return fmt.Errorf("--token or RC_CHAT_TOKEN is required")
-		}
-		if origin == "" {
-			origin = jwtStringClaim(token, "origin")
-		}
-		if origin == "" {
-			return fmt.Errorf("--origin is required when the token origin cannot be decoded")
-		}
-		project := e.scopeProject()
-		if project == "" {
-			project = jwtStringClaim(token, "iss")
-		}
-		if project == "" {
-			return fmt.Errorf("--project is required when the token issuer cannot be decoded")
+	cmd := &cobra.Command{Use: "send [message]", Short: "Send one chat turn and print its SSE frames and session + run IDs", Args: cobra.MaximumNArgs(1), RunE: func(_ *cobra.Command, args []string) error {
+		token, origin, project, err := chatEmbedScope(e, token, origin)
+		if err != nil {
+			return err
 		}
 		c, err := e.newClient()
 		if err != nil {
@@ -160,6 +145,9 @@ func chatSendCmd(e *env) *cobra.Command {
 			return fmt.Errorf("message must not be empty")
 		}
 		runID, sendErr := c.ChatSend(e.ctx(), project, origin, token, sessionID, randomMessageID(), parts, e.out)
+		// The session id is the handle for every follow-up (`--session`, `rc project chat session`, the
+		// card decision routes); the frames never carry it, so print it beside the run id.
+		_, _ = fmt.Fprintf(e.out, "session_id: %s\n", sessionID)
 		if runID != "" {
 			_, _ = fmt.Fprintf(e.out, "run_id: %s\n", runID)
 		}
@@ -169,6 +157,57 @@ func chatSendCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&origin, "origin", "", "embedding-page origin (default: token origin claim)")
 	cmd.Flags().StringVar(&sessionID, "session", "", "existing chat session ID (opens a new session when omitted)")
 	cmd.Flags().StringArrayVar(&answerFlags, "answer", nil, "answer the latest data question as key=value (repeat for multiple answers)")
+	return cmd
+}
+
+// chatEmbedScope resolves the embed-plane triple every chat verb needs: the bearer (flag or
+// RC_CHAT_TOKEN), the exact origin and the project, the latter two decoded from the token's own claims
+// when not given — the token was minted for exactly one origin and one project.
+func chatEmbedScope(e *env, token, origin string) (string, string, string, error) {
+	if token == "" {
+		token = os.Getenv("RC_CHAT_TOKEN")
+	}
+	if token == "" {
+		return "", "", "", fmt.Errorf("--token or RC_CHAT_TOKEN is required")
+	}
+	if origin == "" {
+		origin = jwtStringClaim(token, "origin")
+	}
+	if origin == "" {
+		return "", "", "", fmt.Errorf("--origin is required when the token origin cannot be decoded")
+	}
+	project := e.scopeProject()
+	if project == "" {
+		project = jwtStringClaim(token, "iss")
+	}
+	if project == "" {
+		return "", "", "", fmt.Errorf("--project is required when the token issuer cannot be decoded")
+	}
+	return token, origin, project, nil
+}
+
+// chatSessionCmd re-reads a session the way the widget does on reopen: the persisted transcript with
+// every card hydrated to its current lifecycle state. Distinct from the live `send` stream — this is
+// the read-after-park path (PII resolved from the sealed session vault, not the live container).
+func chatSessionCmd(e *env) *cobra.Command {
+	var token, origin string
+	cmd := &cobra.Command{Use: "session <id>", Short: "Print a session's persisted transcript as the widget would reopen it", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error {
+		token, origin, project, err := chatEmbedScope(e, token, origin)
+		if err != nil {
+			return err
+		}
+		c, err := e.newClient()
+		if err != nil {
+			return err
+		}
+		raw, err := c.ChatSession(e.ctx(), project, origin, token, strings.TrimSpace(args[0]))
+		if err != nil {
+			return err
+		}
+		return render.JSON(e.out, raw)
+	}}
+	cmd.Flags().StringVar(&token, "token", "", "embed chat token (default: RC_CHAT_TOKEN)")
+	cmd.Flags().StringVar(&origin, "origin", "", "embedding-page origin (default: token origin claim)")
 	return cmd
 }
 

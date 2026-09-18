@@ -445,7 +445,8 @@ help using `go test ./internal/cli -update`.
 | `rc project chat secret reveal` | Reveal the chat signing secret (printed once) |
 | `rc project chat secret rotate` | Rotate the chat signing secret (printed once) |
 | `rc project chat secret` | Manage the dedicated chat signing secret |
-| `rc project chat send` | Send one chat turn and print its SSE frames and run ID |
+| `rc project chat send` | Send one chat turn and print its SSE frames and session + run IDs |
+| `rc project chat session` | Print a session's persisted transcript as the widget would reopen it |
 | `rc project chat set` | Change values (sparse, validate-then-apply server-side) |
 | `rc project chat token` | Mint a five-minute server chat token |
 | `rc project chat` | Configure, diagnose, and smoke-test embedded chat |

@@ -197,8 +197,29 @@ func TestChatSendPrintsSSE(t *testing.T) {
 	if !strings.Contains(out.String(), "[DONE]") {
 		t.Fatalf("output = %q", out.String())
 	}
-	if !strings.HasSuffix(out.String(), "run_id: run-123\n") {
-		t.Fatalf("missing final run ID: %q", out.String())
+	if !strings.HasSuffix(out.String(), "session_id: 11111111-1111-1111-1111-111111111111\nrun_id: run-123\n") {
+		t.Fatalf("missing final session/run IDs: %q", out.String())
+	}
+}
+
+func TestChatSessionPrintsTranscript(t *testing.T) {
+	payload := base64.RawURLEncoding.EncodeToString([]byte(`{"iss":"alpha","origin":"https://app.example"}`))
+	token := "e30." + payload + ".sig"
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /chat/v1/session/{id}", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+token || r.Header.Get("X-RC-Embed-Origin") != "https://app.example" || r.URL.Query().Get("project") != "alpha" {
+			t.Fatalf("bad embed request: %s %s", r.URL.String(), r.Header.Get("Authorization"))
+		}
+		_, _ = w.Write([]byte(`{"session_id":"` + r.PathValue("id") + `","messages":[{"parts":[{"type":"data-action","data":{"action_run_id":"ac-1","status":"proposed"}}]}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "project", "chat", "session", "22222222-2222-2222-2222-222222222222", "--token", token); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"action_run_id": "ac-1"`) || !strings.Contains(out.String(), "22222222-2222-2222-2222-222222222222") {
+		t.Fatalf("output = %q", out.String())
 	}
 }
 
