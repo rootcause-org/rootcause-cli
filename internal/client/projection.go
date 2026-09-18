@@ -49,7 +49,7 @@ type ManifestBlock struct {
 }
 
 // ContextCaptured reports whether the server served this run's persisted prompt context. False is the
-// normal case for a run older than the capture or past its 7-day retention window — a renderer must say
+// normal case for a run older than the capture or past its 14-day retention window — a renderer must say
 // so out loud instead of drawing empty sections.
 func (r *RunHeader) ContextCaptured() bool {
 	return r != nil && (r.ContextSchemaVersion > 0 || len(r.PromptSections) > 0 ||

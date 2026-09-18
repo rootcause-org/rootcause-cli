@@ -213,7 +213,7 @@ func TestRedactedIndexLeadsWithWithheld(t *testing.T) {
 	}
 }
 
-// A run older than the server's context capture (or past its 7-day window) must SAY the context is
+// A run older than the server's context capture (or past its 14-day window) must SAY the context is
 // gone. Silence would read as "the model was handed nothing" — a different, false fact.
 func TestPromptContextAbsenceIsStated(t *testing.T) {
 	full := &client.FullResponse{

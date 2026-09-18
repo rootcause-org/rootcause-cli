@@ -242,7 +242,7 @@ func renderPromptContext(r client.RunHeader, jsonlName string) []string {
 	out := []string{"## Prompt context (what the model was handed)", ""}
 	if !r.ContextCaptured() {
 		return append(out, "- **Not captured** — this run predates per-run context capture, or its context "+
-			"aged past the 7-day retention window. The `system_prompt` in the JSONL is still the joined "+
+			"aged past the 14-day retention window. The `system_prompt` in the JSONL is still the joined "+
 			"prompt; its per-section gates are gone.", "")
 	}
 	sections, secErr := client.ParsePromptSections(r.PromptSections)

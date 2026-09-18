@@ -515,7 +515,7 @@ type RunHeader struct {
 	Egress                []EgressItem      `json:"egress,omitempty"`
 	GroundingSources      *GroundingSources `json:"grounding_sources,omitempty"`
 	GroundingSourcesRaw   json.RawMessage   `json:"-"`
-	// The run's FULL prompt context (server table `run_contexts`, detail tier, 7-day window). SystemPrompt
+	// The run's FULL prompt context (server table `run_contexts`, detail tier, 14-day window). SystemPrompt
 	// above is the joined string; PromptSections is that same prompt decomposed — [{id, gate, on, text?}] —
 	// so a debugger sees WHICH gate turned a paragraph on. BootstrapTurn/PreselectedTurn are the verbatim
 	// orientation user turns; ManifestBlocks indexes what BootstrapTurn pastes
