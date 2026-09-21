@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -176,7 +177,10 @@ func brainRenderCmd(e *env) *cobra.Command {
 		Use:   "render --tenant <slug> [--path AGENTS.md] [--all] [--sha <commit> | --channel stable|edge]",
 		Short: "Show a tenant's compiled brain projection",
 		Long: "Show a tenant's compiled brain projection.\n\n" +
-			"Artifacts are keyed by TENANT, not by sha: every run overwrites .rootcause/output/brain-render-<tenant>/. " +
+			"Every returned file is also written verbatim to .rootcause/output/brain-render-<tenant>/tree/<brain-relative path>, " +
+			"so you can open the rendered playbooks/AGENTS.md instead of an opaque content.txt.\n\n" +
+			"Artifacts are keyed by TENANT, not by sha: every run overwrites .rootcause/output/brain-render-<tenant>/ " +
+			"(tree/ is wiped first, so a file from an earlier render never survives). " +
 			"To compare two shas/channels, move the first render aside before the second.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -205,12 +209,18 @@ func brainRenderCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			label := "brain-render-" + tenant
+			defer func() {
+				if terr := e.writeBrainRenderTree(label, resp.Files); terr != nil {
+					fmt.Fprintf(e.err, "warning: %v\n", terr)
+				}
+			}()
 			if e.jsonOut() {
-				return e.renderJSON("brain-render-"+tenant, raw)
+				return e.renderJSON(label, raw)
 			}
 			var out bytes.Buffer
 			render.BrainRender(&out, resp)
-			return e.renderBytes("brain-render-"+tenant, "render.txt", out.Bytes(), "text")
+			return e.renderBytes(label, "render.txt", out.Bytes(), "text")
 		},
 	}
 	cmd.Flags().StringArrayVar(&paths, "path", []string{"AGENTS.md"}, "brain-relative path or glob to render (repeatable)")
@@ -470,4 +480,23 @@ func brainConsolidateCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// writeBrainRenderTree materialises the compiled files under the render artifact dir so a reviewer can
+// click "playbooks/annulatie_beleid.md" instead of content.txt. Runs in BOTH output modes, next to (not
+// instead of) the spill; the one-line receipt goes to stderr so -o json stdout stays machine-clean.
+func (e *env) writeBrainRenderTree(label string, files []client.BrainRenderFile) error {
+	tf := make([]treeFile, 0, len(files))
+	for _, f := range files {
+		tf = append(tf, treeFile{Path: f.Path, Content: f.Content})
+	}
+	root, written, skipped, err := writeFileTree(e.spillConfig().DirFor(label), tf)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(e.err, "rendered %d file(s) \u2192 %s%c\n", written, root, filepath.Separator)
+	for _, s := range skipped {
+		fmt.Fprintf(e.err, "warning: skipped unsafe render path %q\n", s)
+	}
+	return nil
 }

@@ -3,6 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/rootcause-org/rootcause-cli/internal/outputspill"
 	"github.com/rootcause-org/rootcause-cli/internal/render"
@@ -79,4 +82,62 @@ func writeSpillPreview(e *env, art outputspill.Artifact) error {
 		}
 	}
 	return nil
+}
+
+// treeFile is one payload-supplied file materialised verbatim under an artifact dir's tree/.
+type treeFile struct {
+	Path    string
+	Content string
+}
+
+// safeTreePath maps a payload-supplied relative path into root. Absolute paths and any ".." segment are
+// rejected: the payload comes from the server and must never be able to write outside the artifact dir.
+func safeTreePath(root, p string) (string, bool) {
+	p = strings.TrimSpace(p)
+	if p == "" || strings.ContainsRune(p, '\x00') {
+		return "", false
+	}
+	p = filepath.FromSlash(p)
+	if filepath.IsAbs(p) || strings.HasPrefix(p, string(filepath.Separator)) {
+		return "", false
+	}
+	clean := filepath.Clean(p)
+	if clean == "." {
+		return "", false
+	}
+	for _, seg := range strings.Split(clean, string(filepath.Separator)) {
+		if seg == ".." {
+			return "", false
+		}
+	}
+	return filepath.Join(root, clean), true
+}
+
+// writeFileTree materialises files verbatim under <dir>/tree/ so a reviewer can open the real
+// "playbooks/x.md" instead of an opaque content.txt. The previous tree is wiped first: a file that
+// disappeared from this render must not survive from the last one. Returns the tree root, the number of
+// files written and the paths skipped by safeTreePath.
+func writeFileTree(dir string, files []treeFile) (root string, written int, skipped []string, err error) {
+	root = filepath.Join(dir, "tree")
+	if err := os.RemoveAll(root); err != nil {
+		return root, 0, nil, fmt.Errorf("wipe %s: %w", root, err)
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return root, 0, nil, fmt.Errorf("create %s: %w", root, err)
+	}
+	for _, f := range files {
+		path, ok := safeTreePath(root, f.Path)
+		if !ok {
+			skipped = append(skipped, f.Path)
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			return root, written, skipped, fmt.Errorf("create %s: %w", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(f.Content), 0o600); err != nil {
+			return root, written, skipped, fmt.Errorf("write %s: %w", path, err)
+		}
+		written++
+	}
+	return root, written, skipped, nil
 }
