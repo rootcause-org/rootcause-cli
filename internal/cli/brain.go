@@ -212,7 +212,7 @@ func brainRenderCmd(e *env) *cobra.Command {
 			label := "brain-render-" + tenant
 			defer func() {
 				if terr := e.writeBrainRenderTree(label, resp.Files); terr != nil {
-					fmt.Fprintf(e.err, "warning: %v\n", terr)
+					fmt.Fprintf(e.err, "warning: %v\n", terr) //nolint:errcheck // best-effort stderr receipt
 				}
 			}()
 			if e.jsonOut() {
@@ -494,9 +494,9 @@ func (e *env) writeBrainRenderTree(label string, files []client.BrainRenderFile)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(e.err, "rendered %d file(s) \u2192 %s%c\n", written, root, filepath.Separator)
+	fmt.Fprintf(e.err, "rendered %d file(s) \u2192 %s%c\n", written, root, filepath.Separator) //nolint:errcheck // best-effort stderr receipt
 	for _, s := range skipped {
-		fmt.Fprintf(e.err, "warning: skipped unsafe render path %q\n", s)
+		fmt.Fprintf(e.err, "warning: skipped unsafe render path %q\n", s) //nolint:errcheck // best-effort stderr receipt
 	}
 	return nil
 }
