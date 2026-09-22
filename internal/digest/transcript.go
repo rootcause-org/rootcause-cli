@@ -85,7 +85,9 @@ func BuildTranscript(sessionID string, runs []client.RunSummary, sources map[str
 			turn.Question = strings.TrimSpace(h.Question)
 			turn.Answer = transcriptAnswer(h)
 			turn.Outcome = metaText(h.Metadata, "outcome")
-			turn.RunURL = metaText(h.Metadata, "run_url")
+			// The run page link without its ?t= share token: the token is an account-less credential and a
+			// transcript is exactly the text people paste into tickets and chats.
+			turn.RunURL = stripQuery(metaText(h.Metadata, "run_url"))
 			turn.PrincipalID = PrincipalID(h.Guards)
 			if src.Trace.Redacted() && turn.Answer == "" {
 				turn.Unavailable = "trace detail withheld from this token"
@@ -224,4 +226,11 @@ func metaText(meta map[string]any, key string) string {
 	}
 	s, _ := meta[key].(string)
 	return strings.TrimSpace(s)
+}
+
+func stripQuery(u string) string {
+	if i := strings.IndexByte(u, '?'); i >= 0 {
+		return u[:i]
+	}
+	return u
 }

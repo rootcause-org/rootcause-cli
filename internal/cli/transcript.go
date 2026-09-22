@@ -44,7 +44,10 @@ func runThreadTranscript(e *env, target shareTarget) error {
 	if len(doc.Turns) > digest.TranscriptPagingThreshold {
 		doc.TruncateAnswers(digest.TranscriptAnswerHeadChars)
 	}
-	if render.IsJSON(e.mode(), e.out) {
+	// The Markdown digest IS the deliverable of --transcript, and agents always run without a TTY, so
+	// auto-mode must not fall back to JSON here (it did: every non-terminal caller got JSON). JSON only
+	// on an explicit -o json.
+	if e.mode() == render.ModeJSON {
 		body, err := json.Marshal(doc)
 		if err != nil {
 			return err
