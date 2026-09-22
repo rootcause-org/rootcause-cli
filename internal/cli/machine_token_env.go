@@ -13,6 +13,12 @@ import (
 // loadResolvedToken loads a profile token and, when the brain names a machine-token environment
 // variable, seeds that project profile from it. The marker carries only the variable name; the
 // credential stays in the environment and the normal 0600 token store.
+//
+// A cached machine credential is only ever USED while its provenance still holds: the marker still
+// declares the same machine_token_env and that variable is set. When either is gone the cached entry
+// is treated as absent (never sent) so the ordinary ladder continues — locally that is the human
+// OAuth login / default-profile fallback. Under CLAUDE_CODE_REMOTE=true a declared-but-missing
+// variable still fails closed instead of reaching for a broader token.
 func loadResolvedToken(res config.Resolved, baseURL string) (token.Token, bool, error) {
 	stored, ok, err := token.Load(res.Profile)
 	if err != nil {
@@ -20,19 +26,18 @@ func loadResolvedToken(res config.Resolved, baseURL string) (token.Token, bool, 
 	}
 	if ok && stored.MachineTokenEnv != "" {
 		if res.Brain == nil || res.Brain.MachineTokenEnv != stored.MachineTokenEnv {
-			return token.Token{}, false, fmt.Errorf(
-				"cached machine credentials for %q require the same machine_token_env declaration in .rootcause.toml",
-				stored.MachineTokenEnv,
-			)
-		}
-		secret := os.Getenv(stored.MachineTokenEnv)
-		if secret == "" {
-			return token.Token{}, false, fmt.Errorf(
-				"machine token environment variable %q is missing; cached machine credentials are disabled",
-				stored.MachineTokenEnv,
-			)
-		}
-		if baseURL != config.DefaultBaseURL {
+			// Stale: this checkout no longer declares the variable the cache came from.
+			stored, ok = token.Token{}, false
+		} else if os.Getenv(stored.MachineTokenEnv) == "" {
+			if os.Getenv("CLAUDE_CODE_REMOTE") == "true" {
+				return token.Token{}, false, fmt.Errorf(
+					"machine token environment variable %q is not set; cached machine credentials are disabled",
+					stored.MachineTokenEnv,
+				)
+			}
+			// Stale: the variable disappeared. Keep the entry (it may come back) but never use it.
+			stored, ok = token.Token{}, false
+		} else if baseURL != config.DefaultBaseURL {
 			return token.Token{}, false, fmt.Errorf(
 				"refusing to send machine token %q to non-production base URL %q\n  fix: unset ROOTCAUSE_BASE_URL or use `rc auth login` for that environment",
 				stored.MachineTokenEnv,
@@ -47,13 +52,7 @@ func loadResolvedToken(res config.Resolved, baseURL string) (token.Token, bool, 
 	secret := os.Getenv(res.Brain.MachineTokenEnv)
 	if secret == "" {
 		if ok {
-			if stored.MachineTokenEnv != "" {
-				return token.Token{}, false, fmt.Errorf(
-					"machine token environment variable %q is not set; cached machine credentials are disabled",
-					res.Brain.MachineTokenEnv,
-				)
-			}
-			return stored, true, nil
+			return stored, true, nil // a human OAuth login for this project
 		}
 		if os.Getenv("CLAUDE_CODE_REMOTE") != "true" {
 			return token.Token{}, false, nil

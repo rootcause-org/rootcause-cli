@@ -189,10 +189,12 @@ environment can see every variable. Use separate environments for different user
 shared/public sessions.
 
 Before any command endpoint runs, `rc` verifies that this credential is pinned to the marker's exact
-project and rejects swapped or all-projects tokens. Removing the variable disables a cached machine
-credential; a separately stored human OAuth login for the project still works locally. In a Claude
-cloud session (`CLAUDE_CODE_REMOTE=true`), a missing named variable fails closed instead of using a
-broader `default` token; local sessions retain their normal human OAuth fallback.
+project and rejects swapped or all-projects tokens. A cached machine credential is only used while its
+provenance still holds: the checkout still declares the same `machine_token_env` and that variable is
+set. Otherwise the stale cache is ignored (never sent) and local sessions continue with their normal
+human OAuth login / `default` fallback — no manual token-store cleanup needed. In a Claude cloud session
+(`CLAUDE_CODE_REMOTE=true`), a declared-but-missing variable fails closed instead of using a broader
+`default` token.
 
 For safety, a marker-sourced machine token is accepted only against built-in production
 (`https://app.replypen.com`); use a separate `rc auth login` profile for staging/custom

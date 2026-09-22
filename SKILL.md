@@ -129,8 +129,10 @@ runs in the same order as in production.
 **Headless machine token:** a committed brain marker may *name* (never contain) a secret env var via
 `machine_token_env`. `rc` seeds that profile, then requires `/whoami` to match the marker project before
 any command endpoint, and refuses to send the token to a non-production base URL
-([`machine_token_env.go`](internal/cli/machine_token_env.go)). Under `CLAUDE_CODE_REMOTE=true` its absence
-fails rather than falling back to a broader `default` token.
+([`machine_token_env.go`](internal/cli/machine_token_env.go)). A cached machine credential whose
+provenance no longer holds (marker dropped the declaration, or the variable is unset) is ignored, not
+an error: locally the ladder falls through to the human login. Under `CLAUDE_CODE_REMOTE=true` a
+declared-but-missing variable fails rather than falling back to a broader `default` token.
 
 ### The share-token path (no profile, no token source)
 

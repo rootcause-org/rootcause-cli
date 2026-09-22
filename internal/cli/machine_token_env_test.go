@@ -112,8 +112,28 @@ func TestLoadResolvedTokenUsesMatchingCustomBaseLogin(t *testing.T) {
 	}
 }
 
-func TestLoadResolvedTokenRejectsCachedMachineTokenAfterEnvRemoval(t *testing.T) {
+func TestLoadResolvedTokenIgnoresCachedMachineTokenAfterEnvRemovalLocally(t *testing.T) {
 	isolatedConfig(t)
+	seedToken(t, "acme", token.Token{
+		RefreshToken: "rcor_machine", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
+	})
+	res := config.Resolved{
+		Profile: "acme",
+		Brain:   &config.Brain{Project: "acme", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME"},
+	}
+
+	got, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+	if err != nil || ok || got.RefreshToken != "" {
+		t.Fatalf("stale machine cache must be ignored locally (default fallback), got=%+v ok=%v err=%v", got, ok, err)
+	}
+	if _, exists, loadErr := token.Load("acme"); loadErr != nil || !exists {
+		t.Fatalf("stale entry should stay in the store for when the variable returns, exists=%v err=%v", exists, loadErr)
+	}
+}
+
+func TestLoadResolvedTokenRejectsCachedMachineTokenAfterEnvRemovalInCloud(t *testing.T) {
+	isolatedConfig(t)
+	t.Setenv("CLAUDE_CODE_REMOTE", "true")
 	seedToken(t, "acme", token.Token{
 		RefreshToken: "rcor_machine", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
 	})
@@ -124,7 +144,7 @@ func TestLoadResolvedTokenRejectsCachedMachineTokenAfterEnvRemoval(t *testing.T)
 
 	_, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
 	if err == nil || ok || !strings.Contains(err.Error(), "cached machine credentials are disabled") {
-		t.Fatalf("expected removed-env refusal, ok=%v err=%v", ok, err)
+		t.Fatalf("expected removed-env refusal in cloud, ok=%v err=%v", ok, err)
 	}
 }
 
@@ -145,17 +165,18 @@ func TestLoadResolvedTokenRotatesWhenDeclaredMachineSecretChanges(t *testing.T) 
 	}
 }
 
-func TestLoadResolvedTokenRejectsCachedMachineTokenAfterMarkerDeclarationRemoval(t *testing.T) {
+func TestLoadResolvedTokenIgnoresCachedMachineTokenAfterMarkerDeclarationRemoval(t *testing.T) {
 	isolatedConfig(t)
 	t.Setenv("RC_REFRESH_TOKEN_ACME", "rcor_machine")
 	seedToken(t, "acme", token.Token{
 		RefreshToken: "rcor_machine", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME",
 	})
-	res := config.Resolved{Profile: "acme", Brain: &config.Brain{Project: "acme"}}
-
-	_, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
-	if err == nil || ok || !strings.Contains(err.Error(), "require the same machine_token_env") {
-		t.Fatalf("expected removed-marker refusal, ok=%v err=%v", ok, err)
+	for _, brain := range []*config.Brain{{Project: "acme"}, nil} {
+		res := config.Resolved{Profile: "acme", Brain: brain}
+		got, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+		if err != nil || ok || got.RefreshToken != "" {
+			t.Fatalf("brain=%+v: cached machine token without its marker must be ignored, got=%+v ok=%v err=%v", brain, got, ok, err)
+		}
 	}
 }
 
