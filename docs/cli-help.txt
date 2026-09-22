@@ -93,6 +93,7 @@ Usage:
 
 Available Commands:
   list           List recent runs (filterable)
+  sessions       List chat conversations (sessions) with turns, outcome and feedback
   show           Show one run
   events         Show the full per-event trace
   trace          Show the whole run bundle
@@ -134,6 +135,29 @@ Flags:
       --outcome string            filter by outcome: answered|declined|failed|error|stuck|running|interrupted
       --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
       --session string            list every run in this chat session
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc run sessions --help
+List chat conversations, newest first. A conversation is N runs sharing one session id: drill its turns with `rc run thread <session_id>`, then one turn's bodies with `rc run trace <run_id>`. The feedback column is the rollup over the conversation's rated turns; `-o json` is the server payload verbatim, including next_before.
+
+Usage:
+  rc run sessions [flags]
+
+Flags:
+      --before string    cursor: session_id to page to the next (older) page
+      --days int         lookback window in days (server default 14, max 90)
+      --kind string      run kind grouped into sessions (server default: chat)
+      --limit int        max conversations to return (1..100, server default 50)
+      --surface string   filter by chat surface: embed|dashboard|all (server default: all)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

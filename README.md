@@ -148,6 +148,23 @@ admin can keep one all-projects token in `default` and still have each brain che
 own project. Main intent: the checkout chooses the project context; the profile only chooses which
 local token to use.
 
+### Chat conversations — three rungs
+
+A chat conversation is N runs sharing one session id, so there are three drills and each one answers a
+different question:
+
+```bash
+rc run sessions --tenant yes_events --limit 20   # WHICH conversations happened (newest first)
+rc run thread <session_id>                       # every turn of ONE conversation
+rc run trace <run_id>                            # one turn's prompt, grounding, events, bodies
+```
+
+`rc run sessions` is the list view: created, tenant, turns, the feedback rollup (`5★` · `1★💬` · `-`),
+the title or the opening question, and the session id to paste into `rc run thread`. Narrow it with
+`--surface embed|dashboard`, `--days N`, `--limit N`, and page with `--before <session_id>`;
+`-o json` is the server payload verbatim, `next_before` included. (`rc run session <share-link>` is a
+different thing: the account-less dump of a conversation someone shared with you — see below.)
+
 ### Someone shared a link with you (no login)
 
 A run link (`https://app.replypen.com/runs/<id>?t=…`) or a chat share link
@@ -591,6 +608,7 @@ help using `go test ./internal/cli -update`.
 | `rc run process-thread` | Process a triage-skipped or security-blocked inbox thread |
 | `rc run retry` | Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier |
 | `rc run session` | Dump a shared chat session (transcript + its runs) to one markdown file |
+| `rc run sessions` | List chat conversations (sessions) with turns, outcome and feedback |
 | `rc run show` | Show one run |
 | `rc run thread` | Trace one run, provider/local thread, or session through pipeline and placement |
 | `rc run trace` | Show the whole run bundle |

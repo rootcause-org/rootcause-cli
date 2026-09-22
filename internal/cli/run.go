@@ -27,6 +27,7 @@ func newRunCmd(e *env) *cobra.Command {
 	}
 	cmd.AddCommand(
 		newRunListCmd(e),
+		newRunSessionsCmd(e),
 		newRunShowCmd(e),
 		newRunEventsCmd(e),
 		newRunTraceCmd(e),

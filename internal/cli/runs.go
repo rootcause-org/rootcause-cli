@@ -75,3 +75,66 @@ func validateRunFilters(outcome, learning string) error {
 	}
 	return nil
 }
+
+// sessionsFlags holds the `rc run sessions` filters, bound per-command so each invocation is isolated.
+type sessionsFlags struct {
+	kind    string
+	days    int
+	surface string
+	limit   int
+	before  string
+}
+
+// newRunSessionsCmd builds `rc run sessions`: the CONVERSATION index (GET /api/v1/sessions), the rung
+// above `rc run list`. It answers "which conversations happened" so the two existing drills have
+// something to drill: `rc run thread <session_id>` for the turns, `rc run trace <run_id>` for one turn's
+// bodies. Filters go to the server so paging stays correct.
+func newRunSessionsCmd(e *env) *cobra.Command {
+	var f sessionsFlags
+	cmd := &cobra.Command{
+		Use:   "sessions",
+		Short: "List chat conversations (sessions) with turns, outcome and feedback",
+		Long: "List chat conversations, newest first. A conversation is N runs sharing one session id: " +
+			"drill its turns with `rc run thread <session_id>`, then one turn's bodies with " +
+			"`rc run trace <run_id>`. The feedback column is the rollup over the conversation's rated " +
+			"turns; `-o json` is the server payload verbatim, including next_before.",
+		Args: cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if err := validateSessionSurface(f.surface); err != nil {
+				return err
+			}
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			params := client.SessionsParams{
+				Kind: f.kind, Days: f.days, Surface: f.surface, Limit: f.limit, Before: f.before,
+				Project: e.scopeProject(), Tenant: e.scopeTenant(),
+			}
+			resp, raw, err := c.Sessions(e.ctx(), params)
+			if err != nil {
+				return err
+			}
+			if render.IsJSON(e.mode(), e.out) {
+				return render.JSON(e.out, raw)
+			}
+			render.Sessions(e.out, resp)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&f.kind, "kind", "", "run kind grouped into sessions (server default: chat)")
+	cmd.Flags().IntVar(&f.days, "days", 0, "lookback window in days (server default 14, max 90)")
+	cmd.Flags().StringVar(&f.surface, "surface", "", "filter by chat surface: embed|dashboard|all (server default: all)")
+	cmd.Flags().IntVar(&f.limit, "limit", 0, "max conversations to return (1..100, server default 50)")
+	cmd.Flags().StringVar(&f.before, "before", "", "cursor: session_id to page to the next (older) page")
+	return cmd
+}
+
+func validateSessionSurface(surface string) error {
+	switch surface {
+	case "", "embed", "dashboard", "all":
+		return nil
+	default:
+		return fmt.Errorf("invalid --surface %q (want embed, dashboard, or all)", surface)
+	}
+}

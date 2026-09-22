@@ -31,11 +31,16 @@ authoring a skill:
 
 | Rung | Command | Endpoint |
 |---|---|---|
+| conversations | `rc run sessions` | `GET /api/v1/sessions` (chat only: which conversations happened, with turn/feedback rollups) |
 | index | `rc status` / `rc run list` | `GET /api/v1/runs` (`status` = fixed health-led page; `run list` = filterable) |
 | one run | `rc run show <id>` | `GET /api/v1/runs/{id}` |
 | detail | `rc run events <id>` | `GET /api/v1/runs/{id}/events` (NDJSON in `-o json`) |
 | bundle | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` (JSONL in `-o json`) |
 | decompose | `rc run debug <id>` | `/trace` → local jq-able JSONL + thin markdown index |
+
+`rc run sessions` sits ABOVE the index for chat: a conversation is N runs sharing one session id, so its
+row hands you the id for `rc run thread <session_id>` (every turn) and from there `rc run trace <run_id>`
+(one turn's bodies). Not to be confused with `rc run session <share-link>`, the account-less dump below.
 
 `run list` filters are **server-side** so cursor pagination stays correct — never re-implement one
 client-side. Two lanes that must stay distinct: `--learning` (training signal, held-out threads excluded)
