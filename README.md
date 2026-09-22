@@ -609,8 +609,10 @@ each run of `GET /api/v1/runs`, which also accepts `?simulation=true|false`.
 `rc ask` defaults to `--scenario email`: it sends an explicit `scenario=email` to the Prompt API and
 wraps the prompt as one synthetic inbound message from `--from` with `--subject` (or a compact prompt
 first line). Use this for high-fidelity brain-dev checks: tone, notes, actions, PR proposals, and
-declines are rendered like a reviewable support result. Use `--scenario raw` for direct investigations;
-the CLI sends `scenario=raw` and prints one Markdown answer.
+declines are rendered like a reviewable support result. When the run deliberately addresses a new
+message, `ask`, `run show`, `run trace`, and `run debug` show its to/cc/bcc recipients and subject;
+JSON carries the optional `outbound_email` object verbatim. Use `--scenario raw` for direct
+investigations; the CLI sends `scenario=raw` and prints one Markdown answer.
 
 `rc ask --file path/to/file.pdf` uploads a local file as an inbound attachment on the synthetic
 message. Repeat it for multiple files; relative paths are resolved from the current working directory.

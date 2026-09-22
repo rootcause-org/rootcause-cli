@@ -78,6 +78,8 @@ Do I still have open invoices?
 
 ## Outcome
 
+**Outbound:** to=sophie@cocacola.test · cc=billing@cocacola.test · bcc=audit@cocacola.test · subject=Your two open invoices
+
 **Draft** (1 lines):
 
 ```

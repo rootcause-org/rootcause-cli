@@ -42,6 +42,9 @@ func Run(w io.Writer, r *client.RunDetail) {
 	_, _ = fmt.Fprintf(tw, "Draft?:\t%s\n", yesNo(r.HasDraft))
 	_, _ = fmt.Fprintf(tw, "Note?:\t%s\n", yesNo(r.HasNote))
 	_, _ = fmt.Fprintf(tw, "Placed:\t%s\n", placedLabel(r.HasDraft, r.HasNote, metaString(r.Metadata, "outcome")))
+	if outbound := outboundEmailLabel(r.OutboundEmail); outbound != "" {
+		_, _ = fmt.Fprintf(tw, "Outbound:\t%s\n", outbound)
+	}
 	_, _ = fmt.Fprintf(tw, "Created:\t%s\n", r.CreatedAt)
 	if r.FinishedAt != "" {
 		_, _ = fmt.Fprintf(tw, "Finished:\t%s\n", r.FinishedAt)
@@ -170,6 +173,9 @@ func Full(w io.Writer, f *client.FullResponse) {
 		}
 	}
 	_, _ = fmt.Fprintf(tw, "Kind:\t%s\n", r.Kind)
+	if outbound := outboundEmailLabel(r.OutboundEmail); outbound != "" {
+		_, _ = fmt.Fprintf(tw, "Outbound:\t%s\n", outbound)
+	}
 	if r.Trigger != "" {
 		_, _ = fmt.Fprintf(tw, "Trigger:\t%s\n", r.Trigger)
 	}

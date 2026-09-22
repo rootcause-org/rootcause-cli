@@ -528,17 +528,22 @@ func renderOutcome(r client.RunHeader) []string {
 	}
 	var out []string
 	if oe := r.OutboundEmail; oe != nil {
-		line := "**Outbound to:** " + strings.Join(oe.To, ", ")
+		var parts []string
+		if len(oe.To) > 0 {
+			parts = append(parts, "to="+strings.Join(oe.To, ", "))
+		}
 		if len(oe.Cc) > 0 {
-			line += " · cc: " + strings.Join(oe.Cc, ", ")
+			parts = append(parts, "cc="+strings.Join(oe.Cc, ", "))
 		}
 		if len(oe.Bcc) > 0 {
-			line += " · bcc: " + strings.Join(oe.Bcc, ", ")
+			parts = append(parts, "bcc="+strings.Join(oe.Bcc, ", "))
 		}
 		if oe.Subject != "" {
-			line += " · subject: `" + oe.Subject + "`"
+			parts = append(parts, "subject="+oe.Subject)
 		}
-		out = append(out, line, "")
+		if len(parts) > 0 {
+			out = append(out, "**Outbound:** "+strings.Join(parts, " · "), "")
+		}
 	}
 	if r.Draft != "" {
 		lines := strings.Split(strings.TrimSpace(r.Draft), "\n")

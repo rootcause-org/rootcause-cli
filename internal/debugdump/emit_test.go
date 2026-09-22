@@ -28,7 +28,7 @@ func TestHTMLFallbackDraftRendersInDebugDump(t *testing.T) {
 	if !strings.Contains(index, "<p>Visible HTML draft</p>") {
 		t.Fatalf("index missing HTML draft:\n%s", index)
 	}
-	if !strings.Contains(index, "**Outbound to:** ned@flanders.com · subject: `Voicemail - Ned Flanders`") {
+	if !strings.Contains(index, "**Outbound:** to=ned@flanders.com · subject=Voicemail - Ned Flanders") {
 		t.Fatalf("index missing outbound recipients:\n%s", index)
 	}
 
@@ -37,13 +37,17 @@ func TestHTMLFallbackDraftRendersInDebugDump(t *testing.T) {
 		t.Fatalf("EmitJSONL: %v", err)
 	}
 	var header struct {
-		Draft string `json:"draft"`
+		Draft         string                `json:"draft"`
+		OutboundEmail *client.OutboundEmail `json:"outbound_email"`
 	}
 	if err := json.Unmarshal(bytes.SplitN(buf.Bytes(), []byte("\n"), 2)[0], &header); err != nil {
 		t.Fatalf("decode JSONL header: %v", err)
 	}
 	if header.Draft != "<p>Visible HTML draft</p>" {
 		t.Fatalf("jsonl draft = %q, want HTML draft", header.Draft)
+	}
+	if header.OutboundEmail == nil || len(header.OutboundEmail.To) != 1 || header.OutboundEmail.To[0] != "ned@flanders.com" || header.OutboundEmail.Subject != "Voicemail - Ned Flanders" {
+		t.Fatalf("jsonl outbound_email = %#v", header.OutboundEmail)
 	}
 }
 
@@ -256,6 +260,9 @@ func TestPromptContextAbsenceIsStated(t *testing.T) {
 		if _, ok := header[k]; ok {
 			t.Fatalf("header carried %q on an uncaptured run: %v", k, header[k])
 		}
+	}
+	if _, ok := header["outbound_email"]; ok {
+		t.Fatalf("header carried outbound_email for an ordinary reply: %v", header["outbound_email"])
 	}
 }
 

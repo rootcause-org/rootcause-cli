@@ -24,7 +24,9 @@ to the brain first.
 `rc run trace <id> -o json` is the **exact stdin contract** the brain-dev renderer reads to produce
 `<run8>-<proj>.{md,jsonl}`. It emits the run-header line first, then one NDJSON line per event
 (`{"type":"run",…}` then `{"type":"event",…}` — the JSONL shape shared with `rc run debug`). Keep it
-stable; the `/trace` JSON contract version must move in lockstep with the renderer (brain-skills spec).
+stable; the optional run-header `outbound_email` object carries explicit to/cc/bcc recipients and the
+subject, and is omitted for an ordinary reply. The `/trace` JSON contract version must move in lockstep
+with the renderer (brain-skills spec).
 
 Implementation: `Client.Submit` / `Client.Full` in [`internal/client/client.go`](../../internal/client/client.go)
 (+ `SubmitRequest`/`SubmitResponse`/`FullResponse`/`RunHeader` in

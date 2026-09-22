@@ -67,6 +67,10 @@ func TestAskWaitJSON(t *testing.T) {
 	if obj["run_id"] != "11111111-1111-1111-1111-111111111111" {
 		t.Errorf("run_id missing/wrong: %v", obj["run_id"])
 	}
+	outbound, ok := obj["outbound_email"].(map[string]any)
+	if !ok || outbound["subject"] != "Your two open invoices" {
+		t.Errorf("outbound_email missing/wrong: %T %v", obj["outbound_email"], obj["outbound_email"])
+	}
 }
 
 // TestAskNoWaitTable: --no-wait prints just the run_id on stdout (script-capturable), with the poll

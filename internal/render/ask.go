@@ -191,20 +191,31 @@ func askOutboundEmail(r *client.RunDetail, full *client.FullResponse) *client.Ou
 // renderOutboundEmail shows the chosen recipients ABOVE the draft: a draft body alone never reveals
 // that the run addressed someone other than the inbound sender.
 func renderOutboundEmail(w io.Writer, oe *client.OutboundEmail) {
-	if oe == nil || len(oe.To) == 0 {
+	line := outboundEmailLabel(oe)
+	if line == "" {
 		return
 	}
-	line := "Outbound to: " + strings.Join(oe.To, ", ")
+	_, _ = fmt.Fprintf(w, "\nOutbound: %s\n", line)
+}
+
+func outboundEmailLabel(oe *client.OutboundEmail) string {
+	if oe == nil {
+		return ""
+	}
+	var parts []string
+	if len(oe.To) > 0 {
+		parts = append(parts, "to="+strings.Join(oe.To, ", "))
+	}
 	if len(oe.Cc) > 0 {
-		line += " · cc: " + strings.Join(oe.Cc, ", ")
+		parts = append(parts, "cc="+strings.Join(oe.Cc, ", "))
 	}
 	if len(oe.Bcc) > 0 {
-		line += " · bcc: " + strings.Join(oe.Bcc, ", ")
+		parts = append(parts, "bcc="+strings.Join(oe.Bcc, ", "))
 	}
 	if strings.TrimSpace(oe.Subject) != "" {
-		line += " · subject: " + oe.Subject
+		parts = append(parts, "subject="+oe.Subject)
 	}
-	_, _ = fmt.Fprintf(w, "\n%s\n", line)
+	return strings.Join(parts, " · ")
 }
 
 func askDecline(r *client.RunDetail, full *client.FullResponse) string {

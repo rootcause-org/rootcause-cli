@@ -173,6 +173,9 @@ redirect traffic. `.rootcause/local.toml` overlays `tenant` only.
   field, principal, or attachment would be dropped: a dropped principal is a silent **under-scope**, so
   that guard is security, not compatibility. Test-run intent:
   [docs/specs/brain-test-runs.md](docs/specs/brain-test-runs.md).
+- **Explicit outbound drafts** carry an optional `outbound_email` (`to`, `cc`, `bcc`, `subject`) on run
+  detail and trace headers. It is absent for an ordinary reply. `ask`, `run show`, `run trace`, and the
+  debug index surface it; the JSONL header preserves the object for machine consumers.
 - **Redacted run detail** — the server serves run detail only to project admins, and a non-admin read
   still returns `200` with `detail_redacted: true`. The failure mode is a *false clean bill of health*, so
   every surface that can receive one prints "withheld" instead of an empty section
