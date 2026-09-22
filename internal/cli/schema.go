@@ -87,6 +87,7 @@ func newAccessCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteSelectedBinding(e)
 			resp, raw, err := c.GetAccess(e.ctx(), e.scopeProject())
 			if err != nil {
 				return err

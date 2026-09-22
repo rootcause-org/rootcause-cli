@@ -130,7 +130,7 @@ func newRootCmd(e *env, version string) *cobra.Command {
 	if e.tenant == "" {
 		e.tenant = os.Getenv("RC_TENANT")
 	}
-	root.PersistentFlags().StringVar(&e.project, "project", e.project, "scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token)")
+	root.PersistentFlags().StringVar(&e.project, "project", e.project, "scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])")
 	root.PersistentFlags().StringVar(&e.tenant, "tenant", e.tenant, "override the login tenant where supported (default: RC_TENANT)")
 	root.PersistentFlags().StringVar(&e.scope, "scope", "", "force request routing: project|tenant. \"project\" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; \"tenant\" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.")
 	root.PersistentFlags().StringVarP(&e.output, "output", "o", "", "output format: json|table (default: auto-detect)")
@@ -194,7 +194,7 @@ func (e *env) mode() render.Mode {
 // it — machine-token check, tenant→project resolution, scope header, project validation, selector
 // enforcement — runs identically in tests and production. Tests replace the credential, never the order.
 func (e *env) newClient() (*client.Client, error) {
-	res, err := config.Load(e.profile)
+	res, err := config.LoadFor(e.profile, e.project)
 	if err != nil {
 		return nil, err
 	}

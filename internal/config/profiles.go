@@ -13,6 +13,13 @@
 // to "default" when no such token is stored and carry the marker's project as ?project= for an
 // all-projects token.
 //
+// One checkout may need a SECOND project-bound token (tokens are one-project-only by design). The
+// marker may therefore declare extra [[also]] bindings, each naming a project plus its own
+// machine_token_env. `--project <slug>` (or RC_PROJECT) matching such a binding selects it: the profile,
+// the machine-token env var and the pin check all move to that project, under exactly the primary
+// binding's provenance rules. `--profile` still wins, and a project the marker does not bind keeps
+// today'"'"'s meaning (a server-side scope only an all-projects token can use).
+//
 // `--project` is NOT a profile selector — it does not pick a token. It is a SERVER-SIDE scope (a
 // uuid-or-name passed as ?project= on the read endpoints), meaningful only for an all-projects admin
 // token; the command layer threads it into the client, not this resolver. (See internal/cli/root.go.)
@@ -20,7 +27,8 @@
 // Precedence for the profile name (the token-store key):
 //
 //	explicit --profile <name>   → that profile (an AWS-style override; no brain binding)
-//	otherwise, inside a brain:    the brain marker's project (commands may fall back to default if absent)
+//	otherwise, inside a brain:    an [[also]] binding whose project matches --project/RC_PROJECT, else the
+//	                              marker's primary project (commands may fall back to default if absent)
 //	otherwise:                    "default"
 //
 // Precedence for the base URL:
@@ -56,6 +64,10 @@ const (
 	DefaultProfile = "default"
 
 	envBaseURL = "ROOTCAUSE_BASE_URL"
+
+	// BindingPrimary / BindingAlso name which marker binding an invocation resolved to (Resolved.BindingKind).
+	BindingPrimary = "primary"
+	BindingAlso    = "also"
 )
 
 // Resolved is the effective config for one invocation. Profile is the token-store key the command's
@@ -65,7 +77,10 @@ const (
 // Project here is the BRAIN's project (the checkout's identity), NOT the --project scope override —
 // that's a server-side selector the command layer owns, never a profile.
 type Resolved struct {
-	Profile       string
+	Profile string
+	// BindingKind names which marker binding is in force: "primary", "also" (a [[also]] binding matched
+	// --project/RC_PROJECT), or "" outside a brain / with an explicit --profile.
+	BindingKind   string
 	BaseURL       string
 	BaseURLSource string
 	Project       string
@@ -80,10 +95,23 @@ type Resolved struct {
 // gets tenant scope from the active OAuth login. A legacy base_url key in the marker is ignored (toml
 // tolerates unknown keys); transport is env-or-production only.
 type Brain struct {
+	// Project/MachineTokenEnv are the EFFECTIVE binding for this invocation: the marker's primary pair,
+	// or the matched [[also]] pair. Primary keeps the marker's own primary pair regardless of selection.
+	Project         string    `toml:"project"`
+	MachineTokenEnv string    `toml:"machine_token_env"`
+	Tenant          string    `toml:"tenant"`
+	Also            []Binding `toml:"also"`
+	Dir             string    `toml:"-"`
+	Primary         Binding   `toml:"-"`
+	SelectedAlso    bool      `toml:"-"`
+}
+
+// Binding is one project ↔ machine-token-env pair. The marker's top level carries the primary one; each
+// [[also]] table adds a secondary project this checkout may also authenticate as, with its own
+// separately minted, project-pinned token. A binding never holds the credential, only the variable name.
+type Binding struct {
 	Project         string `toml:"project"`
 	MachineTokenEnv string `toml:"machine_token_env"`
-	Tenant          string `toml:"tenant"`
-	Dir             string `toml:"-"`
 }
 
 // local is the optional gitignored per-checkout overlay. Keep it intentionally narrow: tenant is often
@@ -96,15 +124,24 @@ type local struct {
 // to the brain in cwd, else [default]). --project is NOT resolved here — it's a server-side scope the
 // command layer threads into the client, never a token-store key.
 func Load(profileName string) (Resolved, error) {
+	return LoadFor(profileName, "")
+}
+
+// LoadFor is Load plus the requested --project/RC_PROJECT selector, which can only ever pick one of the
+// marker's own [[also]] bindings. Anything else (a project the marker does not bind, an explicit
+// --profile, no brain) resolves exactly as Load does — the selector stays a server-side scope.
+func LoadFor(profileName, project string) (Resolved, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		cwd = "" // a missing cwd only disables brain auto-discovery
 	}
-	return load(profileName, cwd)
+	return loadFor(profileName, project, cwd)
 }
 
 // load is Load with cwd injected, so the resolution matrix is unit-testable without chdir.
-func load(profileName, cwd string) (Resolved, error) {
+func load(profileName, cwd string) (Resolved, error) { return loadFor(profileName, "", cwd) }
+
+func loadFor(profileName, project, cwd string) (Resolved, error) {
 	// Explicit --profile <name>: a pure override, no brain binding (the documented escape hatch). The
 	// token store is the source of auth; config.toml base_url profiles are intentionally ignored.
 	if profileName != "" {
@@ -125,6 +162,25 @@ func load(profileName, cwd string) (Resolved, error) {
 		return res, nil
 	}
 
+	// A secondary binding is a full, independent identity: its own profile, its own machine-token env var
+	// and its own pin check. The marker/local tenant belongs to the primary project, so it is NOT carried
+	// over — an explicit --tenant still applies, resolved one layer up.
+	if bind, ok := brain.selectAlso(project); ok {
+		bound := *brain
+		bound.Project = bind.Project
+		bound.MachineTokenEnv = bind.MachineTokenEnv
+		bound.Tenant = ""
+		bound.SelectedAlso = true
+		res := Resolved{
+			Profile:     bind.Project,
+			BindingKind: BindingAlso,
+			Project:     bind.Project,
+			Brain:       &bound,
+		}
+		applyBaseURL(&res)
+		return res, nil
+	}
+
 	// Inside a brain: first name the project profile. Transport still stays env > production.
 	tenant, tenantSource, err := resolveTenant(brain)
 	if err != nil {
@@ -132,6 +188,7 @@ func load(profileName, cwd string) (Resolved, error) {
 	}
 	res := Resolved{
 		Profile:      brain.Project,
+		BindingKind:  BindingPrimary,
 		Project:      brain.Project,
 		Tenant:       tenant,
 		TenantSource: tenantSource,
@@ -197,12 +254,10 @@ func DiscoverBrain(start string) (*Brain, error) {
 			if _, derr := toml.DecodeFile(path, &b); derr != nil {
 				return nil, fmt.Errorf("parse %s: %w", path, derr)
 			}
-			if b.Project == "" {
-				return nil, fmt.Errorf("%s has no `project` field — it must name the project this brain belongs to", path)
+			if verr := validateMarker(&b, path); verr != nil {
+				return nil, verr
 			}
-			if b.MachineTokenEnv != "" && !validMachineTokenEnvName(b.MachineTokenEnv) {
-				return nil, fmt.Errorf("%s machine_token_env must match RC_REFRESH_TOKEN_[A-Z0-9_]+", path)
-			}
+			b.Primary = Binding{Project: b.Project, MachineTokenEnv: b.MachineTokenEnv}
 			b.Dir = dir
 			return &b, nil
 		}
@@ -212,6 +267,57 @@ func DiscoverBrain(start string) (*Brain, error) {
 		}
 		dir = parent
 	}
+}
+
+// selectAlso picks the [[also]] binding the requested project names. An empty request, or one naming the
+// primary project, returns false — the primary binding stays the default for this checkout.
+func (b *Brain) selectAlso(project string) (Binding, bool) {
+	if b == nil || project == "" || project == b.Primary.Project {
+		return Binding{}, false
+	}
+	for _, bind := range b.Also {
+		if bind.Project == project {
+			return bind, true
+		}
+	}
+	return Binding{}, false
+}
+
+// validateMarker enforces the two things a multi-binding marker must guarantee before any credential is
+// touched: every binding names a project and a well-formed env var, and no project or variable is claimed
+// twice (which would make "which token am I sending?" ambiguous).
+func validateMarker(b *Brain, path string) error {
+	if b.Project == "" {
+		return fmt.Errorf("%s has no `project` field — it must name the project this brain belongs to", path)
+	}
+	if b.MachineTokenEnv != "" && !validMachineTokenEnvName(b.MachineTokenEnv) {
+		return fmt.Errorf("%s machine_token_env must match RC_REFRESH_TOKEN_[A-Z0-9_]+", path)
+	}
+	projects := map[string]bool{b.Project: true}
+	envs := map[string]bool{}
+	if b.MachineTokenEnv != "" {
+		envs[b.MachineTokenEnv] = true
+	}
+	for _, bind := range b.Also {
+		if bind.Project == "" {
+			return fmt.Errorf("%s has an [[also]] binding without a `project` field", path)
+		}
+		if bind.MachineTokenEnv == "" {
+			return fmt.Errorf("%s [[also]] binding for project %q needs its own machine_token_env", path, bind.Project)
+		}
+		if !validMachineTokenEnvName(bind.MachineTokenEnv) {
+			return fmt.Errorf("%s [[also]] machine_token_env must match RC_REFRESH_TOKEN_[A-Z0-9_]+", path)
+		}
+		if projects[bind.Project] {
+			return fmt.Errorf("%s binds project %q twice — each project may appear once", path, bind.Project)
+		}
+		if envs[bind.MachineTokenEnv] {
+			return fmt.Errorf("%s uses machine_token_env %q twice — each binding needs its own variable", path, bind.MachineTokenEnv)
+		}
+		projects[bind.Project] = true
+		envs[bind.MachineTokenEnv] = true
+	}
+	return nil
 }
 
 func validMachineTokenEnvName(name string) bool {
@@ -230,7 +336,7 @@ func validMachineTokenEnvName(name string) bool {
 // UpdateBrainProject rewrites the committed brain marker after the server has renamed a project. It
 // preserves the rest of the file and only updates a checkout that was bound to oldProject.
 func UpdateBrainProject(brain *Brain, oldProject, newProject string) (bool, error) {
-	if brain == nil || brain.Project != oldProject || oldProject == newProject {
+	if brain == nil || brain.Primary.Project != oldProject || oldProject == newProject {
 		return false, nil
 	}
 	path := filepath.Join(brain.Dir, MarkerFileName)
@@ -261,6 +367,9 @@ func UpdateBrainProject(brain *Brain, oldProject, newProject string) (bool, erro
 	if err := os.WriteFile(path, []byte(strings.Join(lines, "")), 0o644); err != nil {
 		return false, fmt.Errorf("write %s: %w", path, err)
 	}
-	brain.Project = newProject
+	brain.Primary.Project = newProject
+	if !brain.SelectedAlso {
+		brain.Project = newProject
+	}
 	return true, nil
 }

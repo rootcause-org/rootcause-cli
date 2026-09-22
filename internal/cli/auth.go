@@ -32,6 +32,10 @@ type scopeResolution struct {
 	BaseURL       string
 	BaseURLSource string
 	BrainDir      string
+	// BindingKind/BindingEnv disclose WHICH marker binding supplied the profile: "primary" or "also"
+	// (a [[also]] binding matched --project/RC_PROJECT), plus its machine_token_env name when declared.
+	BindingKind string
+	BindingEnv  string
 
 	LoginProject     string
 	LoginTenant      string
@@ -63,7 +67,7 @@ func newLoginCmd(e *env) *cobra.Command {
 			"all-projects, if you're an admin) on the browser consent screen.",
 		Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile)
+			res, err := config.LoadFor(e.profile, e.project)
 			if err != nil {
 				return err
 			}
@@ -119,7 +123,7 @@ func newLogoutCmd(e *env) *cobra.Command {
 		Short: "Revoke and clear this profile's stored tokens",
 		Args:  cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			res, err := config.Load(e.profile)
+			res, err := config.LoadFor(e.profile, e.project)
 			if err != nil {
 				return err
 			}
@@ -216,6 +220,9 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 					"base_url":           base,
 					"base_url_source":    scope.BaseURLSource,
 					"brain_dir":          scope.BrainDir,
+					"binding_kind":       scope.BindingKind,
+					"binding_env":        scope.BindingEnv,
+					"project_source":     scope.ProjectSource,
 					"logged_in":          loggedIn,
 					"expires_at":         tokenExpiry(t, loggedIn),
 				})
@@ -223,7 +230,9 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 
 			_, _ = fmt.Fprintf(e.out, "profile:   %s\n", res.Profile)
 			_, _ = fmt.Fprintf(e.out, "project:   %s\n", emptyDash(project))
-			if e.project != "" {
+			if scope.BindingKind == config.BindingAlso {
+				_, _ = fmt.Fprintf(e.out, "           (%s [[also]] binding via %s)\n", config.MarkerFileName, scope.BindingEnv)
+			} else if e.project != "" {
 				_, _ = fmt.Fprintf(e.out, "           (--project scope; needs an all-projects token)\n")
 			} else if autoProject != "" {
 				_, _ = fmt.Fprintf(e.out, "           (brain scope via default profile)\n")
@@ -254,6 +263,9 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 			_, _ = fmt.Fprintf(e.out, "base URL:  %s (%s)\n", base, emptyDash(scope.BaseURLSource))
 			if res.Brain != nil {
 				_, _ = fmt.Fprintf(e.out, "brain:     %s\n", res.Brain.Dir)
+				if scope.BindingEnv != "" {
+					_, _ = fmt.Fprintf(e.out, "binding:   %s (%s) via %s\n", res.Brain.Project, scope.BindingKind, scope.BindingEnv)
+				}
 			}
 			_, _ = fmt.Fprintf(e.out, "auth:      %s\n", status)
 			if expiry != "" {
@@ -268,7 +280,7 @@ func newAuthStatusCmd(e *env) *cobra.Command {
 // resolveScope centralizes the exact profile/project/tenant/base-URL precedence. Auth status opts
 // into the soft login lookup; local diagnostics leave it off and never contact the rootcause API.
 func (e *env) resolveScope(includeLogin bool) (scopeResolution, error) {
-	res, err := config.Load(e.profile)
+	res, err := config.LoadFor(e.profile, e.project)
 	if err != nil {
 		return scopeResolution{}, err
 	}
@@ -324,7 +336,9 @@ func (e *env) resolveScope(includeLogin bool) (scopeResolution, error) {
 	if project != "" {
 		projectSource = config.MarkerFileName
 	}
-	if e.project != "" {
+	if res.BindingKind == config.BindingAlso {
+		project, projectSource = res.Project, config.MarkerFileName+" [[also]]"
+	} else if e.project != "" {
 		project, projectSource = e.project, "--project"
 	} else if autoProject != "" {
 		project, projectSource = autoProject, "brain scope via default profile"
@@ -339,6 +353,7 @@ func (e *env) resolveScope(includeLogin bool) (scopeResolution, error) {
 		Profile: res.Profile, Project: project, ProjectSource: projectSource,
 		Tenant: tenant, TenantSource: tenantSource,
 		BaseURL: base, BaseURLSource: res.BaseURLSource, BrainDir: brainDir(res),
+		BindingKind: res.BindingKind, BindingEnv: brainMachineTokenEnv(res),
 		LoginProject: loginProject, LoginTenant: loginTenant, LoginAllProjects: loginAllProjects,
 		LoginScopeError: scopeErr, autoProject: autoProject,
 	}, nil
@@ -410,6 +425,15 @@ func tokenStorePath() string {
 		return p
 	}
 	return "~/.config/rootcause/tokens.json"
+}
+
+// brainMachineTokenEnv names the variable the effective binding would seed from ("" when none is declared
+// or we are outside a brain). It is a NAME, never the secret.
+func brainMachineTokenEnv(res config.Resolved) string {
+	if res.Brain == nil {
+		return ""
+	}
+	return res.Brain.MachineTokenEnv
 }
 
 func brainDir(res config.Resolved) string {

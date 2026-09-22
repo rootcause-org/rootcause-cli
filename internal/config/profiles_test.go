@@ -305,3 +305,109 @@ func TestDiscoverBrain_MarkerMissingProject(t *testing.T) {
 		t.Fatal("expected an error for a marker without a project field")
 	}
 }
+
+// multiBindingMarker is the two-project cloud-agent marker: a primary binding plus one [[also]] binding
+// with its own separately minted, project-pinned token.
+const multiBindingMarker = `project = "acme-staff"
+machine_token_env = "RC_REFRESH_TOKEN_ACME_STAFF"
+tenant = "staff-tenant"
+
+[[also]]
+project = "acme-support"
+machine_token_env = "RC_REFRESH_TOKEN_ACME_SUPPORT"
+`
+
+func TestLoadFor_SecondaryBindingSelectedByProject(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, multiBindingMarker)
+
+	res, err := loadFor("", "acme-support", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Profile != "acme-support" || res.Project != "acme-support" {
+		t.Fatalf("profile/project = %q/%q, want acme-support", res.Profile, res.Project)
+	}
+	if res.BindingKind != BindingAlso {
+		t.Fatalf("binding kind = %q, want %q", res.BindingKind, BindingAlso)
+	}
+	if res.Brain == nil || res.Brain.MachineTokenEnv != "RC_REFRESH_TOKEN_ACME_SUPPORT" || !res.Brain.SelectedAlso {
+		t.Fatalf("brain binding = %+v, want the [[also]] env var", res.Brain)
+	}
+	if res.Brain.Primary.Project != "acme-staff" {
+		t.Fatalf("primary binding lost: %+v", res.Brain.Primary)
+	}
+	// The marker's tenant belongs to the PRIMARY project; it must not leak into the secondary identity.
+	if res.Tenant != "" {
+		t.Fatalf("tenant = %q, want none for a secondary binding", res.Tenant)
+	}
+}
+
+func TestLoadFor_DefaultAndUnboundProjectKeepPrimaryBinding(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, multiBindingMarker)
+
+	for _, project := range []string{"", "acme-staff", "other-project"} {
+		res, err := loadFor("", project, dir)
+		if err != nil {
+			t.Fatalf("project %q: %v", project, err)
+		}
+		if res.Profile != "acme-staff" || res.BindingKind != BindingPrimary {
+			t.Fatalf("project %q: profile/binding = %q/%q, want the primary binding", project, res.Profile, res.BindingKind)
+		}
+		if res.Brain.MachineTokenEnv != "RC_REFRESH_TOKEN_ACME_STAFF" || res.Tenant != "staff-tenant" {
+			t.Fatalf("project %q: brain = %+v tenant=%q", project, res.Brain, res.Tenant)
+		}
+	}
+}
+
+func TestLoadFor_ExplicitProfileWinsOverSecondaryBinding(t *testing.T) {
+	clearEnv(t)
+	writeConfig(t, "")
+	dir := brainDirWith(t, multiBindingMarker)
+
+	res, err := loadFor("scratch", "acme-support", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Profile != "scratch" || res.Brain != nil || res.BindingKind != "" {
+		t.Fatalf("explicit --profile must bypass every binding, got %+v", res)
+	}
+}
+
+func TestLoad_RejectsAmbiguousBindings(t *testing.T) {
+	cases := map[string]struct{ marker, want string }{
+		"duplicate project": {
+			marker: "project = \"acme\"\nmachine_token_env = \"RC_REFRESH_TOKEN_A\"\n\n[[also]]\nproject = \"acme\"\nmachine_token_env = \"RC_REFRESH_TOKEN_B\"\n",
+			want:   "twice",
+		},
+		"duplicate env var": {
+			marker: "project = \"acme\"\nmachine_token_env = \"RC_REFRESH_TOKEN_A\"\n\n[[also]]\nproject = \"acme-support\"\nmachine_token_env = \"RC_REFRESH_TOKEN_A\"\n",
+			want:   "each binding needs its own variable",
+		},
+		"missing env var": {
+			marker: "project = \"acme\"\n\n[[also]]\nproject = \"acme-support\"\n",
+			want:   "needs its own machine_token_env",
+		},
+		"missing project": {
+			marker: "project = \"acme\"\n\n[[also]]\nmachine_token_env = \"RC_REFRESH_TOKEN_B\"\n",
+			want:   "without a `project` field",
+		},
+		"arbitrary secret name": {
+			marker: "project = \"acme\"\n\n[[also]]\nproject = \"acme-support\"\nmachine_token_env = \"AWS_SECRET_ACCESS_KEY\"\n",
+			want:   "RC_REFRESH_TOKEN_[A-Z0-9_]+",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			clearEnv(t)
+			writeConfig(t, "")
+			dir := brainDirWith(t, tc.marker)
+			if _, err := load("", dir); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("expected %q error, got %v", tc.want, err)
+			}
+		})
+	}
+}

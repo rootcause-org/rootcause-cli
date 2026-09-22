@@ -179,7 +179,24 @@ checkout select its own named variable:
 # .rootcause.toml (committed; contains no secret)
 project = "acme-staff"
 machine_token_env = "RC_REFRESH_TOKEN_ACME_STAFF"
+
+[[also]]                    # optional: a second project this checkout may act as
+project = "acme-support"
+machine_token_env = "RC_REFRESH_TOKEN_ACME_SUPPORT"
 ```
+
+Tokens are one-project-only by design, so a checkout that must reach a second project declares an
+`[[also]]` binding per extra project, each with its own separately minted token variable:
+
+- no `--project` → the primary binding, exactly as before;
+- `--project acme-support` (or `RC_PROJECT`) matching an `[[also]]` binding → that binding's profile,
+  token variable and pin check, under the same provenance rules as the primary (no all-projects token
+  needed); the marker/local `tenant` is not carried over, so pass `--tenant` if the second project needs one;
+- `--project` naming anything else, or an explicit `--profile`, behaves exactly as it does today.
+
+Each project and each variable may appear once; a duplicate is a config error. `rc auth status` shows the
+selected binding (`binding_kind` / `binding_env` in `-o json`), and `rc auth access` notes a secondary
+binding on stderr.
 
 Store `RC_REFRESH_TOKEN_ACME_STAFF=<minted refresh token>` in the cloud environment. `rc` seeds the
 `acme-staff` profile in its 0600 token store and refreshes the short-lived access token normally. A

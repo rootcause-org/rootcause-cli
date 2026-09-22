@@ -88,6 +88,18 @@ func loadResolvedToken(res config.Resolved, baseURL string) (token.Token, bool, 
 	return seeded, true, nil
 }
 
+// noteSelectedBinding discloses on stderr that a SECONDARY marker binding answered this invocation —
+// the checkout is bound to its primary project, so "which identity am I?" must not be silent. stdout
+// stays machine-clean (JSON passthrough is untouched).
+func noteSelectedBinding(e *env) {
+	res := e.resolved
+	if res.Brain == nil || !res.Brain.SelectedAlso {
+		return
+	}
+	_, _ = fmt.Fprintf(e.err, "binding: %s via %s (%s [[also]])\n",
+		res.Brain.Project, res.Brain.MachineTokenEnv, config.MarkerFileName)
+}
+
 func machineTokenEnvActive(res config.Resolved) bool {
 	return res.Brain != nil && res.Brain.MachineTokenEnv != "" && os.Getenv(res.Brain.MachineTokenEnv) != ""
 }

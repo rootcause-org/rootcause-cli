@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rootcause-org/rootcause-cli/internal/config"
 	"github.com/rootcause-org/rootcause-cli/internal/token"
 )
 
@@ -421,5 +422,60 @@ func seedToken(t *testing.T, profile string, tok token.Token) {
 	t.Helper()
 	if err := token.Save(profile, tok); err != nil {
 		t.Fatalf("seed token: %v", err)
+	}
+}
+
+// TestAuthStatusDisclosesSecondaryBinding: when --project picks an [[also]] binding, the identity in use
+// is NOT the checkout's primary one, so status must say which binding and which variable answered.
+func TestAuthStatusDisclosesSecondaryBinding(t *testing.T) {
+	isolatedConfig(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"all_projects":false,"project":{"id":"p2","name":"acme-support"}}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p2","name":"acme-support"}]}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Setenv("ROOTCAUSE_BASE_URL", srv.URL)
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.WriteFile(filepath.Join(dir, config.MarkerFileName), []byte(alsoMarker), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	seedToken(t, "acme-support", token.Token{
+		AccessToken: "rcoa_x", RefreshToken: "rcor_x",
+		ExpiresAt: time.Now().Add(time.Hour), BaseURL: srv.URL,
+	})
+
+	var out, errb bytes.Buffer
+	e := &env{output: "json", out: &out, err: &errb}
+	if err := run(t, e, "--project", "acme-support", "auth", "status"); err != nil {
+		t.Fatalf("auth status: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatalf("decode %s: %v", out.String(), err)
+	}
+	for key, want := range map[string]string{
+		"profile":        "acme-support",
+		"project":        "acme-support",
+		"binding_kind":   "also",
+		"binding_env":    "RC_REFRESH_TOKEN_ACME_SUPPORT",
+		"project_source": config.MarkerFileName + " [[also]]",
+	} {
+		if got[key] != want {
+			t.Errorf("%s = %v, want %q", key, got[key], want)
+		}
+	}
+
+	out.Reset()
+	e = &env{output: "table", out: &out, err: &errb}
+	if err := run(t, e, "--project", "acme-support", "auth", "status"); err != nil {
+		t.Fatalf("auth status (table): %v", err)
+	}
+	if !strings.Contains(out.String(), "binding:   acme-support (also) via RC_REFRESH_TOKEN_ACME_SUPPORT") {
+		t.Errorf("table view hides the binding:\n%s", out.String())
 	}
 }

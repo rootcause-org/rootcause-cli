@@ -134,6 +134,12 @@ provenance no longer holds (marker dropped the declaration, or the variable is u
 an error: locally the ladder falls through to the human login. Under `CLAUDE_CODE_REMOTE=true` a
 declared-but-missing variable fails rather than falling back to a broader `default` token.
 
+A marker may declare extra `[[also]]` bindings (project + its own `machine_token_env`), because tokens are
+one-project-only: `--project`/`RC_PROJECT` naming such a project makes `config.LoadFor` re-point the
+profile, the machine-token variable and the pin check to that binding — same provenance rules, no
+all-projects token. `Resolved.BindingKind` (`primary`/`also`) is what `rc auth status` discloses. Every
+other `--project` value stays a pure server-side scope.
+
 ### The share-token path (no profile, no token source)
 
 A pasted run link (`/runs/<id>?t=…`) or chat share link (`/s/<token>`) is the ONE credential that does not
@@ -159,7 +165,8 @@ format, since per-run depth stays behind the `rc run debug` command each table r
 input here; it is a server-side scope threaded on by the command layer.
 
 - explicit `--profile` (or `RC_PROFILE`, its env default) → that profile, no brain binding (the escape hatch);
-- inside a brain (`.rootcause.toml`) → the marker's project as profile; without a project profile, fall
+- inside a brain (`.rootcause.toml`) → the marker's project as profile — or an `[[also]]` binding's
+  project when `--project`/`RC_PROJECT` names it (`LoadFor`); without a project profile, fall
   back to `default` and carry the marker project as `?project=` (`autoProject` in `root.go`);
 - otherwise → `default` — and if that has no token, `notLoggedIn` says so and lists the stored profiles,
   because outside a brain the profile was chosen silently.

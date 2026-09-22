@@ -247,3 +247,157 @@ func TestNewClientRejectsMachineTokenProjectMismatchBeforeCommandRequest(t *test
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
+
+// alsoMarker binds the checkout to acme-staff and declares a second, separately minted acme-support
+// identity — the KampAdmin cloud shape (chat runs live in a different project than the checkout).
+const alsoMarker = `project = "acme-staff"
+machine_token_env = "RC_REFRESH_TOKEN_ACME_STAFF"
+
+[[also]]
+project = "acme-support"
+machine_token_env = "RC_REFRESH_TOKEN_ACME_SUPPORT"
+`
+
+// inAlsoBrain chdirs into a checkout carrying alsoMarker.
+func inAlsoBrain(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, config.MarkerFileName), []byte(alsoMarker), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	return dir
+}
+
+func TestSecondaryBindingSeedsItsOwnProfileFromItsOwnEnv(t *testing.T) {
+	isolatedConfig(t)
+	inAlsoBrain(t)
+	t.Setenv("RC_REFRESH_TOKEN_ACME_STAFF", "rcor_staff")
+	t.Setenv("RC_REFRESH_TOKEN_ACME_SUPPORT", "rcor_support")
+
+	res, err := config.LoadFor("", "acme-support")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+	if err != nil || !ok || got.RefreshToken != "rcor_support" {
+		t.Fatalf("secondary seed = %+v ok=%v err=%v", got, ok, err)
+	}
+	persisted, exists, err := token.Load("acme-support")
+	if err != nil || !exists || persisted.MachineTokenEnv != "RC_REFRESH_TOKEN_ACME_SUPPORT" {
+		t.Fatalf("persisted = %+v exists=%v err=%v", persisted, exists, err)
+	}
+	if _, staffExists, _ := token.Load("acme-staff"); staffExists {
+		t.Fatal("selecting the secondary binding must not touch the primary profile")
+	}
+}
+
+func TestSecondaryBindingMissingEnvFailsClosedInCloud(t *testing.T) {
+	isolatedConfig(t)
+	inAlsoBrain(t)
+	t.Setenv("CLAUDE_CODE_REMOTE", "true")
+	t.Setenv("RC_REFRESH_TOKEN_ACME_STAFF", "rcor_staff")
+
+	res, err := config.LoadFor("", "acme-support")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := loadResolvedToken(res, config.DefaultBaseURL); err == nil || ok ||
+		!strings.Contains(err.Error(), "RC_REFRESH_TOKEN_ACME_SUPPORT") {
+		t.Fatalf("expected the secondary variable to fail closed, ok=%v err=%v", ok, err)
+	}
+}
+
+func TestSecondaryBindingIgnoresStaleCacheLocally(t *testing.T) {
+	isolatedConfig(t)
+	inAlsoBrain(t)
+	seedToken(t, "acme-support", token.Token{
+		RefreshToken: "rcor_support", MachineTokenEnv: "RC_REFRESH_TOKEN_ACME_SUPPORT",
+	})
+
+	res, err := config.LoadFor("", "acme-support")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := loadResolvedToken(res, config.DefaultBaseURL)
+	if err != nil || ok || got.RefreshToken != "" {
+		t.Fatalf("stale secondary cache must be ignored locally, got=%+v ok=%v err=%v", got, ok, err)
+	}
+}
+
+func TestNewClientPinsSecondaryBindingToItsOwnProject(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		whoami    string
+		projects  string
+		wantErr   string
+		wantScope string
+	}{
+		{
+			name:      "pinned to the requested project",
+			whoami:    `{"all_projects":false,"project":{"id":"p2","name":"acme-support"}}`,
+			projects:  `{"projects":[{"id":"p2","name":"acme-support"}]}`,
+			wantScope: "acme-support",
+		},
+		{
+			name:     "still pinned to the checkout's primary project",
+			whoami:   `{"all_projects":false,"project":{"id":"p1","name":"acme-staff"}}`,
+			projects: `{"projects":[{"id":"p1","name":"acme-staff"}]}`,
+			wantErr:  `is bound to project "acme-staff", but this checkout requires "acme-support"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			isolatedConfig(t)
+			inAlsoBrain(t)
+			t.Setenv("RC_REFRESH_TOKEN_ACME_SUPPORT", "rcor_support")
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tc.whoami))
+			})
+			mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(tc.projects))
+			})
+			redirectToStub(t, mux)
+			// A cached, unexpired credential for the SECONDARY profile keeps the case offline of /oauth.
+			seedToken(t, "acme-support", token.Token{
+				AccessToken: "rcoa_support", RefreshToken: "rcor_support", ExpiresAt: time.Now().Add(time.Hour),
+				BaseURL: config.DefaultBaseURL, MachineTokenEnv: "RC_REFRESH_TOKEN_ACME_SUPPORT",
+			})
+
+			e := &env{project: "acme-support"}
+			_, err := e.newClient()
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("want %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if e.resolved.Profile != "acme-support" || e.resolved.BindingKind != config.BindingAlso {
+				t.Fatalf("resolved = %+v, want the [[also]] binding's profile", e.resolved)
+			}
+			if e.scopeProject() != tc.wantScope {
+				t.Fatalf("scope project = %q, want %q", e.scopeProject(), tc.wantScope)
+			}
+		})
+	}
+}
+
+// redirectToStub points every outbound request at the stub server for the duration of the test, so the
+// production base URL (the only one a machine token may be sent to) still reaches a local handler.
+func redirectToStub(t *testing.T, handler http.Handler) {
+	t.Helper()
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	originalTransport := http.DefaultTransport
+	host := strings.TrimPrefix(srv.URL, "http://")
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		clone := req.Clone(req.Context())
+		clone.URL.Scheme = "http"
+		clone.URL.Host = host
+		return originalTransport.RoundTrip(clone)
+	})
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
+}
