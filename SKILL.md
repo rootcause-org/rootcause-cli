@@ -242,8 +242,9 @@ and `-o json` on the raw rows.
   per-resource field knowledge**, so a new server field appears with no CLI change.
 - **Settings coercion** ([config.go](internal/cli/config.go),
   [hierarchy_settings.go](internal/cli/hierarchy_settings.go)) fetches `/meta/schema` once and coerces
-  `k=v` by the *declared* type. There is no hardcoded key list — a knob the server gains is settable
-  without a CLI release, and the server stays the final validator.
+  `k=v` by the *declared* type (lists comma-split; `object`/`json` values ride through as raw JSON —
+  `json` is opaque, so an ARRAY is as valid as an object). There is no hardcoded key list — a knob the
+  server gains is settable without a CLI release, and the server stays the final validator.
 - **Capability/format lists the server owns** (e.g. harvest-corpus format versions on `/meta/capabilities`)
   are read at runtime, never re-pinned in CLI source.
 

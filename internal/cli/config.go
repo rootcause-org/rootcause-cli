@@ -18,6 +18,7 @@ const (
 	kindList             // comma-split → JSON array (e.g. pr.triggers, egress.allowlist)
 	kindBool             // JSON boolean (e.g. actions_enabled, hide_attribution)
 	kindObject           // raw JSON object passed through (e.g. models.agent, a closed record of members)
+	kindJSON             // opaque JSON passed through, object OR array (e.g. channel.record_link_types)
 )
 
 // coercer resolves a settings key to its value kind. The schema-aware coercer is built from
@@ -79,6 +80,8 @@ func newValueCoercer(e *env, c *client.Client) coercer {
 			return kindBool
 		case kindObject:
 			return kindObject
+		case kindJSON:
+			return kindJSON
 		default:
 			// Schema knew the key as a scalar string/enum; still honor a known number/list override in
 			// case the registry's type vocabulary drifts from what the CLI recognizes.
@@ -100,6 +103,8 @@ func normalizeType(typ string) valueKind {
 		return kindBool
 	case t == "object" || t == "record":
 		return kindObject
+	case t == "json" || t == "jsonb":
+		return kindJSON
 	default:
 		return kindString
 	}
@@ -145,6 +150,12 @@ func parseSetArgs(args []string, coerce coercer) (map[string]any, error) {
 				return nil, err
 			}
 			patch[key] = obj
+		case kindJSON:
+			raw, err := parseJSONValue(key, val)
+			if err != nil {
+				return nil, err
+			}
+			patch[key] = raw
 		default:
 			patch[key] = val
 		}
@@ -179,4 +190,19 @@ func parseObjectValue(key, val string) (map[string]json.RawMessage, error) {
 		return nil, fmt.Errorf("invalid value for %s: expected a JSON object (e.g. %s='{\"tier\":\"pro\"}'), got %q", key, key, val)
 	}
 	return obj, nil
+}
+
+// parseJSONValue passes an opaque json-typed value through verbatim: the field's shape is an object OR
+// an array (channel.record_link_types is a list of records), so the CLI only checks that the literal IS
+// JSON and lets the server own the shape. An empty value clears to JSON null — the field's own
+// reset-to-inherit gesture, since there is no single "empty" for an opaque shape.
+func parseJSONValue(key, val string) (any, error) {
+	if strings.TrimSpace(val) == "" {
+		return nil, nil
+	}
+	var raw json.RawMessage
+	if err := json.Unmarshal([]byte(val), &raw); err != nil {
+		return nil, fmt.Errorf("invalid value for %s: expected JSON (e.g. %s='[{\"prefix\":\"https://example.com/x/\"}]'), got %q", key, key, val)
+	}
+	return raw, nil
 }

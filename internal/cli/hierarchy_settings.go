@@ -328,6 +328,8 @@ func coerceHierarchyValue(f client.FieldSchema, dotted, val string) (any, error)
 		return fl, nil
 	case kindList:
 		return splitList(val), nil
+	case kindJSON:
+		return parseJSONValue(dotted, val)
 	default:
 		return val, nil
 	}

@@ -742,6 +742,8 @@ func TestParseSetArgsNullAndKinds(t *testing.T) {
 			return kindBool
 		case "models.agent":
 			return kindObject
+		case "channel.record_link_types":
+			return kindJSON
 		default:
 			return kindString
 		}
@@ -760,6 +762,10 @@ func TestParseSetArgsNullAndKinds(t *testing.T) {
 		{"list clear stays empty array", "pr.triggers=", `[]`},
 		{"object clear stays empty object", "models.agent=", `{}`},
 		{"quoted null is a string", `persona.tone="null"`, `"\"null\""`},
+		{"json array rides through verbatim", `channel.record_link_types=[{"prefix":"https://x/","type":"Inschrijving"}]`, `[{"prefix":"https://x/","type":"Inschrijving"}]`},
+		{"json object rides through verbatim", `channel.record_link_types={"a":1}`, `{"a":1}`},
+		{"json null", "channel.record_link_types=null", `null`},
+		{"json clear is null", "channel.record_link_types=", `null`},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -780,5 +786,33 @@ func TestParseSetArgsNullAndKinds(t *testing.T) {
 				t.Fatalf("got %s, want %s", b, tc.want)
 			}
 		})
+	}
+}
+
+// A json-typed field is opaque: an ARRAY is as valid as an object (channel.record_link_types is a list
+// of records), and a value that isn't JSON is caught here rather than blamed on the whole key by the
+// server.
+func TestCoerceHierarchyValueJSON(t *testing.T) {
+	f := client.FieldSchema{Key: "channel.record_link_types", Type: "json"}
+	got, err := coerceHierarchyValue(f, f.Key, `[{"prefix":"https://admin.example.com/t/demo/subscriptions/","type":"Inschrijving","emoji":"👤"}]`)
+	if err != nil {
+		t.Fatalf("coerce json array: %v", err)
+	}
+	b, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if want := `[{"prefix":"https://admin.example.com/t/demo/subscriptions/","type":"Inschrijving","emoji":"👤"}]`; string(b) != want {
+		t.Fatalf("got %s, want %s", b, want)
+	}
+	if _, err := coerceHierarchyValue(f, f.Key, "not json"); err == nil {
+		t.Fatal("expected an error for a non-JSON value")
+	}
+}
+
+func TestParseSetArgsRejectsInvalidJSON(t *testing.T) {
+	coerce := func(string) valueKind { return kindJSON }
+	if _, err := parseSetArgs([]string{"channel.record_link_types=[{oops]"}, coerce); err == nil {
+		t.Fatal("expected an error for a non-JSON value")
 	}
 }
