@@ -22,6 +22,7 @@ func AskEmail(w io.Writer, r *client.RunDetail, full *client.FullResponse) {
 		_, _ = fmt.Fprintf(w, "\nDecline reason:\n%s\n", why)
 	}
 	if draft := askDraft(r, full); draft != "" {
+		renderOutboundEmail(w, askOutboundEmail(r, full))
 		_, _ = fmt.Fprintf(w, "\nDraft:\n%s\n", draft)
 	}
 	for _, n := range askNotes(r, full) {
@@ -177,6 +178,33 @@ func askDraft(r *client.RunDetail, full *client.FullResponse) string {
 		}
 	}
 	return ""
+}
+
+// askOutboundEmail prefers the /trace run header (the richer source) over the run-detail row.
+func askOutboundEmail(r *client.RunDetail, full *client.FullResponse) *client.OutboundEmail {
+	if full != nil && full.Run.OutboundEmail != nil {
+		return full.Run.OutboundEmail
+	}
+	return r.OutboundEmail
+}
+
+// renderOutboundEmail shows the chosen recipients ABOVE the draft: a draft body alone never reveals
+// that the run addressed someone other than the inbound sender.
+func renderOutboundEmail(w io.Writer, oe *client.OutboundEmail) {
+	if oe == nil || len(oe.To) == 0 {
+		return
+	}
+	line := "Outbound to: " + strings.Join(oe.To, ", ")
+	if len(oe.Cc) > 0 {
+		line += " · cc: " + strings.Join(oe.Cc, ", ")
+	}
+	if len(oe.Bcc) > 0 {
+		line += " · bcc: " + strings.Join(oe.Bcc, ", ")
+	}
+	if strings.TrimSpace(oe.Subject) != "" {
+		line += " · subject: " + oe.Subject
+	}
+	_, _ = fmt.Fprintf(w, "\n%s\n", line)
 }
 
 func askDecline(r *client.RunDetail, full *client.FullResponse) string {

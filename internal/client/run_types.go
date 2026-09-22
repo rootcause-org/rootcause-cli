@@ -251,10 +251,22 @@ type RunDetail struct {
 	ProposedActions []ProposedAction `json:"proposed_actions,omitempty"`
 	SourcePR        *SourcePR        `json:"source_pr,omitempty"`
 	RunURL          string           `json:"run_url,omitempty"`
-	Attachments     []any            `json:"attachments"`
-	Error           string           `json:"error,omitempty"`
-	Debug           *RunDebug        `json:"debug,omitempty"`
-	Metadata        map[string]any   `json:"metadata,omitempty"`
+	// OutboundEmail / ReplyScope: WHO the draft is addressed to. Absent on an ordinary reply-to-sender.
+	OutboundEmail *OutboundEmail `json:"outbound_email,omitempty"`
+	ReplyScope    string         `json:"reply_scope,omitempty"`
+	Attachments   []any          `json:"attachments"`
+	Error         string         `json:"error,omitempty"`
+	Debug         *RunDebug      `json:"debug,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
+}
+
+// OutboundEmail is the explicit addressing of a run's draft (the server's reply.outbound_email): the
+// run chose these recipients itself instead of replying to the inbound sender.
+type OutboundEmail struct {
+	To      []string `json:"to,omitempty"`
+	Cc      []string `json:"cc,omitempty"`
+	Bcc     []string `json:"bcc,omitempty"`
+	Subject string   `json:"subject,omitempty"`
 }
 
 // Event is one tool-call in a run's trace (GET /api/v1/runs/{id}/events). Command is bash-only;
@@ -508,6 +520,8 @@ type RunHeader struct {
 	Notes                 []Note            `json:"notes,omitempty"`
 	Decline               string            `json:"decline,omitempty"`
 	DeclineReason         string            `json:"decline_reason,omitempty"`
+	OutboundEmail         *OutboundEmail    `json:"outbound_email,omitempty"`
+	ReplyScope            string            `json:"reply_scope,omitempty"`
 	ProposedActions       []ProposedAction  `json:"proposed_actions,omitempty"`
 	SourcePR              *SourcePR         `json:"source_pr,omitempty"`
 	Debug                 *RunDebug         `json:"debug,omitempty"`

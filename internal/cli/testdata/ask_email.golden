@@ -11,6 +11,8 @@ Turns:     12
 Bash:      34
 View run:  https://app.replypen.com/runs/email-rich?t=abc123
 
+Outbound to: sophie@cocacola.test · cc: billing@cocacola.test · subject: Your two open invoices
+
 Draft:
 Hi Sophie,
 

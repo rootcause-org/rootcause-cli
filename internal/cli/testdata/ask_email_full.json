@@ -9,6 +9,11 @@
     "created_at": "2026-06-19T09:00:00Z",
     "finished_at": "2026-06-19T09:01:30Z",
     "draft": "Hi Sophie,\n\nYou have 2 open invoices totalling $480.",
+    "outbound_email": {
+      "to": ["sophie@cocacola.test"],
+      "cc": ["billing@cocacola.test"],
+      "subject": "Your two open invoices"
+    },
     "notes": [
       {
         "key": "summary",
