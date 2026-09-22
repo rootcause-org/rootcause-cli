@@ -146,7 +146,7 @@ func stubServer(t *testing.T) *httptest.Server {
 	mux.HandleFunc("GET /api/v1/runs/{id}", func(w http.ResponseWriter, r *http.Request) {
 		requireAuth(t, r)
 		switch r.PathValue("id") {
-		case "bad", "thread-abc123", "session-fallback", "215475391714527", "blocked-thread-xyz", "unknown":
+		case "bad", "thread-abc123", "session-fallback", "215475391714527", "blocked-thread-xyz", "unknown", "chat-session":
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"error":{"code":"UNKNOWN_RUN","message":"unknown run"}}`))
 			return
@@ -232,6 +232,12 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "ask_email_full.json"))
 			return
 		}
+		// ids "chat-turn-N": the per-turn headers behind `rc run thread <session> --transcript`. Each one
+		// carries the prompt/tenant-settings bulk the transcript and `--brief` must drop.
+		if strings.HasPrefix(r.PathValue("id"), "chat-turn-") {
+			_, _ = w.Write(fixture(t, "full_"+r.PathValue("id")+".json"))
+			return
+		}
 		// id "redacted": the trace a non-project-admin gets — skeleton run header (no system_prompt /
 		// grounding / tenant settings / egress), empty events, detail_redacted on the header.
 		if r.PathValue("id") == "redacted" {
@@ -304,6 +310,8 @@ func stubServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write(fixture(t, "thread_trace_provider.json"))
 		case "blocked-thread-xyz": // pre-agent injection block — security_block enum, no run row
 			_, _ = w.Write(fixture(t, "thread_trace_blocked.json"))
+		case "chat-session": // a chat conversation: 3 chat runs, one of them a clarification-form answer
+			_, _ = w.Write(fixture(t, "thread_trace_chat.json"))
 		case "unknown": // an id matching nothing → clean empty (resolved_by:"none")
 			_, _ = w.Write([]byte(`{"id":"unknown","resolved_by":"none","threads":[],"runs":[]}`))
 		default:

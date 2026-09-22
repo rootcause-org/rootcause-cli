@@ -148,22 +148,43 @@ admin can keep one all-projects token in `default` and still have each brain che
 own project. Main intent: the checkout chooses the project context; the profile only chooses which
 local token to use.
 
-### Chat conversations — three rungs
+### Chat conversations — four rungs
 
-A chat conversation is N runs sharing one session id, so there are three drills and each one answers a
-different question:
+A chat conversation is N runs sharing one session id. Each rung answers a different question, and each
+one is deliberately cheap: reading a conversation should never cost you a megabyte of system prompt.
 
 ```bash
 rc run sessions --tenant yes_events --limit 20   # WHICH conversations happened (newest first)
-rc run thread <session_id>                       # every turn of ONE conversation
-rc run trace <run_id>                            # one turn's prompt, grounding, events, bodies
+rc run thread <session_id> --transcript          # READ one conversation: every turn in order
+rc run trace <run_id> --brief                    # ONE turn's details: question, answer, outcome, guards
+rc run trace <run_id> --raw-output               # forensics: prompt, grounding, event timeline
+rc run debug <run_id>                            # forensics on disk (jq-able JSONL + markdown index)
 ```
 
 `rc run sessions` is the list view: created, tenant, turns, the feedback rollup (`5★` · `1★💬` · `-`),
-the title or the opening question, and the session id to paste into `rc run thread`. Narrow it with
-`--surface embed|dashboard`, `--days N`, `--limit N`, and page with `--before <session_id>`;
-`-o json` is the server payload verbatim, `next_before` included. (`rc run session <share-link>` is a
-different thing: the account-less dump of a conversation someone shared with you — see below.)
+the title or the opening question, and the session id to paste into `rc run thread`. Project-wide it
+includes `tenant_slug`; `--tenant <slug>` narrows it. Narrow further with `--surface embed|dashboard`,
+`--days N`, `--limit N`, and page with `--before <session_id>`; `-o json` is the server payload
+verbatim, `next_before` included.
+
+`rc run thread <session_id> --transcript` prints the conversation itself: per turn the timestamp, the
+asserted principal, the question, the answer, the engine outcome, any human feedback and the run link.
+A clarification FORM answer (a turn whose question starts with `User selected:`) is folded under the
+turn it answers as `↳ formulier: …` and is not counted as a question — the footer says
+`questions: N, form answers: M`. Past ~40 turns the answers are clipped to a head with a note, so a long
+conversation never silently dumps. `-o json` gives
+`{session_id, questions, form_answers, turns:[{seq, run_id, created_at, principal_id, question, answer,
+outcome, feedback, run_url, is_form_answer}]}`; a folded turn carries the `seq` of the turn it answers.
+Without `--transcript` the command keeps its pipeline view (channel outcome, runs, placement, health).
+
+`rc run trace <run_id> --brief` is the same intent for ONE turn: question, prior messages, answer/notes,
+outcome, `guards`, the egress summary and any tenant-settings drift — WITHOUT the system prompt, prompt
+sections, manifest/bootstrap turns, grounding snapshots and the two tenant-settings blobs (on a real chat
+turn those are ~90% of the bytes), and without the event timeline. Use `--raw-output` or `rc run debug`
+the moment you are debugging rather than reading.
+
+(`rc run session <share-link>` is a different thing: the account-less dump of a conversation someone
+shared with you — see below.)
 
 ### Someone shared a link with you (no login)
 
@@ -611,7 +632,7 @@ help using `go test ./internal/cli -update`.
 | `rc run sessions` | List chat conversations (sessions) with turns, outcome and feedback |
 | `rc run show` | Show one run |
 | `rc run thread` | Trace one run, provider/local thread, or session through pipeline and placement |
-| `rc run trace` | Show the whole run bundle |
+| `rc run trace` | Show the whole run bundle (--brief: just what was asked and answered) |
 | `rc run` | Inspect and manage the run lifecycle |
 | `rc self completion` | Generate a shell completion script |
 | `rc self doctor` | Diagnose the active rc install, PATH copies, scope, and updates |

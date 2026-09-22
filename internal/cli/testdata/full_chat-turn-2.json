@@ -1,0 +1,19 @@
+{
+  "run": {
+    "run_id": "chat-turn-2",
+    "project": "kampadmin-support",
+    "tenant": "lbv",
+    "status": "done",
+    "kind": "chat",
+    "scenario": "chat",
+    "session_id": "sess_chat42",
+    "question": "User selected: kamp (\"Over welk kamp gaat het?\")=Zomerkamp 2026",
+    "system_prompt": "You are rootcause…",
+    "created_at": "2026-06-22T09:31:00Z",
+    "finished_at": "2026-06-22T09:31:20Z",
+    "draft": "Voor Zomerkamp 2026 start de inschrijving op 1 maart om 20u.",
+    "metadata": {"outcome": "ok", "run_url": "https://app.replypen.com/runs/chat-turn-2"},
+    "guards": {"principal_scope": {"kind": "kampadmin_admin", "external_id": "ext-99", "claims": {"admin_id": 4212}}}
+  },
+  "events": []
+}

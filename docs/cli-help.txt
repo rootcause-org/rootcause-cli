@@ -96,7 +96,7 @@ Available Commands:
   sessions       List chat conversations (sessions) with turns, outcome and feedback
   show           Show one run
   events         Show the full per-event trace
-  trace          Show the whole run bundle
+  trace          Show the whole run bundle (--brief: just what was asked and answered)
   debug          Decompose a run into local debug artifacts
   brain-diff     Show the brain commit written by a run
   egress         Show outbound gateway connections and HTTP attempts
@@ -127,8 +127,9 @@ Usage:
   rc run list [flags]
 
 Flags:
-      --before string             cursor: run_id to page to the next (older) page
+      --before string             cursor: run_id to page to the next (older) page (combines with --days)
       --category string           filter by category (e.g. ok, timeout, cost_cap)
+      --days int                  lookback window in days (server default 14, max 90)
       --kind string               filter by kind: email|prompt|mcp|analysis|console|chat
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
       --limit int                 max runs to return (1..100, server default 50)
@@ -205,12 +206,15 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc run trace --help
-Show the whole run bundle
+Show one run's whole /trace bundle.
+
+Two modes, two questions. `--brief` answers WHAT WAS ASKED AND ANSWERED: question, prior messages, answer/notes, outcome, guards, egress summary — without the system prompt, prompt sections, manifest/bootstrap turns, grounding snapshots, tenant-settings blobs or the event timeline (on a real chat turn that is ~90% of the bytes). Default + `--raw-output` is the DEBUGGING view: everything, JSONL in `-o json`, for `rc run debug`-style forensics.
 
 Usage:
   rc run trace <id|url> [flags]
 
 Flags:
+      --brief               reading view: question/answer/outcome only — drops the prompt, grounding, tenant-settings blobs and the event timeline
       --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
       --stream              stream JSONL to stdout even when it is large
 
@@ -310,11 +314,14 @@ Global Flags:
 $ rc run thread --help
 Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, or session id. A run id is resolved through its safe run-status identity first. Shows the pre-agent channel outcome, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.
 
+--transcript flips the view from PIPELINE to CONVERSATION: every turn in reading order (question, answer, outcome, feedback, run link) as compact Markdown, or a {session_id,turns[]} envelope with -o json. It needs a login (a share link carries one run only).
+
 Usage:
   rc run thread <id|url> [flags]
 
 Flags:
       --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
+      --transcript          print the conversation itself (every turn in order: question, answer, outcome, feedback) instead of the pipeline view
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

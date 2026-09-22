@@ -98,12 +98,18 @@ func newRunEventsCmd(e *env) *cobra.Command {
 // newRunTraceCmd: the whole /trace bundle. One fetch gives the typed bundle for the table view and the
 // RAW bytes for the JSONL seam, so no server field is dropped on the cross-repo boundary.
 func newRunTraceCmd(e *env) *cobra.Command {
-	var stream bool
+	var stream, brief bool
 	var shareToken string
 	cmd := &cobra.Command{
 		Use:   "trace <id|url>",
-		Short: "Show the whole run bundle",
-		Args:  cobra.ExactArgs(1),
+		Short: "Show the whole run bundle (--brief: just what was asked and answered)",
+		Long: "Show one run's whole /trace bundle.\n\n" +
+			"Two modes, two questions. `--brief` answers WHAT WAS ASKED AND ANSWERED: question, prior " +
+			"messages, answer/notes, outcome, guards, egress summary — without the system prompt, prompt " +
+			"sections, manifest/bootstrap turns, grounding snapshots, tenant-settings blobs or the event " +
+			"timeline (on a real chat turn that is ~90% of the bytes). Default + `--raw-output` is the " +
+			"DEBUGGING view: everything, JSONL in `-o json`, for `rc run debug`-style forensics.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			target, err := parseRunTarget(args[0], shareToken)
 			if err != nil {
@@ -112,6 +118,17 @@ func newRunTraceCmd(e *env) *cobra.Command {
 			resp, raw, err := fetchRunTrace(e, target)
 			if err != nil {
 				return withRunAccessHint(err)
+			}
+			if brief {
+				if render.IsJSON(e.mode(), e.out) {
+					body, err := briefTrace(raw)
+					if err != nil {
+						return err
+					}
+					return e.renderJSON("run-brief-"+shortRunID(target.runID), body)
+				}
+				render.Brief(e.out, resp)
+				return nil
 			}
 			if render.IsJSON(e.mode(), e.out) {
 				return emitFullJSONL(e, target.runID, raw, stream)
@@ -122,6 +139,8 @@ func newRunTraceCmd(e *env) *cobra.Command {
 	}
 	addStreamFlag(cmd, &stream)
 	addShareTokenFlag(cmd, &shareToken)
+	cmd.Flags().BoolVar(&brief, "brief", false, "reading view: question/answer/outcome only — drops the prompt, grounding, tenant-settings blobs and the event timeline")
+	cmd.MarkFlagsMutuallyExclusive("brief", "stream")
 	return cmd
 }
 

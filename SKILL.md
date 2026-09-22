@@ -35,12 +35,17 @@ authoring a skill:
 | index | `rc status` / `rc run list` | `GET /api/v1/runs` (`status` = fixed health-led page; `run list` = filterable) |
 | one run | `rc run show <id>` | `GET /api/v1/runs/{id}` |
 | detail | `rc run events <id>` | `GET /api/v1/runs/{id}/events` (NDJSON in `-o json`) |
+| one turn, read | `rc run trace <id> --brief` | same `/trace`, minus the input context (prompt/grounding/tenant-settings) and the timeline |
 | bundle | `rc run trace <id>` | `GET /api/v1/runs/{id}/trace` (JSONL in `-o json`) |
 | decompose | `rc run debug <id>` | `/trace` → local jq-able JSONL + thin markdown index |
 
 `rc run sessions` sits ABOVE the index for chat: a conversation is N runs sharing one session id, so its
-row hands you the id for `rc run thread <session_id>` (every turn) and from there `rc run trace <run_id>`
-(one turn's bodies). Not to be confused with `rc run session <share-link>`, the account-less dump below.
+row hands you the id for `rc run thread <session_id> --transcript` (READ the conversation: every turn in
+order, form answers folded under the turn they answer) and from there `rc run trace <run_id> --brief`
+(one turn's bodies, without the prompt/grounding bulk). The two `--` flags exist because the default
+views are DEBUGGING views: reading a conversation through them costs ~25× the bytes of its content.
+`--raw-output` / `rc run debug` stay the forensic rung. Not to be confused with
+`rc run session <share-link>`, the account-less dump below.
 
 `run list` filters are **server-side** so cursor pagination stays correct — never re-implement one
 client-side. Two lanes that must stay distinct: `--learning` (training signal, held-out threads excluded)

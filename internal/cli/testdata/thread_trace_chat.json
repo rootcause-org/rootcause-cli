@@ -1,0 +1,58 @@
+{
+  "id": "chat-session",
+  "resolved_by": "session",
+  "threads": [],
+  "runs": [
+    {
+      "run_id": "chat-turn-2",
+      "thread_id": "chat-session",
+      "session_id": "sess_chat42",
+      "kind": "chat",
+      "source": "Embed",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T09:31:00Z",
+      "finished_at": "2026-06-22T09:31:20Z",
+      "has_draft": true,
+      "has_note": false
+    },
+    {
+      "run_id": "chat-turn-1",
+      "thread_id": "chat-session",
+      "session_id": "sess_chat42",
+      "kind": "chat",
+      "source": "Embed",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T09:30:00Z",
+      "finished_at": "2026-06-22T09:30:30Z",
+      "has_draft": true,
+      "has_note": false,
+      "attribution": {
+        "thread_id": "chat-session",
+        "session_id": "sess_chat42",
+        "turn_key": "2026-06-22T09:30:00Z",
+        "origin_run_id": "chat-turn-1",
+        "trigger_message_ids": ["msg-1"],
+        "drafts": [],
+        "feedback": {"score": 5, "comment": "precies wat ik nodig had"}
+      }
+    },
+    {
+      "run_id": "chat-turn-3",
+      "thread_id": "chat-session",
+      "session_id": "sess_chat42",
+      "kind": "chat",
+      "source": "Embed",
+      "status": "done",
+      "outcome": "answered",
+      "category": "ok",
+      "created_at": "2026-06-22T09:33:00Z",
+      "finished_at": "2026-06-22T09:33:25Z",
+      "has_draft": true,
+      "has_note": false
+    }
+  ]
+}

@@ -94,6 +94,13 @@ func TestTableGolden(t *testing.T) {
 		// ThreadTraceSecurityBlockTable pins the pre-agent injection block: the thread went terminal with no
 		// run row, so the loud SECURITY-BLOCK line (stage/category) is the only place the verdict surfaces.
 		{"ThreadTraceSecurityBlockTable", []string{"run", "thread", "blocked-thread-xyz"}, "thread_trace_blocked.golden"},
+		// ThreadTranscriptTable pins the conversation view: turns in created_at order (the thread trace
+		// ships them newest-first), the `User selected:` turn folded under the question it answers, and the
+		// footer counts that keep it honest.
+		{"ThreadTranscriptTable", []string{"run", "thread", "chat-session", "--transcript"}, "thread_transcript.golden"},
+		// RunTraceBriefTable pins the reading view of ONE turn: no system prompt, no tenant-settings blobs,
+		// no timeline — but the drift those blobs imply survives as a count.
+		{"RunTraceBriefTable", []string{"run", "trace", "chat-turn-1", "--brief"}, "trace_brief.golden"},
 		// ThreadTraceUnknownTable pins the explicit-empty case: an unknown id is a clean "no runs" answer
 		// (resolved_by:"none"), not an error.
 		{"ThreadTraceUnknownTable", []string{"run", "thread", "unknown"}, "thread_trace_none.golden"},

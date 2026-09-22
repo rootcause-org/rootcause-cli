@@ -1,0 +1,30 @@
+{
+  "run": {
+    "run_id": "chat-turn-1",
+    "project": "kampadmin-support",
+    "tenant": "lbv",
+    "status": "done",
+    "kind": "chat",
+    "scenario": "chat",
+    "trigger": "embed",
+    "session_id": "sess_chat42",
+    "question": "Wanneer start de inschrijving voor het zomerkamp?",
+    "system_prompt": "You are rootcause. Answer from grounded data only. (…60 KB of prompt…)",
+    "bootstrap_turn": "=== /brain/AGENTS.md ===",
+    "tenant_settings": "{\"source\":\"cli\",\"settings\":{\"practice_name\":\"LBV\"}}",
+    "tenant_settings_current": "{\"source\":\"cli\",\"settings\":{\"practice_name\":\"LBV vzw\"}}",
+    "created_at": "2026-06-22T09:30:00Z",
+    "finished_at": "2026-06-22T09:30:30Z",
+    "draft": "De inschrijving start op 1 maart om 20u.",
+    "metadata": {"outcome": "ok", "run_url": "https://app.replypen.com/runs/chat-turn-1"},
+    "egress": [{"host": "api.example", "count": 2, "blocked": false}],
+    "guards": {
+      "principal_scope": {"kind": "kampadmin_admin", "external_id": "ext-99", "claims": {"admin_id": 4212}},
+      "egress": {"allowed": 2, "blocked": 0, "hosts": []},
+      "final": {"disposition": "delivered"}
+    }
+  },
+  "events": [
+    {"seq": 1, "tool": "bash", "status": "ok", "exit_code": 0, "duration_ms": 120, "at": "2026-06-22T09:30:10Z", "command": "psql -c 'select 1'", "stdout": "1"}
+  ]
+}

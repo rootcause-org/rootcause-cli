@@ -1,0 +1,32 @@
+# Conversation sess_chat42
+
+3 turns · 2 questions · 1 form answer
+
+## Turn 1 · 2026-06-22T09:30:00Z · principal 4212
+
+**Q**
+Wanneer start de inschrijving voor het zomerkamp?
+
+**A**
+De inschrijving start op 1 maart om 20u.
+
+_outcome: ok · feedback: 5★ “precies wat ik nodig had” · https://app.replypen.com/runs/chat-turn-1_
+
+  ↳ formulier: User selected: kamp ("Over welk kamp gaat het?")=Zomerkamp 2026
+
+  Voor Zomerkamp 2026 start de inschrijving op 1 maart om 20u.
+
+  _outcome: ok · https://app.replypen.com/runs/chat-turn-2_
+
+## Turn 2 · 2026-06-22T09:33:00Z · principal parent-77
+
+**Q**
+En kan ik nadien nog annuleren?
+
+**A**
+Annuleren kan tot 14 dagen voor de start.
+
+_outcome: ok · https://app.replypen.com/runs/chat-turn-3_
+
+---
+questions: 2, form answers: 1

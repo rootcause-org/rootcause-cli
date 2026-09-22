@@ -1,0 +1,19 @@
+Run:                    chat-turn-1
+Status:                 done
+Outcome:                ok
+Kind:                   chat
+Tenant:                 lbv
+Principal:              4212
+Created:                2026-06-22T09:30:00Z
+Finished:               2026-06-22T09:30:30Z
+Egress:                 1 host
+Tenant settings drift:  1 changed
+View run:               https://app.replypen.com/runs/chat-turn-1
+
+Question:
+Wanneer start de inschrijving voor het zomerkamp?
+
+Answer:
+De inschrijving start op 1 maart om 20u.
+
+Prompt, grounding and the tool-call timeline are omitted; use `rc run trace <id> --raw-output` or `rc run debug <id>`.

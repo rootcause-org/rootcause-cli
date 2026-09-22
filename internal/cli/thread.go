@@ -15,6 +15,7 @@ import (
 // pipeline outcome, then every run with status/health and placement.
 func newThreadCmd(e *env) *cobra.Command {
 	var shareToken string
+	var transcript bool
 	cmd := &cobra.Command{
 		Use:   "thread <id|url>",
 		Short: "Trace one run, provider/local thread, or session through pipeline and placement",
@@ -22,12 +23,18 @@ func newThreadCmd(e *env) *cobra.Command {
 			"thread UUID, or session id. A run id is resolved through its safe run-status identity first. " +
 			"Shows the pre-agent channel outcome, then every run (newest first) " +
 			"with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty " +
-			"answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.",
+			"answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.\n\n" +
+			"--transcript flips the view from PIPELINE to CONVERSATION: every turn in reading order " +
+			"(question, answer, outcome, feedback, run link) as compact Markdown, or a {session_id,turns[]} " +
+			"envelope with -o json. It needs a login (a share link carries one run only).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			target, err := parseRunTarget(args[0], shareToken)
 			if err != nil {
 				return err
+			}
+			if transcript {
+				return runThreadTranscript(e, target)
 			}
 			tr, raw, err := fetchThreadTrace(e, target)
 			if err != nil {
@@ -48,6 +55,7 @@ func newThreadCmd(e *env) *cobra.Command {
 		},
 	}
 	addShareTokenFlag(cmd, &shareToken)
+	cmd.Flags().BoolVar(&transcript, "transcript", false, "print the conversation itself (every turn in order: question, answer, outcome, feedback) instead of the pipeline view")
 	return cmd
 }
 

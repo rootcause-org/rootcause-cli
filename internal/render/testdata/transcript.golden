@@ -1,0 +1,33 @@
+# Conversation sess_long
+
+3 turns · 2 questions · 1 form answer
+
+> Long conversation: answers are clipped to their first 800 characters. Read one turn in full with `rc run trace <run-id> --brief`.
+
+## Turn 1 · 2026-06-22T09:30:00Z · principal 4212
+
+**Q**
+wanneer start de inschrijving?
+
+**A**
+regel een
+regel twee […]
+
+_outcome: ok · feedback: 2★ “te vaag” · https://app.replypen.com/runs/run-1_
+
+## Turn 2 · 2026-06-22T09:32:00Z
+
+**Q**
+en annuleren?
+
+**A**
+_(none placed)_
+
+_outcome: declined · run run-2_
+
+  ↳ formulier: User selected: kamp=Zomerkamp
+
+  _outcome: - · unavailable: run run-3: 403 FORBIDDEN · run run-3_
+
+---
+questions: 2, form answers: 1

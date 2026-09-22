@@ -493,42 +493,47 @@ type GroundingSourceCurrent struct {
 // system_prompt, warm inputs (warm_start_digest/grounding_seed), egress, and metadata.trace_url.
 // Mirrors the server's `run` object field-for-field.
 type RunHeader struct {
-	RunID                 string            `json:"run_id"`
-	Scenario              string            `json:"scenario,omitempty"`
-	Project               string            `json:"project,omitempty"`
-	Tenant                string            `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
-	Status                string            `json:"status"`
-	Kind                  string            `json:"kind"`
-	Trigger               string            `json:"trigger,omitempty"`
-	BrainRef              string            `json:"brain_ref,omitempty"`
-	BrainResolved         string            `json:"brain_resolved,omitempty"`
-	TenantSettings        string            `json:"tenant_settings,omitempty"`
-	TenantSettingsCurrent string            `json:"tenant_settings_current,omitempty"`
-	Error                 string            `json:"error,omitempty"`
-	ThreadID              string            `json:"thread_id,omitempty"`
-	SessionID             string            `json:"session_id,omitempty"`
-	Topic                 string            `json:"topic,omitempty"`
-	Question              string            `json:"question,omitempty"`
-	WarmStartDigest       string            `json:"warm_start_digest,omitempty"`
-	GroundingSeed         string            `json:"grounding_seed,omitempty"`
-	SystemPrompt          string            `json:"system_prompt,omitempty"`
-	CreatedAt             string            `json:"created_at"`
-	FinishedAt            string            `json:"finished_at,omitempty"`
-	Draft                 string            `json:"draft,omitempty"`
-	DraftMarkdown         string            `json:"draft_markdown,omitempty"`
-	AnswerMarkdown        string            `json:"answer_markdown,omitempty"`
-	Notes                 []Note            `json:"notes,omitempty"`
-	Decline               string            `json:"decline,omitempty"`
-	DeclineReason         string            `json:"decline_reason,omitempty"`
-	OutboundEmail         *OutboundEmail    `json:"outbound_email,omitempty"`
-	ReplyScope            string            `json:"reply_scope,omitempty"`
-	ProposedActions       []ProposedAction  `json:"proposed_actions,omitempty"`
-	SourcePR              *SourcePR         `json:"source_pr,omitempty"`
-	Debug                 *RunDebug         `json:"debug,omitempty"`
-	Metadata              map[string]any    `json:"metadata,omitempty"`
-	Egress                []EgressItem      `json:"egress,omitempty"`
-	GroundingSources      *GroundingSources `json:"grounding_sources,omitempty"`
-	GroundingSourcesRaw   json.RawMessage   `json:"-"`
+	RunID                 string `json:"run_id"`
+	Scenario              string `json:"scenario,omitempty"`
+	Project               string `json:"project,omitempty"`
+	Tenant                string `json:"tenant,omitempty"` // run's tenant SLUG ('' for a flat/cross-tenant run)
+	Status                string `json:"status"`
+	Kind                  string `json:"kind"`
+	Trigger               string `json:"trigger,omitempty"`
+	BrainRef              string `json:"brain_ref,omitempty"`
+	BrainResolved         string `json:"brain_resolved,omitempty"`
+	TenantSettings        string `json:"tenant_settings,omitempty"`
+	TenantSettingsCurrent string `json:"tenant_settings_current,omitempty"`
+	Error                 string `json:"error,omitempty"`
+	ThreadID              string `json:"thread_id,omitempty"`
+	SessionID             string `json:"session_id,omitempty"`
+	Topic                 string `json:"topic,omitempty"`
+	Question              string `json:"question,omitempty"`
+	// PriorMessages / PriorNotes are the conversation-so-far the brain was GIVEN this turn (the replayed
+	// webhook Message/Note arrays), raw so the shape stays the server's. null on a first turn or a run
+	// predating the column. `rc run trace --brief` keeps them: they are the context a READER needs.
+	PriorMessages       json.RawMessage   `json:"prior_messages,omitempty"`
+	PriorNotes          json.RawMessage   `json:"prior_notes,omitempty"`
+	WarmStartDigest     string            `json:"warm_start_digest,omitempty"`
+	GroundingSeed       string            `json:"grounding_seed,omitempty"`
+	SystemPrompt        string            `json:"system_prompt,omitempty"`
+	CreatedAt           string            `json:"created_at"`
+	FinishedAt          string            `json:"finished_at,omitempty"`
+	Draft               string            `json:"draft,omitempty"`
+	DraftMarkdown       string            `json:"draft_markdown,omitempty"`
+	AnswerMarkdown      string            `json:"answer_markdown,omitempty"`
+	Notes               []Note            `json:"notes,omitempty"`
+	Decline             string            `json:"decline,omitempty"`
+	DeclineReason       string            `json:"decline_reason,omitempty"`
+	OutboundEmail       *OutboundEmail    `json:"outbound_email,omitempty"`
+	ReplyScope          string            `json:"reply_scope,omitempty"`
+	ProposedActions     []ProposedAction  `json:"proposed_actions,omitempty"`
+	SourcePR            *SourcePR         `json:"source_pr,omitempty"`
+	Debug               *RunDebug         `json:"debug,omitempty"`
+	Metadata            map[string]any    `json:"metadata,omitempty"`
+	Egress              []EgressItem      `json:"egress,omitempty"`
+	GroundingSources    *GroundingSources `json:"grounding_sources,omitempty"`
+	GroundingSourcesRaw json.RawMessage   `json:"-"`
 	// The run's FULL prompt context (server table `run_contexts`, detail tier, 14-day window). SystemPrompt
 	// above is the joined string; PromptSections is that same prompt decomposed — [{id, gate, on, text?}] —
 	// so a debugger sees WHICH gate turned a paragraph on. BootstrapTurn/PreselectedTurn are the verbatim

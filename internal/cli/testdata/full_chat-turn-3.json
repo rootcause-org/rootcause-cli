@@ -1,0 +1,19 @@
+{
+  "run": {
+    "run_id": "chat-turn-3",
+    "project": "kampadmin-support",
+    "tenant": "lbv",
+    "status": "done",
+    "kind": "chat",
+    "scenario": "chat",
+    "session_id": "sess_chat42",
+    "question": "En kan ik nadien nog annuleren?",
+    "prior_messages": [{"role": "user", "body": "Wanneer start de inschrijving?"}, {"role": "assistant", "body": "Op 1 maart."}],
+    "created_at": "2026-06-22T09:33:00Z",
+    "finished_at": "2026-06-22T09:33:25Z",
+    "draft": "Annuleren kan tot 14 dagen voor de start.",
+    "metadata": {"outcome": "ok", "run_url": "https://app.replypen.com/runs/chat-turn-3"},
+    "guards": {"principal_scope": {"kind": "kampadmin_admin", "claims": {"external_id": "parent-77"}}}
+  },
+  "events": []
+}
