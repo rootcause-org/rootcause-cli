@@ -61,6 +61,14 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 	if len(r.ProposedActions) > 0 {
 		header["proposed_actions"] = r.ProposedActions
 	}
+	// WHO the draft goes to: absent on an ordinary reply-to-sender, present when the run chose explicit
+	// recipients (reply.outbound_email) — the body alone never reveals that.
+	if r.OutboundEmail != nil {
+		header["outbound_email"] = r.OutboundEmail
+	}
+	if r.ReplyScope != "" {
+		header["reply_scope"] = r.ReplyScope
+	}
 	// The persisted prompt context, under the server's own field names so the rc-debug jq recipes read
 	// the same keys the API documents. context_schema_version is written even when 0: that zero IS the
 	// "this run predates the capture / aged out" signal, and a jq consumer needs it present to test it.

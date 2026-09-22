@@ -527,6 +527,19 @@ func renderOutcome(r client.RunHeader) []string {
 		return []string{"_(no stored callback — run errored or never produced one)_"}
 	}
 	var out []string
+	if oe := r.OutboundEmail; oe != nil {
+		line := "**Outbound to:** " + strings.Join(oe.To, ", ")
+		if len(oe.Cc) > 0 {
+			line += " · cc: " + strings.Join(oe.Cc, ", ")
+		}
+		if len(oe.Bcc) > 0 {
+			line += " · bcc: " + strings.Join(oe.Bcc, ", ")
+		}
+		if oe.Subject != "" {
+			line += " · subject: `" + oe.Subject + "`"
+		}
+		out = append(out, line, "")
+	}
 	if r.Draft != "" {
 		lines := strings.Split(strings.TrimSpace(r.Draft), "\n")
 		g := strings.Join(lines, "\n")

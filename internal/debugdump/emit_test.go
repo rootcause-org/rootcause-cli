@@ -12,11 +12,12 @@ import (
 func TestHTMLFallbackDraftRendersInDebugDump(t *testing.T) {
 	full := &client.FullResponse{
 		Run: client.RunHeader{
-			RunID:   "c446011c-7e78-4a41-8848-46d92b61152a",
-			Project: "pj-mailbox",
-			Status:  "done",
-			Kind:    "email",
-			Draft:   "<p>Visible HTML draft</p>",
+			RunID:         "c446011c-7e78-4a41-8848-46d92b61152a",
+			Project:       "pj-mailbox",
+			Status:        "done",
+			Kind:          "email",
+			Draft:         "<p>Visible HTML draft</p>",
+			OutboundEmail: &client.OutboundEmail{To: []string{"ned@flanders.com"}, Subject: "Voicemail - Ned Flanders"},
 		},
 	}
 
@@ -26,6 +27,9 @@ func TestHTMLFallbackDraftRendersInDebugDump(t *testing.T) {
 	}
 	if !strings.Contains(index, "<p>Visible HTML draft</p>") {
 		t.Fatalf("index missing HTML draft:\n%s", index)
+	}
+	if !strings.Contains(index, "**Outbound to:** ned@flanders.com · subject: `Voicemail - Ned Flanders`") {
+		t.Fatalf("index missing outbound recipients:\n%s", index)
 	}
 
 	var buf bytes.Buffer
