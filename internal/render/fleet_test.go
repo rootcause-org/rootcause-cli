@@ -209,3 +209,36 @@ func TestKBDrivesHealthVerdict(t *testing.T) {
 		t.Errorf("missing no-KB line in:\n%s", buf.String())
 	}
 }
+
+func TestMissingFollowUpSubjectDrivesHealthVerdict(t *testing.T) {
+	clean := &client.HealthResponse{WindowHours: 24, FollowUpSubjectWindowDays: 7}
+	missing := &client.HealthResponse{
+		WindowHours:               24,
+		FollowUpSubjectWindowDays: 7,
+		FollowUpSubjectMissing: []client.HealthFollowUpSubjectMissing{
+			{Tenant: "de-kies", Reason: "no_declaration", Count: 2},
+			{Tenant: "de-kies", Reason: "sent_content_mismatch", Count: 1},
+		},
+	}
+
+	if !HealthVerdict(clean, testNow) {
+		t.Error("no missing follow-up subjects should be healthy")
+	}
+	if HealthVerdict(missing, testNow) {
+		t.Error("a missing follow-up subject must make the verdict unhealthy")
+	}
+
+	var buf bytes.Buffer
+	if Health(&buf, missing, testNow) {
+		t.Error("Health() returned healthy with missing follow-up subjects")
+	}
+	for _, want := range []string{
+		"Follow-up subjects (last 7d) — 3 missing",
+		"  ! tenant de-kies: no_declaration=2",
+		"  ! tenant de-kies: sent_content_mismatch=1",
+	} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("missing %q in:\n%s", want, buf.String())
+		}
+	}
+}

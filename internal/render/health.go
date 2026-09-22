@@ -1,6 +1,7 @@
 // This file is the FAT side of `rc fleet health`: it rolls up the THIN /api/v1/health raw rows into the
 // healthy/unhealthy sections health.py renders, and reports the overall verdict so the command can exit
-// non-zero (CI/cron usable). The server ships raw mirror_health + watched-mailbox + dead-lettered rows
+// non-zero (CI/cron usable). The server ships raw mirror/KB/mailbox/dead-letter rows plus grouped
+// follow-up subject-resolution failures
 // with NO verdict; the staleness rule (a mirror that hasn't synced in >STALE_HOURS is stale even if its
 // last sweep "succeeded" — the cron runs hourly) and the unhealthy roll-up live HERE.
 //
@@ -28,7 +29,7 @@ const kbStaleHours = 26.0
 // HealthVerdict is the pure healthy/unhealthy decision over the raw rows — true ⇒ healthy. It's the
 // verdict the -o json path needs (which renders no report but still must set the exit code) and the same
 // rule Health renders. A mirror is bad when non-ok OR stale (last_ok older than staleHours / never);
-// any mailbox in an attention state or dead-lettered run is unhealthy.
+// any mailbox in an attention state, dead-lettered run, or unresolved follow-up subject is unhealthy.
 func HealthVerdict(h *client.HealthResponse, now time.Time) bool {
 	for _, m := range h.Mirrors {
 		if m.State != "ok" || m.HoursSinceOK == nil || *m.HoursSinceOK > staleHours {
@@ -50,7 +51,15 @@ func HealthVerdict(h *client.HealthResponse, now time.Time) bool {
 			return false
 		}
 	}
-	return len(h.DeadLettered) == 0
+	if len(h.DeadLettered) > 0 {
+		return false
+	}
+	for _, row := range h.FollowUpSubjectMissing {
+		if row.Count > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // Health renders the rolled-up health report and returns healthy=false when ANY section is unhealthy
@@ -154,6 +163,31 @@ func Health(w io.Writer, h *client.HealthResponse, now time.Time) (healthy bool)
 		_, _ = fmt.Fprintln(w, "  ok — no runs dead-lettered in window")
 	}
 
+	// 6. follow-up subject resolution — without one grounded record, downstream consumers cannot safely
+	// attach the request to their own domain row. The host supplies content-free tenant/reason counts.
+	var missingSubjects int64
+	for _, row := range h.FollowUpSubjectMissing {
+		if row.Count > 0 {
+			missingSubjects += row.Count
+		}
+	}
+	windowDays := h.FollowUpSubjectWindowDays
+	if windowDays == 0 { // Older hosts omit the field; the contract's window is fixed at seven days.
+		windowDays = 7
+	}
+	_, _ = fmt.Fprintf(w, "\nFollow-up subjects (last %dd) — %d missing\n", windowDays, missingSubjects)
+	if missingSubjects > 0 {
+		unhealthy = true
+		for _, row := range h.FollowUpSubjectMissing {
+			if row.Count <= 0 {
+				continue
+			}
+			_, _ = fmt.Fprintf(w, "  ! %s: %s=%d\n", followUpTenant(row.Tenant), row.Reason, row.Count)
+		}
+	} else {
+		_, _ = fmt.Fprintln(w, "  ok — every recent follow-up has a grounded subject")
+	}
+
 	// The DB surface can't see the CloudWatch alert/config-sanity inputs health.py also checks.
 	_, _ = fmt.Fprintln(w, "\nnote: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.")
 
@@ -202,6 +236,13 @@ func mailboxTenant(tenant string) string {
 		return "project"
 	}
 	return tenant
+}
+
+func followUpTenant(tenant string) string {
+	if tenant == "" {
+		return "project"
+	}
+	return "tenant " + tenant
 }
 
 // staleSyncHours is when a mailbox that HAS synced before but has gone quiet counts as unhealthy. A

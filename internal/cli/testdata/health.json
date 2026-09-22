@@ -1,5 +1,6 @@
 {
   "window_hours": 24,
+  "follow_up_subject_window_days": 7,
   "mirrors": [
     {
       "repo": "acme/app",
@@ -81,6 +82,18 @@
       "kind": "email",
       "error": "DEAD_LETTERED: placement rejected past retry cutoff",
       "finished_at": "2026-06-22T03:00:00Z"
+    }
+  ],
+  "follow_up_subject_missing": [
+    {
+      "tenant": "de-kies",
+      "reason": "no_declaration",
+      "count": 2
+    },
+    {
+      "tenant": "de-kies",
+      "reason": "sent_content_mismatch",
+      "count": 1
     }
   ]
 }

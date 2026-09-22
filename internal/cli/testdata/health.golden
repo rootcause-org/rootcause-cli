@@ -15,6 +15,10 @@ Watched mailboxes — 2/5 healthy
 Dead-lettered runs (last 24h) — 1 total
   ! email bbbbbbbb — DEAD_LETTERED: placement rejected past retry cutoff
 
+Follow-up subjects (last 7d) — 3 missing
+  ! tenant de-kies: no_declaration=2
+  ! tenant de-kies: sent_content_mismatch=1
+
 note: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.
 
 UNHEALTHY

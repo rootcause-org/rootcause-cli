@@ -13,6 +13,9 @@ Watched mailboxes — 0/0 healthy
 Dead-lettered runs (last 999h) — 0 total
   ok — no runs dead-lettered in window
 
+Follow-up subjects (last 7d) — 0 missing
+  ok — every recent follow-up has a grounded subject
+
 note: alert + 'token source disabled' log inputs are not in this DB-backed view — check logs (support skill) for those.
 
 healthy

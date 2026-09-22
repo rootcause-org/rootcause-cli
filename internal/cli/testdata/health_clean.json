@@ -1,5 +1,6 @@
 {
   "window_hours": 999,
+  "follow_up_subject_window_days": 7,
   "mirrors": [
     {
       "repo": "acme/app",
@@ -17,5 +18,6 @@
     }
   ],
   "mailboxes": [],
-  "dead_lettered": []
+  "dead_lettered": [],
+  "follow_up_subject_missing": []
 }

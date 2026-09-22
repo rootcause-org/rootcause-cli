@@ -66,12 +66,22 @@ type HealthBrainBoot struct {
 	CheckedAt string `json:"checked_at,omitempty"`
 }
 
+// HealthFollowUpSubjectMissing is one seven-day count of follow-up rows whose declared subject could
+// not be resolved, grouped by tenant and the arm worker's closed failure reason.
+type HealthFollowUpSubjectMissing struct {
+	Tenant string `json:"tenant,omitempty"`
+	Reason string `json:"reason"`
+	Count  int64  `json:"count"`
+}
+
 // HealthResponse is GET /api/v1/health — the RAW health inputs; the CLI decides healthy/unhealthy.
 type HealthResponse struct {
-	WindowHours  int                `json:"window_hours"`
-	Mirrors      []HealthMirror     `json:"mirrors"`
-	KB           []HealthKB         `json:"kb"`
-	BrainBoot    []HealthBrainBoot  `json:"brain_boot"`
-	Mailboxes    []HealthMailbox    `json:"mailboxes"`
-	DeadLettered []HealthDeadLetter `json:"dead_lettered"`
+	WindowHours               int                            `json:"window_hours"`
+	FollowUpSubjectWindowDays int                            `json:"follow_up_subject_window_days"`
+	Mirrors                   []HealthMirror                 `json:"mirrors"`
+	KB                        []HealthKB                     `json:"kb"`
+	BrainBoot                 []HealthBrainBoot              `json:"brain_boot"`
+	Mailboxes                 []HealthMailbox                `json:"mailboxes"`
+	DeadLettered              []HealthDeadLetter             `json:"dead_lettered"`
+	FollowUpSubjectMissing    []HealthFollowUpSubjectMissing `json:"follow_up_subject_missing"`
 }
