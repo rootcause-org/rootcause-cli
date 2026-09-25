@@ -123,7 +123,7 @@ func newAdminProjectCmd(e *env) *cobra.Command {
 		adminAddCmd(e, "projects",
 			// default_tier here is the create-body rung NAME the server folds into settings.models.agent.tier
 			// — not the settings-bag key path.
-			"Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce])",
+			"Create a project (name=… [default_tier=standard|pro] [egress_mode=wildcard|enforce])",
 			"note: the webhook_secret below is shown once — store it now"),
 	)
 	return cmd

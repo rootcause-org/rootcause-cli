@@ -412,7 +412,7 @@ help using `go test ./internal/cli -update`.
 | `rc admin catalog ls` | List catalog |
 | `rc admin catalog upsert` | Create or update a catalog entry (keyed on key=) |
 | `rc admin catalog` | Manage the integration catalog |
-| `rc admin project add` | Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce]) |
+| `rc admin project add` | Create a project (name=… [default_tier=standard|pro] [egress_mode=wildcard|enforce]) |
 | `rc admin project ls` | List projects |
 | `rc admin project` | Manage box-level projects |
 | `rc admin user add` | Create a user (email=… [admin=true] [password=…]) |
@@ -680,7 +680,7 @@ The backend gives each file a real `attachment_id`, so hosted actions with `type
 be proposed against the same ID shape as production email. Action proposal/execution still depends on
 the project's action plane and catalog being enabled.
 
-`rc ask --effort pro|max` is a per-run escalation knob. It maps to rootcause's model tiers, not raw
+`rc ask --effort pro` is a per-run escalation knob (`max` is still accepted and reads as `pro`). It maps to rootcause's model tiers, not raw
 provider effort values; use it when you explicitly want a stronger retry. Omit it, or pass
 `--effort default`, for normal behavior.
 

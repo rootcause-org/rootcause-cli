@@ -393,7 +393,7 @@ func feedbackPatchSummary(processed, unprocessed, noteSet bool) string {
 func runRetryCmd(e *env) *cobra.Command {
 	var tier, comment, commentFile string
 	cmd := &cobra.Command{
-		Use:   "retry <run-id> [--tier standard|pro|max] [--comment <text>|--comment-file <path>]",
+		Use:   "retry <run-id> [--tier standard|pro] [--comment <text>|--comment-file <path>]",
 		Short: "Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cc *cobra.Command, args []string) error {
@@ -433,7 +433,7 @@ func runRetryCmd(e *env) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&tier, "tier", "", "model tier for the retry: standard|pro|max (default: keep the tier with --comment, else escalate one tier)")
+	cmd.Flags().StringVar(&tier, "tier", "", "model tier for the retry: standard|pro (default: keep the tier with --comment, else escalate one tier)")
 	cmd.Flags().StringVar(&comment, "comment", "", "reviewer steering for the rerun, e.g. the corrected answer (server clips at 8 KiB)")
 	cmd.Flags().StringVar(&commentFile, "comment-file", "", "read the reviewer steering from a file, or - for stdin (server clips at 8 KiB)")
 	cmd.MarkFlagsMutuallyExclusive("comment", "comment-file")
