@@ -379,12 +379,12 @@ $ rc run retry --help
 Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier
 
 Usage:
-  rc run retry <run-id> [--tier standard|pro|max] [--comment <text>|--comment-file <path>] [flags]
+  rc run retry <run-id> [--tier standard|pro] [--comment <text>|--comment-file <path>] [flags]
 
 Flags:
       --comment string        reviewer steering for the rerun, e.g. the corrected answer (server clips at 8 KiB)
       --comment-file string   read the reviewer steering from a file, or - for stdin (server clips at 8 KiB)
-      --tier string           model tier for the retry: standard|pro|max (default: keep the tier with --comment, else escalate one tier)
+      --tier string           model tier for the retry: standard|pro (default: keep the tier with --comment, else escalate one tier)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -4381,7 +4381,7 @@ Usage:
 
 Available Commands:
   ls          List projects
-  add         Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce])
+  add         Create a project (name=… [default_tier=standard|pro] [egress_mode=wildcard|enforce])
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -4412,7 +4412,7 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc admin project add --help
-Create a project (name=… [default_tier=standard|pro|max] [egress_mode=wildcard|enforce])
+Create a project (name=… [default_tier=standard|pro] [egress_mode=wildcard|enforce])
 
 Usage:
   rc admin project add k=v [k=v…] [flags]
