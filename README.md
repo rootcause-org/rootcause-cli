@@ -303,6 +303,11 @@ that exact SHA — and exits non-zero on any mismatch (`-o json` carries the rec
 in with an authorized project-maintainer login instead. Explicitly narrowed tokens need the dedicated
 `brain:promote` OAuth scope in addition to that project-level admin authority.
 
+**Read-only brain alias.** A project can run on another project's brain (its on-box `main`) while keeping
+its own secrets, databases, chat config and runs. Operator-only: `rc project settings runtime set
+brain_source_project_id=<source-project-uuid>` (`brain_source_project_id=` clears). Brain writes on the alias
+(edit/consolidate/promote/publish) fail with 409 `BRAIN_READ_ONLY_ALIAS`; `rc dev brain status` shows the `Source:`.
+
 To eyeball what one tenant actually gets from a templated brain, run `rc dev brain render --tenant <slug>
 [--path AGENTS.md] [--all] [--sha <SHA> | --channel stable|edge]`. The server compiles that tenant's
 placeholders and `rc:branch` regions in memory (the deployed brain cache is untouched) and returns the

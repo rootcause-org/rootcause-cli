@@ -1,0 +1,12 @@
+Project: alpha
+Fetched: yes
+Updated: no
+Note:    fetched dentai main into the read-only alias cache
+
+Project: alpha
+Source:  reads dentai main @ d2f9de784ab7 (read-only alias; make brain changes in dentai)
+Ref:     main
+Local:   d2f9de784ab7
+Origin:  d2f9de784ab7
+State:   read_only_alias
+Note:    reads dentai main (read-only alias); nothing is published from here

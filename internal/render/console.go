@@ -264,6 +264,7 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 			msg = "not available"
 		}
 		_, _ = fmt.Fprintf(w, "Brain: %s (%s)\n", r.Project, msg)
+		brainSourceLine(w, st.Source)
 		return
 	}
 	state := st.State
@@ -271,6 +272,7 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 		state = "unknown"
 	}
 	_, _ = fmt.Fprintf(w, "Project: %s\n", r.Project)
+	brainSourceLine(w, st.Source)
 	_, _ = fmt.Fprintf(w, "Ref:     %s\n", st.Ref)
 	_, _ = fmt.Fprintf(w, "Local:   %s\n", clipID(st.LocalSHA, 12))
 	if st.RemoteSHA != "" {
@@ -288,7 +290,9 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 		_, _ = fmt.Fprintf(w, "Synced:  %s\n", st.SyncedAt)
 	}
 	// A FAILED boot check is why local main can be behind origin: the box kept the last-good commit.
+	// An alias status carries no boot verdict of its own (runs use the source's), so don't claim "unchecked".
 	switch {
+	case st.BootCheck == nil && st.Source != nil:
 	case st.BootCheck == nil:
 		_, _ = fmt.Fprintln(w, "Boot:    unchecked")
 	case st.BootCheck.OK:
@@ -310,6 +314,16 @@ func BrainStatus(w io.Writer, r *client.BrainStatusResponse) {
 		}
 		_ = tw.Flush()
 	}
+}
+
+// brainSourceLine names the source of a read-only brain alias; nothing for a project's own brain.
+func brainSourceLine(w io.Writer, src *client.BrainSource) {
+	if src == nil {
+		return
+	}
+	name := orDashTrimmed(src.Project, "another project")
+	_, _ = fmt.Fprintf(w, "Source:  reads %s %s @ %s (read-only alias; make brain changes in %s)\n",
+		name, orDashTrimmed(src.Ref, "main"), orDashTrimmed(clipID(src.SHA, 12), "—"), name)
 }
 
 func BrainSync(w io.Writer, r *client.BrainSyncResponse) {

@@ -20,6 +20,18 @@ type BrainStatus struct {
 	// this brain. Nil when no candidate commit has been checked yet — a failing check keeps the box's
 	// local main at the last-good commit instead of advancing it.
 	BootCheck *BrainBootCheck `json:"boot_check,omitempty"`
+	// Source is set when this project runs on another project's brain (a read-only brain alias, state
+	// "read_only_alias"); the SHA fields then describe the source's main as fetched into the alias cache.
+	Source *BrainSource `json:"brain_source,omitempty"`
+}
+
+// BrainSource is the provenance of a read-only brain alias.
+type BrainSource struct {
+	ProjectID string `json:"project_id"`
+	Project   string `json:"project"`
+	ReadOnly  bool   `json:"read_only"`
+	Ref       string `json:"ref"`
+	SHA       string `json:"sha,omitempty"`
 }
 
 // BrainBootCheck is one brain boot-check verdict. Reason is populated only when OK is false.

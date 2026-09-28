@@ -138,6 +138,25 @@ func brainBootCheckError(err error) error {
 	return err
 }
 
+const brainReadOnlyAlias = "BRAIN_READ_ONLY_ALIAS"
+
+// brainAliasError adds the plain-language next step to a refused brain write on a read-only brain alias.
+// The error envelope doesn't name the source project, so the hint stays generic unless the caller knows it.
+func brainAliasError(err error, project, source string) error {
+	var apiErr *client.APIError
+	if !asAPIError(err, &apiErr) || apiErr.Code != brainReadOnlyAlias {
+		return err
+	}
+	who := project
+	if who == "" {
+		who = "this project"
+	}
+	if source == "" {
+		return withHint(err, who+" reads another project's brain (read-only alias); make brain changes in the source project")
+	}
+	return withHint(err, fmt.Sprintf("%s reads %s's brain (read-only alias); make brain changes in %s", who, source, source))
+}
+
 func brainSyncCmd(e *env) *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync",
@@ -153,7 +172,7 @@ func brainSyncCmd(e *env) *cobra.Command {
 			}
 			resp, raw, err := c.BrainSync(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
-				return brainBootCheckError(err)
+				return brainAliasError(brainBootCheckError(err), e.scopeProject(), "")
 			}
 			if e.jsonOut() {
 				return render.JSON(e.out, raw)
@@ -252,7 +271,7 @@ func brainPromoteCmd(e *env) *cobra.Command {
 			}
 			resp, raw, err := c.BrainPromote(e.ctx(), e.scopeProject(), client.BrainPromoteRequest{Channel: channel, SHA: strings.ToLower(sha)})
 			if err != nil {
-				return err
+				return brainAliasError(err, e.scopeProject(), "")
 			}
 			if e.jsonOut() {
 				return render.JSON(e.out, raw)
@@ -294,7 +313,7 @@ func brainPreflightCmd(e *env) *cobra.Command {
 			}
 			resp, raw, err := c.BrainPreflight(e.ctx(), e.scopeProject(), client.BrainPreflightRequest{Channel: channel, SHA: strings.ToLower(sha)})
 			if err != nil {
-				return err
+				return brainAliasError(err, e.scopeProject(), "")
 			}
 			if e.jsonOut() {
 				if err := render.JSON(e.out, raw); err != nil {
@@ -353,9 +372,19 @@ func brainPublishCmd(e *env) *cobra.Command {
 			}
 			project := e.scopeProject()
 
+			// A read-only alias can never publish; say so before sync touches anything.
+			pre, _, err := c.BrainStatus(e.ctx(), project, "")
+			if err != nil {
+				return err
+			}
+			if src := pre.Status.Source; src != nil {
+				return brainAliasError(&client.APIError{Status: http.StatusConflict, Code: brainReadOnlyAlias,
+					Message: "brain publish refused: this project runs on a read-only brain alias"}, project, src.Project)
+			}
+
 			syncResp, _, err := c.BrainSync(e.ctx(), project, "")
 			if err != nil {
-				return brainBootCheckError(err)
+				return brainAliasError(brainBootCheckError(err), project, "")
 			}
 			if syncResp.Sync.ManualReconcile {
 				return fmt.Errorf("brain box clone is %q and needs manual reconcile — reconcile the box clone, see `rc dev brain status`", syncResp.Sync.After.State)
@@ -363,7 +392,7 @@ func brainPublishCmd(e *env) *cobra.Command {
 
 			promoteResp, _, err := c.BrainPromote(e.ctx(), project, client.BrainPromoteRequest{Channel: channel, SHA: sha})
 			if err != nil {
-				return err
+				return brainAliasError(err, project, "")
 			}
 
 			statusResp, _, err := c.BrainStatus(e.ctx(), project, "")
@@ -445,7 +474,7 @@ func brainEditCmd(e *env) *cobra.Command {
 			}
 			raw, err := c.BrainEdit(e.ctx(), instruction, e.scopeProject(), e.scopeTenant())
 			if err != nil {
-				return err
+				return brainAliasError(err, e.scopeProject(), "")
 			}
 			if e.jsonOut() {
 				return render.JSON(e.out, raw)
@@ -471,7 +500,7 @@ func brainConsolidateCmd(e *env) *cobra.Command {
 			}
 			raw, err := c.BrainConsolidate(e.ctx(), e.scopeProject(), e.scopeTenant())
 			if err != nil {
-				return err
+				return brainAliasError(err, e.scopeProject(), "")
 			}
 			if e.jsonOut() {
 				return render.JSON(e.out, raw)

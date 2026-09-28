@@ -282,7 +282,11 @@ const publishSHA = "d2f9de784ab7cded001f2b6ac86892795f58a8ce"
 // publishStub wires the three endpoints `dev brain publish` chains. syncBody/statusBody are the raw
 // JSON each returns; a non-nil promoteErr makes promote fail with that envelope code. Each hit flips
 // the matching seen flag so a test can assert the chain stopped at the right gate.
-type publishSeen struct{ sync, promote, status bool }
+// status counts GETs: publish reads status once up front (consumer gate) and once to verify.
+type publishSeen struct {
+	sync, promote bool
+	status        int
+}
 
 func publishStub(t *testing.T, syncBody, statusBody, promoteCode string) (*httptest.Server, *publishSeen) {
 	t.Helper()
@@ -310,7 +314,7 @@ func publishStub(t *testing.T, syncBody, statusBody, promoteCode string) (*httpt
 		_, _ = w.Write([]byte(`{"project":"alpha","channel":"stable","old_sha":"3333333333333333333333333333333333333333","new_sha":"` + publishSHA + `","changed":true,"idempotent":false}`))
 	})
 	mux.HandleFunc("GET /api/v1/projects/alpha/brain/status", func(w http.ResponseWriter, _ *http.Request) {
-		seen.status = true
+		seen.status++
 		_, _ = w.Write([]byte(statusBody))
 	})
 	srv := httptest.NewServer(mux)
@@ -330,7 +334,7 @@ func TestBrainPublishHappyPathJSONEnvelope(t *testing.T) {
 	if err := run(t, e, "dev", "brain", "publish", "--channel", "stable", "--sha", strings.ToUpper(publishSHA)); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
-	if !seen.sync || !seen.promote || !seen.status {
+	if !seen.sync || !seen.promote || seen.status != 2 {
 		t.Fatalf("chain incomplete: %+v", *seen)
 	}
 	var env struct {
@@ -371,7 +375,7 @@ func TestBrainPublishPromoteUnreachableStopsBeforeVerify(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected promote failure")
 	}
-	if seen.status {
+	if seen.status > 1 {
 		t.Fatal("verify ran despite promote failure")
 	}
 	printError(errb, err)
@@ -389,6 +393,48 @@ func TestBrainPublishVerifyMismatchFails(t *testing.T) {
 	}
 	if !seen.promote {
 		t.Fatal("promote should have run before verify")
+	}
+}
+
+// A read-only brain alias can't publish: refuse before sync and name the source project.
+func TestBrainPublishAliasRefusesBeforeSync(t *testing.T) {
+	status := `{"project":"alpha","status":{"available":true,"ref":"main","state":"read_only_alias","brain_source":{"project_id":"p2","project":"dentai","read_only":true,"ref":"main","sha":"` + publishSHA + `"}}}`
+	srv, seen := publishStub(t, publishSyncOK, status, "")
+	e, _, errb := newTestEnv(t, srv, "table")
+	err := run(t, e, "dev", "brain", "publish", "--channel", "stable", "--sha", publishSHA)
+	if err == nil {
+		t.Fatal("expected read-only alias refusal")
+	}
+	if seen.sync || seen.promote {
+		t.Fatalf("publish touched the brain on an alias: %+v", *seen)
+	}
+	printError(errb, err)
+	if !strings.Contains(errb.String(), "hint: alpha reads dentai's brain (read-only alias); make brain changes in dentai") {
+		t.Fatalf("missing alias hint: %q", errb.String())
+	}
+}
+
+// Any other brain write on an alias surfaces the server error plus a generic hint (source unknown).
+func TestBrainEditReadOnlyAliasHint(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p1","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/brain/edit", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":{"code":"BRAIN_READ_ONLY_ALIAS","message":"project alpha runs on a read-only brain alias; brain writes and actions are off"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, _, errb := newTestEnv(t, srv, "table")
+	err := run(t, e, "--project", "alpha", "dev", "brain", "edit", "fix", "refunds")
+	if err == nil {
+		t.Fatal("expected read-only refusal")
+	}
+	printError(errb, err)
+	want := "BRAIN_READ_ONLY_ALIAS: project alpha runs on a read-only brain alias; brain writes and actions are off\nhint: alpha reads another project's brain (read-only alias); make brain changes in the source project\n"
+	if errb.String() != want {
+		t.Fatalf("stderr = %q, want %q", errb.String(), want)
 	}
 }
 
@@ -814,5 +860,29 @@ func TestParseSetArgsRejectsInvalidJSON(t *testing.T) {
 	coerce := func(string) valueKind { return kindJSON }
 	if _, err := parseSetArgs([]string{"channel.record_link_types=[{oops]"}, coerce); err == nil {
 		t.Fatal("expected an error for a non-JSON value")
+	}
+}
+
+// An aliased project's status/sync (fetch-only, before==after) name the source instead of an own brain.
+func TestBrainAliasStatusAndSyncRender(t *testing.T) {
+	st := `{"available":true,"ref":"main","local_sha":"` + publishSHA + `","remote_sha":"` + publishSHA + `","state":"read_only_alias","message":"reads dentai main (read-only alias); nothing is published from here","brain_source":{"project_id":"p2","project":"dentai","read_only":true,"ref":"main","sha":"` + publishSHA + `"}}`
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"projects":[{"id":"p1","name":"alpha"}]}`))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/brain/status", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":"alpha","status":` + st + `}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/brain/sync", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"project":"alpha","sync":{"before":` + st + `,"after":` + st + `,"fetched":true,"fast_forwarded":false,"manual_reconcile":false,"message":"fetched dentai main into the read-only alias cache"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	for _, tc := range []struct{ verb, golden string }{{"status", "brain_status_alias.golden"}, {"sync", "brain_sync_alias.golden"}} {
+		e, out, _ := newTestEnv(t, srv, "table")
+		if err := run(t, e, "--project", "alpha", "dev", "brain", tc.verb); err != nil {
+			t.Fatalf("%s: %v", tc.verb, err)
+		}
+		assertGolden(t, tc.golden, out.String())
 	}
 }
