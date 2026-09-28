@@ -259,8 +259,7 @@ func TestTableLine(t *testing.T) {
 		// RunRetryWithComment: reviewer steering rides the retry POST as "comment"; no --tier, so the
 		// server keeps the original tier.
 		{"RunRetryWithComment", []string{"run", "retry", "11111111-1111-1111-1111-111111111111", "--comment", "  the correct answer is 42\n"}, "99999999-9999-9999-9999-999999999999\n"},
-		// A table-printed prefix resolves through the list before the decision POST.
-		{"SettingProposalApprovePrefix", []string{"--project", "alpha", "project", "settings", "proposals", "approve", "5a1f0c2e-1111"}, "applied settings proposal 5a1f0c2e-1111-4000-8000-000000000001: persona.tone = warm\n"},
+		{"SettingProposalApprove", []string{"--project", "alpha", "project", "settings", "proposals", "approve", "5A1F0C2E-1111-4000-8000-000000000001"}, "applied settings proposal 5a1f0c2e-1111-4000-8000-000000000001: persona.tone = warm\n"},
 		{"SettingProposalReject", []string{"--project", "alpha", "--tenant", "acme", "project", "settings", "proposals", "reject", "5a1f0c2e-2222-4000-8000-000000000002", "--reason", "too broad"}, "Scope: alpha / acme\nrejected settings proposal 5a1f0c2e-2222-4000-8000-000000000002: persona.tone = warm\n"},
 		{"RunProcessThreadPrintsStatusURL", []string{"run", "process-thread", "thread-1"}, "/api/v1/projects/alpha/inbox/threads/thread-1\n"},
 	} {
@@ -314,6 +313,10 @@ func TestRejectsBeforeRequest(t *testing.T) {
 		// A recorded apply failure is HTTP 200 server-side; the CLI must still exit non-zero.
 		{"SettingProposalApplyFailedExitsNonZero", []string{"--project", "alpha", "project", "settings", "proposals", "approve", "fa110000-0000-4000-8000-000000000000"}, "apply failed: settings changed since this preview"},
 		{"SettingProposalAmbiguousPrefix", []string{"--project", "alpha", "project", "settings", "proposals", "show", "5a1f0c2e"}, "ambiguous"},
+		// The list is windowed (pending + recent decided), so a prefix could resolve to the wrong row:
+		// decisions take the full uuid and never guess.
+		{"SettingProposalApproveRejectsPrefix", []string{"--project", "alpha", "project", "settings", "proposals", "approve", "5a1f0c2e-1111"}, "full proposal id"},
+		{"SettingProposalRejectRejectsPrefix", []string{"--project", "alpha", "project", "settings", "proposals", "reject", "5a1f0c2e"}, "full proposal id"},
 		{"ConsoleBashRunRejectsHalfPrincipal", []string{"dev", "console", "bash", "run", "--principal-kind", "kampadmin_admin", "echo hi"}, "must be provided together"},
 		{"ConsoleDBQueryRejectsHalfPrincipal", []string{"dev", "console", "database", "query", "prod", "select 1", "--principal-id", "usr_1"}, "must be provided together"},
 		{"ConsoleDBSchemaRejectsHalfPrincipal", []string{"dev", "console", "database", "schema", "app", "--principal-kind", "kampadmin_admin"}, "must be provided together"},

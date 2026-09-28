@@ -20,7 +20,7 @@ func SettingProposals(w io.Writer, items []client.SettingProposal) {
 	_, _ = fmt.Fprintln(tw, "ID\tSTATUS\tSCOPE\tKIND\tCHANGE\tSOURCE\tCREATED")
 	for _, p := range items {
 		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			clipID(p.ID, 8), p.Status, proposalScope(p), p.Kind, truncate(ProposalChange(p), 60),
+			p.ID, p.Status, proposalScope(p), p.Kind, truncate(ProposalChange(p), 60),
 			orDash(p.Source, "-"), orDash(clipID(p.CreatedAt, 10), "-"))
 	}
 	_ = tw.Flush()

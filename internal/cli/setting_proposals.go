@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -86,7 +87,7 @@ func proposalsDecideCmd(e *env, verb string) *cobra.Command {
 		short = "Reject a pending settings proposal"
 	}
 	cmd := &cobra.Command{
-		Use:   verb + " <id>",
+		Use:   verb + " <full-id>",
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
@@ -94,7 +95,7 @@ func proposalsDecideCmd(e *env, verb string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			id, err := resolveProposalID(e, c, project, args[0])
+			id, err := fullProposalID(args[0])
 			if err != nil {
 				return err
 			}
@@ -133,7 +134,19 @@ func proposalsClient(e *env) (*client.Client, string, error) {
 	return c, project, nil
 }
 
-// resolveProposalID accepts the full uuid or the unique prefix the table prints.
+// fullProposalID gates approve/reject: the list only windows the decided tail, so a prefix unique within
+// it can still name a different (older) proposal than the one the caller means.
+func fullProposalID(arg string) (string, error) {
+	id := strings.ToLower(strings.TrimSpace(arg))
+	if !fullUUID.MatchString(id) {
+		return "", fmt.Errorf("proposal id %q: approve/reject need the full proposal id (see the ID column of `rc project settings proposals ls`, or `show <prefix>`)", arg)
+	}
+	return id, nil
+}
+
+var fullUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
+// resolveProposalID (show only) accepts the full uuid or a prefix unique among the listed rows.
 func resolveProposalID(e *env, c *client.Client, project, arg string) (string, error) {
 	arg = strings.ToLower(strings.TrimSpace(arg))
 	if len(arg) == 36 {

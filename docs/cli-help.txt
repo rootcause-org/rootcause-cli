@@ -722,7 +722,7 @@ $ rc project settings proposals approve --help
 Approve and apply a settings proposal
 
 Usage:
-  rc project settings proposals approve <id> [flags]
+  rc project settings proposals approve <full-id> [flags]
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -738,7 +738,7 @@ $ rc project settings proposals reject --help
 Reject a pending settings proposal
 
 Usage:
-  rc project settings proposals reject <id> [flags]
+  rc project settings proposals reject <full-id> [flags]
 
 Flags:
       --reason string   why (recorded in the decision audit)
