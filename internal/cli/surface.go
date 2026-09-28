@@ -62,7 +62,7 @@ func newProjectSettingsSurfaceCmd(e *env) *cobra.Command {
 	cmd := &cobra.Command{Use: "settings", Short: "Read, change, and describe project settings"}
 	runtime := &cobra.Command{Use: "runtime", Short: "Manage flat runtime settings"}
 	runtime.AddCommand(newBagGetCmd(e, "/api/v1/settings"), newBagSetCmd(e, "/api/v1/settings"))
-	cmd.AddCommand(runtime, newProjectHierarchySettingsCmd(e), newExplainCmd(e), newSchemaCmd(e))
+	cmd.AddCommand(runtime, newProjectHierarchySettingsCmd(e), newExplainCmd(e), newSchemaCmd(e), newSettingProposalsCmd(e))
 	return cmd
 }
 

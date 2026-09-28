@@ -586,6 +586,11 @@ help using `go test ./internal/cli -update`.
 | `rc project settings behavior set` | Patch settings (nested; key= or --unset clears local override) |
 | `rc project settings behavior` | Read or edit nested project settings (persona/channel) |
 | `rc project settings describe` | Explain one config key (type, enum, scopes, default, help) |
+| `rc project settings proposals approve` | Approve and apply a settings proposal |
+| `rc project settings proposals ls` | List settings proposals (pending first, then recently decided) |
+| `rc project settings proposals reject` | Reject a pending settings proposal |
+| `rc project settings proposals show` | Show one settings proposal with its payload and evidence |
+| `rc project settings proposals` | Review proposed settings changes (list, approve, reject) |
 | `rc project settings runtime get` | Show current values (value / effective / default) |
 | `rc project settings runtime set` | Change values (sparse, validate-then-apply server-side) |
 | `rc project settings runtime` | Manage flat runtime settings |

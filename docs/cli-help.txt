@@ -499,6 +499,7 @@ Available Commands:
   behavior    Read or edit nested project settings (persona/channel)
   describe    Explain one config key (type, enum, scopes, default, help)
   schema      Show the config registry (fields, types, scopes, defaults)
+  proposals   Review proposed settings changes (list, approve, reject)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -646,6 +647,101 @@ Show the config registry (fields, types, scopes, defaults)
 
 Usage:
   rc project settings schema [resource] [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project settings proposals --help
+Review proposed settings changes (list, approve, reject)
+
+Usage:
+  rc project settings proposals [flags]
+  rc project settings proposals [command]
+
+Available Commands:
+  ls          List settings proposals (pending first, then recently decided)
+  show        Show one settings proposal with its payload and evidence
+  approve     Approve and apply a settings proposal
+  reject      Reject a pending settings proposal
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+Use "rc project settings proposals [command] --help" for more information about a command.
+
+$ rc project settings proposals ls --help
+List settings proposals (pending first, then recently decided)
+
+Usage:
+  rc project settings proposals ls [flags]
+
+Flags:
+      --pending   show only proposals still awaiting a decision (table only)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project settings proposals show --help
+Show one settings proposal with its payload and evidence
+
+Usage:
+  rc project settings proposals show <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project settings proposals approve --help
+Approve and apply a settings proposal
+
+Usage:
+  rc project settings proposals approve <id> [flags]
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project settings proposals reject --help
+Reject a pending settings proposal
+
+Usage:
+  rc project settings proposals reject <id> [flags]
+
+Flags:
+      --reason string   why (recorded in the decision audit)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

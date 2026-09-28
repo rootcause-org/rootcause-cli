@@ -1,0 +1,4 @@
+ID        STATUS    SCOPE        KIND               CHANGE                           SOURCE          CREATED
+5a1f0c2e  proposed  project      hierarchy_set      persona.tone = warm, concise     consolidation   2026-09-20
+5a1f0c2e  proposed  tenant acme  triage_rule_add    skip sender_domain=news.example  mining          2026-09-19
+77aa0c2e  rejected  project      triage_policy_set  guidance = Skip invoices         dashboard_chat  2026-09-18

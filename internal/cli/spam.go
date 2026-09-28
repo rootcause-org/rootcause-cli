@@ -193,10 +193,15 @@ func isNotFound(err error) bool {
 	return asAPIError(err, &apiErr) && apiErr.Status == 404
 }
 
-// spamProject resolves the concrete project slug for a spam PATH: the explicit/brain --project scope
-// when set, else the login-bound project from whoami. Errors clearly for an all-projects token with no
-// --project (the path needs a project segment; there's no server-side default).
+// spamProject resolves the concrete project slug for a spam PATH (see pathProject).
 func spamProject(e *env, c *client.Client) (string, error) {
+	return pathProject(e, c, "spam rules")
+}
+
+// pathProject resolves the concrete project slug for a project-tree PATH: the explicit/brain --project
+// scope when set, else the login-bound project from whoami. Errors clearly for an all-projects token with
+// no --project (the path needs a project segment; there's no server-side default).
+func pathProject(e *env, c *client.Client, what string) (string, error) {
 	if project := e.scopeProject(); project != "" {
 		return project, nil
 	}
@@ -211,7 +216,7 @@ func spamProject(e *env, c *client.Client) (string, error) {
 			return who.Project.ID, nil
 		}
 	}
-	return "", fmt.Errorf("--project <project> is required for spam rules unless the active login is project-scoped")
+	return "", fmt.Errorf("--project <project> is required for %s unless the active login is project-scoped", what)
 }
 
 // rawOrNull returns the raw body or the JSON literal null when the server sent nothing, so the

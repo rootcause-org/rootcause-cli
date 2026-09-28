@@ -693,6 +693,35 @@ func stubServer(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
+	// Settings proposals — path-scoped review queue. The list serves both scopes; approve answers a
+	// failed apply for id prefix "fa11" (HTTP 200, status failed) so the CLI's non-zero exit is testable.
+	for _, base := range []string{"/api/v1/projects/{project}/settings-proposals", "/api/v1/projects/{project}/tenants/{slug}/settings-proposals"} {
+		mux.HandleFunc("GET "+base, func(w http.ResponseWriter, r *http.Request) {
+			requireAuth(t, r)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(fixture(t, "setting_proposals.json"))
+		})
+		mux.HandleFunc("GET "+base+"/{id}", func(w http.ResponseWriter, r *http.Request) {
+			requireAuth(t, r)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"id":%q,"kind":"hierarchy_set","status":"proposed"}`, r.PathValue("id"))
+		})
+		mux.HandleFunc("POST "+base+"/{id}/{verb}", func(w http.ResponseWriter, r *http.Request) {
+			requireAuth(t, r)
+			id, body := r.PathValue("id"), readBody(t, r)
+			status := map[string]string{"approve": "applied", "reject": "rejected"}[r.PathValue("verb")]
+			errMsg := ""
+			if strings.HasPrefix(id, "fa11") {
+				status, errMsg = "failed", "settings changed since this preview"
+			}
+			if r.PathValue("verb") == "reject" && !strings.Contains(body, `"reason":"too broad"`) {
+				t.Fatalf("reject body = %q, want the --reason", body)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"id":%q,"kind":"hierarchy_set","status":%q,"payload":{"group":"persona","key":"tone","value":"warm"},"error":%q}`, id, status, errMsg)
+		})
+	}
+
 	// Collection resources (repos / connections / members / tokens). Each list GET echoes a canned
 	// fixture; create/patch echo a single item; the connection/token item-verbs return their canned
 	// shapes. Handlers assert the auth header (via requireAuth) and, where load-bearing, the request body.
