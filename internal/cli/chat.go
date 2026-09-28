@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -428,6 +429,20 @@ func chatDoctorCmd(e *env, version string) *cobra.Command {
 			add(containsCLI(origins, origin), "ORIGIN_ALLOWED", "ORIGIN_NOT_ALLOWED", "Add this exact origin to chat_origins.")
 		} else {
 			add(len(origins) > 0, "ORIGINS_CONFIGURED", "ORIGIN_NOT_ALLOWED", "Configure at least one exact chat origin.")
+		}
+		for _, o := range unresolvableOrigins(e.ctx(), origins, net.DefaultResolver.LookupHost) {
+			warn("ORIGIN_UNRESOLVABLE", fmt.Sprintf("chat_origins entry %s has no DNS record — likely a typo of the real app host.", o))
+		}
+		if origin != "" && !containsCLI(origins, origin) {
+			if near, ok := nearestOrigin(origin, origins); ok {
+				warn("ORIGIN_NEAR_MISS", fmt.Sprintf("%s is not registered, but %s is — one of them is probably a typo.", origin, near))
+			}
+		}
+		for rejected, near := range nearMissRejects(b.Rejects, origins) {
+			if rejected == origin {
+				continue
+			}
+			warn("ORIGIN_NEAR_MISS", fmt.Sprintf("recent rejects came from %s, which is not registered; %s is — one of them is probably a typo.", rejected, near))
 		}
 		source, _ := b.Secret["source"].(string)
 		if source == "dedicated" {
