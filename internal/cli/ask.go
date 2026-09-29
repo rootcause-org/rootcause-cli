@@ -77,10 +77,16 @@ func newAskCmd(e *env) *cobra.Command {
 				if err != nil {
 					return err
 				}
+				// Same scenario/sender as a real submit: email_lookup inference reads the sender, so a
+				// dry-scope without it would preview the wrong identity axis.
+				sender, subject := askEmailFields(scenario, args[0], f.from, f.subject, cmd.Flags().Changed("from"), cmd.Flags().Changed("subject"))
 				preview, raw, err := c.DryScope(e.ctx(), client.SubmitRequest{
 					Prompt:    args[0],
+					Scenario:  scenario,
 					SessionID: f.session,
 					Tenant:    e.scopeTenant(),
+					Sender:    sender,
+					Subject:   subject,
 					Principal: principal,
 					Project:   e.scopeProject(),
 				})
