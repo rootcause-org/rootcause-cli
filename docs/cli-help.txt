@@ -130,12 +130,16 @@ Flags:
       --before string             cursor: run_id to page to the next (older) page (combines with --days)
       --category string           filter by category (e.g. ok, timeout, cost_cap)
       --days int                  lookback window in days (server default 14, max 90)
+      --from string               sender address or name substring (case-insensitive)
       --kind string               filter by kind: email|prompt|mcp|analysis|console|chat
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
       --limit int                 max runs to return (1..100, server default 50)
       --outcome string            filter by outcome: answered|declined|failed|error|stuck|running|interrupted
       --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
       --session string            list every run in this chat session
+      --since string              runs created at/after this RFC3339 time or YYYY-MM-DD (UTC); overrides --days
+      --subject string            thread subject substring (case-insensitive)
+      --until string              runs created before this RFC3339 time, or through this YYYY-MM-DD (UTC)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
@@ -312,7 +316,7 @@ Global Flags:
       --tenant string    override the login tenant where supported (default: RC_TENANT)
 
 $ rc run thread --help
-Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, or session id. A run id is resolved through its safe run-status identity first. Shows the pre-agent channel outcome, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.
+Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause thread UUID, session id, or an email address (the newest threads it sent or received — the forwarded-email entry point, incl. triage-skipped mail that never became a run). A run id is resolved through its safe run-status identity first. Shows the pre-agent channel outcome, then every run (newest first) with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.
 
 --transcript flips the view from PIPELINE to CONVERSATION: every turn in reading order (question, answer, outcome, feedback, run link) as compact Markdown, or a {session_id,turns[]} envelope with -o json. It needs a login (a share link carries one run only).
 
@@ -4271,11 +4275,15 @@ Flags:
       --all                       fan out across every project (requires an all-projects token)
       --days int                  window label for the digest header (days) (default 7)
       --format string             output style: human|agent (default "human")
+      --from string               sender address or name substring (case-insensitive)
       --kind string               filter by kind: email|prompt|mcp|analysis|console|chat
       --learning string[="any"]   filter by learning signal; bare means any, or use =feedback|sent_delta|triage_skipped|triage_corrected
       --limit int                 max runs to include (1..100, uncapped by default)
       --reviewed                  only runs with a 1–5 human review score (includes held-out eval runs)
+      --since string              runs created at/after this RFC3339 time or YYYY-MM-DD (UTC); overrides --days
+      --subject string            thread subject substring (case-insensitive)
       --timeline                  add the per-day runs/errors/latency timeline
+      --until string              runs created before this RFC3339 time, or through this YYYY-MM-DD (UTC)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

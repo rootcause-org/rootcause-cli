@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -20,7 +21,8 @@ func newThreadCmd(e *env) *cobra.Command {
 		Use:   "thread <id|url>",
 		Short: "Trace one run, provider/local thread, or session through pipeline and placement",
 		Long: "Trace a run id, provider conversation id (Gmail thread or Intercom conversation), rootcause " +
-			"thread UUID, or session id. A run id is resolved through its safe run-status identity first. " +
+			"thread UUID, session id, or an email address (the newest threads it sent or received — the " +
+			"forwarded-email entry point, incl. triage-skipped mail that never became a run). A run id is resolved through its safe run-status identity first. " +
 			"Shows the pre-agent channel outcome, then every run (newest first) " +
 			"with health, placement, and a deterministic why-no-draft hint. An unknown id is a clean empty " +
 			"answer, not an error. A pasted run link (…/runs/<id>?t=<token>) works with no login.\n\n" +
@@ -81,6 +83,9 @@ func fetchThreadTrace(e *env, target shareTarget) (*client.ThreadTrace, json.Raw
 // unchanged on UNKNOWN_RUN; other errors remain loud so auth/scope/network failures cannot masquerade
 // as an empty thread trace.
 func resolveThreadLookupID(e *env, c *client.Client, id string) (string, error) {
+	if strings.Contains(id, "@") {
+		return id, nil // an email address resolves server-side to the threads it took part in
+	}
 	detail, err := c.Run(e.ctx(), id, e.scopeProject(), e.scopeTenant())
 	if err == nil {
 		if detail.LocalThreadID != "" {

@@ -26,6 +26,8 @@ type RunSummary struct {
 	HasNote        bool       `json:"has_note"`
 	DeclinedReason string     `json:"declined_reason,omitempty"`
 	Topic          string     `json:"topic,omitempty"`
+	From           string     `json:"from,omitempty"`    // thread's inbound sender (operator tier)
+	Subject        string     `json:"subject,omitempty"` // thread subject (operator tier)
 	Health         *RunHealth `json:"health,omitempty"`
 	Learning       Learning   `json:"learning"`
 	Review         *Review    `json:"review,omitempty"`

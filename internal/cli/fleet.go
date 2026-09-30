@@ -26,6 +26,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	var learning string
 	var reviewed bool
 	var limit int
+	var from, subject, since, until string
 	cmd := &cobra.Command{
 		Use:   "runs",
 		Short: "Fleet digest of recent runs (flags, rates, worst offenders)",
@@ -52,15 +53,15 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 			}
 			opt := render.FleetOptions{Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, Format: format, Timeline: timeline, Now: nowFunc()}
 			rawJSON := rawRowsJSON(e, cmd)
+			// `days` is server-side so paging stops at the requested window instead of walking old history.
+			p := client.RunsParams{Limit: limit, Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, From: from, Subject: subject, Since: since, Until: until}
 
 			if all {
-				return runFleetAll(e, c, kind, learning, reviewed, limit, opt, rawJSON)
+				return runFleetAll(e, c, p, opt, rawJSON)
 			}
 
-			// `days` is server-side so paging stops at the requested window instead of walking old history.
-			// kind IS a server-side filter; --project scopes an all-projects token to one project
-			// (disregarded for a pinned token).
-			p := client.RunsParams{Limit: limit, Days: days, Kind: kind, Learning: learning, Reviewed: reviewed, Project: e.scopeProject(), Tenant: e.scopeTenant()}
+			// --project scopes an all-projects token to one project (disregarded for a pinned token).
+			p.Project, p.Tenant = e.scopeProject(), e.scopeTenant()
 
 			runs, capped, err := c.AllRuns(e.ctx(), p)
 			if err != nil {
@@ -86,6 +87,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 	cmd.Flags().Lookup("learning").NoOptDefVal = "any"
 	cmd.Flags().BoolVar(&reviewed, "reviewed", false, "only runs with a 1–5 human review score (includes held-out eval runs)")
 	cmd.Flags().IntVar(&limit, "limit", 0, "max runs to include (1..100, uncapped by default)")
+	addEnvelopeFlags(cmd, &from, &subject, &since, &until)
 	return cmd
 }
 
@@ -93,7 +95,7 @@ func newFleetRunsCmd(e *env) *cobra.Command {
 // explicit ?project= scope, then render grouped-by-project with a fleet total. When rawJSON (see
 // rawRowsJSON) it emits the merged structure {projects:[{project, runs:[…]}], total_runs}. A per-project
 // fetch error aborts (the digest is only honest if it's complete).
-func runFleetAll(e *env, c *client.Client, kind, learning string, reviewed bool, limit int, opt render.FleetOptions, rawJSON bool) error {
+func runFleetAll(e *env, c *client.Client, base client.RunsParams, opt render.FleetOptions, rawJSON bool) error {
 	projects, err := fanOutProjects(e, c)
 	if err != nil {
 		return err
@@ -101,7 +103,9 @@ func runFleetAll(e *env, c *client.Client, kind, learning string, reviewed bool,
 
 	groups := make([]render.FleetGroup, 0, len(projects))
 	for _, proj := range projects {
-		runs, capped, ferr := c.AllRuns(e.ctx(), client.RunsParams{Limit: limit, Days: opt.Days, Kind: kind, Learning: learning, Reviewed: reviewed, Project: proj.ID})
+		p := base
+		p.Project = proj.ID
+		runs, capped, ferr := c.AllRuns(e.ctx(), p)
 		if ferr != nil {
 			return fmt.Errorf("fleet --all: project %s: %w", proj.Name, ferr)
 		}

@@ -50,6 +50,9 @@ views are DEBUGGING views: reading a conversation through them costs ~25× the b
 `run list` filters are **server-side** so cursor pagination stays correct — never re-implement one
 client-side. Two lanes that must stay distinct: `--learning` (training signal, held-out threads excluded)
 vs `--reviewed` (human audit, held-out threads included). Merging them leaks eval data into training.
+`--from/--subject/--since/--until` match the channel thread's envelope (the forwarded-email entry point);
+a triage-skipped mail has no run, so `rc run thread <address>` is the fallback (server resolves the
+address to threads).
 
 Fan-out commands (`rc fleet runs|patterns|health`, `rc fleet actions`, `rc run thread`,
 `rc dev learning evidence`, `rc project knowledge content …`) call several raw endpoints and compute the

@@ -26,6 +26,8 @@
       "thread_id": "thread-error",
       "session_id": "session-error",
       "kind": "email",
+      "from": "Jara Decuyper <jara@example.test>",
+      "subject": "Re: Ramon afwezig 3/10",
       "source": "Inbound",
       "status": "error",
       "outcome": "error",

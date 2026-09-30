@@ -97,6 +97,10 @@ type RunsParams struct {
 	Reviewed bool
 	Before   string
 	Session  string
+	From     string // sender substring, case-insensitive
+	Subject  string // thread subject substring, case-insensitive
+	Since    string // RFC3339 or YYYY-MM-DD (UTC); overrides Days server-side
+	Until    string // RFC3339 or YYYY-MM-DD (UTC, whole day)
 	Project  string
 	Tenant   string
 }
@@ -130,6 +134,11 @@ func (c *Client) Runs(ctx context.Context, p RunsParams) (*RunsResponse, json.Ra
 	}
 	if p.Session != "" {
 		q.Set("session", p.Session)
+	}
+	for k, v := range map[string]string{"from": p.From, "subject": p.Subject, "since": p.Since, "until": p.Until} {
+		if v != "" {
+			q.Set(k, v)
+		}
 	}
 	if p.Project != "" {
 		q.Set("project", p.Project)

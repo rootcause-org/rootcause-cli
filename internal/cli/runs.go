@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -20,6 +21,10 @@ type runsFlags struct {
 	reviewed bool
 	before   string
 	session  string
+	from     string
+	subject  string
+	since    string
+	until    string
 }
 
 // newRunListCmd builds `rc run list`: the filterable list view of GET /api/v1/runs, leading with the run
@@ -39,7 +44,7 @@ func newRunListCmd(e *env) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			params := client.RunsParams{Limit: f.limit, Days: f.days, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Reviewed: f.reviewed, Before: f.before, Session: f.session, Project: e.scopeProject(), Tenant: e.scopeTenant()}
+			params := client.RunsParams{Limit: f.limit, Days: f.days, Kind: f.kind, Category: f.category, Outcome: f.outcome, Learning: f.learning, Reviewed: f.reviewed, Before: f.before, Session: f.session, From: f.from, Subject: f.subject, Since: f.since, Until: f.until, Project: e.scopeProject(), Tenant: e.scopeTenant()}
 			resp, raw, err := c.Runs(e.ctx(), params)
 			if err != nil {
 				return err
@@ -48,6 +53,10 @@ func newRunListCmd(e *env) *cobra.Command {
 				return render.JSON(e.out, raw)
 			}
 			render.Runs(e.out, resp)
+			// A triage-skipped or security-blocked email never becomes a run; the address lookup shows it.
+			if len(resp.Runs) == 0 && strings.Contains(f.from, "@") {
+				_, _ = fmt.Fprintf(e.err, "hint: no run — `rc run thread %s` shows threads that stopped before a run (triage skip, security block)\n", f.from)
+			}
 			return nil
 		},
 	}
@@ -61,7 +70,16 @@ func newRunListCmd(e *env) *cobra.Command {
 	cmd.Flags().BoolVar(&f.reviewed, "reviewed", false, "only runs with a 1–5 human review score (includes held-out eval runs)")
 	cmd.Flags().StringVar(&f.before, "before", "", "cursor: run_id to page to the next (older) page (combines with --days)")
 	cmd.Flags().StringVar(&f.session, "session", "", "list every run in this chat session")
+	addEnvelopeFlags(cmd, &f.from, &f.subject, &f.since, &f.until)
 	return cmd
+}
+
+// addEnvelopeFlags binds the forwarded-email filters shared by `rc run list` and `rc fleet runs`.
+func addEnvelopeFlags(cmd *cobra.Command, from, subject, since, until *string) {
+	cmd.Flags().StringVar(from, "from", "", "sender address or name substring (case-insensitive)")
+	cmd.Flags().StringVar(subject, "subject", "", "thread subject substring (case-insensitive)")
+	cmd.Flags().StringVar(since, "since", "", "runs created at/after this RFC3339 time or YYYY-MM-DD (UTC); overrides --days")
+	cmd.Flags().StringVar(until, "until", "", "runs created before this RFC3339 time, or through this YYYY-MM-DD (UTC)")
 }
 
 func validateRunFilters(outcome, learning string) error {

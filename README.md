@@ -19,6 +19,8 @@ $ rc ask --scenario raw "How many active subscriptions are past due?"
 $ rc ask --effort pro "Retry this with a stronger model tier"
 $ rc run list --kind prompt --limit 5 | jq '.runs[].run_id'
 $ rc run list --outcome failed --learning             # learning candidates with failed verdicts
+$ rc run list --from jara@example.be --since 2026-09-29  # forwarded email → its run (FROM/SUBJECT columns)
+$ rc run thread jara@example.be                       # …or its threads when no run exists (triage skip)
 $ rc run events <id>        # full per-iteration trace (NDJSON when piped)
 $ rc run trace <id|url>      # GET /runs/{id}/trace bundle (header + trace; JSONL when piped)
 $ rc fleet actions --days 14 --action create_appointment --action update_appointment

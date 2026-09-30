@@ -71,15 +71,26 @@ func Runs(w io.Writer, resp *client.RunsResponse) {
 		return
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSOURCE\tSTATUS\tOUTCOME\tCATEGORY\tLEARNING\tDURATION\tCREATED")
+	_, _ = fmt.Fprintln(tw, "RUN\tKIND\tSOURCE\tSTATUS\tOUTCOME\tCATEGORY\tLEARNING\tDURATION\tCREATED\tFROM\tSUBJECT")
 	for _, r := range resp.Runs {
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			r.RunID, r.Kind, r.Source, r.Status, r.Outcome, r.Category, learningLabel(r.Learning), duration(r.DurationMs), r.CreatedAt)
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			r.RunID, r.Kind, r.Source, r.Status, r.Outcome, r.Category, learningLabel(r.Learning), duration(r.DurationMs), r.CreatedAt,
+			orDash(mailAddress(r.From), "-"), orDash(truncate(r.Subject, 40), "-"))
 	}
 	_ = tw.Flush()
 	if resp.NextBefore != "" {
 		_, _ = fmt.Fprintf(w, "\nMore: rc run list --before %s\n", resp.NextBefore)
 	}
+}
+
+// mailAddress keeps the bare address of a "Name <addr>" header value — the column stays narrow.
+func mailAddress(from string) string {
+	if i := strings.LastIndex(from, "<"); i >= 0 {
+		if j := strings.Index(from[i:], ">"); j > 0 {
+			return from[i+1 : i+j]
+		}
+	}
+	return strings.TrimSpace(from)
 }
 
 func learningLabel(l client.Learning) string {

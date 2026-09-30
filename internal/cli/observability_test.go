@@ -732,3 +732,28 @@ func TestFleetPatternsHealthAllLargeJSONSpills(t *testing.T) {
 		})
 	}
 }
+
+// The forwarded-email path: envelope flags reach the server verbatim, and an empty --from <address>
+// points at the thread lookup (triage-skipped mail never becomes a run).
+func TestRunListEnvelopeFilters(t *testing.T) {
+	want := map[string]string{"from": "jara@example.test", "subject": "afwezig", "since": "2026-09-29", "until": "2026-09-30T12:00:00Z"}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/runs", func(w http.ResponseWriter, r *http.Request) {
+		for k, v := range want {
+			if got := r.URL.Query().Get(k); got != v {
+				t.Errorf("query %s = %q, want %q", k, got, v)
+			}
+		}
+		_, _ = w.Write([]byte(`{"runs":[],"summary":{}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e, _, errOut := newTestEnv(t, srv, "table")
+	if err := run(t, e, "run", "list", "--from", want["from"], "--subject", want["subject"], "--since", want["since"], "--until", want["until"]); err != nil {
+		t.Fatalf("run list: %v", err)
+	}
+	if got := errOut.String(); !strings.Contains(got, "rc run thread jara@example.test") {
+		t.Fatalf("missing thread hint on stderr: %q", got)
+	}
+}

@@ -15,6 +15,7 @@ type ThreadTraceThread struct {
 	Provider          string          `json:"provider"`
 	FeedbackLevel     string          `json:"feedback_level"`
 	Tenant            string          `json:"tenant,omitempty"`
+	Subject           string          `json:"subject,omitempty"`
 	Status            string          `json:"status"`
 	Outcome           string          `json:"outcome"`
 	TriageExplanation string          `json:"triage_explanation,omitempty"`

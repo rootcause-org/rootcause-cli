@@ -21,11 +21,11 @@ func ThreadTrace(w io.Writer, t *client.ThreadTrace) {
 	if len(t.Threads) > 0 {
 		_, _ = fmt.Fprintf(w, "\n%d channel thread(s):\n", len(t.Threads))
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-		_, _ = fmt.Fprintln(tw, "LOCAL\tPROVIDER\tTENANT\tSTATUS\tOUTCOME\tMSG\tDRAFT\tNOTE\tUPDATED")
+		_, _ = fmt.Fprintln(tw, "LOCAL\tPROVIDER\tTENANT\tSTATUS\tOUTCOME\tMSG\tDRAFT\tNOTE\tUPDATED\tSUBJECT")
 		for _, th := range t.Threads {
-			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\n",
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%d\t%d\t%d\t%s\t%s\n",
 				clipID(th.LocalThreadID, 8), th.Provider, orDash(th.Tenant, "-"), th.Status, th.Outcome,
-				th.MessageCount, th.DraftCount, th.NoteCount, th.UpdatedAt.Format(time.RFC3339))
+				th.MessageCount, th.DraftCount, th.NoteCount, th.UpdatedAt.Format(time.RFC3339), orDash(truncate(th.Subject, 40), "-"))
 		}
 		_ = tw.Flush()
 		for _, th := range t.Threads {
@@ -132,6 +132,8 @@ func resolvedLabel(by string) string {
 		return "rootcause thread id"
 	case "external_thread":
 		return "provider conversation id"
+	case "address":
+		return "email address (newest threads it sent or received)"
 	case "thread":
 		return "thread id"
 	case "session":
