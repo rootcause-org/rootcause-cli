@@ -1813,7 +1813,7 @@ A write lands in the provider's DRAFT lane unless you pass --publish, and `apply
 first prints the exact provider calls. `get` hands you an editable block for a live article.
 The project needs a help-centre write grant (once, by an owner):
   rc project connection add integration_key=<helpscout_docs|intercom|knowledgeowl> \
-    label=help-center tier=write token=…
+    label=help-center token=…
 
 Usage:
   rc project knowledge article [flags]

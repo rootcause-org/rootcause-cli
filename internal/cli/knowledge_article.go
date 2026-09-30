@@ -29,7 +29,7 @@ func newKnowledgeArticleCmd(e *env) *cobra.Command {
 			"first prints the exact provider calls. `get` hands you an editable block for a live article.\n" +
 			"The project needs a help-centre write grant (once, by an owner):\n" +
 			"  rc project connection add integration_key=<helpscout_docs|intercom|knowledgeowl> \\\n" +
-			"    label=help-center tier=write token=…",
+			"    label=help-center token=…",
 	}
 	cmd.AddCommand(knowledgeArticleApplyCmd(e), knowledgeArticleGetCmd(e))
 	return cmd
