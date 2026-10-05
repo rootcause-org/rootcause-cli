@@ -127,6 +127,13 @@ func Health(w io.Writer, h *client.HealthResponse, now time.Time) (healthy bool)
 	default:
 		_, _ = fmt.Fprintln(w, "  ok — every brain commit boots")
 	}
+	// A passing verdict can still carry a warning (a templated brain no active tenant consumes: every
+	// run refuses). Not unhealthy — the commit boots — but the operator must see it before a user does.
+	for _, b := range h.BrainBoot {
+		if b.OK && b.Note != "" {
+			_, _ = fmt.Fprintf(w, "  ~ %s: %s\n", brainBootName(b.Tenant), firstLine120(b.Note))
+		}
+	}
 
 	// 4. watched mailboxes — raw rows; error/needs_attention or active expired watches need attention.
 	var badMailboxes []client.HealthMailbox

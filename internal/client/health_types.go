@@ -63,6 +63,7 @@ type HealthBrainBoot struct {
 	SHA       string `json:"sha"`
 	OK        bool   `json:"ok"`
 	Reason    string `json:"reason,omitempty"`
+	Note      string `json:"note,omitempty"`
 	CheckedAt string `json:"checked_at,omitempty"`
 }
 
