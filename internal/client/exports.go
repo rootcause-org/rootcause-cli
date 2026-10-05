@@ -15,16 +15,17 @@ import (
 // Accept: text/markdown request and still decodes the JSON error envelope on a non-2xx.
 
 // HarvestRequest is the POST /mailboxes/{id}/harvest body. Clean is a pointer so nil omits the field
-// (server default true); MaxThreads omits at 0 (server default).
+// (server default true); MaxThreads and LookbackDays omit at 0 (server default).
 type HarvestRequest struct {
-	Clean      *bool `json:"clean,omitempty"`
-	MaxThreads int   `json:"max_threads,omitempty"`
+	Clean        *bool `json:"clean,omitempty"`
+	MaxThreads   int   `json:"max_threads,omitempty"`
+	LookbackDays int   `json:"lookback_days,omitempty"`
 }
 
 // StartHarvest posts POST /api/v1/projects/{project}/mailboxes/{id}/harvest → the 202 accept body
 // {export_id, status}. It returns the typed accept AND the raw bytes so -o json echoes the verbatim
 // server body. A 409 (HARVEST_IN_PROGRESS) surfaces as an APIError through the command layer.
-func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool, maxThreads int, project, tenant string) (*HarvestAccepted, json.RawMessage, error) {
+func (c *Client) StartHarvest(ctx context.Context, mailboxID string, req HarvestRequest, project, tenant string) (*HarvestAccepted, json.RawMessage, error) {
 	if err := requireTenantProject(project, tenant, "exports"); err != nil {
 		return nil, nil, err
 	}
@@ -34,7 +35,7 @@ func (c *Client) StartHarvest(ctx context.Context, mailboxID string, clean *bool
 	}
 	path = collectionScopePath(path, "", tenant)
 	var raw json.RawMessage
-	if err := c.do(ctx, http.MethodPost, path, HarvestRequest{Clean: clean, MaxThreads: maxThreads}, &raw); err != nil {
+	if err := c.do(ctx, http.MethodPost, path, req, &raw); err != nil {
 		return nil, nil, err
 	}
 	var out HarvestAccepted

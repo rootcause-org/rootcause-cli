@@ -4,8 +4,9 @@ package client
 
 // HarvestAccepted is the 202 body of POST /api/v1/projects/{project}/mailboxes/{id}/harvest — the queued export handle.
 type HarvestAccepted struct {
-	ExportID string `json:"export_id"`
-	Status   string `json:"status"`
+	ExportID     string `json:"export_id"`
+	Status       string `json:"status"`
+	LookbackDays int    `json:"lookback_days,omitempty"`
 }
 
 // ExportItem is one row of GET /api/v1/exports (and the whole of GET /api/v1/exports/{id}) — a

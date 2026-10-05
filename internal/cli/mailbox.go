@@ -62,6 +62,9 @@ func mailboxTemplatesCmd(e *env) *cobra.Command {
 					return render.JSON(e.out, raw)
 				}
 				_, _ = fmt.Fprintf(e.out, "export_id: %s\nstatus: %s\n", acc.ExportID, acc.Status)
+				if acc.LookbackDays > 0 {
+					_, _ = fmt.Fprintf(e.out, "lookback_days: %d\n", acc.LookbackDays)
+				}
 				_, _ = fmt.Fprintf(e.err, "queued — poll with: rc project corpus get %s\n", acc.ExportID)
 				return nil
 			}
@@ -130,11 +133,12 @@ func mailboxIMAPEnvCmd(e *env) *cobra.Command {
 // mailboxHarvestCmd starts a local-synthesis harvest of a mailbox (POST /mailboxes/{id}/harvest → a
 // queued export). By default it prints the accepted {export_id, status}; --wait polls the export to a
 // terminal status (done|error|failed) and prints the finished row. --clean (default true) requests the
-// cleaned corpus; --max-threads caps the harvest (0 = server default). A 409 (HARVEST_IN_PROGRESS)
+// cleaned corpus; --max-threads caps the harvest and --lookback-days narrows its history window (0 = server
+// default for both). A 409 (HARVEST_IN_PROGRESS)
 // surfaces verbatim through the error path. -o json passes the server body through.
 func mailboxHarvestCmd(e *env) *cobra.Command {
 	var clean bool
-	var maxThreads int
+	var maxThreads, lookbackDays int
 	var wait bool
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -155,7 +159,7 @@ func mailboxHarvestCmd(e *env) *cobra.Command {
 			if cmd.Flags().Changed("clean") {
 				cleanPtr = &clean
 			}
-			acc, raw, err := c.StartHarvest(e.ctx(), args[0], cleanPtr, maxThreads, e.scopeProject(), e.scopeTenant())
+			acc, raw, err := c.StartHarvest(e.ctx(), args[0], client.HarvestRequest{Clean: cleanPtr, MaxThreads: maxThreads, LookbackDays: lookbackDays}, e.scopeProject(), e.scopeTenant())
 			if err != nil {
 				return err
 			}
@@ -165,6 +169,9 @@ func mailboxHarvestCmd(e *env) *cobra.Command {
 					return render.JSON(e.out, raw)
 				}
 				_, _ = fmt.Fprintf(e.out, "export_id: %s\nstatus: %s\n", acc.ExportID, acc.Status)
+				if acc.LookbackDays > 0 {
+					_, _ = fmt.Fprintf(e.out, "lookback_days: %d\n", acc.LookbackDays)
+				}
 				_, _ = fmt.Fprintf(e.err, "queued — poll with: rc project corpus get %s\n", acc.ExportID)
 				return nil
 			}
@@ -182,6 +189,7 @@ func mailboxHarvestCmd(e *env) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&clean, "clean", true, "request the cleaned corpus (server default true)")
 	cmd.Flags().IntVar(&maxThreads, "max-threads", 0, "cap the harvest to N threads (0 = server default)")
+	cmd.Flags().IntVar(&lookbackDays, "lookback-days", 0, "only harvest the last N days of sent history (0 = server default, max HARVEST_LOOKBACK_DAYS)")
 	cmd.Flags().BoolVar(&wait, "wait", false, "poll the export until it reaches a terminal status")
 	cmd.Flags().DurationVar(&timeout, "timeout", 5*time.Minute, "max time to wait under --wait")
 	return cmd

@@ -73,7 +73,7 @@ func TestMailboxHarvestConflict(t *testing.T) {
 }
 
 // TestMailboxHarvestWait: --wait polls the export to a terminal status (the stub flips running→done on
-// the 2nd read) and prints the finished row. Also proves --clean=false / --max-threads ride in the body.
+// the 2nd read) and prints the finished row. Also proves --clean=false / --max-threads / --lookback-days ride in the body.
 func TestMailboxHarvestWait(t *testing.T) {
 	prev := exportPollInterval
 	exportPollInterval = time.Millisecond
@@ -81,7 +81,7 @@ func TestMailboxHarvestWait(t *testing.T) {
 	srv := stubServer(t)
 	defer srv.Close()
 	e, out, _ := newTestEnv(t, srv, "table")
-	if err := run(t, e, "project", "mailbox", "harvest", "wait", "--wait", "--clean=false", "--max-threads", "5"); err != nil {
+	if err := run(t, e, "project", "mailbox", "harvest", "wait", "--wait", "--clean=false", "--max-threads", "5", "--lookback-days", "180"); err != nil {
 		t.Fatalf("project mailbox harvest --wait: %v", err)
 	}
 	got := out.String()

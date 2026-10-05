@@ -1071,14 +1071,16 @@ func registerConfigSurfaceStubs(t *testing.T, mux *http.ServeMux) {
 		if err := json.Unmarshal([]byte(body), &got); err != nil {
 			t.Fatalf("decode harvest body: %v\n%s", err, body)
 		}
-		// clean omitted unless set; max_threads omitted at 0. When the wait id is asked, the body carries
-		// max_threads:5 + clean:false to prove flag plumbing.
+		// clean omitted unless set; max_threads/lookback_days omitted at 0. When the wait id is asked, the
+		// body carries max_threads:5 + lookback_days:180 + clean:false to prove flag plumbing.
 		exportID := "eeee1111-0000-0000-0000-000000000001"
 		if r.PathValue("id") == "wait" {
 			exportID = "wait-export"
-			if got["max_threads"] != float64(5) || got["clean"] != false {
-				t.Fatalf("harvest wait body = %v, want max_threads=5 clean=false", got)
+			if got["max_threads"] != float64(5) || got["lookback_days"] != float64(180) || got["clean"] != false {
+				t.Fatalf("harvest wait body = %v, want max_threads=5 lookback_days=180 clean=false", got)
 			}
+		} else if _, ok := got["lookback_days"]; ok {
+			t.Fatalf("harvest body = %v, want lookback_days omitted at 0", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusAccepted)

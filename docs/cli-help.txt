@@ -1069,10 +1069,11 @@ Usage:
   rc project mailbox harvest <mailbox-id> [flags]
 
 Flags:
-      --clean              request the cleaned corpus (server default true) (default true)
-      --max-threads int    cap the harvest to N threads (0 = server default)
-      --timeout duration   max time to wait under --wait (default 5m0s)
-      --wait               poll the export until it reaches a terminal status
+      --clean               request the cleaned corpus (server default true) (default true)
+      --lookback-days int   only harvest the last N days of sent history (0 = server default, max HARVEST_LOOKBACK_DAYS)
+      --max-threads int     cap the harvest to N threads (0 = server default)
+      --timeout duration    max time to wait under --wait (default 5m0s)
+      --wait                poll the export until it reaches a terminal status
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews
