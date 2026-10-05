@@ -291,6 +291,10 @@ func chatTestProjects(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/projects", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"projects":[{"id":"11111111-1111-1111-1111-111111111111","name":"alpha"}]}`))
 	})
+	mux.HandleFunc("GET /api/v1/whoami", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"email":"dev@example.test","project":{"id":"11111111-1111-1111-1111-111111111111","name":"alpha","slug":"alpha"}}`))
+	})
 }
 
 func TestChatSecretRevealPrintsRotationAttribution(t *testing.T) {
@@ -387,5 +391,93 @@ func TestChatDoctorJSONStillFailsWhenACheckFails(t *testing.T) {
 	}
 	if bundle["project"] != "alpha" {
 		t.Fatalf("bundle = %#v", bundle)
+	}
+}
+
+func TestChatSendLaneSetupUsesDashboardBearerMount(t *testing.T) {
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("POST /api/v1/projects/alpha/chat/dashboard/session/intent", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.URL.Query().Get("intent") != "integration_setup" || r.URL.Query().Get("integration") != "clickup" {
+			t.Fatalf("intent query = %s", r.URL.RawQuery)
+		}
+		_, _ = w.Write([]byte(`{"session_id":"22222222-2222-2222-2222-222222222222","flavor":"setup","tier":"pro"}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/chat/dashboard/message", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["session_id"] != "22222222-2222-2222-2222-222222222222" {
+			t.Fatalf("body = %v", body)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"start\",\"messageId\":\"run-setup\"}\n\ndata: {\"type\":\"text-delta\",\"delta\":\"hi\"}\n\ndata: [DONE]\n\n"))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { t.Fatalf("unexpected %s %s", r.Method, r.URL.String()) })
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "project", "chat", "send", "--lane", "setup", "--intent", "integration_setup", "--integration", "clickup", "set it up"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(out.String(), "session_id: 22222222-2222-2222-2222-222222222222\nrun_id: run-setup\n") {
+		t.Fatalf("missing final session/run IDs: %q", out.String())
+	}
+}
+
+func TestChatSendLaneTenantScopeAndSessionRead(t *testing.T) {
+	mux := http.NewServeMux()
+	chatTestProjects(mux)
+	mux.HandleFunc("POST /api/v1/projects/alpha/tenants/north/chat/dashboard/session", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		var body map[string]string
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["flavor"] != "data" || body["tier"] != "pro" {
+			t.Fatalf("open body = %v", body)
+		}
+		_, _ = w.Write([]byte(`{"session_id":"33333333-3333-3333-3333-333333333333","flavor":"data"}`))
+	})
+	mux.HandleFunc("POST /api/v1/projects/alpha/tenants/north/chat/dashboard/message", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"type\":\"start\",\"messageId\":\"run-data\"}\n\ndata: [DONE]\n\n"))
+	})
+	mux.HandleFunc("GET /api/v1/projects/alpha/tenants/north/chat/dashboard/session/{id}", func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		_, _ = w.Write([]byte(`{"session_id":"` + r.PathValue("id") + `","messages":[]}`))
+	})
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { t.Fatalf("unexpected %s %s", r.Method, r.URL.String()) })
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	e, out, _ := newTestEnv(t, srv, "table")
+	if err := run(t, e, "--project", "alpha", "--tenant", "north", "project", "chat", "send", "--lane", "data", "--tier", "pro", "how many?"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "run_id: run-data\n") {
+		t.Fatalf("output = %q", out.String())
+	}
+	e, out, _ = newTestEnv(t, srv, "json")
+	if err := run(t, e, "--project", "alpha", "--tenant", "north", "project", "chat", "session", "33333333-3333-3333-3333-333333333333", "--lane", "data"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"33333333-3333-3333-3333-333333333333"`) {
+		t.Fatalf("session output = %q", out.String())
+	}
+}
+
+func TestChatSendLaneRejectsBadCombinations(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Fatalf("unexpected %s %s", r.Method, r.URL.String()) }))
+	defer srv.Close()
+	for _, args := range [][]string{
+		{"project", "chat", "send", "--lane", "sideways", "x"},
+		{"project", "chat", "send", "--lane", "data", "--intent", "integration_setup", "x"},
+		{"project", "chat", "send", "--lane", "setup", "--tier", "ultra", "x"},
+	} {
+		e, _, _ := newTestEnv(t, srv, "table")
+		if err := run(t, e, args...); err == nil {
+			t.Fatalf("%v: expected a usage error", args)
+		}
 	}
 }

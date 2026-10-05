@@ -3156,9 +3156,14 @@ Usage:
   rc project chat send [message] [flags]
 
 Flags:
+      --action string        action slug for --intent action_modify
       --answer stringArray   answer the latest data question as key=value (repeat for multiple answers)
+      --integration string   connector key for --intent integration_setup (e.g. clickup)
+      --intent string        seed the new --lane setup conversation like chat/new?intent=…: integration_setup, action_create, action_modify
+      --lane string          dashboard lane over the OAuth login instead of an embed token: setup (Set up & improve) or data (Ask your data)
       --origin string        embedding-page origin (default: token origin claim)
       --session string       existing chat session ID (opens a new session when omitted)
+      --tier string          session tier for a new --lane conversation: standard (Quick) or pro (Deeper)
       --token string         embed chat token (default: RC_CHAT_TOKEN)
 
 Global Flags:
@@ -3178,6 +3183,7 @@ Usage:
   rc project chat session <id> [flags]
 
 Flags:
+      --lane string     dashboard lane over the OAuth login instead of an embed token: setup (Set up & improve) or data (Ask your data)
       --origin string   embedding-page origin (default: token origin claim)
       --token string    embed chat token (default: RC_CHAT_TOKEN)
 

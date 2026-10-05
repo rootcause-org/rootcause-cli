@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -103,10 +104,72 @@ func chatTokenCmd(e *env) *cobra.Command {
 	return cmd
 }
 
+// chatLane is the --lane selector shared by `send` and `session`: "" keeps the embed plane (an embed
+// token + origin), "setup"/"data" switch to the member dashboard plane over the OAuth bearer — the
+// same conversation lists a logged-in member sees under "Set up & improve" / "Ask your data".
+type chatLane struct {
+	lane, intent, integration, action, tier string
+}
+
+func (l *chatLane) flags(cmd *cobra.Command, withOpen bool) {
+	cmd.Flags().StringVar(&l.lane, "lane", "", "dashboard lane over the OAuth login instead of an embed token: setup (Set up & improve) or data (Ask your data)")
+	if withOpen {
+		cmd.Flags().StringVar(&l.intent, "intent", "", "seed the new --lane setup conversation like chat/new?intent=…: integration_setup, action_create, action_modify")
+		cmd.Flags().StringVar(&l.integration, "integration", "", "connector key for --intent integration_setup (e.g. clickup)")
+		cmd.Flags().StringVar(&l.action, "action", "", "action slug for --intent action_modify")
+		cmd.Flags().StringVar(&l.tier, "tier", "", "session tier for a new --lane conversation: standard (Quick) or pro (Deeper)")
+	}
+}
+
+func (l chatLane) dashboard() bool { return l.lane != "" }
+
+func (l chatLane) validate() error {
+	switch l.lane {
+	case "", "setup", "data":
+	default:
+		return fmt.Errorf("--lane must be setup or data")
+	}
+	if l.intent != "" && l.lane != "setup" {
+		return fmt.Errorf("--intent requires --lane setup")
+	}
+	if l.tier != "" && l.tier != "standard" && l.tier != "pro" {
+		return fmt.Errorf("--tier must be standard or pro")
+	}
+	return nil
+}
+
+// open starts a dashboard conversation: an intent-seeded setup session, or a plain one in the lane.
+func (l chatLane) open(e *env, c *client.Client, project, tenant string) (string, error) {
+	if l.intent == "" {
+		return c.DashboardChatOpen(e.ctx(), project, tenant, l.lane, l.tier)
+	}
+	params := url.Values{}
+	if l.integration != "" {
+		params.Set("integration", l.integration)
+	}
+	if l.action != "" {
+		params.Set("action", l.action)
+	}
+	return c.DashboardChatOpenIntent(e.ctx(), project, tenant, l.intent, params)
+}
+
 func chatSendCmd(e *env) *cobra.Command {
 	var token, origin, sessionID string
 	var answerFlags []string
+	var lane chatLane
 	cmd := &cobra.Command{Use: "send [message]", Short: "Send one chat turn and print its SSE frames and session + run IDs", Args: cobra.MaximumNArgs(1), RunE: func(_ *cobra.Command, args []string) error {
+		if err := lane.validate(); err != nil {
+			return err
+		}
+		if len(args) == 0 && len(answerFlags) == 0 {
+			return fmt.Errorf("a message or at least one --answer key=value is required")
+		}
+		if sessionID == "" && len(answerFlags) > 0 {
+			return fmt.Errorf("--session is required with --answer")
+		}
+		if lane.dashboard() {
+			return chatSendDashboard(e, lane, sessionID, args, answerFlags)
+		}
 		token, origin, project, err := chatEmbedScope(e, token, origin)
 		if err != nil {
 			return err
@@ -115,50 +178,91 @@ func chatSendCmd(e *env) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		if len(args) == 0 && len(answerFlags) == 0 {
-			return fmt.Errorf("a message or at least one --answer key=value is required")
-		}
 		if sessionID == "" {
-			if len(answerFlags) > 0 {
-				return fmt.Errorf("--session is required with --answer")
-			}
 			sessionID, err = c.ChatOpen(e.ctx(), project, origin, token)
 			if err != nil {
 				return err
 			}
 		}
-		parts := make([]map[string]any, 0, 2)
-		if len(args) == 1 && strings.TrimSpace(args[0]) != "" {
-			parts = append(parts, map[string]any{"type": "text", "text": args[0]})
-		}
-		if len(answerFlags) > 0 {
-			raw, err := c.ChatSession(e.ctx(), project, origin, token, sessionID)
-			if err != nil {
-				return err
-			}
-			answerPart, err := chatAnswerPart(raw, answerFlags)
-			if err != nil {
-				return err
-			}
-			parts = append(parts, answerPart)
-		}
-		if len(parts) == 0 {
-			return fmt.Errorf("message must not be empty")
+		parts, err := chatTurnParts(args, answerFlags, func() (json.RawMessage, error) {
+			return c.ChatSession(e.ctx(), project, origin, token, sessionID)
+		})
+		if err != nil {
+			return err
 		}
 		runID, sendErr := c.ChatSend(e.ctx(), project, origin, token, sessionID, randomMessageID(), parts, e.out)
-		// The session id is the handle for every follow-up (`--session`, `rc project chat session`, the
-		// card decision routes); the frames never carry it, so print it beside the run id.
-		_, _ = fmt.Fprintf(e.out, "session_id: %s\n", sessionID)
-		if runID != "" {
-			_, _ = fmt.Fprintf(e.out, "run_id: %s\n", runID)
-		}
+		printChatHandles(e, sessionID, runID)
 		return sendErr
 	}}
 	cmd.Flags().StringVar(&token, "token", "", "embed chat token (default: RC_CHAT_TOKEN)")
 	cmd.Flags().StringVar(&origin, "origin", "", "embedding-page origin (default: token origin claim)")
 	cmd.Flags().StringVar(&sessionID, "session", "", "existing chat session ID (opens a new session when omitted)")
 	cmd.Flags().StringArrayVar(&answerFlags, "answer", nil, "answer the latest data question as key=value (repeat for multiple answers)")
+	lane.flags(cmd, true)
 	return cmd
+}
+
+// chatSendDashboard is the --lane branch of `send`: the OAuth login + the brain/--project/--tenant
+// scope pick the conversation list, exactly like the logged-in page.
+func chatSendDashboard(e *env, lane chatLane, sessionID string, args, answerFlags []string) error {
+	c, err := e.newClient()
+	if err != nil {
+		return err
+	}
+	project, tenant := e.scopeProject(), e.scopeTenant()
+	if project == "" {
+		return fmt.Errorf("--lane needs a project: run inside a brain checkout or pass --project")
+	}
+	if sessionID == "" {
+		sessionID, err = lane.open(e, c, project, tenant)
+		if err != nil {
+			return err
+		}
+	} else if lane.intent != "" {
+		return fmt.Errorf("--intent opens a new conversation; drop --session")
+	}
+	parts, err := chatTurnParts(args, answerFlags, func() (json.RawMessage, error) {
+		return c.DashboardChatSession(e.ctx(), project, tenant, sessionID)
+	})
+	if err != nil {
+		return err
+	}
+	runID, sendErr := c.DashboardChatSend(e.ctx(), project, tenant, sessionID, randomMessageID(), lane.tier, parts, e.out)
+	printChatHandles(e, sessionID, runID)
+	return sendErr
+}
+
+// chatTurnParts assembles the typed parts of one turn: the text, plus a data-answers part built
+// against the session's latest unanswered question set when --answer is given.
+func chatTurnParts(args, answerFlags []string, transcript func() (json.RawMessage, error)) ([]map[string]any, error) {
+	parts := make([]map[string]any, 0, 2)
+	if len(args) == 1 && strings.TrimSpace(args[0]) != "" {
+		parts = append(parts, map[string]any{"type": "text", "text": args[0]})
+	}
+	if len(answerFlags) > 0 {
+		raw, err := transcript()
+		if err != nil {
+			return nil, err
+		}
+		answerPart, err := chatAnswerPart(raw, answerFlags)
+		if err != nil {
+			return nil, err
+		}
+		parts = append(parts, answerPart)
+	}
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("message must not be empty")
+	}
+	return parts, nil
+}
+
+// printChatHandles prints the session id (the handle for every follow-up: `--session`, `rc project
+// chat session`, the card decision routes — the frames never carry it) beside the run id.
+func printChatHandles(e *env, sessionID, runID string) {
+	_, _ = fmt.Fprintf(e.out, "session_id: %s\n", sessionID)
+	if runID != "" {
+		_, _ = fmt.Fprintf(e.out, "run_id: %s\n", runID)
+	}
 }
 
 // chatEmbedScope resolves the embed-plane triple every chat verb needs: the bearer (flag or
@@ -192,7 +296,26 @@ func chatEmbedScope(e *env, token, origin string) (string, string, string, error
 // the read-after-park path (PII resolved from the sealed session vault, not the live container).
 func chatSessionCmd(e *env) *cobra.Command {
 	var token, origin string
+	var lane chatLane
 	cmd := &cobra.Command{Use: "session <id>", Short: "Print a session's persisted transcript as the widget would reopen it", Args: cobra.ExactArgs(1), RunE: func(_ *cobra.Command, args []string) error {
+		if err := lane.validate(); err != nil {
+			return err
+		}
+		if lane.dashboard() {
+			c, err := e.newClient()
+			if err != nil {
+				return err
+			}
+			project := e.scopeProject()
+			if project == "" {
+				return fmt.Errorf("--lane needs a project: run inside a brain checkout or pass --project")
+			}
+			raw, err := c.DashboardChatSession(e.ctx(), project, e.scopeTenant(), strings.TrimSpace(args[0]))
+			if err != nil {
+				return err
+			}
+			return render.JSON(e.out, raw)
+		}
 		token, origin, project, err := chatEmbedScope(e, token, origin)
 		if err != nil {
 			return err
@@ -209,6 +332,7 @@ func chatSessionCmd(e *env) *cobra.Command {
 	}}
 	cmd.Flags().StringVar(&token, "token", "", "embed chat token (default: RC_CHAT_TOKEN)")
 	cmd.Flags().StringVar(&origin, "origin", "", "embedding-page origin (default: token origin claim)")
+	lane.flags(cmd, false)
 	return cmd
 }
 

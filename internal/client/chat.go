@@ -142,6 +142,75 @@ func (c *Client) ChatSend(ctx context.Context, project, origin, token, sessionID
 	path := "/chat/v1/message?project=" + url.QueryEscape(project)
 	spec := embedSpec(http.MethodPost, path, origin, token, body)
 	spec.accept = "text/event-stream"
+	return c.streamChatTurn(ctx, spec, out)
+}
+
+// dashboardChatPath is the bearer mount of the member chat surface (both lanes): the project tree,
+// tenant-nested when the scope names one. Same SSE frames and session shapes as the embed plane.
+func dashboardChatPath(project, tenant, suffix string) string {
+	path := "/api/v1/projects/" + url.PathEscape(project)
+	if tenant != "" {
+		path += "/tenants/" + url.PathEscape(tenant)
+	}
+	return path + "/chat/dashboard" + suffix
+}
+
+// DashboardChatOpen opens a dashboard conversation in a lane (flavor "data"|"setup") with the OAuth
+// bearer; tier "" inherits the member's last pick.
+func (c *Client) DashboardChatOpen(ctx context.Context, project, tenant, flavor, tier string) (string, error) {
+	body, err := json.Marshal(map[string]string{"flavor": flavor, "tier": tier})
+	if err != nil {
+		return "", err
+	}
+	return c.dashboardChatOpen(ctx, sendSpec{method: http.MethodPost, path: dashboardChatPath(project, tenant, "/session"), body: body})
+}
+
+// DashboardChatOpenIntent opens a seeded "Set up & improve" conversation (chat/new?intent=… without the
+// browser): intent names the catalog entry, params its own validated inputs (integration=<key>,
+// action=<slug>).
+func (c *Client) DashboardChatOpenIntent(ctx context.Context, project, tenant, intent string, params url.Values) (string, error) {
+	q := url.Values{"intent": {intent}}
+	for k, vs := range params {
+		q[k] = vs
+	}
+	return c.dashboardChatOpen(ctx, sendSpec{method: http.MethodPost, path: dashboardChatPath(project, tenant, "/session/intent") + "?" + q.Encode()})
+}
+
+func (c *Client) dashboardChatOpen(ctx context.Context, spec sendSpec) (string, error) {
+	data, err := c.fetch(ctx, spec)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return "", fmt.Errorf("decode dashboard chat session: %w", err)
+	}
+	return out.SessionID, nil
+}
+
+// DashboardChatSession re-reads a dashboard conversation's persisted transcript.
+func (c *Client) DashboardChatSession(ctx context.Context, project, tenant, sessionID string) (json.RawMessage, error) {
+	return c.fetch(ctx, sendSpec{method: http.MethodGet, path: dashboardChatPath(project, tenant, "/session/"+url.PathEscape(sessionID))})
+}
+
+// DashboardChatSend posts one dashboard turn over the OAuth bearer and prints its SSE frames.
+func (c *Client) DashboardChatSend(ctx context.Context, project, tenant, sessionID, messageID, tier string, parts []map[string]any, out io.Writer) (string, error) {
+	msg := map[string]any{"session_id": sessionID, "message": map[string]any{"id": messageID, "parts": parts}}
+	if tier != "" {
+		msg["tier"] = tier
+	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return "", err
+	}
+	return c.streamChatTurn(ctx, sendSpec{method: http.MethodPost, path: dashboardChatPath(project, tenant, "/message"), body: body, accept: "text/event-stream"}, out)
+}
+
+// streamChatTurn runs one turn's SSE response to completion, echoing every line to out, and returns the
+// run id (the `start` frame's messageId) plus the stream's own error frame as an error.
+func (c *Client) streamChatTurn(ctx context.Context, spec sendSpec, out io.Writer) (string, error) {
 	resp, err := c.openStream(ctx, spec)
 	if err != nil {
 		return "", err
