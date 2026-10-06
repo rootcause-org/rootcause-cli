@@ -44,7 +44,12 @@ row hands you the id for `rc run thread <session_id> --transcript` (READ the con
 order, form answers folded under the turn they answer) and from there `rc run trace <run_id> --brief`
 (one turn's bodies, without the prompt/grounding bulk). The two `--` flags exist because the default
 views are DEBUGGING views: reading a conversation through them costs ~25× the bytes of its content.
-`--raw-output` / `rc run debug` stay the forensic rung. Not to be confused with
+`--raw-output` / `rc run debug` stay the forensic rung.
+`rc run attachments <session|run> | --resource kind:id` lists/downloads the session's files
+([attachments.go](internal/cli/attachments.go); wire types isolated in `internal/client/attachments_types.go`):
+streamed to a temp file, sha256-checked against list + `X-Content-SHA256`, renamed 0600; images default to
+the as-uploaded original; expired files never fail the batch silently (non-zero exit). The transcript's
+Files section reuses the same list call, best effort. Not to be confused with
 `rc run session <share-link>`, the account-less dump below.
 
 `run list` filters are **server-side** so cursor pagination stays correct — never re-implement one

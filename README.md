@@ -631,6 +631,7 @@ help using `go test ./internal/cli -update`.
 | `rc project triage` | Read or change mail triage policy and hard rules |
 | `rc project` | Manage project configuration and resources |
 | `rc run actions` | Show the safe action lifecycle history |
+| `rc run attachments` | List or download the files in a chat session |
 | `rc run brain-diff` | Show the brain commit written by a run |
 | `rc run debug` | Decompose a run into local debug artifacts |
 | `rc run egress` | Show outbound gateway connections and HTTP attempts |

@@ -33,6 +33,7 @@ func Transcript(w io.Writer, t digest.Transcript) {
 		transcriptTurn(w, turn)
 	}
 	_, _ = fmt.Fprintf(w, "\n---\nquestions: %d, form answers: %d\n", t.Questions, t.FormAnswers)
+	transcriptFiles(w, t.SessionID, t.Files)
 }
 
 func transcriptTurn(w io.Writer, turn digest.TranscriptTurn) {

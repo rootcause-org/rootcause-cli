@@ -2,7 +2,9 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/rootcause-org/rootcause-cli/internal/client"
@@ -44,6 +46,7 @@ func runThreadTranscript(e *env, target shareTarget) error {
 	if len(doc.Turns) > digest.TranscriptPagingThreshold {
 		doc.TruncateAnswers(digest.TranscriptAnswerHeadChars)
 	}
+	doc.Files = transcriptFiles(e, c, doc.SessionID)
 	// The Markdown digest IS the deliverable of --transcript, and agents always run without a TTY, so
 	// auto-mode must not fall back to JSON here (it did: every non-terminal caller got JSON). JSON only
 	// on an explicit -o json.
@@ -113,4 +116,22 @@ func transcriptSessionID(tr *client.ThreadTrace) string {
 		}
 	}
 	return tr.ID
+}
+
+// transcriptFiles is the best-effort Files section: a reader without access to the session's files
+// (404/403), an unresolvable project or id (400), or an older server without the route gets none.
+func transcriptFiles(e *env, c *client.Client, sessionID string) []client.ChatAttachment {
+	err := e.resolvePinnedProject(c)
+	var list *client.SessionAttachments
+	if err == nil {
+		list, _, err = c.SessionAttachments(e.ctx(), e.scopeProject(), e.scopeTenant(), sessionID)
+	}
+	if err != nil {
+		var apiErr *client.APIError
+		if !errors.As(err, &apiErr) || (apiErr.Status != http.StatusNotFound && apiErr.Status != http.StatusForbidden && apiErr.Status != http.StatusBadRequest) {
+			_, _ = fmt.Fprintf(e.err, "note: session files not listed: %v\n", err)
+		}
+		return nil
+	}
+	return list.Attachments
 }

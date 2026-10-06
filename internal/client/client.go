@@ -471,6 +471,12 @@ func (c *Client) Download(ctx context.Context, path string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	return copyResponse(resp, w)
+}
+
+// copyResponse drains an open streamed response into w, closing it, and fails a body cut short of its
+// declared Content-Length.
+func copyResponse(resp *http.Response, w io.Writer) error {
 	written, copyErr := io.Copy(w, resp.Body)
 	closeErr := resp.Body.Close()
 	if copyErr != nil {

@@ -37,6 +37,7 @@ func newRunCmd(e *env) *cobra.Command {
 		newRunActionsCmd(e),
 		newRunGuardsCmd(e),
 		newThreadCmd(e),
+		newRunAttachmentsCmd(e),
 		newRunSessionCmd(e),
 		runFeedbackCmd(e),
 		runRetryCmd(e),

@@ -103,6 +103,7 @@ Available Commands:
   actions        Show the safe action lifecycle history
   guards         Show every security-checkpoint verdict for one run
   thread         Trace one run, provider/local thread, or session through pipeline and placement
+  attachments    List or download the files in a chat session
   session        Dump a shared chat session (transcript + its runs) to one markdown file
   feedback       Record score/comment feedback on a run's trace, or mark it processed
   retry          Re-run a run; --comment steers the rerun with reviewer guidance (e.g. the corrected answer) and lets it keep the original tier; without it a finished run escalates one tier
@@ -326,6 +327,31 @@ Usage:
 Flags:
       --share-token token   share token from a run/share link's ?t= parameter; with it no login is needed
       --transcript          print the conversation itself (every turn in order: question, answer, outcome, feedback) instead of the pipeline view
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc run attachments --help
+List every file in one chat session (user uploads and assistant-generated, any turn), or download them with --download (user uploads; --include-generated adds assistant files) or --id (repeatable). Name the session by its id or one of its run ids, or with --resource kind:id (e.g. support_ticket:<uuid>) for the session whose action touched that resource. Images download as originally uploaded unless --processed; legacy images exist only as the processed 1536px JPEG. Files stream to .rootcause/attachments/<session_id>/ (override with --dir), are verified against the server's sha256 and written 0600. Exits non-zero when any file expired or failed.
+
+Usage:
+  rc run attachments [<session_id|run_id>] [flags]
+
+Flags:
+      --all-sessions        with --resource: use every linked session instead of requiring exactly one
+      --dir string          download directory (default .rootcause/attachments/<session_id>)
+      --download            download the session's user uploads
+      --id stringArray      download only this attachment_id, any origin (repeatable; implies --download)
+      --include-generated   with --download: also download assistant-generated files
+      --processed           download an image's processed 1536px JPEG instead of its original
+      --resource string     find the session by a resource an action touched, as kind:id (e.g. support_ticket:<uuid>)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

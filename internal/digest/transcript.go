@@ -53,6 +53,8 @@ type Transcript struct {
 	Questions        int              `json:"questions"`
 	FormAnswers      int              `json:"form_answers"`
 	AnswersTruncated bool             `json:"answers_truncated,omitempty"`
+	// Files is the session's uploaded files, filled best-effort by the CLI (absent when unreadable).
+	Files []client.ChatAttachment `json:"files,omitempty"`
 }
 
 // TranscriptSource is one run's fetched /trace header (or the reason it is missing). The CLI fills
