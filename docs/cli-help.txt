@@ -157,13 +157,45 @@ List chat conversations, newest first. A conversation is N runs sharing one sess
 
 Usage:
   rc run sessions [flags]
+  rc run sessions [command]
+
+Available Commands:
+  search      Find chat sessions by principal, creation date and prose
 
 Flags:
       --before string    cursor: session_id to page to the next (older) page
-      --days int         lookback window in days (server default 14, max 90)
+      --days int         sessions created in the last N days (max 90; omitted searches all history)
       --kind string      run kind grouped into sessions (server default: chat)
       --limit int        max conversations to return (1..100, server default 50)
       --surface string   filter by chat surface: embed|dashboard|all (server default: all)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+Use "rc run sessions [command] --help" for more information about a command.
+
+$ rc run sessions search --help
+Search authorized chat sessions, newest first, using existing read endpoints. Dates constrain SESSION CREATION, not individual turns or last activity. Date-only values use UTC. --contains matches a case-insensitive literal in title, opening preview or ordinary message text; cards and attachment contents are not searched. Only matching principal/date candidates need a transcript read. Scans at most 20 pages of 100 rows per call, with no history age limit. Coverage and --before continuation are explicit; -o json retains original matching session rows. Read a match with `rc run thread SESSION --transcript`, then `rc run debug RUN`.
+
+Usage:
+  rc run sessions search [flags]
+
+Flags:
+      --before string           resume an incomplete search with its next_before session ID
+      --contains string         case-insensitive literal in session title, opening preview or message prose
+      --limit int               max matching sessions to return (1..100) (default 20)
+      --principal-id string     exact principal ID (requires --principal-kind)
+      --principal-kind string   exact principal kind (requires --principal-id)
+      --since string            sessions created at/after RFC3339 or YYYY-MM-DD (UTC)
+      --surface string          chat surface: embed|dashboard|all
+      --until string            sessions created before RFC3339, or through YYYY-MM-DD (UTC)
 
 Global Flags:
       --no-preview       write large output artifacts but omit head/tail previews

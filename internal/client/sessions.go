@@ -85,3 +85,18 @@ func (c *Client) Sessions(ctx context.Context, p SessionsParams) (*SessionsRespo
 	}
 	return fetchBoth[SessionsResponse](ctx, c, http.MethodGet, path, nil)
 }
+
+// SessionTranscript is the admin-readable conversation, without per-run trace context.
+type SessionTranscript struct {
+	Session  json.RawMessage     `json:"session"`
+	Messages []TranscriptMessage `json:"messages"`
+	Files    []ChatAttachment    `json:"files"`
+}
+
+func (c *Client) SessionTranscript(ctx context.Context, project, tenant, sessionID string) (*SessionTranscript, json.RawMessage, error) {
+	path, err := projectTreePath(project, tenant, "/sessions/"+url.PathEscape(sessionID)+"/transcript")
+	if err != nil {
+		return nil, nil, err
+	}
+	return fetchBoth[SessionTranscript](ctx, c, http.MethodGet, path, nil)
+}

@@ -1,0 +1,7 @@
+2026-10-01T12:00:00Z  session-1  Waar vind ik de factuur?
+  message: De factuur staat bij Financieel.
+  rc --project 'kampadmin-support' --tenant 'heyo' run thread 'session-1' --transcript
+  rc --project 'kampadmin-support' --tenant 'heyo' run debug 'run-1'
+
+Coverage: complete=false (result_limit); 2 pages, 101 sessions scanned, 1 transcripts read.
+Resume with the same filters and --before 'session-1'

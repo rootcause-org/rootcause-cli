@@ -45,6 +45,18 @@ order, form answers folded under the turn they answer) and from there `rc run tr
 (one turn's bodies, without the prompt/grounding bulk). The two `--` flags exist because the default
 views are DEBUGGING views: reading a conversation through them costs ~25× the bytes of its content.
 `--raw-output` / `rc run debug` stay the forensic rung.
+
+`rc run sessions search` pages the same index and narrows authorized rows locally by exact principal
+kind + ID, session-created UTC window, and optional case-insensitive prose. Omitting `days` on the
+index means all history; search stops at its lower creation bound, 20 pages of 100 rows, or its result
+limit. `coverage.complete` and `next_before` distinguish exhausted results from a resumable scan.
+Preview hits avoid body reads; remaining candidates use the existing project/tenant session transcript
+endpoint, not per-run traces. Messages lack turn timestamps: creation windows do not imply turn windows.
+Cards and attachment bodies are outside prose search. JSON retains original matching session rows and
+adds matches/coverage; transcript read failures abort rather than inventing a clean empty result.
+Implementation: `internal/cli/session_search.go`, `internal/digest/session_search.go`,
+`internal/client/sessions.go`, `internal/render/session_search.go`.
+
 `rc run attachments <session|run> | --resource kind:id` lists/downloads the session's files
 ([attachments.go](internal/cli/attachments.go); wire types isolated in `internal/client/attachments_types.go`):
 streamed to a temp file, sha256-checked against list + `X-Content-SHA256`, renamed 0600; images default to

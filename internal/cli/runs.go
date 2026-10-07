@@ -143,10 +143,11 @@ func newRunSessionsCmd(e *env) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&f.kind, "kind", "", "run kind grouped into sessions (server default: chat)")
-	cmd.Flags().IntVar(&f.days, "days", 0, "lookback window in days (server default 14, max 90)")
+	cmd.Flags().IntVar(&f.days, "days", 0, "sessions created in the last N days (max 90; omitted searches all history)")
 	cmd.Flags().StringVar(&f.surface, "surface", "", "filter by chat surface: embed|dashboard|all (server default: all)")
 	cmd.Flags().IntVar(&f.limit, "limit", 0, "max conversations to return (1..100, server default 50)")
 	cmd.Flags().StringVar(&f.before, "before", "", "cursor: session_id to page to the next (older) page")
+	cmd.AddCommand(newSessionSearchCmd(e))
 	return cmd
 }
 
