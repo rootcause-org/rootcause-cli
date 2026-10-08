@@ -38,6 +38,7 @@ type decEvent struct {
 	label   string
 	command string
 	gist    string
+	kept    *client.KeptEvent
 }
 
 type attachmentTrace struct {
@@ -92,6 +93,11 @@ func decorate(events []client.EventItem) []decEvent {
 		}
 		d.command, d.label = commandAndLabel(e)
 		d.gist = gist(e.Reasoning, 100)
+		// d.command stays raw (empty once scrubbed) so JSONL `command` never mixes in redacted text; only
+		// the label reads the redacted shape.
+		if d.kept = e.KeptView(); d.kept != nil && e.Tool == "bash" && e.Command == "" {
+			d.label = label(d.kept.Command)
+		}
 		out = append(out, d)
 	}
 	return out

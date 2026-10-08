@@ -116,6 +116,15 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 				line["args"] = map[string]any{}
 			}
 		}
+		if e.src.OutputScrubbedAt != "" {
+			line["output_scrubbed_at"] = e.src.OutputScrubbedAt
+		}
+		if e.src.OutputBytes != 0 {
+			line["output_bytes"] = e.src.OutputBytes
+		}
+		if e.kept != nil {
+			line["kept"] = e.src.Kept
+		}
 		if err := enc.Encode(line); err != nil {
 			return err
 		}

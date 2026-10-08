@@ -79,7 +79,11 @@ func RenderIndex(full *client.FullResponse) string {
 	if links, ok := linkSummary(events); ok {
 		add("- **Links:** " + links)
 	}
-	add(fmt.Sprintf("- **Events (full, queryable):** `%s` — one JSON object per event; jq it (see Drill down).", jsonlName), "")
+	add(fmt.Sprintf("- **Events (full, queryable):** `%s` — one JSON object per event; jq it (see Drill down).", jsonlName))
+	if anyScrubbed(events) {
+		add("- **Retention:** raw command/output/reasoning 14 d → `redacted` (placeholder command + output stats in `kept`) 90 d → skeleton (tool/exit/duration) 12 mo.")
+	}
+	add("")
 
 	add(renderProjectionInputs(r)...)
 	add(renderGroundingSources(r.GroundingSources)...)
@@ -130,8 +134,15 @@ func RenderIndex(full *client.FullResponse) string {
 			if out != "" {
 				outCell = "`" + out + "`"
 			}
+			command := e.command
+			if state := retention(e); state != "" {
+				outCell = state
+				if e.kept != nil && e.kept.Command != "" {
+					command = e.kept.Command
+				}
+			}
 			add(fmt.Sprintf("| %s | %s | `%s` | %d | %s | %s | %s |",
-				e.disp, e.label, cell(e.command, 100), e.src.ExitCode, dur(e.src.DurationMs), outCell, cell(e.gist, 90)))
+				e.disp, e.label, cell(command, 100), e.src.ExitCode, dur(e.src.DurationMs), outCell, cell(e.gist, 90)))
 		}
 	default:
 		add("_(no main-loop tool calls recorded)_")
@@ -187,16 +198,52 @@ func RenderIndex(full *client.FullResponse) string {
 			"column above). Pull the FULL command/output/reasoning with jq:", "",
 		fence(strings.Join([]string{
 			fmt.Sprintf(`jq -r 'select(.disp=="23").command' %s   # full code of step 23`, jsonlName),
+			fmt.Sprintf(`jq -r 'select(.disp=="23").kept.command' %s   # its redacted shape once raw aged out (>14 d)`, jsonlName),
 			fmt.Sprintf(`jq -r 'select(.disp=="23").stdout'  %s   # its output / traceback`, jsonlName),
 			fmt.Sprintf(`jq -r 'select(.disp=="23").stdout | .[0:2000]' %s   # windowed when flagged large`, jsonlName),
 			fmt.Sprintf(`jq -r 'select(.exit_code != null and .exit_code != 0).disp' %s   # failed steps`, jsonlName),
-			fmt.Sprintf(`jq -r 'select(.command // "" | contains("invoice")).disp' %s   # steps touching X`, jsonlName),
+			fmt.Sprintf(`jq -r 'select((.command // "") + (.kept.command // "") | contains("invoice")).disp' %s   # steps touching X (raw or redacted)`, jsonlName),
 			fmt.Sprintf(`jq -r 'select(.reasoning) | .disp + " " + .reasoning' %s   # reasoning per step`, jsonlName),
 		}, "\n"), "sh"))
 	add("", "For the full three-step opening context each model received, with per-section sources: "+
 		"`rc dev context-export` (offline, operator).")
 	add("")
 	return strings.Join(L, "\n")
+}
+
+// retention names why a timeline row has no raw command/output: "" while raw survives, else the
+// redacted survivor's stats, the scrub date, or "not captured". Scrubbed and never-captured must stay
+// distinguishable — an empty cell reads as "the step printed nothing".
+func retention(e decEvent) string {
+	if e.src.Command != "" || e.src.Stdout != "" || e.src.Stderr != "" {
+		return ""
+	}
+	if k := e.kept; k != nil {
+		s := fmt.Sprintf("redacted · %d lines · %d B", k.StdoutLines, k.StdoutBytes)
+		if k.CapturedTruncated {
+			s += " · truncated"
+		}
+		if k.Error != nil && k.Error.Class != "" {
+			s += " · `" + backtickSafe(cell(k.Error.Class, 40)) + "`"
+		}
+		return s
+	}
+	if at := e.src.OutputScrubbedAt; at != "" {
+		return fmt.Sprintf("scrubbed %s · %d B", at[:min(10, len(at))], e.src.OutputBytes)
+	}
+	if e.src.Tool == "bash" {
+		return "not captured"
+	}
+	return ""
+}
+
+func anyScrubbed(events []decEvent) bool {
+	for _, e := range events {
+		if e.src.OutputScrubbedAt != "" || e.kept != nil {
+			return true
+		}
+	}
+	return false
 }
 
 func renderProjectionInputs(r client.RunHeader) []string {

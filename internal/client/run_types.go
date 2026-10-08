@@ -594,6 +594,41 @@ type EventItem struct {
 	Reasoning  string          `json:"reasoning,omitempty"`
 	HasDraft   bool            `json:"has_draft,omitempty"`
 	HasNote    bool            `json:"has_note,omitempty"`
+	// Retention tiers: raw command/stdout/stderr/reasoning blank after 14 d; Kept (redacted shape) lives
+	// to 90 d; then only the skeleton plus OutputScrubbedAt/OutputBytes. Kept stays raw JSON so the debug
+	// JSONL passes it through verbatim; read it via KeptView.
+	OutputScrubbedAt string          `json:"output_scrubbed_at,omitempty"`
+	OutputBytes      int64           `json:"output_bytes,omitempty"`
+	Kept             json.RawMessage `json:"kept,omitempty"`
+}
+
+// KeptEvent is the redacted survivor of a scrubbed event: the command with literals replaced by
+// placeholders (⟨str⟩ …) plus output stats, never the output itself.
+type KeptEvent struct {
+	V                 int            `json:"v"`
+	Command           string         `json:"command"`
+	Redactions        map[string]int `json:"redactions,omitempty"`
+	StdoutBytes       int64          `json:"stdout_bytes"`
+	StdoutLines       int            `json:"stdout_lines"`
+	StderrBytes       int64          `json:"stderr_bytes"`
+	CapturedTruncated bool           `json:"captured_truncated"`
+	VocabSource       string         `json:"vocab_source,omitempty"`
+	Error             *struct {
+		Class string `json:"class"`
+		Line  string `json:"line"`
+	} `json:"error,omitempty"`
+}
+
+// KeptView decodes Kept; nil when absent, null, or unreadable.
+func (e EventItem) KeptView() *KeptEvent {
+	if len(e.Kept) == 0 || string(e.Kept) == "null" {
+		return nil
+	}
+	var k KeptEvent
+	if json.Unmarshal(e.Kept, &k) != nil {
+		return nil
+	}
+	return &k
 }
 
 // FullResponse is GET /api/v1/runs/{id}/trace — the whole bundle. The CLI decomposes it for

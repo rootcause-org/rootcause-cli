@@ -292,3 +292,57 @@ func TestDraftCleanupRendersInItsOwnSection(t *testing.T) {
 		t.Fatalf("polish row flagged as a failed turn:\n%s", index)
 	}
 }
+
+// Past the 14-day raw window an empty timeline cell must say WHY: redacted survivor, scrubbed skeleton,
+// or never captured. JSONL passes the retention fields through verbatim.
+func TestScrubbedEventsRenderRetentionState(t *testing.T) {
+	kept := `{"v":1,"command":"python3 -c ⟨str⟩","redactions":{"str":1},"stdout_bytes":9232,"stdout_lines":41,"stderr_bytes":0,"captured_truncated":false,"error":{"class":"KeyError","line":"KeyError: ⟨str⟩"}}`
+	full := &client.FullResponse{
+		Run: client.RunHeader{RunID: "c446011c-7e78-4a41-8848-46d92b61152a", Project: "pj-mailbox", Status: "done", Kind: "email"},
+		Events: []client.EventItem{
+			{Seq: 1, Tool: "bash", Status: "ok", ExitCode: 1, OutputScrubbedAt: "2026-09-01T03:00:00Z", OutputBytes: 9232, Kept: json.RawMessage(kept)},
+			{Seq: 2, Tool: "bash", Status: "ok", OutputScrubbedAt: "2026-09-02T03:00:00Z", OutputBytes: 512},
+			{Seq: 3, Tool: "bash", Status: "ok"},
+		},
+	}
+
+	index := RenderIndex(full)
+	for _, want := range []string{
+		"- **Retention:** raw command/output/reasoning 14 d",
+		"| 1 | python | `python3 -c ⟨str⟩` | 1 |",
+		"redacted · 41 lines · 9232 B · `KeyError`",
+		"| 2 | bash | `` | 0 | 0ms | scrubbed 2026-09-02 · 512 B |",
+		"| 3 | bash | `` | 0 | 0ms | not captured |",
+		`select(.disp=="23").kept.command`,
+	} {
+		if !strings.Contains(index, want) {
+			t.Fatalf("index missing %q:\n%s", want, index)
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := EmitJSONL(&buf, full); err != nil {
+		t.Fatalf("EmitJSONL: %v", err)
+	}
+	lines := bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n"))
+	var first, third map[string]json.RawMessage
+	if err := json.Unmarshal(lines[1], &first); err != nil {
+		t.Fatalf("decode event 1: %v", err)
+	}
+	if string(first["kept"]) != kept || string(first["output_bytes"]) != "9232" || string(first["output_scrubbed_at"]) != `"2026-09-01T03:00:00Z"` {
+		t.Fatalf("event 1 retention fields not verbatim: %s", lines[1])
+	}
+	if err := json.Unmarshal(lines[3], &third); err != nil {
+		t.Fatalf("decode event 3: %v", err)
+	}
+	for _, k := range []string{"kept", "output_bytes", "output_scrubbed_at"} {
+		if _, ok := third[k]; ok {
+			t.Fatalf("never-scrubbed event carried %q: %s", k, lines[3])
+		}
+	}
+
+	full.Events = full.Events[2:]
+	if strings.Contains(RenderIndex(full), "**Retention:**") {
+		t.Fatal("retention legend shown with no scrubbed event")
+	}
+}

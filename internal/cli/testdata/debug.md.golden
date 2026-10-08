@@ -140,10 +140,11 @@ One JSON object per line: line 1 is the run header, the rest are events keyed by
 
 ```sh
 jq -r 'select(.disp=="23").command' 11111111-coca-cola.jsonl   # full code of step 23
+jq -r 'select(.disp=="23").kept.command' 11111111-coca-cola.jsonl   # its redacted shape once raw aged out (>14 d)
 jq -r 'select(.disp=="23").stdout'  11111111-coca-cola.jsonl   # its output / traceback
 jq -r 'select(.disp=="23").stdout | .[0:2000]' 11111111-coca-cola.jsonl   # windowed when flagged large
 jq -r 'select(.exit_code != null and .exit_code != 0).disp' 11111111-coca-cola.jsonl   # failed steps
-jq -r 'select(.command // "" | contains("invoice")).disp' 11111111-coca-cola.jsonl   # steps touching X
+jq -r 'select((.command // "") + (.kept.command // "") | contains("invoice")).disp' 11111111-coca-cola.jsonl   # steps touching X (raw or redacted)
 jq -r 'select(.reasoning) | .disp + " " + .reasoning' 11111111-coca-cola.jsonl   # reasoning per step
 ```
 
