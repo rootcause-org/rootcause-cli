@@ -599,6 +599,7 @@ type EventItem struct {
 	// JSONL passes it through verbatim; read it via KeptView.
 	OutputScrubbedAt string          `json:"output_scrubbed_at,omitempty"`
 	OutputBytes      int64           `json:"output_bytes,omitempty"`
+	OutputSHA256     string          `json:"output_sha256,omitempty"`
 	Kept             json.RawMessage `json:"kept,omitempty"`
 }
 
@@ -616,6 +617,7 @@ type KeptEvent struct {
 	Error             *struct {
 		Class string `json:"class"`
 		Line  string `json:"line"`
+		At    string `json:"at,omitempty"`
 	} `json:"error,omitempty"`
 }
 

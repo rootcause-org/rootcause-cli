@@ -122,6 +122,9 @@ func EmitJSONL(w io.Writer, full *client.FullResponse) error {
 		if e.src.OutputBytes != 0 {
 			line["output_bytes"] = e.src.OutputBytes
 		}
+		if e.src.OutputSHA256 != "" {
+			line["output_sha256"] = e.src.OutputSHA256
+		}
 		if e.kept != nil {
 			line["kept"] = e.src.Kept
 		}

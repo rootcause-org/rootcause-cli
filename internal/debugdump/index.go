@@ -225,6 +225,9 @@ func retention(e decEvent) string {
 		}
 		if k.Error != nil && k.Error.Class != "" {
 			s += " · `" + backtickSafe(cell(k.Error.Class, 40)) + "`"
+			if k.Error.At != "" {
+				s += " @ " + backtickSafe(cell(k.Error.At, 40))
+			}
 		}
 		return s
 	}
