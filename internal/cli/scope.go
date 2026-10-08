@@ -94,7 +94,7 @@ func commandScope(path string) scopeSpec {
 		return projectTenant
 	// --lane rides the member dashboard plane, whose URL is scope-shaped (tenant-nested on a
 	// tenant-enabled project); the embed plane ignores the selector (the token carries the tenant).
-	case path == "project chat send", path == "project chat session":
+	case path == "project chat send", path == "project chat session", path == "project chat decide", path == "project chat card":
 		return projectTenant
 	case path == "project egress":
 		return projectTenant

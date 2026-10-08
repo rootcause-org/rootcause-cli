@@ -3084,6 +3084,8 @@ Available Commands:
   token       Mint a five-minute server chat token
   send        Send one chat turn and print its SSE frames and session + run IDs
   session     Print a session's persisted transcript as the widget would reopen it
+  decide      Settle a chat card (e.g. publish or decline a website change) and print its projection
+  card        Print a chat card's current projection (poll it while it settles)
   doctor      Diagnose embedded-chat configuration and recent rejects
   brief       Print the secret-free chat implementation brief
 
@@ -3241,6 +3243,50 @@ Usage:
   rc project chat session <id> [flags]
 
 Flags:
+      --lane string     dashboard lane over the OAuth login instead of an embed token: setup (Set up & improve) or data (Ask your data)
+      --origin string   embedding-page origin (default: token origin claim)
+      --token string    embed chat token (default: RC_CHAT_TOKEN)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project chat decide --help
+Settle a chat card (e.g. publish or decline a website change) and print its projection
+
+Usage:
+  rc project chat decide <session-id> <card-id> <outcome> [flags]
+
+Flags:
+      --card string     card route: website-changes, actions, memories, brain-changes, outbound-batches (default "website-changes")
+      --lane string     dashboard lane over the OAuth login instead of an embed token: setup (Set up & improve) or data (Ask your data)
+      --origin string   embedding-page origin (default: token origin claim)
+      --token string    embed chat token (default: RC_CHAT_TOKEN)
+
+Global Flags:
+      --no-preview       write large output artifacts but omit head/tail previews
+      --out-dir string   directory for large output artifacts (default: RC_OUTPUT_DIR or .rootcause/output)
+  -o, --output string    output format: json|table (default: auto-detect)
+      --profile string   token profile to use (default: RC_PROFILE, else auto — the brain in the current directory, else "default")
+      --project string   scope the request to one project by name or id (default: RC_PROJECT; requires an all-projects token, unless the checkout's .rootcause.toml binds that project via [[also]])
+      --raw-output       disable progressive output spill and print full payloads to stdout
+      --scope string     force request routing: project|tenant. "project" clears any resolved tenant (--tenant, a brain checkout, or a tenant-bound login) so a tenant-capable command hits the project route; "tenant" requires a resolvable tenant. With a tenant-pinned token, --scope project routes to the project and the server returns 403 — the flag controls routing, not authorization.
+      --tenant string    override the login tenant where supported (default: RC_TENANT)
+
+$ rc project chat card --help
+Print a chat card's current projection (poll it while it settles)
+
+Usage:
+  rc project chat card <session-id> <card-id> [flags]
+
+Flags:
+      --card string     card route: website-changes, actions, memories, brain-changes, outbound-batches (default "website-changes")
       --lane string     dashboard lane over the OAuth login instead of an embed token: setup (Set up & improve) or data (Ask your data)
       --origin string   embedding-page origin (default: token origin claim)
       --token string    embed chat token (default: RC_CHAT_TOKEN)

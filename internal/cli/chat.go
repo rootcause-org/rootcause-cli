@@ -23,7 +23,7 @@ import (
 
 func newChatCmd(e *env, version string) *cobra.Command {
 	cmd := &cobra.Command{Use: "chat", Short: "Configure, diagnose, and smoke-test embedded chat"}
-	cmd.AddCommand(newBagGetCmd(e, "/api/v1/chat"), newBagSetCmd(e, "/api/v1/chat"), chatSecretCmd(e), chatTokenCmd(e), chatSendCmd(e), chatSessionCmd(e), chatDoctorCmd(e, version), chatBriefCmd(e))
+	cmd.AddCommand(newBagGetCmd(e, "/api/v1/chat"), newBagSetCmd(e, "/api/v1/chat"), chatSecretCmd(e), chatTokenCmd(e), chatSendCmd(e), chatSessionCmd(e), chatCardDecideCmd(e), chatCardStatusCmd(e), chatDoctorCmd(e, version), chatBriefCmd(e))
 	return cmd
 }
 
@@ -333,6 +333,89 @@ func chatSessionCmd(e *env) *cobra.Command {
 	cmd.Flags().StringVar(&token, "token", "", "embed chat token (default: RC_CHAT_TOKEN)")
 	cmd.Flags().StringVar(&origin, "origin", "", "embedding-page origin (default: token origin claim)")
 	lane.flags(cmd, false)
+	return cmd
+}
+
+// chatCardTarget is what `decide` and `card` share: the plane (embed token or --lane), the card route
+// (--card, verbatim) and the session + card ids. The CLI knows no per-card fields; the server validates
+// the route and the outcome and returns the card projection, printed as JSON.
+type chatCardTarget struct {
+	token, origin, card string
+	lane                chatLane
+}
+
+func (t *chatCardTarget) flags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&t.token, "token", "", "embed chat token (default: RC_CHAT_TOKEN)")
+	cmd.Flags().StringVar(&t.origin, "origin", "", "embedding-page origin (default: token origin claim)")
+	cmd.Flags().StringVar(&t.card, "card", "website-changes", "card route: website-changes, actions, memories, brain-changes, outbound-batches")
+	t.lane.flags(cmd, false)
+}
+
+// run resolves the plane and hands the matching call to embed or dashboard, then prints the body.
+func (t *chatCardTarget) run(e *env,
+	embed func(c *client.Client, project, origin, token string) (json.RawMessage, error),
+	dashboard func(c *client.Client, project, tenant string) (json.RawMessage, error),
+) error {
+	if err := t.lane.validate(); err != nil {
+		return err
+	}
+	var raw json.RawMessage
+	if t.lane.dashboard() {
+		project := e.scopeProject()
+		if project == "" {
+			return fmt.Errorf("--lane needs a project: run inside a brain checkout or pass --project")
+		}
+		c, err := e.newClient()
+		if err != nil {
+			return err
+		}
+		if raw, err = dashboard(c, project, e.scopeTenant()); err != nil {
+			return err
+		}
+	} else {
+		token, origin, project, err := chatEmbedScope(e, t.token, t.origin)
+		if err != nil {
+			return err
+		}
+		c, err := e.newClient()
+		if err != nil {
+			return err
+		}
+		if raw, err = embed(c, project, origin, token); err != nil {
+			return err
+		}
+	}
+	return render.JSON(e.out, raw)
+}
+
+// chatCardDecideCmd settles a chat card the way its widget button does (e.g. publish a website change).
+func chatCardDecideCmd(e *env) *cobra.Command {
+	var t chatCardTarget
+	cmd := &cobra.Command{Use: "decide <session-id> <card-id> <outcome>", Short: "Settle a chat card (e.g. publish or decline a website change) and print its projection", Args: cobra.ExactArgs(3), RunE: func(_ *cobra.Command, args []string) error {
+		sessionID, cardID, outcome := strings.TrimSpace(args[0]), strings.TrimSpace(args[1]), strings.TrimSpace(args[2])
+		return t.run(e, func(c *client.Client, project, origin, token string) (json.RawMessage, error) {
+			return c.ChatCardDecide(e.ctx(), project, origin, token, sessionID, t.card, cardID, outcome)
+		}, func(c *client.Client, project, tenant string) (json.RawMessage, error) {
+			return c.DashboardChatCardDecide(e.ctx(), project, tenant, sessionID, t.card, cardID, outcome)
+		})
+	}}
+	t.flags(cmd)
+	return cmd
+}
+
+// chatCardStatusCmd reads a card's current projection — what the widget polls (e.g. while a website
+// change builds).
+func chatCardStatusCmd(e *env) *cobra.Command {
+	var t chatCardTarget
+	cmd := &cobra.Command{Use: "card <session-id> <card-id>", Short: "Print a chat card's current projection (poll it while it settles)", Args: cobra.ExactArgs(2), RunE: func(_ *cobra.Command, args []string) error {
+		sessionID, cardID := strings.TrimSpace(args[0]), strings.TrimSpace(args[1])
+		return t.run(e, func(c *client.Client, project, origin, token string) (json.RawMessage, error) {
+			return c.ChatCardStatus(e.ctx(), project, origin, token, sessionID, t.card, cardID)
+		}, func(c *client.Client, project, tenant string) (json.RawMessage, error) {
+			return c.DashboardChatCardStatus(e.ctx(), project, tenant, sessionID, t.card, cardID)
+		})
+	}}
+	t.flags(cmd)
 	return cmd
 }
 

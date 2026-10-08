@@ -1,0 +1,8 @@
+{
+  "card_id": "wc_01",
+  "kind": "website_change",
+  "status": "publishing",
+  "preview_state": "ready",
+  "live_state": "building",
+  "preview_url": "https://preview.example.test/wc_01"
+}

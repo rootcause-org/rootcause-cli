@@ -504,6 +504,8 @@ help using `go test ./internal/cli -update`.
 | `rc project branding set` | Change values (sparse, validate-then-apply server-side) |
 | `rc project branding` | Read or change white-label branding (colours/name/public_base_url) |
 | `rc project chat brief` | Print the secret-free chat implementation brief |
+| `rc project chat card` | Print a chat card's current projection (poll it while it settles) |
+| `rc project chat decide` | Settle a chat card (e.g. publish or decline a website change) and print its projection |
 | `rc project chat doctor` | Diagnose embedded-chat configuration and recent rejects |
 | `rc project chat get` | Show current values (value / effective / default) |
 | `rc project chat secret reveal` | Reveal the chat signing secret (printed once) |

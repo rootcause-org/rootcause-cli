@@ -862,6 +862,29 @@ func stubServer(t *testing.T) *httptest.Server {
 	})
 
 	registerConfigSurfaceStubs(t, mux)
+	// Chat card routes, both planes: `rc project chat card|decide`. The CLI passes the card route and
+	// outcome through verbatim; the stub pins the route shape, the origin header and the decision body.
+	chatCard := func(w http.ResponseWriter, r *http.Request) {
+		requireAuth(t, r)
+		if r.PathValue("card") != "website-changes" || r.PathValue("card_id") != "wc_01" {
+			t.Fatalf("chat card route: %s", r.URL.Path)
+		}
+		if strings.HasPrefix(r.URL.Path, "/chat/v1/") && (r.Header.Get("X-RC-Embed-Origin") != "https://site.example.test" || r.URL.Query().Get("project") != "alpha") {
+			t.Fatalf("embed card call: origin %q project %q", r.Header.Get("X-RC-Embed-Origin"), r.URL.Query().Get("project"))
+		}
+		if r.Method == http.MethodPost {
+			var body map[string]string
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body["outcome"] != "publish" || len(body) != 1 {
+				t.Fatalf("decision body: %v %v", body, err)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(fixture(t, "chat_card.json"))
+	}
+	mux.HandleFunc("GET /chat/v1/session/{id}/{card}/{card_id}", chatCard)
+	mux.HandleFunc("POST /chat/v1/session/{id}/{card}/{card_id}/decision", chatCard)
+	mux.HandleFunc("GET /api/v1/projects/alpha/chat/dashboard/session/{id}/{card}/{card_id}", chatCard)
+	mux.HandleFunc("POST /api/v1/projects/alpha/chat/dashboard/session/{id}/{card}/{card_id}/decision", chatCard)
 	return httptest.NewServer(mux)
 }
 

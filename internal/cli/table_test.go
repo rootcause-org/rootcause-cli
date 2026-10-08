@@ -223,6 +223,10 @@ func TestJSONPassthrough(t *testing.T) {
 		{"TenantSettingsGetJSON", []string{"project", "tenant", "settings", "get", "de-kies"}, "hierarchy_tenant_settings.json"},
 		{"TenantProfileGetJSON", []string{"project", "tenant", "profile", "get", "de-kies"}, "tenant_settings.json"},
 		{"TenantProfileSchemaDump", []string{"project", "tenant", "profile", "schema"}, "tenant_schema.json"},
+		{"ChatCardDecideEmbedJSON", []string{"--project", "alpha", "project", "chat", "decide", "sess_1", "wc_01", "publish", "--token", "test-key", "--origin", "https://site.example.test"}, "chat_card.json"},
+		{"ChatCardStatusEmbedJSON", []string{"--project", "alpha", "project", "chat", "card", "sess_1", "wc_01", "--token", "test-key", "--origin", "https://site.example.test"}, "chat_card.json"},
+		{"ChatCardDecideDashboardJSON", []string{"--project", "alpha", "project", "chat", "decide", "sess_1", "wc_01", "publish", "--lane", "setup"}, "chat_card.json"},
+		{"ChatCardStatusDashboardJSON", []string{"--project", "alpha", "project", "chat", "card", "sess_1", "wc_01", "--lane", "setup"}, "chat_card.json"},
 		{"ProjectHierarchySettingsGetJSON", []string{"project", "settings", "behavior", "get"}, "hierarchy_project_settings.json"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -145,6 +145,29 @@ func (c *Client) ChatSend(ctx context.Context, project, origin, token, sessionID
 	return c.streamChatTurn(ctx, spec, out)
 }
 
+// chatCardSuffix is the card route under a session, shared by both planes: card is the server's
+// route segment (website-changes, actions, memories, …), passed through verbatim.
+func chatCardSuffix(sessionID, card, cardID string) string {
+	return "/session/" + url.PathEscape(sessionID) + "/" + url.PathEscape(card) + "/" + url.PathEscape(cardID)
+}
+
+// ChatCardStatus reads one card's current projection on the embed plane (what the widget polls).
+func (c *Client) ChatCardStatus(ctx context.Context, project, origin, token, sessionID, card, cardID string) (json.RawMessage, error) {
+	path := "/chat/v1" + chatCardSuffix(sessionID, card, cardID) + "?project=" + url.QueryEscape(project)
+	return c.fetch(ctx, embedSpec(http.MethodGet, path, origin, token, nil))
+}
+
+// ChatCardDecide settles one card on the embed plane (POST …/decision {"outcome": …}); the server
+// validates the outcome and returns the card's new projection.
+func (c *Client) ChatCardDecide(ctx context.Context, project, origin, token, sessionID, card, cardID, outcome string) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]string{"outcome": outcome})
+	if err != nil {
+		return nil, err
+	}
+	path := "/chat/v1" + chatCardSuffix(sessionID, card, cardID) + "/decision?project=" + url.QueryEscape(project)
+	return c.fetch(ctx, embedSpec(http.MethodPost, path, origin, token, body))
+}
+
 // dashboardChatPath is the bearer mount of the member chat surface (both lanes): the project tree,
 // tenant-nested when the scope names one. Same SSE frames and session shapes as the embed plane.
 func dashboardChatPath(project, tenant, suffix string) string {
@@ -193,6 +216,20 @@ func (c *Client) dashboardChatOpen(ctx context.Context, spec sendSpec) (string, 
 // DashboardChatSession re-reads a dashboard conversation's persisted transcript.
 func (c *Client) DashboardChatSession(ctx context.Context, project, tenant, sessionID string) (json.RawMessage, error) {
 	return c.fetch(ctx, sendSpec{method: http.MethodGet, path: dashboardChatPath(project, tenant, "/session/"+url.PathEscape(sessionID))})
+}
+
+// DashboardChatCardStatus reads one card's current projection on the dashboard plane.
+func (c *Client) DashboardChatCardStatus(ctx context.Context, project, tenant, sessionID, card, cardID string) (json.RawMessage, error) {
+	return c.fetch(ctx, sendSpec{method: http.MethodGet, path: dashboardChatPath(project, tenant, chatCardSuffix(sessionID, card, cardID))})
+}
+
+// DashboardChatCardDecide settles one card on the dashboard plane over the OAuth bearer.
+func (c *Client) DashboardChatCardDecide(ctx context.Context, project, tenant, sessionID, card, cardID, outcome string) (json.RawMessage, error) {
+	body, err := json.Marshal(map[string]string{"outcome": outcome})
+	if err != nil {
+		return nil, err
+	}
+	return c.fetch(ctx, sendSpec{method: http.MethodPost, path: dashboardChatPath(project, tenant, chatCardSuffix(sessionID, card, cardID)+"/decision"), body: body})
 }
 
 // DashboardChatSend posts one dashboard turn over the OAuth bearer and prints its SSE frames.
