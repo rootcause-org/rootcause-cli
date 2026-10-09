@@ -28,6 +28,10 @@ Note actions (2):
     url: https://dashboard.stripe.com/customers/cus_123
     Jump to cus_123 in Stripe.
 
+Files:
+- embed-huis-van-het-kind.txt · 837 B · text/plain
+  https://app.example.test/files/0199a1b2-0000-7000-8000-00000000f11e?t=sig
+
 Actions (1):
   ID       ACTION                 LABEL
   act_123  send_invoice_reminder  Send invoice reminder

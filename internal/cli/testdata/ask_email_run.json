@@ -13,6 +13,15 @@
   "turns": 12,
   "bash_total": 34,
   "run_url": "https://app.replypen.com/runs/email-rich?t=abc123",
-  "attachments": [],
+  "attachments": [
+    {
+      "id": "0199a1b2-0000-7000-8000-00000000f11e",
+      "filename": "embed-huis-van-het-kind.txt",
+      "mime_type": "text/plain",
+      "size_bytes": 837,
+      "sha256": "9f2c4e1a0b7d3c5e8f6a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f6a",
+      "url": "https://app.example.test/files/0199a1b2-0000-7000-8000-00000000f11e?t=sig"
+    }
+  ],
   "metadata": { "outcome": "ok", "tokens": 4210, "run_url": "https://app.replypen.com/runs/email-rich?t=abc123" }
 }

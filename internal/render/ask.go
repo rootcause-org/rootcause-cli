@@ -39,6 +39,7 @@ func AskEmail(w io.Writer, r *client.RunDetail, full *client.FullResponse) {
 			renderNoteActions(w, n.Actions)
 		}
 	}
+	renderRunFiles(w, r.Attachments)
 	renderProposedActions(w, askActions(r, full))
 	renderSourcePR(w, askSourcePR(r, full))
 	renderMetadata(w, askMetadata(r, full))
@@ -54,6 +55,7 @@ func AskRaw(w io.Writer, r *client.RunDetail) {
 	if answer != "" {
 		_, _ = fmt.Fprintf(w, "\nAnswer:\n%s\n", answer)
 	}
+	renderRunFiles(w, r.Attachments)
 	renderProposedActions(w, r.ProposedActions)
 	renderSourcePR(w, r.SourcePR)
 	renderMetadata(w, r.Metadata)
@@ -121,6 +123,17 @@ func sortedClaimKeys(m map[string]any) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// renderRunFiles lists the files the run generated, one per line with its download URL.
+func renderRunFiles(w io.Writer, files []client.RunFile) {
+	if len(files) == 0 {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "\nFiles:\n")
+	for _, f := range files {
+		_, _ = fmt.Fprintf(w, "- %s · %s · %s\n  %s\n", f.Filename, humanBytes(f.SizeBytes), f.MimeType, f.URL)
+	}
 }
 
 func renderAskHeader(w io.Writer, r *client.RunDetail, scenario string) {

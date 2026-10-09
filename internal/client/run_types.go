@@ -226,7 +226,7 @@ type RunDebug struct {
 
 // RunDetail is GET /api/v1/runs/{id} — it MUST mirror the server's statusResponse (internal/api/prompt.go)
 // field-for-field: same json tags, same omitempty. Optional fields are omitempty server-side; Attachments
-// is always present (always [] in v0). category/has_draft/has_note come from the shared row-builder;
+// is always present: the files the run itself generated (never the ask's --file inputs). category/has_draft/has_note come from the shared row-builder;
 // duration_ms/turns/bash_total are the run_health triage scalars.
 type RunDetail struct {
 	RunID           string           `json:"run_id"`
@@ -256,10 +256,21 @@ type RunDetail struct {
 	// OutboundEmail / ReplyScope: WHO the draft is addressed to. Absent on an ordinary reply-to-sender.
 	OutboundEmail *OutboundEmail `json:"outbound_email,omitempty"`
 	ReplyScope    string         `json:"reply_scope,omitempty"`
-	Attachments   []any          `json:"attachments"`
+	Attachments   []RunFile      `json:"attachments"`
 	Error         string         `json:"error,omitempty"`
 	Debug         *RunDebug      `json:"debug,omitempty"`
 	Metadata      map[string]any `json:"metadata,omitempty"`
+}
+
+// RunFile is one file the run generated and shipped (server runfile.Attachment): metadata plus a
+// time-limited download URL, never the bytes.
+type RunFile struct {
+	ID        string `json:"id"`
+	Filename  string `json:"filename"`
+	MimeType  string `json:"mime_type"`
+	SizeBytes int64  `json:"size_bytes"`
+	SHA256    string `json:"sha256"`
+	URL       string `json:"url"`
 }
 
 // OutboundEmail is the explicit addressing of a run's draft (the server's reply.outbound_email): the
